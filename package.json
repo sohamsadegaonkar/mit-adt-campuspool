@@ -1,0 +1,19 @@
+{
+  "name": "mit-adt-campuspool",
+  "version": "1.0.0",
+  "description": "Official Peer Carpool & Bike-pool App for MIT ADT University, Loni Kalbhor, Pune",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "compression": "^1.7.4",
+    "express": "^4.18.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT"
+}

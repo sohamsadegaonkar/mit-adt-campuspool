@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: mit-adt-campuspool
+    env: node
+    plan: free
+    region: oregon
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /api/rides
+    envVars:
+      - key: NODE_VERSION
+        value: 20.10.0
+      - key: PORT
+        value: 10000
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "465"
+      - key: SMTP_SECURE
+        value: "true"
+      - key: SMTP_USER
+        value: sadegaonkarsg@gmail.com
+      - key: SMTP_PASS
+        value: ngvs yldy rgpu kfpm
+      - key: SMTP_FROM
+        value: MIT ADT CampusPool <sadegaonkarsg@gmail.com>
+      - key: OTP_SECRET
+        generateValue: true

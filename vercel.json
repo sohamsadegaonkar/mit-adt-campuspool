@@ -1,0 +1,23 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "server.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/server.js"
+    }
+  ],
+  "env": {
+    "SMTP_HOST": "smtp.gmail.com",
+    "SMTP_PORT": "465",
+    "SMTP_SECURE": "true",
+    "SMTP_USER": "sadegaonkarsg@gmail.com",
+    "SMTP_PASS": "ngvs yldy rgpu kfpm",
+    "SMTP_FROM": "MIT ADT CampusPool <sadegaonkarsg@gmail.com>"
+  }
+}

@@ -1,0 +1,29 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // BUG-06 Fix: Unified email domain validation matching JS and SQL
+    function isMitStudent() {
+      return request.auth != null && 
+        request.auth.token.email.matches('.*@((students[.])?mituniversity[.]edu[.]in|mituniversity[.]ac[.]in|mitpune[.]edu[.]in|mitaoe[.]ac[.]in)$');
+    }
+
+    match /users/{userId} {
+      allow read, write: if isMitStudent() && request.auth.uid == userId;
+    }
+
+    match /rides/{rideId} {
+      allow read: if isMitStudent();
+      allow create: if isMitStudent() && request.resource.data.driverEmail == request.auth.token.email;
+      allow update, delete: if isMitStudent() && resource.data.driverEmail == request.auth.token.email;
+    }
+
+    // BUG-03 Fix: Enforce ownership on bookings
+    match /bookings/{bookingId} {
+      allow read: if isMitStudent() && 
+        (resource.data.passengerEmail == request.auth.token.email || resource.data.driverEmail == request.auth.token.email);
+      allow create: if isMitStudent() && request.resource.data.passengerEmail == request.auth.token.email;
+      allow update, delete: if isMitStudent() && 
+        (resource.data.passengerEmail == request.auth.token.email || resource.data.driverEmail == request.auth.token.email);
+    }
+  }
+}
