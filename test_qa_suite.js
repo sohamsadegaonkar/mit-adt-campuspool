@@ -107,6 +107,59 @@ async function runTests() {
     assert.ok(!html.includes('Pooja Kadam</h3>'), 'Pooja Kadam demo profile should not exist in static ride cards');
   });
 
+  // Test 11: Real-Time Free GPS & Leaflet Engine Verification
+  await test('TC-11: Real-time free GPS tracking engine (Leaflet + OpenStreetMap + HTML5 Geolocation)', async () => {
+    // 1. Client assets
+    assert.ok(html.includes('leaflet.css'), 'Leaflet CSS must be loaded');
+    assert.ok(html.includes('leaflet.js'), 'Leaflet JS must be loaded');
+    assert.ok(html.includes('id="campusLeafletMap"'), '#campusLeafletMap canvas must exist');
+    assert.ok(html.includes('id="gpsTrackingModal" hidden style="display: none;"'), '#gpsTrackingModal must exist with native hidden state');
+    assert.ok(html.includes('calculateDistanceKm'), 'Client-side Haversine distance calculator must exist');
+
+    // 2. Real-time GPS API Endpoints
+    const driverLocPayload = {
+      rideId: 'test_commute_live',
+      lat: 18.4905,
+      lng: 74.0255,
+      speed: 36,
+      heading: 180,
+      accuracy: 8
+    };
+    const postRes = await fetch(`${BASE_URL}/api/rides/location`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(driverLocPayload)
+    });
+    assert.strictEqual(postRes.status, 200, 'POST /api/rides/location must succeed');
+
+    const getRes = await fetch(`${BASE_URL}/api/rides/location?rideId=test_commute_live`);
+    assert.strictEqual(getRes.status, 200, 'GET /api/rides/location must succeed');
+    const getData = await getRes.json();
+    assert.strictEqual(getData.success, true);
+    assert.strictEqual(getData.location.lat, 18.4905);
+    assert.strictEqual(getData.location.speed, 36);
+
+    // 3. Passenger Location Endpoint
+    const passPayload = {
+      bookingId: 'test_booking_live',
+      lat: 18.4891,
+      lng: 74.0280,
+      accuracy: 5
+    };
+    const passPostRes = await fetch(`${BASE_URL}/api/bookings/passenger-location`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(passPayload)
+    });
+    assert.strictEqual(passPostRes.status, 200, 'POST /api/bookings/passenger-location must succeed');
+
+    const passGetRes = await fetch(`${BASE_URL}/api/bookings/passenger-location?bookingId=test_booking_live`);
+    assert.strictEqual(passGetRes.status, 200, 'GET /api/bookings/passenger-location must succeed');
+    const passGetData = await passGetRes.json();
+    assert.strictEqual(passGetData.success, true);
+    assert.strictEqual(passGetData.location.lat, 18.4891);
+  });
+
   console.log(`\n========================================`);
   console.log(`Total: ${passed + failed} | Passed: ${passed} | Failed: ${failed}`);
   console.log(`========================================\n`);

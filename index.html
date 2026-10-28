@@ -27,6 +27,53 @@
     }
   </script>
 
+    <!-- Leaflet.js Real-Time OpenStreetMap Engine (100% Free, Zero Google Cloud Billing) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <style>
+    /* Leaflet Dark Mode & Pulse Markers */
+    .leaflet-container {
+      background-color: #020617 !important;
+      font-family: inherit;
+    }
+    .leaflet-tile {
+      filter: brightness(0.85) contrast(1.15) saturate(0.9);
+    }
+    .gps-pulse-pin {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .gps-pulse-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 9999px;
+      background-color: #3b82f6;
+      border: 2px solid #ffffff;
+      box-shadow: 0 0 10px rgba(59, 130, 246, 0.9);
+      animation: pulseGps 1.8s infinite;
+    }
+    @keyframes pulseGps {
+      0% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+      70% { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
+      100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+    }
+    .driver-live-marker {
+      background: #10b981;
+      color: white;
+      border-radius: 9999px;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      border: 2px solid white;
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.8);
+      transition: all 0.3s ease;
+    }
+  </style>
+
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -623,11 +670,29 @@
         </div>
 
         <!-- Map Iframe Container -->
-        <div class="relative rounded-2xl overflow-hidden border border-slate-800 shadow-inner bg-slate-950">
-          <iframe id="campusGoogleMapsIframe" class="w-full h-80 sm:h-96 border-0" src="https://maps.google.com/maps?q=MIT+ADT+University,+Loni+Kalbhor,+Pune&amp;z=15&amp;output=embed" loading="lazy" allowfullscreen="" referrerpolicy="no-referrer-when-downgrade">
-          </iframe>
-          <div class="absolute bottom-2 left-2 bg-slate-900/90 backdrop-blur-xs border border-slate-800 px-2 py-1 rounded-md text-[10px] font-semibold text-slate-300">
-            📍 MIT Art, Design and Technology University, Loni Kalbhor
+                <!-- Free Interactive Leaflet Map & GPS Locator -->
+        <div class="space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div class="flex items-center gap-2">
+              <button type="button" id="campusLocateMeBtn" class="bg-brand-600 hover:bg-brand-500 text-white font-bold px-3 py-1.5 rounded-xl transition shadow-sm flex items-center gap-1.5 cursor-pointer">
+                <span>🎯</span> Locate Me (Free GPS)
+              </button>
+              <span id="campusGpsStatusBadge" class="text-[11px] text-slate-400">Ready • High accuracy GPS</span>
+            </div>
+            <div class="flex items-center gap-1">
+              <span class="text-slate-500 text-[10px] font-bold uppercase hidden sm:inline">Focus Gate:</span>
+              <button type="button" class="gate-focus-btn bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded-lg text-[10px] font-bold border border-slate-700 cursor-pointer" data-gate="1">Gate 1</button>
+              <button type="button" class="gate-focus-btn bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded-lg text-[10px] font-bold border border-slate-700 cursor-pointer" data-gate="2">Gate 2</button>
+              <button type="button" class="gate-focus-btn bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded-lg text-[10px] font-bold border border-slate-700 cursor-pointer" data-gate="3">Gate 3</button>
+              <button type="button" class="gate-focus-btn bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded-lg text-[10px] font-bold border border-slate-700 cursor-pointer" data-gate="4">Gate 4</button>
+            </div>
+          </div>
+
+          <div class="relative rounded-2xl overflow-hidden border border-slate-800 shadow-inner bg-slate-950">
+            <div id="campusLeafletMap" class="w-full h-80 sm:h-96 z-0"></div>
+            <div class="absolute bottom-2 left-2 z-[400] bg-slate-900/90 backdrop-blur-xs border border-slate-800 px-2.5 py-1 rounded-lg text-[10px] font-semibold text-slate-300 shadow">
+              📍 OpenStreetMap • 100% Free Real-Time Campus GPS
+            </div>
           </div>
         </div>
 
@@ -3043,6 +3108,9 @@
       }
 
       document.getElementById(viewId)?.classList.remove('hidden');
+      if (viewId === 'viewCampusMap') {
+        setTimeout(initCampusLeafletMap, 100);
+      }
     }
 
     document.getElementById('tabFindRides')?.addEventListener('click', () => switchMainTab('tabFindRides', 'viewFindRides'));
@@ -3417,6 +3485,502 @@
       });
     }
 
+    
+    // =============================================================
+    // REAL-TIME FREE GPS ENGINE (LEAFLET + HTML5 GEOLOCATION)
+    // 100% Free Forever • Zero Google Maps API Keys or Cloud Billing
+    // =============================================================
+    const CAMPUS_COORDS = {
+      center: [18.4905, 74.0255],
+      gate1: { name: "MIT ADT Main Gate 1 (NH 65)", coords: [18.4905, 74.0255], icon: "📍" },
+      gate2: { name: "World Peace Dome Square (Gate 2)", coords: [18.4891, 74.0280], icon: "🏛️" },
+      gate3: { name: "Sangamwadi Hostel Quad (Gate 3)", coords: [18.4930, 74.0230], icon: "🏠" },
+      gate4: { name: "VishwaRaj Hospital (Gate 4)", coords: [18.4875, 74.0240], icon: "🏥" },
+      hadapsar: { name: "Hadapsar Gadital Bus Stop", coords: [18.5089, 73.9260], icon: "🚏" },
+      station: { name: "Pune Railway Station", coords: [18.5289, 73.8744], icon: "🚉" },
+      swargate: { name: "Swargate Bus Station", coords: [18.5018, 73.8636], icon: "🚌" }
+    };
+
+    let campusLeafletMapInstance = null;
+    let gpsTrackerMapInstance = null;
+    let userLocationMarker = null;
+    let driverMarker = null;
+    let passengerMarker = null;
+    let routePolyline = null;
+    let activeWatchPositionId = null;
+    let activeGpsPollingInterval = null;
+    let simulationInterval = null;
+    let currentTrackingContext = {
+      rideId: null,
+      bookingId: null,
+      isDriver: false,
+      driverCoords: [18.4905, 74.0255],
+      passengerCoords: [18.4905, 74.0255],
+      speed: 0
+    };
+
+    function calculateDistanceKm(lat1, lon1, lat2, lon2) {
+      const R = 6371; // Earth radius in km
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return Number((R * c).toFixed(2));
+    }
+
+    // Initialize Campus Overview Leaflet Map
+    function initCampusLeafletMap() {
+      if (campusLeafletMapInstance) {
+        campusLeafletMapInstance.invalidateSize();
+        return;
+      }
+      const mapEl = document.getElementById('campusLeafletMap');
+      if (!mapEl || typeof L === 'undefined') return;
+
+      campusLeafletMapInstance = L.map('campusLeafletMap', {
+        zoomControl: true,
+        attributionControl: false
+      }).setView(CAMPUS_COORDS.center, 15);
+
+      // CartoDB Voyager High-Res Free Tiles (No API key required)
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19,
+        subdomains: 'abcd'
+      }).addTo(campusLeafletMapInstance);
+
+      // Add Gates Markers
+      const gates = [CAMPUS_COORDS.gate1, CAMPUS_COORDS.gate2, CAMPUS_COORDS.gate3, CAMPUS_COORDS.gate4];
+      gates.forEach(gate => {
+        const marker = L.marker(gate.coords).addTo(campusLeafletMapInstance);
+        marker.bindPopup(`
+          <div style="font-family: inherit; font-size: 11px;">
+            <strong style="color: #4f46e5;">${gate.icon} ${gate.name}</strong><br/>
+            <span style="color: #64748b;">Primary 24/7 CCTV Monitored Commuter Bay</span>
+          </div>
+        `);
+      });
+
+      // Focus Buttons
+      document.querySelectorAll('.gate-focus-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const gId = e.currentTarget.getAttribute('data-gate');
+          const target = CAMPUS_COORDS['gate' + gId];
+          if (target && campusLeafletMapInstance) {
+            campusLeafletMapInstance.flyTo(target.coords, 17, { duration: 1.2 });
+            showToast(`Focused on ${target.name}`, "📍");
+          }
+        });
+      });
+
+      // Real-time GPS Locator Button
+      document.getElementById('campusLocateMeBtn')?.addEventListener('click', () => {
+        const statusEl = document.getElementById('campusGpsStatusBadge');
+        if (!navigator.geolocation) {
+          showToast("Geolocation is not supported by your browser.", "⚠️");
+          return;
+        }
+
+        if (statusEl) statusEl.textContent = "Acquiring GPS fix...";
+        showToast("Requesting device GPS...", "🛰️");
+
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            const acc = Math.round(pos.coords.accuracy);
+
+            if (userLocationMarker) {
+              campusLeafletMapInstance.removeLayer(userLocationMarker);
+            }
+
+            const pulseIcon = L.divIcon({
+              className: 'gps-pulse-pin',
+              html: '<div class="gps-pulse-dot"></div>',
+              iconSize: [20, 20],
+              iconAnchor: [10, 10]
+            });
+
+            userLocationMarker = L.marker([lat, lng], { icon: pulseIcon }).addTo(campusLeafletMapInstance);
+            userLocationMarker.bindPopup(`
+              <div style="font-family: inherit; font-size: 11px;">
+                <strong style="color: #10b981;">📍 Your Live Location</strong><br/>
+                <span>Accurate to ${acc} meters</span>
+              </div>
+            `).openPopup();
+
+            campusLeafletMapInstance.flyTo([lat, lng], 16, { duration: 1.5 });
+
+            // Calculate distance to Gate 1
+            const distGate1 = calculateDistanceKm(lat, lng, CAMPUS_COORDS.gate1.coords[0], CAMPUS_COORDS.gate1.coords[1]);
+            if (statusEl) {
+              statusEl.textContent = `Live fix (±${acc}m) • ${distGate1} km to Gate 1`;
+            }
+            showToast(`GPS Fix acquired: ${distGate1} km from Main Gate 1`, "🎯");
+          },
+          (err) => {
+            console.warn("GPS acquire error:", err);
+            if (statusEl) statusEl.textContent = "GPS permission denied / unavailable";
+            showToast("Could not access GPS. Check browser location permissions.", "⚠️");
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+      });
+    }
+
+    // Initialize Modal Tracking Map
+    function initGpsTrackerMap() {
+      if (gpsTrackerMapInstance) {
+        gpsTrackerMapInstance.invalidateSize();
+        return;
+      }
+      const mapEl = document.getElementById('gpsTrackerMap');
+      if (!mapEl || typeof L === 'undefined') return;
+
+      gpsTrackerMapInstance = L.map('gpsTrackerMap', {
+        zoomControl: true,
+        attributionControl: false
+      }).setView(CAMPUS_COORDS.center, 14);
+
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19,
+        subdomains: 'abcd'
+      }).addTo(gpsTrackerMapInstance);
+    }
+
+    // Open GPS Tracking Modal
+    function openGpsTrackingModal({ rideId, bookingId, isDriver = false, title = "Live Peer Commute GPS" }) {
+      currentTrackingContext.rideId = rideId || 'commute_1';
+      currentTrackingContext.bookingId = bookingId || null;
+      currentTrackingContext.isDriver = isDriver;
+
+      const modal = document.getElementById('gpsTrackingModal');
+      const titleEl = document.getElementById('gpsModalTitle');
+      const driverBtn = document.getElementById('gpsDriverBroadcastBtn');
+      const passengerBtn = document.getElementById('gpsPassengerShareLocationBtn');
+
+      if (titleEl) titleEl.textContent = title;
+
+      if (modal) {
+        modal.removeAttribute('hidden');
+        modal.style.display = 'flex';
+        modal.classList.remove('hidden');
+      }
+
+      setTimeout(() => {
+        initGpsTrackerMap();
+        updateTrackerView();
+      }, 100);
+
+      // Start periodic polling for location updates
+      if (activeGpsPollingInterval) clearInterval(activeGpsPollingInterval);
+      activeGpsPollingInterval = setInterval(fetchLiveGpsUpdate, 3500);
+
+      // Adjust controls visibility
+      if (driverBtn && passengerBtn) {
+        if (isDriver) {
+          driverBtn.classList.remove('hidden');
+          passengerBtn.classList.add('hidden');
+        } else {
+          driverBtn.classList.add('hidden');
+          passengerBtn.classList.remove('hidden');
+        }
+      }
+    }
+
+    function closeGpsTrackingModal() {
+      const modal = document.getElementById('gpsTrackingModal');
+      if (modal) {
+        modal.setAttribute('hidden', '');
+        modal.style.display = 'none';
+        modal.classList.add('hidden');
+      }
+      if (activeWatchPositionId && navigator.geolocation) {
+        navigator.geolocation.clearWatch(activeWatchPositionId);
+        activeWatchPositionId = null;
+      }
+      if (activeGpsPollingInterval) {
+        clearInterval(activeGpsPollingInterval);
+        activeGpsPollingInterval = null;
+      }
+      if (simulationInterval) {
+        clearInterval(simulationInterval);
+        simulationInterval = null;
+      }
+      const bBtn = document.getElementById('gpsDriverBroadcastBtn');
+      if (bBtn) {
+        bBtn.classList.remove('bg-rose-600');
+        bBtn.classList.add('bg-emerald-600');
+        bBtn.innerHTML = '<span>📡</span> Start GPS Sharing';
+      }
+    }
+
+    function updateTrackerView() {
+      if (!gpsTrackerMapInstance) return;
+
+      const dCoords = currentTrackingContext.driverCoords;
+      const pCoords = currentTrackingContext.passengerCoords;
+
+      // Update or create driver marker
+      const carIcon = L.divIcon({
+        className: 'driver-live-marker',
+        html: '🚗',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
+      });
+
+      if (!driverMarker) {
+        driverMarker = L.marker(dCoords, { icon: carIcon }).addTo(gpsTrackerMapInstance);
+      } else {
+        driverMarker.setLatLng(dCoords);
+      }
+      driverMarker.bindPopup('<strong style="font-size:11px; color:#10b981;">🚗 Driver Live Vehicle</strong>');
+
+      // Update or create passenger pickup marker
+      const passIcon = L.divIcon({
+        className: 'gps-pulse-pin',
+        html: '<div class="gps-pulse-dot"></div>',
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]
+      });
+
+      if (!passengerMarker) {
+        passengerMarker = L.marker(pCoords, { icon: passIcon }).addTo(gpsTrackerMapInstance);
+      } else {
+        passengerMarker.setLatLng(pCoords);
+      }
+      passengerMarker.bindPopup('<strong style="font-size:11px; color:#3b82f6;">📍 Passenger Pickup Bay</strong>');
+
+      // Update Polyline
+      if (!routePolyline) {
+        routePolyline = L.polyline([dCoords, pCoords], { color: '#6366f1', weight: 4, dashArray: '6, 8' }).addTo(gpsTrackerMapInstance);
+      } else {
+        routePolyline.setLatLngs([dCoords, pCoords]);
+      }
+
+      // Fit bounds
+      const bounds = L.latLngBounds([dCoords, pCoords]);
+      gpsTrackerMapInstance.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
+
+      // Telemetry
+      const dist = calculateDistanceKm(dCoords[0], dCoords[1], pCoords[0], pCoords[1]);
+      const speed = currentTrackingContext.speed || 32;
+      const etaMin = Math.max(1, Math.round((dist / speed) * 60));
+
+      const distEl = document.getElementById('gpsDistanceDisplay');
+      const etaEl = document.getElementById('gpsEtaDisplay');
+      const spdEl = document.getElementById('gpsSpeedDisplay');
+
+      if (distEl) distEl.textContent = `${dist} km`;
+      if (etaEl) etaEl.textContent = `~${etaMin} min`;
+      if (spdEl) spdEl.textContent = `${speed} km/h`;
+    }
+
+    async function fetchLiveGpsUpdate() {
+      if (!currentTrackingContext.rideId) return;
+      try {
+        const res = await fetch(`/api/rides/location?rideId=${encodeURIComponent(currentTrackingContext.rideId)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.location) {
+            currentTrackingContext.driverCoords = [data.location.lat, data.location.lng];
+            currentTrackingContext.speed = Math.round((data.location.speed || 0) * 3.6) || 30; // convert m/s to km/h
+            updateTrackerView();
+          }
+        }
+      } catch (e) {
+        // quiet network poll
+      }
+    }
+
+    // Driver Live GPS Broadcast Toggle
+    document.getElementById('gpsDriverBroadcastBtn')?.addEventListener('click', () => {
+      const btn = document.getElementById('gpsDriverBroadcastBtn');
+      if (activeWatchPositionId) {
+        navigator.geolocation.clearWatch(activeWatchPositionId);
+        activeWatchPositionId = null;
+        btn.classList.remove('bg-rose-600');
+        btn.classList.add('bg-emerald-600');
+        btn.innerHTML = '<span>📡</span> Start GPS Sharing';
+        showToast("Stopped live GPS streaming.", "🛑");
+        return;
+      }
+
+      if (!navigator.geolocation) {
+        showToast("Geolocation not supported by device.", "⚠️");
+        return;
+      }
+
+      btn.classList.remove('bg-emerald-600');
+      btn.classList.add('bg-rose-600');
+      btn.innerHTML = '<span>🛑</span> Stop GPS Sharing';
+      showToast("Live GPS Broadcast Active! Streaming to passenger.", "📡");
+
+      activeWatchPositionId = navigator.geolocation.watchPosition(
+        async (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          const speed = pos.coords.speed || 0;
+          const heading = pos.coords.heading || 0;
+          const acc = pos.coords.accuracy || 10;
+
+          currentTrackingContext.driverCoords = [lat, lng];
+          currentTrackingContext.speed = Math.round(speed * 3.6) || 35;
+          updateTrackerView();
+
+          // Sync with backend
+          try {
+            await fetch('/api/rides/location', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                rideId: currentTrackingContext.rideId,
+                lat, lng, speed, heading, accuracy: acc,
+                driverEmail: appState.currentUser?.email || ''
+              })
+            });
+          } catch (e) {
+            console.warn("GPS broadcast sync error:", e);
+          }
+        },
+        (err) => {
+          console.warn("GPS watch error:", err);
+          showToast("GPS error: Please check location permissions.", "⚠️");
+        },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+      );
+    });
+
+    // Passenger Share Gate Location
+    document.getElementById('gpsPassengerShareLocationBtn')?.addEventListener('click', () => {
+      if (!navigator.geolocation) {
+        showToast("Geolocation not supported by device.", "⚠️");
+        return;
+      }
+      showToast("Acquiring your exact waiting location...", "🛰️");
+
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          currentTrackingContext.passengerCoords = [lat, lng];
+          updateTrackerView();
+
+          if (currentTrackingContext.bookingId) {
+            try {
+              await fetch('/api/bookings/passenger-location', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  bookingId: currentTrackingContext.bookingId,
+                  lat, lng, accuracy: pos.coords.accuracy,
+                  passengerEmail: appState.currentUser?.email || ''
+                })
+              });
+            } catch (e) {
+              console.warn(e);
+            }
+          }
+          showToast("Pickup location shared with driver!", "✅");
+        },
+        (err) => {
+          showToast("Failed to acquire GPS. Check location permissions.", "⚠️");
+        },
+        { enableHighAccuracy: true, timeout: 8000 }
+      );
+    });
+
+    // Test Route Highway Simulator (Solapur Highway NH 65 corridor)
+    document.getElementById('gpsSimulateToggleBtn')?.addEventListener('click', () => {
+      if (simulationInterval) {
+        clearInterval(simulationInterval);
+        simulationInterval = null;
+        document.getElementById('gpsSimulateToggleBtn').classList.remove('bg-amber-600');
+        document.getElementById('gpsSimulateToggleBtn').classList.add('bg-slate-800');
+        showToast("Highway simulation stopped.", "⏹️");
+        return;
+      }
+
+      const simBtn = document.getElementById('gpsSimulateToggleBtn');
+      simBtn.classList.remove('bg-slate-800');
+      simBtn.classList.add('bg-amber-600');
+      showToast("Highway demo running! Simulating Solapur Highway commute.", "🚗");
+
+      // Highway path waypoints between MIT ADT Gate 1 and Hadapsar
+      const waypoints = [
+        [18.4905, 74.0255],
+        [18.4932, 74.0150],
+        [18.4965, 73.9980],
+        [18.4998, 73.9780],
+        [18.5040, 73.9520],
+        [18.5089, 73.9260]
+      ];
+      let step = 0;
+      let forward = true;
+
+      simulationInterval = setInterval(() => {
+        if (forward) {
+          step++;
+          if (step >= waypoints.length - 1) forward = false;
+        } else {
+          step--;
+          if (step <= 0) forward = true;
+        }
+
+        currentTrackingContext.driverCoords = waypoints[step];
+        currentTrackingContext.speed = 42;
+        updateTrackerView();
+
+        // Also post to backend to verify end-to-end sync
+        fetch('/api/rides/location', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            rideId: currentTrackingContext.rideId,
+            lat: waypoints[step][0],
+            lng: waypoints[step][1],
+            speed: 11.6, // m/s = 42 km/h
+            heading: 270,
+            accuracy: 5
+          })
+        }).catch(() => {});
+      }, 2500);
+    });
+
+    // Close GPS modal event listener
+    document.getElementById('closeGpsModalBtn')?.addEventListener('click', closeGpsTrackingModal);
+
+    // Event Delegation for My Commutes GPS buttons
+    document.addEventListener('click', (e) => {
+      const passGpsBtn = e.target.closest('.open-gps-btn');
+      if (passGpsBtn) {
+        const rideId = passGpsBtn.getAttribute('data-ride-id');
+        const bookingId = passGpsBtn.getAttribute('data-booking-id');
+        const driver = passGpsBtn.getAttribute('data-driver') || 'Driver';
+        openGpsTrackingModal({
+          rideId,
+          bookingId,
+          isDriver: false,
+          title: `Live Tracking: ${driver}'s Ride`
+        });
+        return;
+      }
+
+      const driverGpsBtn = e.target.closest('.open-gps-driver-btn');
+      if (driverGpsBtn) {
+        const rideId = driverGpsBtn.getAttribute('data-ride-id');
+        const dest = driverGpsBtn.getAttribute('data-destination') || 'Pune';
+        openGpsTrackingModal({
+          rideId,
+          isDriver: true,
+          title: `Broadcast My Commute (To ${dest})`
+        });
+        return;
+      }
+    });
+
+
     // UX-03: One-Tap Copy VPA Button Listener
     document.addEventListener('click', (e) => {
       const btn = e.target.closest('.copy-vpa-btn');
@@ -3540,6 +4104,70 @@
           </div>
           <p class="text-[11px] text-slate-400">Remember to settle the 10% platform green share at the end of every week.</p>
         </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- MODAL: Real-Time Free GPS Commute Tracking -->
+  <div id="gpsTrackingModal" hidden style="display: none;" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-xl w-full p-4 sm:p-6 shadow-2xl fade-in space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-brand-500/20 text-brand-400 flex items-center justify-center font-bold text-sm">📡</div>
+          <div>
+            <h2 id="gpsModalTitle" class="font-bold text-sm sm:text-base text-white">Live Peer Commute GPS Tracking</h2>
+            <p id="gpsModalSubtitle" class="text-[11px] text-slate-400">100% Free HTML5 Geolocation &amp; OpenStreetMap</p>
+          </div>
+        </div>
+        <button id="closeGpsModalBtn" class="text-slate-400 hover:text-white text-xl font-bold p-1 cursor-pointer">×</button>
+      </div>
+
+      <!-- Real-Time Metrics Strip -->
+      <div class="grid grid-cols-3 gap-2 bg-slate-950 p-2.5 rounded-2xl border border-slate-800 text-center text-xs">
+        <div>
+          <span class="text-[10px] uppercase font-bold text-slate-500 block">Distance to You</span>
+          <span id="gpsDistanceDisplay" class="font-black text-brand-300 text-sm">-- km</span>
+        </div>
+        <div>
+          <span class="text-[10px] uppercase font-bold text-slate-500 block">Estimated Arrival</span>
+          <span id="gpsEtaDisplay" class="font-black text-emerald-400 text-sm">-- min</span>
+        </div>
+        <div>
+          <span class="text-[10px] uppercase font-bold text-slate-500 block">Vehicle Speed</span>
+          <span id="gpsSpeedDisplay" class="font-black text-amber-300 text-sm">-- km/h</span>
+        </div>
+      </div>
+
+      <!-- Map Canvas -->
+      <div class="relative rounded-2xl overflow-hidden border border-slate-800 shadow-inner bg-slate-950">
+        <div id="gpsTrackerMap" class="w-full h-64 sm:h-80 z-0"></div>
+        <div class="absolute top-2 left-2 z-[400] flex items-center gap-1.5 bg-slate-900/90 backdrop-blur-xs border border-slate-800 px-2.5 py-1 rounded-full text-[10px] font-semibold text-white shadow">
+          <span id="gpsLivePulseDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+          <span id="gpsLiveStatusText">Streaming GPS (Free)</span>
+        </div>
+      </div>
+
+      <!-- Interactive Controls based on User Role -->
+      <div class="space-y-2 pt-1">
+        <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div class="flex items-center gap-2">
+            <button type="button" id="gpsDriverBroadcastBtn" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-2 rounded-xl transition shadow-md flex items-center gap-1.5 cursor-pointer">
+              <span>📡</span> Start GPS Sharing
+            </button>
+            <button type="button" id="gpsPassengerShareLocationBtn" class="bg-brand-600 hover:bg-brand-500 text-white font-bold px-3 py-2 rounded-xl transition shadow-md flex items-center gap-1.5 cursor-pointer">
+              <span>📍</span> Send My Pickup GPS
+            </button>
+          </div>
+
+          <button type="button" id="gpsSimulateToggleBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-2 rounded-xl border border-slate-700 font-semibold text-[11px] flex items-center gap-1 cursor-pointer">
+            <span>🧪</span> Highway Demo
+          </button>
+        </div>
+
+        <p class="text-[10px] text-slate-500 text-center">
+          Powered by browser native Geolocation &amp; OpenStreetMap. Zero data charges, zero Google Maps API fees.
+        </p>
       </div>
     </div>
   </div>

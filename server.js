@@ -166,6 +166,12 @@ function generateVerificationToken() {
 }
 
 // -------------------------------------------------------------------------
+// In-Memory Real-Time GPS Tracking Cache (Zero-Cost, Low Latency)
+// -------------------------------------------------------------------------
+const liveRideLocations = new Map();
+const livePassengerLocations = new Map();
+
+// -------------------------------------------------------------------------
 // HTTP Server & Router
 // -------------------------------------------------------------------------
 const server = http.createServer(async (req, res) => {
@@ -655,6 +661,65 @@ const server = http.createServer(async (req, res) => {
     }
     const newRide = db.createRide(body);
     return sendJson(201, { success: true, ride: newRide });
+  }
+
+  // -----------------------------------------------------------------------
+  // REST API: Real-Time Free GPS Location (Driver & Passenger Tracking)
+  // -----------------------------------------------------------------------
+  if (method === 'POST' && pathname === '/api/rides/location') {
+    const body = await parseBody();
+    const { rideId, lat, lng, speed, heading, accuracy, driverEmail } = body;
+    if (!rideId || lat === undefined || lng === undefined) {
+      return sendJson(400, { success: false, message: 'rideId, lat, and lng are required.' });
+    }
+    const loc = {
+      rideId,
+      lat: Number(lat),
+      lng: Number(lng),
+      speed: Number(speed || 0),
+      heading: Number(heading || 0),
+      accuracy: Number(accuracy || 10),
+      driverEmail: driverEmail || '',
+      updatedAt: Date.now()
+    };
+    liveRideLocations.set(rideId, loc);
+    return sendJson(200, { success: true, location: loc });
+  }
+
+  if (method === 'GET' && pathname === '/api/rides/location') {
+    const rideId = parsedUrl.query?.rideId;
+    if (!rideId) {
+      return sendJson(400, { success: false, message: 'rideId query param is required.' });
+    }
+    const loc = liveRideLocations.get(rideId) || null;
+    return sendJson(200, { success: true, location: loc });
+  }
+
+  if (method === 'POST' && pathname === '/api/bookings/passenger-location') {
+    const body = await parseBody();
+    const { bookingId, lat, lng, accuracy, passengerEmail } = body;
+    if (!bookingId || lat === undefined || lng === undefined) {
+      return sendJson(400, { success: false, message: 'bookingId, lat, and lng are required.' });
+    }
+    const loc = {
+      bookingId,
+      lat: Number(lat),
+      lng: Number(lng),
+      accuracy: Number(accuracy || 10),
+      passengerEmail: passengerEmail || '',
+      updatedAt: Date.now()
+    };
+    livePassengerLocations.set(bookingId, loc);
+    return sendJson(200, { success: true, location: loc });
+  }
+
+  if (method === 'GET' && pathname === '/api/bookings/passenger-location') {
+    const bookingId = parsedUrl.query?.bookingId;
+    if (!bookingId) {
+      return sendJson(400, { success: false, message: 'bookingId query param is required.' });
+    }
+    const loc = livePassengerLocations.get(bookingId) || null;
+    return sendJson(200, { success: true, location: loc });
   }
 
   // -----------------------------------------------------------------------
