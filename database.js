@@ -201,35 +201,8 @@ class SQLiteCampusDatabase {
   }
 
   seedDefaults() {
-    const insertProfile = this.db.prepare(`
-      INSERT OR IGNORE INTO profiles (id, name, email, phone, dept, is_verified, verified_at, created_at)
-      VALUES (?, ?, ?, ?, ?, 1, ?, ?)
-    `);
-
-    const insertRide = this.db.prepare(`
-      INSERT OR IGNORE INTO rides (
-        id, driver_name, driver_email, driver_phone, dept, vehicle, vehicle_model,
-        pickup, destination, departure_time, seats_total, seats_left,
-        uber_benchmark, student_fare, driver_payout, note, upi_id, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    const now = new Date().toISOString();
-
-    const seedTx = this.db.transaction(() => {
-      insertProfile.run('prof_kunal', 'Kunal Shinde', '1032210123@students.mituniversity.edu.in', '+91 9822054321', 'MIT SOE (Mechanical)', now, now);
-      insertProfile.run('prof_pooja', 'Pooja Kadam', '1032220455@students.mituniversity.edu.in', '+91 9823198765', 'MIT Institute of Design', now, now);
-      insertProfile.run('prof_tanmay', 'Tanmay Joshi', '1032200892@students.mituniversity.edu.in', '+91 9765487654', 'School of Architecture', now, now);
-      insertProfile.run('prof_shreya', 'Shreya Nair', '1032210741@students.mituniversity.edu.in', '+91 9890112398', 'College of Management', now, now);
-
-      insertRide.run('ride_1', 'Kunal Shinde', '1032210123@students.mituniversity.edu.in', '+91 9822054321', 'MIT SOE (Mechanical)', 'Bike', 'Royal Enfield Hunter 350', 'MIT ADT Main Gate 1 (NH 65)', 'Pune Railway Station', 'Today, 5:15 PM', 1, 1, 290, 203, 183, 'Have an extra ISI certified helmet. Smooth highway ride.', 'kunalshinde@okhdfcbank', now);
-      insertRide.run('ride_2', 'Pooja Kadam', '1032220455@students.mituniversity.edu.in', '+91 9823198765', 'MIT Institute of Design', 'Car', 'Tata Tiago EV', 'World Peace Dome Square (Gate 2)', 'Hadapsar', 'Today, 5:45 PM', 3, 2, 150, 105, 95, 'Quiet EV ride, AC on. Dropping at Hadapsar Gadital.', 'poojakadam@okaxis', now);
-      insertRide.run('ride_3', 'Tanmay Joshi', '1032200892@students.mituniversity.edu.in', '+91 9765487654', 'School of Architecture', 'Bike', 'TVS Raider 125', 'Sangamwadi Hostel Quad (Gate 3)', 'Viman Nagar', 'Tomorrow, 8:45 AM', 1, 1, 360, 252, 227, 'Direct route via Manjari-Kharadi river bridge.', 'tanmayjoshi@oksbi', now);
-      insertRide.run('ride_4', 'Shreya Nair', '1032210741@students.mituniversity.edu.in', '+91 9890112398', 'College of Management', 'Car', 'Maruti Suzuki Swift', 'MIT ADT Main Gate 1 (NH 65)', 'Swargate', 'Tomorrow, 11:30 AM', 3, 3, 320, 224, 202, 'Spacious trunk for college bags. Non-smoking commute.', 'shreyanair@icici', now);
-    });
-
-    seedTx();
-    console.log('[SQLITE] Seeded default verified campus profiles and rides into SQLite campuspool.db');
+    // Production ready: Clean empty database with zero demo profiles and zero seed rides.
+    console.log('[SQLITE] Database initialized with clean schema (0 demo profiles, 0 demo rides)');
   }
 
   // -----------------------------------------------------------------------

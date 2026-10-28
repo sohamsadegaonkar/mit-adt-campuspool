@@ -6,6 +6,13 @@
   
   <!-- Instant Service Worker & Cache Storage Purge -->
   <script>
+    // UX-05: Offline & Firewall Resilient Inline SVG QR Fallback
+    function handleQrError(img) {
+      if (!img) return;
+      img.onerror = null;
+      img.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="160" height="160"><rect width="160" height="160" fill="%23ffffff" rx="12"/><rect x="15" y="15" width="40" height="40" fill="%230f172a"/><rect x="23" y="23" width="24" height="24" fill="%23ffffff"/><rect x="29" y="29" width="12" height="12" fill="%234f46e5"/><rect x="105" y="15" width="40" height="40" fill="%230f172a"/><rect x="113" y="23" width="24" height="24" fill="%23ffffff"/><rect x="119" y="29" width="12" height="12" fill="%234f46e5"/><rect x="15" y="105" width="40" height="40" fill="%230f172a"/><rect x="23" y="113" width="24" height="24" fill="%23ffffff"/><rect x="29" y="119" width="12" height="12" fill="%234f46e5"/><rect x="68" y="20" width="12" height="12" fill="%230f172a"/><rect x="80" y="32" width="12" height="12" fill="%234f46e5"/><rect x="68" y="68" width="24" height="24" fill="%234f46e5"/><rect x="20" y="68" width="12" height="12" fill="%230f172a"/><rect x="105" y="68" width="12" height="12" fill="%230f172a"/><rect x="125" y="80" width="15" height="15" fill="%234f46e5"/><rect x="68" y="105" width="15" height="15" fill="%230f172a"/><rect x="105" y="105" width="20" height="20" fill="%230f172a"/><rect x="130" y="130" width="15" height="15" fill="%234f46e5"/><text x="80" y="154" font-family="sans-serif" font-size="8" font-weight="bold" text-anchor="middle" fill="%234f46e5">UPI: campuspool</text></svg>';
+    }
+  
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then(function(regs) {
         for (var i = 0; i < regs.length; i++) {
@@ -239,7 +246,7 @@
         </div>
         <div>
           <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Zero Strangers</span>
-          <h2 class="text-sm font-bold text-white">100% Student Verified</h2>
+          <h2 class="text-sm font-bold text-white">100% Campus Verified</h2>
           <p class="text-[11px] text-slate-400">@students / @mituniversity.edu.in (Students &amp; Faculty)</p>
         </div>
       </div>
@@ -270,7 +277,7 @@
     <!-- Navigation Tab Bar -->
     <div class="flex border-b border-slate-800 bg-slate-900/80 rounded-2xl p-1.5 shadow-sm overflow-x-auto text-xs sm:text-sm">
       <button id="tabFindRides" class="tab-btn active px-4 py-2.5 rounded-xl flex items-center gap-2 shrink-0 cursor-pointer shadow-xs bg-brand-600 text-white font-bold">
-        <span>🔍</span> Available Rides (<span id="countAvailableRides">4</span>)
+        <span>🔍</span> Available Rides (<span id="countAvailableRides">0</span>)
       </button>
       <button id="tabOfferRide" class="tab-btn px-4 py-2.5 font-semibold rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 flex items-center gap-2 shrink-0 cursor-pointer transition">
         <span>➕</span> Offer a Ride
@@ -320,248 +327,43 @@
         </div>
       </div>
 
-      <!-- Rides Grid Container -->
+            <!-- Rides Grid Container -->
       <div id="ridesGridContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div class="bg-slate-900 rounded-3xl border border-slate-800 p-5 shadow-lg hover:border-slate-700 transition flex flex-col justify-between space-y-4">
-            <div>
-              <div class="flex items-start justify-between gap-2 pb-3 border-b border-slate-800">
-                <div class="flex items-center gap-3">
-                  <div class="w-10 h-10 rounded-2xl bg-brand-500/20 text-brand-300 border border-brand-500/30 font-extrabold flex items-center justify-center text-sm">
-                    KS
-                  </div>
-                  <div>
-                    <h3 class="font-bold text-white text-sm flex items-center gap-1.5">
-                      Kunal Shinde
-                      <span class="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-1.5 py-0.5 rounded border border-emerald-500/30">Verified</span>
-                    </h3>
-                    <p class="text-[11px] text-slate-400 font-medium">MIT SOE (Mechanical)</p>
-                  </div>
-                </div>
-                <span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30">
-                  🛵 Bike (1 Seat)
-                </span>
-              </div>
-
-              <div class="mt-3 bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-1.5 text-xs">
-                <div class="flex items-center gap-2">
-                  <span class="text-emerald-400 font-bold">●</span>
-                  <span class="text-slate-500 text-[11px]">From Gate:</span>
-                  <span class="font-semibold text-slate-200">MIT ADT Main Gate 1 (NH 65)</span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <span class="text-rose-400 font-bold">▼</span>
-                  <span class="text-slate-500 text-[11px]">To:</span>
-                  <span class="font-extrabold text-brand-300">Pune Railway Station</span>
-                </div>
-                <div class="flex items-center justify-between pt-1 border-t border-slate-800/80 text-[11px] text-slate-400">
-                  <span>🕒 Departs: <strong class="text-slate-200">Today, 5:15 PM</strong></span>
-                  <span>Vehicle: <strong class="text-slate-200">Royal Enfield Hunter 350</strong></span>
-                </div>
-              </div>
-
-              <p class="text-xs text-slate-400 italic mt-2.5 px-1">"Have an extra ISI certified helmet. Smooth highway ride."</p>
-            </div>
-
-            <div class="pt-3 border-t border-slate-800 flex items-center justify-between">
-              <div>
-                <div class="flex items-baseline gap-1.5">
-                  <span class="text-2xl font-black text-emerald-400">₹203</span>
-                  <span class="text-xs text-slate-500 line-through">Uber: ₹290</span>
-                </div>
-                <span class="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">Save ₹87 (30% OFF)</span>
-              </div>
-
-              <div class="flex items-center gap-2">
-                <a href="https://www.google.com/maps/dir/?api=1&amp;origin=MIT+ADT+University,+Loni+Kalbhor,+Pune&amp;destination=Pune%20Railway%20Station%20Pune&amp;travelmode=driving" target="_blank" rel="noopener noreferrer" class="px-3 py-2 rounded-xl text-xs font-bold border border-slate-700 text-slate-300 hover:bg-slate-800 transition cursor-pointer" title="Open GPS route in Google Maps">
-                  🗺️ Maps
-                </a>
-                <button class="book-seat-btn px-4 py-2 rounded-xl text-xs font-bold transition shadow-md cursor-pointer bg-brand-600 hover:bg-brand-500 text-white" data-ride-id="ride_1">
-                  Book (1 left)
-                </button>
-              </div>
-            </div>
+        <div class="col-span-full py-14 px-6 flex flex-col items-center justify-center text-center space-y-5 bg-slate-900/60 rounded-3xl border border-slate-800/80 shadow-inner">
+          <div class="relative w-36 h-36 flex items-center justify-center">
+            <div class="absolute inset-0 rounded-full bg-brand-500/10 animate-ping opacity-75"></div>
+            <div class="absolute inset-2 rounded-full bg-slate-800/80 border border-slate-700/60"></div>
+            <svg class="relative w-20 h-20 text-brand-400" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="50" cy="50" r="44" stroke="currentColor" stroke-opacity="0.2" stroke-width="2" stroke-dasharray="4 4"/>
+              <path d="M30 80 L44 54" stroke="currentColor" stroke-opacity="0.4" stroke-width="2"/>
+              <path d="M70 80 L56 54" stroke="currentColor" stroke-opacity="0.4" stroke-width="2"/>
+              <line x1="50" y1="62" x2="50" y2="74" stroke="currentColor" stroke-opacity="0.4" stroke-width="2" stroke-dasharray="2 3"/>
+              <path d="M36 50 C36 46 40 43 50 43 C60 43 64 46 64 50 L66 54 C66 56 64 57 62 57 L38 57 C36 57 34 56 34 54 Z" fill="currentColor" fill-opacity="0.15" stroke="currentColor" stroke-width="2"/>
+              <circle cx="41" cy="56" r="3" fill="#10b981"/>
+              <circle cx="59" cy="56" r="3" fill="#10b981"/>
+              <line x1="43" y1="47" x2="57" y2="47" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M50 20 C44 20 40 24 40 30 C40 37 50 44 50 44 C50 44 60 37 60 30 C60 24 56 20 50 20 Z" fill="#6366f1" fill-opacity="0.2" stroke="#818cf8" stroke-width="2"/>
+              <circle cx="50" cy="29" r="3" fill="#818cf8"/>
+            </svg>
           </div>
-        
-          <div class="bg-slate-900 rounded-3xl border border-slate-800 p-5 shadow-lg hover:border-slate-700 transition flex flex-col justify-between space-y-4">
-            <div>
-              <div class="flex items-start justify-between gap-2 pb-3 border-b border-slate-800">
-                <div class="flex items-center gap-3">
-                  <div class="w-10 h-10 rounded-2xl bg-brand-500/20 text-brand-300 border border-brand-500/30 font-extrabold flex items-center justify-center text-sm">
-                    PK
-                  </div>
-                  <div>
-                    <h3 class="font-bold text-white text-sm flex items-center gap-1.5">
-                      Pooja Kadam
-                      <span class="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-1.5 py-0.5 rounded border border-emerald-500/30">Verified</span>
-                    </h3>
-                    <p class="text-[11px] text-slate-400 font-medium">MIT Institute of Design</p>
-                  </div>
-                </div>
-                <span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-brand-500/20 text-brand-300 border border-brand-500/30">
-                  🚗 Car (2 of 3 Seats)
-                </span>
-              </div>
 
-              <div class="mt-3 bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-1.5 text-xs">
-                <div class="flex items-center gap-2">
-                  <span class="text-emerald-400 font-bold">●</span>
-                  <span class="text-slate-500 text-[11px]">From Gate:</span>
-                  <span class="font-semibold text-slate-200">World Peace Dome Square (Gate 2)</span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <span class="text-rose-400 font-bold">▼</span>
-                  <span class="text-slate-500 text-[11px]">To:</span>
-                  <span class="font-extrabold text-brand-300">Hadapsar</span>
-                </div>
-                <div class="flex items-center justify-between pt-1 border-t border-slate-800/80 text-[11px] text-slate-400">
-                  <span>🕒 Departs: <strong class="text-slate-200">Today, 5:45 PM</strong></span>
-                  <span>Vehicle: <strong class="text-slate-200">Tata Tiago EV</strong></span>
-                </div>
-              </div>
-
-              <p class="text-xs text-slate-400 italic mt-2.5 px-1">"Quiet EV ride, AC on. Dropping at Hadapsar Gadital."</p>
-            </div>
-
-            <div class="pt-3 border-t border-slate-800 flex items-center justify-between">
-              <div>
-                <div class="flex items-baseline gap-1.5">
-                  <span class="text-2xl font-black text-emerald-400">₹105</span>
-                  <span class="text-xs text-slate-500 line-through">Uber: ₹150</span>
-                </div>
-                <span class="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">Save ₹45 (30% OFF)</span>
-              </div>
-
-              <div class="flex items-center gap-2">
-                <a href="https://www.google.com/maps/dir/?api=1&amp;origin=MIT+ADT+University,+Loni+Kalbhor,+Pune&amp;destination=Hadapsar%20Pune&amp;travelmode=driving" target="_blank" rel="noopener noreferrer" class="px-3 py-2 rounded-xl text-xs font-bold border border-slate-700 text-slate-300 hover:bg-slate-800 transition cursor-pointer" title="Open GPS route in Google Maps">
-                  🗺️ Maps
-                </a>
-                <button class="book-seat-btn px-4 py-2 rounded-xl text-xs font-bold transition shadow-md cursor-pointer bg-brand-600 hover:bg-brand-500 text-white" data-ride-id="ride_2">
-                  Book (2 left)
-                </button>
-              </div>
-            </div>
+          <div class="space-y-1.5 max-w-sm">
+            <h3 class="text-lg sm:text-xl font-black text-white tracking-tight">No more rides near you</h3>
+            <p class="text-xs text-slate-400 leading-relaxed">
+              All carpools and bikepools from Campus Gates 1–4 are currently full or departed. Be the first student or faculty member to offer a seat!
+            </p>
           </div>
-        
-          <div class="bg-slate-900 rounded-3xl border border-slate-800 p-5 shadow-lg hover:border-slate-700 transition flex flex-col justify-between space-y-4">
-            <div>
-              <div class="flex items-start justify-between gap-2 pb-3 border-b border-slate-800">
-                <div class="flex items-center gap-3">
-                  <div class="w-10 h-10 rounded-2xl bg-brand-500/20 text-brand-300 border border-brand-500/30 font-extrabold flex items-center justify-center text-sm">
-                    TJ
-                  </div>
-                  <div>
-                    <h3 class="font-bold text-white text-sm flex items-center gap-1.5">
-                      Tanmay Joshi
-                      <span class="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-1.5 py-0.5 rounded border border-emerald-500/30">Verified</span>
-                    </h3>
-                    <p class="text-[11px] text-slate-400 font-medium">School of Architecture</p>
-                  </div>
-                </div>
-                <span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30">
-                  🛵 Bike (1 Seat)
-                </span>
-              </div>
 
-              <div class="mt-3 bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-1.5 text-xs">
-                <div class="flex items-center gap-2">
-                  <span class="text-emerald-400 font-bold">●</span>
-                  <span class="text-slate-500 text-[11px]">From Gate:</span>
-                  <span class="font-semibold text-slate-200">Sangamwadi Hostel Quad (Gate 3)</span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <span class="text-rose-400 font-bold">▼</span>
-                  <span class="text-slate-500 text-[11px]">To:</span>
-                  <span class="font-extrabold text-brand-300">Viman Nagar</span>
-                </div>
-                <div class="flex items-center justify-between pt-1 border-t border-slate-800/80 text-[11px] text-slate-400">
-                  <span>🕒 Departs: <strong class="text-slate-200">Tomorrow, 8:45 AM</strong></span>
-                  <span>Vehicle: <strong class="text-slate-200">TVS Raider 125</strong></span>
-                </div>
-              </div>
-
-              <p class="text-xs text-slate-400 italic mt-2.5 px-1">"Direct route via Manjari-Kharadi river bridge."</p>
-            </div>
-
-            <div class="pt-3 border-t border-slate-800 flex items-center justify-between">
-              <div>
-                <div class="flex items-baseline gap-1.5">
-                  <span class="text-2xl font-black text-emerald-400">₹252</span>
-                  <span class="text-xs text-slate-500 line-through">Uber: ₹360</span>
-                </div>
-                <span class="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">Save ₹108 (30% OFF)</span>
-              </div>
-
-              <div class="flex items-center gap-2">
-                <a href="https://www.google.com/maps/dir/?api=1&amp;origin=MIT+ADT+University,+Loni+Kalbhor,+Pune&amp;destination=Viman%20Nagar%20Pune&amp;travelmode=driving" target="_blank" rel="noopener noreferrer" class="px-3 py-2 rounded-xl text-xs font-bold border border-slate-700 text-slate-300 hover:bg-slate-800 transition cursor-pointer" title="Open GPS route in Google Maps">
-                  🗺️ Maps
-                </a>
-                <button class="book-seat-btn px-4 py-2 rounded-xl text-xs font-bold transition shadow-md cursor-pointer bg-brand-600 hover:bg-brand-500 text-white" data-ride-id="ride_3">
-                  Book (1 left)
-                </button>
-              </div>
-            </div>
-          </div>
-        
-          <div class="bg-slate-900 rounded-3xl border border-slate-800 p-5 shadow-lg hover:border-slate-700 transition flex flex-col justify-between space-y-4">
-            <div>
-              <div class="flex items-start justify-between gap-2 pb-3 border-b border-slate-800">
-                <div class="flex items-center gap-3">
-                  <div class="w-10 h-10 rounded-2xl bg-brand-500/20 text-brand-300 border border-brand-500/30 font-extrabold flex items-center justify-center text-sm">
-                    SN
-                  </div>
-                  <div>
-                    <h3 class="font-bold text-white text-sm flex items-center gap-1.5">
-                      Shreya Nair
-                      <span class="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-1.5 py-0.5 rounded border border-emerald-500/30">Verified</span>
-                    </h3>
-                    <p class="text-[11px] text-slate-400 font-medium">College of Management</p>
-                  </div>
-                </div>
-                <span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-brand-500/20 text-brand-300 border border-brand-500/30">
-                  🚗 Car (3 of 3 Seats)
-                </span>
-              </div>
-
-              <div class="mt-3 bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-1.5 text-xs">
-                <div class="flex items-center gap-2">
-                  <span class="text-emerald-400 font-bold">●</span>
-                  <span class="text-slate-500 text-[11px]">From Gate:</span>
-                  <span class="font-semibold text-slate-200">MIT ADT Main Gate 1 (NH 65)</span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <span class="text-rose-400 font-bold">▼</span>
-                  <span class="text-slate-500 text-[11px]">To:</span>
-                  <span class="font-extrabold text-brand-300">Swargate</span>
-                </div>
-                <div class="flex items-center justify-between pt-1 border-t border-slate-800/80 text-[11px] text-slate-400">
-                  <span>🕒 Departs: <strong class="text-slate-200">Tomorrow, 11:30 AM</strong></span>
-                  <span>Vehicle: <strong class="text-slate-200">Maruti Suzuki Swift</strong></span>
-                </div>
-              </div>
-
-              <p class="text-xs text-slate-400 italic mt-2.5 px-1">"Spacious trunk for college bags. Non-smoking commute."</p>
-            </div>
-
-            <div class="pt-3 border-t border-slate-800 flex items-center justify-between">
-              <div>
-                <div class="flex items-baseline gap-1.5">
-                  <span class="text-2xl font-black text-emerald-400">₹224</span>
-                  <span class="text-xs text-slate-500 line-through">Uber: ₹320</span>
-                </div>
-                <span class="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">Save ₹96 (30% OFF)</span>
-              </div>
-
-              <div class="flex items-center gap-2">
-                <a href="https://www.google.com/maps/dir/?api=1&amp;origin=MIT+ADT+University,+Loni+Kalbhor,+Pune&amp;destination=Swargate%20Pune&amp;travelmode=driving" target="_blank" rel="noopener noreferrer" class="px-3 py-2 rounded-xl text-xs font-bold border border-slate-700 text-slate-300 hover:bg-slate-800 transition cursor-pointer" title="Open GPS route in Google Maps">
-                  🗺️ Maps
-                </a>
-                <button class="book-seat-btn px-4 py-2 rounded-xl text-xs font-bold transition shadow-md cursor-pointer bg-brand-600 hover:bg-brand-500 text-white" data-ride-id="ride_4">
-                  Book (3 left)
-                </button>
-              </div>
-            </div>
+          <div class="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <button type="button" onclick="switchMainTab('tabOfferRide', 'viewOfferRide')" class="bg-brand-600 hover:bg-brand-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition shadow-md shadow-brand-600/30 flex items-center gap-2 cursor-pointer">
+              <span>➕</span> Offer a Ride
+            </button>
+            <button type="button" onclick="syncLiveRides()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-4 py-2.5 rounded-xl text-xs transition border border-slate-700 flex items-center gap-1.5 cursor-pointer">
+              <span>🔄</span> Refresh Feed
+            </button>
           </div>
         </div>
+      </div>
     </section>
 
     <!-- VIEW 2: Offer a Ride Form -->
@@ -954,7 +756,7 @@
   </main>
 
   <!-- MODAL: Landing "What We Do" Pop Screen -->
-  <div id="welcomePopModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
+  <div id="welcomePopModal" hidden style="display: none;" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
     <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl fade-in space-y-5">
       <div class="text-center space-y-2">
         <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-tr from-accent-500 to-amber-300 text-slate-950 font-black text-2xl flex items-center justify-center shadow-lg">
@@ -1009,7 +811,7 @@
   </div>
 
   <!-- MODAL: Student Verification / Login (3 Steps Dual OTP) -->
-  <div id="authModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
+  <div id="authModal" hidden style="display: none;" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
     <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl fade-in space-y-4">
       <div class="flex items-center justify-between pb-3 border-b border-slate-800">
         <div class="flex items-center gap-2">
@@ -1203,7 +1005,7 @@
   </div>
 
   <!-- MODAL: Reserve / Confirm Seat -->
-  <div id="bookingModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+  <div id="bookingModal" hidden style="display: none;" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
     <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl fade-in space-y-4">
       <div class="flex items-center justify-between pb-3 border-b border-slate-800">
         <div>
@@ -1336,7 +1138,7 @@
       <div class="p-3 bg-slate-950 border border-slate-800 rounded-2xl space-y-2 text-center">
         <div class="flex justify-center">
           <div class="bg-white p-2 rounded-2xl shadow-xl inline-block border border-slate-700">
-            <img id="settleQrCodeImg" src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&amp;data=upi%3A%2F%2Fpay%3Fpa%3Dcampuspool.mitadt%40okaxis%26pn%3DCampusPool%26cu%3DINR" alt="Scan UPI QR" class="w-32 h-32 mx-auto rounded-lg" loading="lazy">
+            <img id="settleQrCodeImg" src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&amp;data=upi%3A%2F%2Fpay%3Fpa%3Dcampuspool.mitadt%40okaxis%26pn%3DCampusPool%26cu%3DINR" onerror="handleQrError(this)" alt="Scan UPI QR" class="w-32 h-32 mx-auto rounded-lg" loading="lazy">
           </div>
         </div>
         <div class="flex items-center justify-between px-1">
@@ -1361,7 +1163,7 @@
   </div>
 
   <!-- Toast Notification Alert -->
-  <div id="toastNotification" class="fixed bottom-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 text-xs font-semibold border border-slate-700 fade-in hidden">
+  <div id="toastNotification" hidden style="display: none;" class="hidden fixed bottom-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 text-xs font-semibold border border-slate-700 fade-in">
     <span id="toastIcon" class="text-base">🔔</span>
     <span id="toastMessage">Notification</span>
   </div>
@@ -1379,7 +1181,7 @@
     // -------------------------------------------------------------
     // REAL APPLICATION DATA & LOCAL PERSISTENCE
     // -------------------------------------------------------------
-    const STORAGE_KEY = 'mit_adt_campuspool_live_db_v4';
+    const STORAGE_KEY = 'mit_adt_campuspool_live_db_v5';
     const ONBOARDING_POP_SEEN_KEY = 'mit_adt_campuspool_onboarding_seen';
     const ADMIN_COMMISSION_VPA = "campuspool.mitadt@okaxis";
 
@@ -1402,95 +1204,12 @@
         phoneVerified: false
       },
 
-      rides: [
-        {
-          id: "ride_1",
-          driverName: "Kunal Shinde",
-          driverEmail: "1032210123@students.mituniversity.edu.in",
-          driverPhone: "+91 98220 54321",
-          dept: "MIT SOE (Mechanical)",
-          vehicle: "Bike",
-          vehicleModel: "Royal Enfield Hunter 350",
-          pickup: "MIT ADT Main Gate 1 (NH 65)",
-          destination: "Pune Railway Station",
-          departureTime: "Today, 5:15 PM",
-          seatsTotal: 1,
-          seatsLeft: 1,
-          uberBenchmark: 290,
-          studentFare: 203,
-          driverPayout: 183,
-          note: "Have an extra ISI certified helmet. Smooth highway ride.",
-          upiId: "kunalshinde@okhdfcbank"
-        },
-        {
-          id: "ride_2",
-          driverName: "Pooja Kadam",
-          driverEmail: "1032220455@students.mituniversity.edu.in",
-          driverPhone: "+91 98231 98765",
-          dept: "MIT Institute of Design",
-          vehicle: "Car",
-          vehicleModel: "Tata Tiago EV",
-          pickup: "World Peace Dome Square (Gate 2)",
-          destination: "Hadapsar",
-          departureTime: "Today, 5:45 PM",
-          seatsTotal: 3,
-          seatsLeft: 2,
-          uberBenchmark: 150,
-          studentFare: 105,
-          driverPayout: 95,
-          note: "Quiet EV ride, AC on. Dropping at Hadapsar Gadital.",
-          upiId: "poojakadam@okaxis"
-        },
-        {
-          id: "ride_3",
-          driverName: "Tanmay Joshi",
-          driverEmail: "1032200892@students.mituniversity.edu.in",
-          driverPhone: "+91 97654 87654",
-          dept: "School of Architecture",
-          vehicle: "Bike",
-          vehicleModel: "TVS Raider 125",
-          pickup: "Sangamwadi Hostel Quad (Gate 3)",
-          destination: "Viman Nagar",
-          departureTime: "Tomorrow, 8:45 AM",
-          seatsTotal: 1,
-          seatsLeft: 1,
-          uberBenchmark: 360,
-          studentFare: 252,
-          driverPayout: 227,
-          note: "Direct route via Manjari-Kharadi river bridge.",
-          upiId: "tanmayjoshi@oksbi"
-        },
-        {
-          id: "ride_4",
-          driverName: "Shreya Nair",
-          driverEmail: "1032210741@students.mituniversity.edu.in",
-          driverPhone: "+91 98901 12398",
-          dept: "College of Management",
-          vehicle: "Car",
-          vehicleModel: "Maruti Suzuki Swift",
-          pickup: "MIT ADT Main Gate 1 (NH 65)",
-          destination: "Swargate",
-          departureTime: "Tomorrow, 11:30 AM",
-          seatsTotal: 3,
-          seatsLeft: 3,
-          uberBenchmark: 320,
-          studentFare: 224,
-          driverPayout: 202,
-          note: "Spacious trunk for college bags. Non-smoking commute.",
-          upiId: "shreyanair@icici"
-        }
-      ],
+      rides: [],
 
       myBookings: [],
       myOfferedRides: [],
 
-      leaderboard: [
-        { rank: 1, name: "Kunal Shinde", dept: "MIT SOE (Mechanical)", rating: 4.96, ridesCount: 19, fuelSaved: 3980 },
-        { rank: 2, name: "Pooja Kadam", dept: "MIT Institute of Design", rating: 4.94, ridesCount: 15, fuelSaved: 3120 },
-        { rank: 3, name: "Tanmay Joshi", dept: "School of Architecture", rating: 4.89, ridesCount: 12, fuelSaved: 2640 },
-        { rank: 4, name: "Shreya Nair", dept: "College of Management", rating: 4.86, ridesCount: 10, fuelSaved: 2100 },
-        { rank: 5, name: "Siddharth Deshmukh", dept: "School of Computing", rating: 4.91, ridesCount: 8, fuelSaved: 1680 }
-      ]
+      leaderboard: []
     };
 
     let appState = JSON.parse(JSON.stringify(initialRealState));
@@ -1661,12 +1380,41 @@
 
       if (countDisplay) countDisplay.textContent = filtered.length;
 
-      if (filtered.length === 0) {
+            if (filtered.length === 0) {
         container.innerHTML = `
-          <div class="col-span-full bg-slate-900 p-8 rounded-3xl border border-slate-800 text-center text-slate-400 space-y-2">
-            <span class="text-3xl block">🔍</span>
-            <h4 class="font-bold text-white text-sm">No rides found matching this destination.</h4>
-            <p class="text-xs text-slate-500">Be the first student to offer a ride or clear filters to view all routes.</p>
+          <div class="col-span-full py-14 px-6 flex flex-col items-center justify-center text-center space-y-5 bg-slate-900/60 rounded-3xl border border-slate-800/80 shadow-inner">
+            <div class="relative w-36 h-36 flex items-center justify-center">
+              <div class="absolute inset-0 rounded-full bg-brand-500/10 animate-ping opacity-75"></div>
+              <div class="absolute inset-2 rounded-full bg-slate-800/80 border border-slate-700/60"></div>
+              <svg class="relative w-20 h-20 text-brand-400" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="50" cy="50" r="44" stroke="currentColor" stroke-opacity="0.2" stroke-width="2" stroke-dasharray="4 4"/>
+                <path d="M30 80 L44 54" stroke="currentColor" stroke-opacity="0.4" stroke-width="2"/>
+                <path d="M70 80 L56 54" stroke="currentColor" stroke-opacity="0.4" stroke-width="2"/>
+                <line x1="50" y1="62" x2="50" y2="74" stroke="currentColor" stroke-opacity="0.4" stroke-width="2" stroke-dasharray="2 3"/>
+                <path d="M36 50 C36 46 40 43 50 43 C60 43 64 46 64 50 L66 54 C66 56 64 57 62 57 L38 57 C36 57 34 56 34 54 Z" fill="currentColor" fill-opacity="0.15" stroke="currentColor" stroke-width="2"/>
+                <circle cx="41" cy="56" r="3" fill="#10b981"/>
+                <circle cx="59" cy="56" r="3" fill="#10b981"/>
+                <line x1="43" y1="47" x2="57" y2="47" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M50 20 C44 20 40 24 40 30 C40 37 50 44 50 44 C50 44 60 37 60 30 C60 24 56 20 50 20 Z" fill="#6366f1" fill-opacity="0.2" stroke="#818cf8" stroke-width="2"/>
+                <circle cx="50" cy="29" r="3" fill="#818cf8"/>
+              </svg>
+            </div>
+
+            <div class="space-y-1.5 max-w-sm">
+              <h3 class="text-lg sm:text-xl font-black text-white tracking-tight">No more rides near you</h3>
+              <p class="text-xs text-slate-400 leading-relaxed">
+                All carpools and bikepools from Campus Gates 1–4 are currently full or departed. Be the first student or faculty member to offer a seat!
+              </p>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-center gap-3 pt-2">
+              <button type="button" onclick="switchMainTab('tabOfferRide', 'viewOfferRide')" class="bg-brand-600 hover:bg-brand-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition shadow-md shadow-brand-600/30 flex items-center gap-2 cursor-pointer">
+                <span>➕</span> Offer a Ride
+              </button>
+              <button type="button" onclick="syncLiveRides()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-4 py-2.5 rounded-xl text-xs transition border border-slate-700 flex items-center gap-1.5 cursor-pointer">
+                <span>🔄</span> Refresh Feed
+              </button>
+            </div>
           </div>
         `;
         return;
@@ -2241,6 +1989,19 @@
       const tbody = document.getElementById('leaderboardTbody');
       if (!tbody) return;
 
+      if (!appState.leaderboard || appState.leaderboard.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6" class="py-10 text-center text-slate-500 text-xs">
+              <span class="text-2xl block mb-1">🏆</span>
+              <p class="font-bold text-slate-400">No rides completed yet this month.</p>
+              <p class="text-[11px] text-slate-600">Be the first student or faculty member to offer a peer ride!</p>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
       tbody.innerHTML = appState.leaderboard.map(u => `
         <tr class="hover:bg-slate-800/40 transition">
           <td class="py-2.5 px-3 font-bold text-white">#${u.rank}</td>
@@ -2268,11 +2029,21 @@
     }
 
     function openWelcomePopScreen() {
-      document.getElementById('welcomePopModal')?.classList.remove('hidden');
+      const modal = document.getElementById('welcomePopModal');
+      if (modal) {
+        modal.removeAttribute('hidden');
+        modal.style.display = 'flex';
+        modal.classList.remove('hidden');
+      }
     }
 
     function closeWelcomePopScreen() {
-      document.getElementById('welcomePopModal')?.classList.add('hidden');
+      const modal = document.getElementById('welcomePopModal');
+      if (modal) {
+        modal.setAttribute('hidden', '');
+        modal.style.display = 'none';
+        modal.classList.add('hidden');
+      }
       localStorage.setItem(ONBOARDING_POP_SEEN_KEY, 'true');
     }
 
@@ -2357,12 +2128,23 @@
         if (deptInput && appState.currentUser.dept) deptInput.value = appState.currentUser.dept;
         if (loginIdInput && !loginIdInput.value) loginIdInput.value = appState.currentUser.email || '';
       }
-      if (modal) modal.classList.remove('hidden');
+      if (modal) {
+        modal.removeAttribute('hidden');
+        modal.style.display = 'flex';
+        modal.classList.remove('hidden');
+      }
     }
 
-    document.getElementById('closeAuthModalBtn')?.addEventListener('click', () => {
-      document.getElementById('authModal')?.classList.add('hidden');
-    });
+    function closeAuthModal() {
+      const modal = document.getElementById('authModal');
+      if (modal) {
+        modal.setAttribute('hidden', '');
+        modal.style.display = 'none';
+        modal.classList.add('hidden');
+      }
+    }
+
+    document.getElementById('closeAuthModalBtn')?.addEventListener('click', closeAuthModal);
 
     document.getElementById('guestVerifyCtaBtn')?.addEventListener('click', () => openAuthModal('signin'));
 
@@ -2766,7 +2548,7 @@
           renderUserHeader();
           syncUserBookings();
           syncLiveRides();
-          document.getElementById('authModal')?.classList.add('hidden');
+          closeAuthModal();
           showToast(`Welcome back, ${user.name}! Signed in successfully.`, "🎉");
           return;
         }
@@ -2787,7 +2569,7 @@
           renderUserHeader();
           syncUserBookings();
           syncLiveRides();
-          document.getElementById('authModal')?.classList.add('hidden');
+          closeAuthModal();
           showToast(`Welcome back, ${user.name}!`, "🎉");
           return;
         }
@@ -2900,7 +2682,7 @@
       saveState();
       renderUserHeader();
       syncUserBookings();
-      document.getElementById('authModal')?.classList.add('hidden');
+      closeAuthModal();
       showToast(`Welcome ${appState.currentUser.name}! Registered in MIT ADT database.`, "🎉");
     });
 
@@ -3033,14 +2815,28 @@
         `;
       }
 
-      document.getElementById('bookingModal')?.classList.remove('hidden');
+      const bModal = document.getElementById('bookingModal');
+      if (bModal) {
+        bModal.removeAttribute('hidden');
+        bModal.style.display = 'flex';
+        bModal.classList.remove('hidden');
+      }
+    }
+
+    function closeBookingModal() {
+      const bModal = document.getElementById('bookingModal');
+      if (bModal) {
+        bModal.setAttribute('hidden', '');
+        bModal.style.display = 'none';
+        bModal.classList.add('hidden');
+      }
     }
 
     document.getElementById('closeBookingModalBtn')?.addEventListener('click', () => {
-      document.getElementById('bookingModal')?.classList.add('hidden');
+      closeBookingModal();
     });
     document.getElementById('cancelBookingBtn')?.addEventListener('click', () => {
-      document.getElementById('bookingModal')?.classList.add('hidden');
+      closeBookingModal();
     });
 
     document.getElementById('confirmBookingBtn')?.addEventListener('click', async () => {
@@ -3067,7 +2863,7 @@
         const data = await resp.json();
         if (!resp.ok) {
           if (data.restriction) {
-            document.getElementById('bookingModal')?.classList.add('hidden');
+            closeBookingModal();
             openSettlementLockModal(data.restriction);
           }
           showToast(data.message || "Failed to reserve seat.", "⚠️");
@@ -3085,7 +2881,7 @@
 
         renderRidesGrid();
         renderMyRidesViews();
-        document.getElementById('bookingModal')?.classList.add('hidden');
+        closeBookingModal();
         showToast(`Seat booked with ${ride.driverName}! Reach out on WhatsApp.`, "🎟️");
         switchMainTab('tabMyRides', 'viewMyRides');
         syncLiveRides();
@@ -3547,22 +3343,42 @@
       });
     });
 
-    // BUG-05 Fix: Wire Emergency SOS Quick Button
+    // Emergency SOS Quick Button (with native hidden toggling)
     document.getElementById('headerSosQuickBtn')?.addEventListener('click', () => {
-      document.getElementById('sosModal')?.classList.remove('hidden');
+      const modal = document.getElementById('sosModal');
+      if (modal) {
+        modal.removeAttribute('hidden');
+        modal.style.display = 'flex';
+        modal.classList.remove('hidden');
+      }
     });
     document.getElementById('closeSosModalBtn')?.addEventListener('click', () => {
-      document.getElementById('sosModal')?.classList.add('hidden');
+      const modal = document.getElementById('sosModal');
+      if (modal) {
+        modal.setAttribute('hidden', '');
+        modal.style.display = 'none';
+        modal.classList.add('hidden');
+      }
     });
 
-    // BUG-05 Fix: Wire Notification Trigger Button & Clear Badge
+    // Notification Trigger Button & Clear Badge (with native hidden toggling)
     document.getElementById('notificationTriggerBtn')?.addEventListener('click', () => {
-      document.getElementById('notificationsModal')?.classList.remove('hidden');
+      const modal = document.getElementById('notificationsModal');
+      if (modal) {
+        modal.removeAttribute('hidden');
+        modal.style.display = 'flex';
+        modal.classList.remove('hidden');
+      }
       const badge = document.getElementById('notifBadge');
       if (badge) badge.classList.add('hidden');
     });
     document.getElementById('closeNotifModalBtn')?.addEventListener('click', () => {
-      document.getElementById('notificationsModal')?.classList.add('hidden');
+      const modal = document.getElementById('notificationsModal');
+      if (modal) {
+        modal.setAttribute('hidden', '');
+        modal.style.display = 'none';
+        modal.classList.add('hidden');
+      }
     });
 
     // BUG-05 Fix: Wire Live Network Status (Online / Offline Highway Cache)
@@ -3656,7 +3472,7 @@
 
 
   <!-- MODAL: Campus Emergency SOS -->
-  <div id="sosModal" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+  <div id="sosModal" hidden style="display: none;" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
     <div class="bg-slate-900 border border-rose-900/60 rounded-3xl max-w-sm w-full p-6 shadow-2xl fade-in space-y-4 text-center">
       <div class="flex items-center justify-between pb-3 border-b border-slate-800">
         <div class="flex items-center gap-2">
@@ -3693,7 +3509,7 @@
   </div>
 
   <!-- MODAL: Campus Commute Notifications -->
-  <div id="notificationsModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+  <div id="notificationsModal" hidden style="display: none;" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
     <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 shadow-2xl fade-in space-y-4">
       <div class="flex items-center justify-between pb-3 border-b border-slate-800">
         <div class="flex items-center gap-2">
