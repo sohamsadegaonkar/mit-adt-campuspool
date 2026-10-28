@@ -184,7 +184,7 @@
   </div>
 
   <!-- Real-time Settlement Enforcement Banner -->
-  <div id="settlementWarningBanner" class="hidden bg-rose-950/90 border-b border-rose-500/50 px-4 py-2.5 text-xs text-rose-200 shadow-md">
+  <div id="settlementWarningBanner" hidden style="display: none;" class="hidden bg-rose-950/90 border-b border-rose-500/50 px-4 py-2.5 text-xs text-rose-200 shadow-md">
     <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-2.5">
         <span class="text-lg">🚨</span>
@@ -240,7 +240,7 @@
         <div>
           <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Zero Strangers</span>
           <h2 class="text-sm font-bold text-white">100% Student Verified</h2>
-          <p class="text-[11px] text-slate-400">Strict @students.mituniversity.edu.in</p>
+          <p class="text-[11px] text-slate-400">@students / @mituniversity.edu.in (Students &amp; Faculty)</p>
         </div>
       </div>
 
@@ -312,7 +312,7 @@
         <!-- Vehicle Type Filter -->
         <div class="flex items-center gap-2 w-full md:w-auto justify-end text-xs">
           <label for="filterVehicleSelect" class="text-slate-400 font-semibold shrink-0">Vehicle:</label>
-          <select id="filterVehicleSelect" class="bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-1.5 text-xs font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none cursor-pointer">
+          <select id="filterVehicleSelect" aria-label="Filter rides by vehicle type" class="bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-1.5 text-xs font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none cursor-pointer">
             <option value="all">All Vehicles</option>
             <option value="Bike">🛵 Bike Only (1 Pillion)</option>
             <option value="Car">🚗 Car Only</option>
@@ -398,7 +398,7 @@
                   </div>
                 </div>
                 <span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-brand-500/20 text-brand-300 border border-brand-500/30">
-                  🚗 Car
+                  🚗 Car (2 of 3 Seats)
                 </span>
               </div>
 
@@ -518,7 +518,7 @@
                   </div>
                 </div>
                 <span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-brand-500/20 text-brand-300 border border-brand-500/30">
-                  🚗 Car
+                  🚗 Car (3 of 3 Seats)
                 </span>
               </div>
 
@@ -990,8 +990,8 @@
         <div class="flex items-start gap-3 p-3 rounded-2xl bg-slate-950 border border-slate-800">
           <div class="text-2xl p-2 rounded-xl bg-amber-500/10 text-amber-400 shrink-0">🛡️</div>
           <div>
-            <h3 class="font-bold text-xs sm:text-sm text-white">Verified Students Only &amp; Campus Gates</h3>
-            <p class="text-[11px] text-slate-400 leading-snug mt-0.5">Strict dual OTP verification using your <strong>@students.mituniversity.edu.in</strong> email and mobile. Board safely at CCTV-guarded Gates 1–4.</p>
+            <h3 class="font-bold text-xs sm:text-sm text-white">Verified Campus Community &amp; Gates</h3>
+            <p class="text-[11px] text-slate-400 leading-snug mt-0.5">Strict dual OTP verification using your official <strong>@students.mituniversity.edu.in</strong> or <strong>@mituniversity.edu.in</strong> email and mobile. Board safely at CCTV-guarded Gates 1–4.</p>
           </div>
         </div>
       </div>
@@ -1077,7 +1077,7 @@
           </div>
 
           <div>
-            <label for="inputStudentEmail" class="block text-xs font-bold text-slate-400 uppercase mb-1">Email ID (@students.mituniversity.edu.in or Personal Gmail)</label>
+            <label for="inputStudentEmail" class="block text-xs font-bold text-slate-400 uppercase mb-1">Email ID (@students.mituniversity.edu.in or @mituniversity.edu.in)</label>
             <input type="email" id="inputStudentEmail" placeholder="e.g. 1032210123@students.mituniversity.edu.in or name@gmail.com" required class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3.5 py-2 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none">
             <p id="authEmailError" class="hidden text-[11px] text-rose-400 font-semibold mt-1">⚠️ Please enter a valid email address.</p>
           </div>
@@ -1229,7 +1229,7 @@
   </div>
 
   <!-- MODAL: Instant UPI Payment -->
-  <div id="paymentModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+  <div id="paymentModal" hidden style="display: none;" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
     <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 shadow-2xl fade-in space-y-4 text-center">
       <div class="flex items-center justify-between pb-3 border-b border-slate-800">
         <div class="flex items-center gap-2">
@@ -1244,7 +1244,7 @@
       </div>
 
       <div class="pt-2 flex flex-col gap-2">
-        <a id="paymentUpiLinkBtn" href="#" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md flex items-center justify-center gap-2">
+        <a id="paymentUpiLinkBtn" href="upi://pay?pa=campuspool.mitadt@okaxis&amp;pn=CampusPool&amp;cu=INR" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md flex items-center justify-center gap-2">
           <span>📲</span> Open GPay / PhonePe / Paytm
         </a>
         <button id="markPaymentDoneBtn" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2 rounded-xl text-xs transition cursor-pointer">
@@ -1255,7 +1255,7 @@
   </div>
 
   <!-- MODAL: Weekly Driver Commission Settlement -->
-  <div id="driverSettlementModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+  <div id="driverSettlementModal" hidden style="display: none;" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
     <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 shadow-2xl fade-in space-y-4 text-center">
       <div class="flex items-center justify-between pb-3 border-b border-slate-800">
         <div class="flex items-center gap-2">
@@ -1284,13 +1284,18 @@
       </div>
 
       <div class="p-3 bg-slate-950 border border-slate-800 rounded-2xl space-y-1.5 text-xs">
-        <span class="text-[10px] uppercase font-bold text-slate-500">CampusPool Admin UPI VPA</span>
+        <div class="flex items-center justify-between">
+          <span class="text-[10px] uppercase font-bold text-slate-500">CampusPool Admin UPI VPA</span>
+          <button type="button" class="copy-vpa-btn text-[10px] bg-slate-900 hover:bg-slate-800 text-brand-300 hover:text-white px-2 py-0.5 rounded-md border border-slate-700 cursor-pointer flex items-center gap-1" data-vpa="campuspool.mitadt@okaxis">
+            <span>📋</span> Copy VPA
+          </button>
+        </div>
         <div id="adminUpiVpaText" class="font-mono font-black text-brand-300 text-sm break-all">campuspool.mitadt@okaxis</div>
         <p class="text-[10px] text-slate-500">Scan QR or tap to launch Google Pay / PhonePe / Paytm directly with 0% gateway fees.</p>
       </div>
 
       <div class="pt-1 flex flex-col gap-2">
-        <a id="settleUpiLinkBtn" href="#" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md flex items-center justify-center gap-2">
+        <a id="settleUpiLinkBtn" href="upi://pay?pa=campuspool.mitadt@okaxis&amp;pn=CampusPool&amp;am=0&amp;cu=INR&amp;tn=Weekly%20Driver%20Commission%2010%25" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md flex items-center justify-center gap-2">
           <span>📲</span> Open UPI App to Pay Due
         </a>
         <button id="markCommissionPaidBtn" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2 rounded-xl text-xs transition cursor-pointer">
@@ -1301,7 +1306,7 @@
   </div>
 
   <!-- MODAL: Settlement & Anti-Defaulter Restriction Modal -->
-  <div id="settlementLockModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+  <div id="settlementLockModal" hidden style="display: none;" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
     <div class="bg-slate-900 border border-rose-500/40 rounded-3xl max-w-sm w-full p-6 shadow-2xl fade-in space-y-4 text-center">
       <div class="flex items-center justify-between pb-3 border-b border-slate-800">
         <div class="flex items-center gap-2">
@@ -1331,16 +1336,21 @@
       <div class="p-3 bg-slate-950 border border-slate-800 rounded-2xl space-y-2 text-center">
         <div class="flex justify-center">
           <div class="bg-white p-2 rounded-2xl shadow-xl inline-block border border-slate-700">
-            <img id="settleQrCodeImg" src="" alt="Scan UPI QR" class="w-32 h-32 mx-auto rounded-lg" loading="lazy">
+            <img id="settleQrCodeImg" src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&amp;data=upi%3A%2F%2Fpay%3Fpa%3Dcampuspool.mitadt%40okaxis%26pn%3DCampusPool%26cu%3DINR" alt="Scan UPI QR" class="w-32 h-32 mx-auto rounded-lg" loading="lazy">
           </div>
         </div>
-        <div class="text-[10px] uppercase font-bold text-slate-500">Recipient UPI VPA</div>
-        <div id="settleVpaDisplay" class="font-mono font-black text-brand-300 text-xs break-all"></div>
+        <div class="flex items-center justify-between px-1">
+          <span class="text-[10px] uppercase font-bold text-slate-500">Recipient UPI VPA</span>
+          <button type="button" class="copy-vpa-btn text-[10px] bg-slate-900 hover:bg-slate-800 text-brand-300 hover:text-white px-2 py-0.5 rounded-md border border-slate-700 cursor-pointer flex items-center gap-1" data-target="settleVpaDisplay">
+            <span>📋</span> Copy VPA
+          </button>
+        </div>
+        <div id="settleVpaDisplay" class="font-mono font-black text-brand-300 text-xs break-all">campuspool.mitadt@okaxis</div>
         <p class="text-[10px] text-slate-400">Scan using Google Pay, PhonePe, Paytm, or BHIM</p>
       </div>
 
       <div class="pt-1 flex flex-col gap-2">
-        <a id="settleActionUpiLink" href="#" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md flex items-center justify-center gap-2">
+        <a id="settleActionUpiLink" href="upi://pay?pa=campuspool.mitadt@okaxis&amp;pn=CampusPool&amp;am=0&amp;cu=INR&amp;tn=CampusPool%20Dues%20Settlement" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md flex items-center justify-center gap-2">
           <span>📲</span> Pay Dues via UPI App
         </a>
         <button id="confirmSettleDoneBtn" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md cursor-pointer flex items-center justify-center gap-1.5">
@@ -1684,7 +1694,7 @@
                   </div>
                 </div>
                 <span class="text-[11px] font-bold px-2.5 py-1 rounded-full ${ride.vehicle === 'Bike' ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30' : 'bg-brand-500/20 text-brand-300 border border-brand-500/30'}">
-                  ${ride.vehicle === 'Bike' ? '🛵 Bike (1 Seat)' : '🚗 Car'}
+                  ${ride.vehicle === 'Bike' ? '🛵 Bike (1 Seat)' : `🚗 Car (${ride.seatsLeft} of ${ride.seatsTotal} Seats)`}
                 </span>
               </div>
 
@@ -2045,6 +2055,8 @@
 
       const restriction = checkUserSettlementRestriction();
       if (restriction.isBlocked) {
+        banner.removeAttribute('hidden');
+        banner.style.display = 'block';
         banner.classList.remove('hidden');
         if (text) {
           if (restriction.hasUnsettledCommission) {
@@ -2055,6 +2067,8 @@
           }
         }
       } else {
+        banner.setAttribute('hidden', '');
+        banner.style.display = 'none';
         banner.classList.add('hidden');
       }
     }
@@ -2142,11 +2156,20 @@
       if (qrImg) qrImg.src = qrUrl;
       if (upiLink) upiLink.href = upiUrl;
 
-      if (modal) modal.classList.remove('hidden');
+      if (modal) {
+        modal.removeAttribute('hidden');
+        modal.style.display = 'flex';
+        modal.classList.remove('hidden');
+      }
     }
 
     document.getElementById('closeSettlementLockModalBtn')?.addEventListener('click', () => {
-      document.getElementById('settlementLockModal')?.classList.add('hidden');
+      const modal = document.getElementById('settlementLockModal');
+      if (modal) {
+        modal.setAttribute('hidden', '');
+        modal.style.display = 'none';
+        modal.classList.add('hidden');
+      }
     });
 
     document.getElementById('bannerSettleBtn')?.addEventListener('click', () => {
@@ -3099,7 +3122,12 @@
             <p class="text-[11px] text-slate-400">Scan with Google Pay, PhonePe, or Paytm</p>
 
             <div class="p-3 bg-slate-900 rounded-xl border border-slate-800 text-left space-y-1">
-              <span class="text-[10px] text-brand-400 font-bold uppercase tracking-wider block">Driver UPI VPA</span>
+              <div class="flex items-center justify-between">
+                <span class="text-[10px] text-brand-400 font-bold uppercase tracking-wider block">Driver UPI VPA</span>
+                <button type="button" class="copy-vpa-btn text-[10px] bg-slate-800 hover:bg-slate-700 text-brand-300 px-2 py-0.5 rounded-md border border-slate-700 cursor-pointer flex items-center gap-1" data-vpa="${sanitize(booking.upiId)}">
+                  <span>📋</span> Copy
+                </button>
+              </div>
               <div class="font-mono font-black text-brand-300 text-sm break-all">${sanitize(booking.upiId)}</div>
               <div class="text-[11px] text-slate-400">Recipient: <strong class="text-slate-200">${sanitize(booking.driverName)}</strong></div>
               <div class="text-xl font-black text-emerald-400 pt-1">₹${booking.studentFare}</div>
@@ -3112,11 +3140,21 @@
       const upiBtn = document.getElementById('paymentUpiLinkBtn');
       if (upiBtn) upiBtn.href = upiUrl;
 
-      document.getElementById('paymentModal')?.classList.remove('hidden');
+      const pModal = document.getElementById('paymentModal');
+      if (pModal) {
+        pModal.removeAttribute('hidden');
+        pModal.style.display = 'flex';
+        pModal.classList.remove('hidden');
+      }
     }
 
     document.getElementById('closePaymentModalBtn')?.addEventListener('click', () => {
-      document.getElementById('paymentModal')?.classList.add('hidden');
+      const pModal = document.getElementById('paymentModal');
+      if (pModal) {
+        pModal.setAttribute('hidden', '');
+        pModal.style.display = 'none';
+        pModal.classList.add('hidden');
+      }
     });
 
     document.getElementById('markPaymentDoneBtn')?.addEventListener('click', async () => {
@@ -3126,7 +3164,12 @@
       b.paymentStatus = 'Paid';
       saveState();
       renderMyRidesViews();
-      document.getElementById('paymentModal')?.classList.add('hidden');
+      const pModal = document.getElementById('paymentModal');
+      if (pModal) {
+        pModal.setAttribute('hidden', '');
+        pModal.style.display = 'none';
+        pModal.classList.add('hidden');
+      }
       showToast(`Payment marked as complete! Receipt updated.`, "✅");
 
       // Update in SQLite Backend
@@ -3152,11 +3195,21 @@
       const upiBtn = document.getElementById('settleUpiLinkBtn');
       if (upiBtn) upiBtn.href = upiUrl;
 
-      document.getElementById('driverSettlementModal')?.classList.remove('hidden');
+      const dModal = document.getElementById('driverSettlementModal');
+      if (dModal) {
+        dModal.removeAttribute('hidden');
+        dModal.style.display = 'flex';
+        dModal.classList.remove('hidden');
+      }
     });
 
     document.getElementById('closeSettlementModalBtn')?.addEventListener('click', () => {
-      document.getElementById('driverSettlementModal')?.classList.add('hidden');
+      const dModal = document.getElementById('driverSettlementModal');
+      if (dModal) {
+        dModal.setAttribute('hidden', '');
+        dModal.style.display = 'none';
+        dModal.classList.add('hidden');
+      }
     });
 
     document.getElementById('markCommissionPaidBtn')?.addEventListener('click', () => {
@@ -3547,6 +3600,29 @@
         }
       });
     }
+
+    // UX-03: One-Tap Copy VPA Button Listener
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('.copy-vpa-btn');
+      if (btn) {
+        let vpa = btn.getAttribute('data-vpa');
+        if (!vpa) {
+          const targetId = btn.getAttribute('data-target');
+          if (targetId) vpa = document.getElementById(targetId)?.textContent?.trim();
+        }
+        if (vpa) {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(vpa).then(() => {
+              showToast(`Copied VPA: ${vpa}`, "📋");
+            }).catch(() => {
+              showToast(`VPA: ${vpa}`, "📋");
+            });
+          } else {
+            showToast(`VPA: ${vpa}`, "📋");
+          }
+        }
+      }
+    });
 
     // Initial Load & Real-Time SQLite Sync
     window.addEventListener('DOMContentLoaded', () => {
