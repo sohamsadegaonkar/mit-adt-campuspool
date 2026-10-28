@@ -17,7 +17,12 @@ class SQLiteCampusDatabase {
     this.db = new Database(this.dbPath);
 
     // High performance write-ahead logging & strict relational integrity
-    this.db.pragma('journal_mode = WAL');
+    try {
+      this.db.pragma('journal_mode = WAL');
+    } catch (e) {
+      console.warn('[SQLITE] WAL mode unavailable in this environment, using DELETE journal mode:', e.message);
+      this.db.pragma('journal_mode = DELETE');
+    }
     this.db.pragma('foreign_keys = ON');
 
     this.initTables();
