@@ -266,7 +266,8 @@ const server = http.createServer(async (req, res) => {
   // CORS Headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Forwarded-For');
+  res.setHeader('Access-Control-Expose-Headers', 'RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset, Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-RateLimit-Tier, X-Load-Balancer, X-Worker-Pid, X-Worker-Id, X-Cache');
 
   if (method === 'OPTIONS') {
     res.writeHead(204);
@@ -283,6 +284,102 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('X-Load-Balancer', 'Node-Cluster-Round-Robin');
   res.setHeader('X-Worker-Pid', String(process.pid));
   res.setHeader('X-Worker-Id', cluster.worker ? String(cluster.worker.id) : '1');
+
+  // Client IP Detection Helper (Supports Proxies & Normalization)
+  function getClientIp() {
+    const forwarded = req.headers['x-forwarded-for'];
+    if (forwarded) {
+      const firstIp = forwarded.split(',')[0].trim();
+      if (firstIp) return firstIp;
+    }
+    const realIp = req.headers['x-real-ip'];
+    if (realIp && realIp.trim()) return realIp.trim();
+    const remote = req.socket?.remoteAddress;
+    if (remote) {
+      if (remote === '::1' || remote === '::ffff:127.0.0.1') return '127.0.0.1';
+      return remote;
+    }
+    return '127.0.0.1';
+  }
+
+  // Tiered Rate Limiting Policy Resolver
+  function resolveRateLimitPolicy() {
+    if (!pathname.startsWith('/api/') && pathname !== '/healthz') {
+      return null; // Static assets served from memory cache without DB lookup
+    }
+
+    // Tier 1: Strict Auth Gateways (10 req / min)
+    if (
+      pathname === '/api/auth/send-email-otp' ||
+      pathname === '/api/auth/send-phone-otp' ||
+      pathname === '/api/auth/login-request'
+    ) {
+      return { tier: 'AUTH_STRICT', limit: 10, windowMs: 60000 };
+    }
+
+    // Tier 2: Auth Verification & Registration (25 req / min)
+    if (
+      pathname === '/api/auth/verify-email-otp' ||
+      pathname === '/api/auth/verify-phone-otp' ||
+      pathname === '/api/auth/register' ||
+      pathname === '/api/auth/check-uniqueness'
+    ) {
+      return { tier: 'AUTH_VERIFY', limit: 25, windowMs: 60000 };
+    }
+
+    // Tier 3: Real-Time GPS Tracking & Breadcrumbs (180 req / min)
+    if (
+      pathname === '/api/rides/location' ||
+      pathname === '/api/bookings/passenger-location'
+    ) {
+      return { tier: 'GPS_REALTIME', limit: 180, windowMs: 60000 };
+    }
+
+    // Tier 4: System Telemetry & Cluster Health (300 req / min)
+    if (
+      pathname === '/api/health' ||
+      pathname === '/api/lb-status' ||
+      pathname === '/healthz'
+    ) {
+      return { tier: 'SYSTEM_TELEMETRY', limit: 300, windowMs: 60000 };
+    }
+
+    // Tier 5: State Mutations - Rides & Bookings (60 req / min)
+    if (method === 'POST' || method === 'PUT' || method === 'DELETE') {
+      return { tier: 'MUTATION', limit: 60, windowMs: 60000 };
+    }
+
+    // Tier 6: General API Reads & Polling (120 req / min)
+    return { tier: 'API_READ', limit: 120, windowMs: 60000 };
+  }
+
+  // Enforce Shared Rate Limiting Across Cluster Workers
+  const rateLimitPolicy = resolveRateLimitPolicy();
+  if (rateLimitPolicy) {
+    const clientIp = getClientIp();
+    const rateLimitKey = `rl:${rateLimitPolicy.tier}:${clientIp}`;
+    const rlResult = db.checkRateLimit(rateLimitKey, rateLimitPolicy.limit, rateLimitPolicy.windowMs);
+
+    res.setHeader('RateLimit-Limit', String(rlResult.limit));
+    res.setHeader('RateLimit-Remaining', String(rlResult.remaining));
+    res.setHeader('RateLimit-Reset', String(rlResult.resetSeconds));
+    res.setHeader('X-RateLimit-Limit', String(rlResult.limit));
+    res.setHeader('X-RateLimit-Remaining', String(rlResult.remaining));
+    res.setHeader('X-RateLimit-Reset', String(rlResult.resetSeconds));
+    res.setHeader('X-RateLimit-Tier', rateLimitPolicy.tier);
+
+    if (!rlResult.allowed) {
+      res.setHeader('Retry-After', String(rlResult.resetSeconds));
+      res.writeHead(429, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
+        success: false,
+        error: 'RATE_LIMIT_EXCEEDED',
+        tier: rateLimitPolicy.tier,
+        message: `Too many requests on ${rateLimitPolicy.tier}. Please wait ${rlResult.resetSeconds}s before retrying.`,
+        retryAfter: rlResult.resetSeconds
+      }));
+    }
+  }
 
   // Parse JSON Body Helper
   async function parseBody() {
@@ -341,6 +438,19 @@ const server = http.createServer(async (req, res) => {
         ridesMicroCacheTtlSeconds: 5,
         isRidesCacheWarm: Boolean(ridesCache.jsonString && Date.now() < ridesCache.expiresAt),
         gpsCacheSize: liveRideLocations.size + livePassengerLocations.size
+      },
+      rateLimiting: {
+        engine: 'Distributed SQLite WAL Shared Rate Limiter',
+        algorithm: 'Fixed Window Counter with Retry-After',
+        status: 'active',
+        tiers: {
+          AUTH_STRICT: { limit: 10, windowSeconds: 60 },
+          AUTH_VERIFY: { limit: 25, windowSeconds: 60 },
+          MUTATION: { limit: 60, windowSeconds: 60 },
+          GPS_REALTIME: { limit: 180, windowSeconds: 60 },
+          API_READ: { limit: 120, windowSeconds: 60 },
+          SYSTEM_TELEMETRY: { limit: 300, windowSeconds: 60 }
+        }
       }
     });
   }

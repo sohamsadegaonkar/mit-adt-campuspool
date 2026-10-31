@@ -117,6 +117,12 @@ class SQLiteCampusDatabase {
         updated_at INTEGER NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS rate_limits (
+        key TEXT PRIMARY KEY,
+        count INTEGER NOT NULL,
+        reset_at INTEGER NOT NULL
+      );
+
       CREATE INDEX IF NOT EXISTS idx_profiles_email ON profiles(email);
       CREATE INDEX IF NOT EXISTS idx_profiles_phone ON profiles(phone);
       CREATE INDEX IF NOT EXISTS idx_rides_dest ON rides(destination);
@@ -124,6 +130,7 @@ class SQLiteCampusDatabase {
       CREATE INDEX IF NOT EXISTS idx_bookings_ride ON bookings(ride_id);
       CREATE INDEX IF NOT EXISTS idx_otp_lookup ON otp_verifications(identifier, type);
       CREATE INDEX IF NOT EXISTS idx_driver_settlements_email ON driver_settlements(driver_email);
+      CREATE INDEX IF NOT EXISTS idx_rate_limits_reset ON rate_limits(reset_at);
     `);
   }
 
@@ -829,6 +836,76 @@ class SQLiteCampusDatabase {
         ON CONFLICT(key) DO UPDATE SET version = version + 1, updated_at = excluded.updated_at
       `);
       stmt.run(Date.now());
+    } catch (e) {}
+  }
+
+  // -----------------------------------------------------------------------
+  // Shared Distributed Rate Limiting (Cluster & Multi-Container Safe)
+  // -----------------------------------------------------------------------
+  checkRateLimit(key, maxRequests, windowMs = 60000) {
+    const now = Date.now();
+    try {
+      const checkTx = this.db.transaction(() => {
+        const row = this.db.prepare('SELECT count, reset_at FROM rate_limits WHERE key = ?').get(key);
+        
+        if (!row || now >= row.reset_at) {
+          const resetAt = now + windowMs;
+          this.db.prepare(`
+            INSERT INTO rate_limits (key, count, reset_at)
+            VALUES (?, 1, ?)
+            ON CONFLICT(key) DO UPDATE SET count = 1, reset_at = excluded.reset_at
+          `).run(key, resetAt);
+
+          return {
+            allowed: true,
+            current: 1,
+            limit: maxRequests,
+            remaining: Math.max(0, maxRequests - 1),
+            resetSeconds: Math.ceil(windowMs / 1000)
+          };
+        }
+
+        const newCount = row.count + 1;
+        const resetSeconds = Math.max(1, Math.ceil((row.reset_at - now) / 1000));
+
+        if (newCount > maxRequests) {
+          return {
+            allowed: false,
+            current: newCount,
+            limit: maxRequests,
+            remaining: 0,
+            resetSeconds: resetSeconds
+          };
+        }
+
+        this.db.prepare('UPDATE rate_limits SET count = ? WHERE key = ?').run(newCount, key);
+
+        return {
+          allowed: true,
+          current: newCount,
+          limit: maxRequests,
+          remaining: Math.max(0, maxRequests - newCount),
+          resetSeconds: resetSeconds
+        };
+      });
+
+      return checkTx();
+    } catch (err) {
+      // Fail-open: If an unexpected error occurs, allow request so users are never blocked
+      console.warn('[RATE-LIMIT] Fallback allow on error:', err.message);
+      return {
+        allowed: true,
+        current: 1,
+        limit: maxRequests,
+        remaining: Math.max(0, maxRequests - 1),
+        resetSeconds: Math.ceil(windowMs / 1000)
+      };
+    }
+  }
+
+  cleanExpiredRateLimits() {
+    try {
+      this.db.prepare('DELETE FROM rate_limits WHERE reset_at < ?').run(Date.now());
     } catch (e) {}
   }
 
