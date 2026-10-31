@@ -111,6 +111,12 @@ class SQLiteCampusDatabase {
         updated_at INTEGER NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS cache_metadata (
+        key TEXT PRIMARY KEY,
+        version INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
       CREATE INDEX IF NOT EXISTS idx_profiles_email ON profiles(email);
       CREATE INDEX IF NOT EXISTS idx_profiles_phone ON profiles(phone);
       CREATE INDEX IF NOT EXISTS idx_rides_dest ON rides(destination);
@@ -405,6 +411,7 @@ class SQLiteCampusDatabase {
       )
     `).run(newRide);
 
+    this.bumpRidesVersion();
     return newRide;
   }
 
@@ -460,6 +467,7 @@ class SQLiteCampusDatabase {
         )
       `).run(booking);
 
+      this.bumpRidesVersion();
       return booking;
     });
 
@@ -562,6 +570,7 @@ class SQLiteCampusDatabase {
       }
       this.db.prepare('DELETE FROM bookings WHERE booking_id = ?').run(bookingId);
       this.db.prepare('UPDATE rides SET seats_left = MIN(seats_total, seats_left + 1) WHERE id = ?').run(booking.ride_id);
+      this.bumpRidesVersion();
       return { success: true, rideId: booking.ride_id };
     });
     return cancelTx();
@@ -576,6 +585,7 @@ class SQLiteCampusDatabase {
       }
       this.db.prepare('DELETE FROM bookings WHERE ride_id = ?').run(rideId);
       this.db.prepare('DELETE FROM rides WHERE id = ?').run(rideId);
+      this.bumpRidesVersion();
       return { success: true };
     });
     return cancelTx();
@@ -797,6 +807,29 @@ class SQLiteCampusDatabase {
     } catch (e) {
       return null;
     }
+  }
+
+  // -----------------------------------------------------------------------
+  // Shared Version Tracking for Zero-Stale Cluster Cache Consistency
+  // -----------------------------------------------------------------------
+  getRidesVersion() {
+    try {
+      const row = this.db.prepare('SELECT version FROM cache_metadata WHERE key = ?').get('rides');
+      return row ? row.version : 1;
+    } catch (e) {
+      return 1;
+    }
+  }
+
+  bumpRidesVersion() {
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO cache_metadata (key, version, updated_at)
+        VALUES ('rides', 2, ?)
+        ON CONFLICT(key) DO UPDATE SET version = version + 1, updated_at = excluded.updated_at
+      `);
+      stmt.run(Date.now());
+    } catch (e) {}
   }
 
   // -----------------------------------------------------------------------

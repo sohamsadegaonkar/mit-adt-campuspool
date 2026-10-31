@@ -1454,6 +1454,8 @@
       });
     }
 
+    let lastRidesEtag = null;
+
     async function syncLiveRides() {
       if (rideFeedInFlight) return;
       const refreshOrigin = document.activeElement?.matches('[data-refresh-rides]')
@@ -1463,7 +1465,7 @@
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10000);
       try {
-        const resp = await fetch('/api/rides', { signal: controller.signal });
+        const fetchHeaders = {}; if (lastRidesEtag) fetchHeaders["If-None-Match"] = lastRidesEtag; const resp = await fetch('/api/rides', { headers: fetchHeaders, signal: controller.signal }); if (resp.status === 304) { rideFeedState = "ready"; return; } const etag = resp.headers.get("ETag"); if (etag) lastRidesEtag = etag;
         if (!resp.ok) throw new Error('Ride feed request failed');
         const data = await resp.json();
         if (!Array.isArray(data.rides)) throw new Error('Invalid ride feed response');

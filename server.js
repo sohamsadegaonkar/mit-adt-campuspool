@@ -232,10 +232,28 @@ function generateVerificationToken() {
 }
 
 // -------------------------------------------------------------------------
-// In-Memory Real-Time GPS Tracking Cache (Zero-Cost, Low Latency)
+// In-Memory Multi-Tier Caching Engine
+// 1. Static Asset Cache: In-memory buffers, MIME types & strong ETags
+// 2. Rides API Micro-Cache: 5s TTL with write-through invalidation
+// 3. Real-Time GPS Tracking Cache: Sub-millisecond coordinates
 // -------------------------------------------------------------------------
+const staticFileCache = new Map();
 const liveRideLocations = new Map();
 const livePassengerLocations = new Map();
+
+let ridesCache = {
+  jsonString: null,
+  etag: null,
+  version: 0,
+  expiresAt: 0
+};
+
+function invalidateRidesCache() {
+  ridesCache.jsonString = null;
+  ridesCache.etag = null;
+  ridesCache.version = -1;
+  ridesCache.expiresAt = 0;
+}
 
 // -------------------------------------------------------------------------
 // HTTP Server & Router
@@ -317,6 +335,12 @@ const server = http.createServer(async (req, res) => {
         engine: 'SQLite3 (better-sqlite3)',
         journalMode: 'WAL',
         concurrency: 'Multi-Process Safe (busy_timeout=5000ms)'
+      },
+      caching: {
+        staticFilesCached: staticFileCache.size,
+        ridesMicroCacheTtlSeconds: 5,
+        isRidesCacheWarm: Boolean(ridesCache.jsonString && Date.now() < ridesCache.expiresAt),
+        gpsCacheSize: liveRideLocations.size + livePassengerLocations.size
       }
     });
   }
@@ -745,10 +769,65 @@ const server = http.createServer(async (req, res) => {
   }
 
   // -----------------------------------------------------------------------
-  // REST API: /api/rides (List & Post)
+  // REST API: /api/rides (List & Post) with 5s Micro-Caching & Conditional 304
   // -----------------------------------------------------------------------
   if (method === 'GET' && pathname === '/api/rides') {
-    return sendJson(200, { success: true, rides: db.getRides() });
+    const now = Date.now();
+    const ifNoneMatch = req.headers['if-none-match'];
+    let currentVersion = 1;
+    try {
+      currentVersion = db.getRidesVersion();
+    } catch (e) {
+      currentVersion = 1;
+    }
+
+    // Check if micro-cache is active and valid (both TTL and shared database version match)
+    if (ridesCache.jsonString && ridesCache.version === currentVersion && now < ridesCache.expiresAt) {
+      if (ifNoneMatch && ifNoneMatch === ridesCache.etag) {
+        res.writeHead(304, {
+          'ETag': ridesCache.etag,
+          'Cache-Control': 'public, max-age=5, stale-while-revalidate=10',
+          'X-Cache': 'HIT-304'
+        });
+        return res.end();
+      }
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'ETag': ridesCache.etag,
+        'Cache-Control': 'public, max-age=5, stale-while-revalidate=10',
+        'X-Cache': 'HIT'
+      });
+      return res.end(ridesCache.jsonString);
+    }
+
+    // Cache Miss or Invalidation: Query Relational Database
+    const freshRides = db.getRides();
+    const jsonStr = JSON.stringify({ success: true, rides: freshRides });
+    const etag = `W/"v${currentVersion}-${crypto.createHash('md5').update(jsonStr).digest('hex').slice(0, 16)}"`;
+
+    ridesCache = {
+      jsonString: jsonStr,
+      etag: etag,
+      version: currentVersion,
+      expiresAt: now + 5000 // 5 seconds micro-cache TTL
+    };
+
+    if (ifNoneMatch && ifNoneMatch === etag) {
+      res.writeHead(304, {
+        'ETag': etag,
+        'Cache-Control': 'public, max-age=5, stale-while-revalidate=10',
+        'X-Cache': 'HIT-304'
+      });
+      return res.end();
+    }
+
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'ETag': etag,
+      'Cache-Control': 'public, max-age=5, stale-while-revalidate=10',
+      'X-Cache': 'MISS'
+    });
+    return res.end(jsonStr);
   }
 
   if (method === 'POST' && pathname === '/api/rides') {
@@ -765,6 +844,7 @@ const server = http.createServer(async (req, res) => {
       }
     }
     const newRide = db.createRide(body);
+    invalidateRidesCache();
     return sendJson(201, { success: true, ride: newRide });
   }
 
@@ -881,6 +961,7 @@ const server = http.createServer(async (req, res) => {
         passengerEmail: body.passengerEmail,
         passengerName: body.passengerName
       });
+      invalidateRidesCache();
       return sendJson(201, { success: true, booking });
     } catch (err) {
       const statusCode = err.message.includes('not found') ? 404 : 400;
@@ -935,6 +1016,7 @@ const server = http.createServer(async (req, res) => {
     }
     try {
       const result = db.cancelBooking(body.bookingId, body.passengerEmail);
+      invalidateRidesCache();
       return sendJson(200, { success: true, message: 'Booking canceled and seat restored.', ...result });
     } catch (err) {
       return sendJson(400, { success: false, message: err.message });
@@ -951,6 +1033,7 @@ const server = http.createServer(async (req, res) => {
     }
     try {
       const result = db.cancelRide(body.rideId, body.driverEmail);
+      invalidateRidesCache();
       return sendJson(200, { success: true, message: 'Offered ride canceled.', ...result });
     } catch (err) {
       return sendJson(400, { success: false, message: err.message });
@@ -958,7 +1041,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   // -----------------------------------------------------------------------
-  // Static File Serving (Security Hardened)
+  // Static File Serving (Security Hardened & In-Memory Cached with ETags)
   // -----------------------------------------------------------------------
   const blockedFiles = ['/server.js', '/database.js', '/schema.sql', '/firestore.rules', '/package.json', '/package-lock.json', '/.env', '/.env.production', '/campuspool_database.json', '/campuspool.db', '/campuspool.db-wal', '/campuspool.db-shm'];
   if (blockedFiles.includes(pathname) || pathname.startsWith('/.') || pathname.endsWith('.sql') || pathname.endsWith('.rules') || pathname.endsWith('.db') || pathname.endsWith('.db-wal') || pathname.endsWith('.db-shm')) {
@@ -985,20 +1068,53 @@ const server = http.createServer(async (req, res) => {
   };
 
   const contentType = mimeTypes[ext] || 'application/octet-stream';
+  const isHtml = ext === '.html';
+  const cacheControl = isHtml
+    ? 'public, no-cache, must-revalidate'
+    : 'public, max-age=604800, stale-while-revalidate=86400';
 
-  fs.readFile(filePath, (err, content) => {
-    if (err) {
-      res.writeHead(500, { 'Content-Type': 'text/plain' });
-      return res.end('Server Error');
+  let cached = staticFileCache.get(filePath);
+
+  if (!cached) {
+    try {
+      const stats = fs.statSync(filePath);
+      const content = fs.readFileSync(filePath);
+      const hash = crypto.createHash('md5').update(content).digest('hex');
+      const etag = `"${stats.size.toString(16)}-${hash.slice(0, 16)}"`;
+      cached = {
+        content,
+        contentType,
+        etag,
+        mtime: stats.mtime.toUTCString(),
+        cacheControl
+      };
+      staticFileCache.set(filePath, cached);
+    } catch (err) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      return res.end('File Not Found');
     }
-    res.writeHead(200, {
-      'Content-Type': contentType,
-      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
-      'Pragma': 'no-cache',
-      'Expires': '0'
+  }
+
+  // Handle Conditional GET (If-None-Match -> HTTP 304 Not Modified)
+  const clientEtag = req.headers['if-none-match'];
+  if (clientEtag && (clientEtag === cached.etag || clientEtag === `W/${cached.etag}`)) {
+    res.writeHead(304, {
+      'ETag': cached.etag,
+      'Cache-Control': cached.cacheControl,
+      'X-Cache': 'HIT-304'
     });
-    res.end(content);
+    return res.end();
+  }
+
+  res.writeHead(200, {
+    'Content-Type': cached.contentType,
+    'Content-Length': cached.content.length,
+    'ETag': cached.etag,
+    'Last-Modified': cached.mtime,
+    'Cache-Control': cached.cacheControl,
+    'X-Cache': 'HIT'
   });
+  res.end(cached.content);
 });
 
   server.listen(PORT, '0.0.0.0', () => {
