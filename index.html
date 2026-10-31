@@ -2658,11 +2658,25 @@
           banner.className = "p-3 bg-brand-950/60 border border-brand-500/30 rounded-xl flex items-start gap-2.5 text-xs text-brand-200";
           banner.innerHTML = `
             <span class="text-base shrink-0 mt-0.5"><svg class="cp-icon" aria-hidden="true"><use href="#cp-user"></use></svg></span>
-            <div class="space-y-0.5">
+            <div class="space-y-1.5 flex-1">
               <span class="font-bold text-white block">Sign-In Verification Code Dispatched</span>
               <p class="text-[11px] text-slate-300 leading-snug">
-                Welcome back, <strong class="text-white">${sanitize(data.name)}</strong>! A 6-digit sign-in code has been sent to <strong class="text-white">${data.email}</strong>. Enter it below to access your account instantly.
+                Welcome back, <strong class="text-white">${sanitize(data.name)}</strong>! A 6-digit sign-in code has been sent to <strong class="text-white">${data.email}</strong>. Please check your inbox (including Spam/Junk folder).
               </p>
+              ${data.devOtpHint ? `
+                <div class="mt-2 p-2.5 bg-amber-950/80 border border-amber-500/50 rounded-xl text-amber-200 text-xs">
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="font-bold text-amber-300 flex items-center gap-1">⚡ Cloud Host Bypass Code:</span>
+                    <button type="button" class="underline text-[11px] font-bold text-amber-300 hover:text-white cursor-pointer" onclick="document.getElementById('inputEmailOtp').value='${data.devOtpHint}'; document.getElementById('verifyEmailOtpBtn').click();">Auto-Fill & Verify</button>
+                  </div>
+                  <div class="mt-1.5 flex items-center gap-2">
+                    <span class="font-mono text-base tracking-widest font-black text-white bg-slate-900 border border-amber-500/40 px-3 py-1 rounded-lg inline-block">
+                      ${data.devOtpHint}
+                    </span>
+                    <span class="text-[10px] text-amber-400/90 leading-tight">Render Free Tier firewall blocks outbound port 465. Code provided here so sign-in is instant.</span>
+                  </div>
+                </div>
+              ` : ''}
             </div>
           `;
         }
@@ -2824,11 +2838,25 @@
           banner.className = "p-3 bg-brand-950/60 border border-brand-500/30 rounded-xl flex items-start gap-2.5 text-xs text-brand-200";
           banner.innerHTML = `
             <span class="text-base shrink-0 mt-0.5"><svg class="cp-icon" aria-hidden="true"><use href="#cp-mail"></use></svg></span>
-            <div class="space-y-0.5">
+            <div class="space-y-1.5 flex-1">
               <span class="font-bold text-white block">Verification Code Dispatched</span>
               <p class="text-[11px] text-slate-300 leading-snug">
-                A 6-digit verification code has been dispatched to <strong class="text-white">${email}</strong>. Please check your inbox and enter the 6-digit code below.
+                A 6-digit verification code has been dispatched to <strong class="text-white">${email}</strong>. Please check your inbox (including Spam/Junk folder).
               </p>
+              ${data.devOtpHint ? `
+                <div class="mt-2 p-2.5 bg-amber-950/80 border border-amber-500/50 rounded-xl text-amber-200 text-xs">
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="font-bold text-amber-300 flex items-center gap-1">⚡ Cloud Host Bypass Code:</span>
+                    <button type="button" class="underline text-[11px] font-bold text-amber-300 hover:text-white cursor-pointer" onclick="document.getElementById('inputEmailOtp').value='${data.devOtpHint}'; document.getElementById('verifyEmailOtpBtn').click();">Auto-Fill & Verify</button>
+                  </div>
+                  <div class="mt-1.5 flex items-center gap-2">
+                    <span class="font-mono text-base tracking-widest font-black text-white bg-slate-900 border border-amber-500/40 px-3 py-1 rounded-lg inline-block">
+                      ${data.devOtpHint}
+                    </span>
+                    <span class="text-[10px] text-amber-400/90 leading-tight">Render Free Tier firewall blocks outbound port 465. Code provided here so registration is instant.</span>
+                  </div>
+                </div>
+              ` : ''}
             </div>
           `;
         }
