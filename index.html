@@ -153,6 +153,64 @@
 
     .fade-in { animation: fadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1); }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Keep keyboard focus, overlays, and narrow screens usable without relying on utility generation. */
+    :focus-visible {
+      outline: 3px solid #a5b4fc;
+      outline-offset: 3px;
+    }
+
+    .flex-2 { flex: 2 1 0%; }
+
+    .modal-overlay {
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .modal-panel {
+      margin: auto;
+    }
+
+    #toastNotification {
+      max-width: min(28rem, calc(100vw - 2rem));
+    }
+
+    @media (max-width: 639px) {
+      .app-header-main {
+        min-height: 4rem;
+        height: auto;
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
+        gap: 0.5rem;
+      }
+
+      .campus-brand,
+      .campus-brand > div:last-child { min-width: 0; }
+      .campus-brand > div:last-child > div > span:last-child,
+      .campus-brand > div:last-child > p,
+      .network-status,
+      .header-login-label,
+      .header-profile-name,
+      .header-profile-email { display: none; }
+
+      .header-actions { gap: 0.375rem; }
+      .header-login-button {
+        min-width: 2.5rem;
+        justify-content: center;
+        padding-left: 0.625rem;
+        padding-right: 0.625rem;
+      }
+
+      #toastNotification {
+        right: 1rem;
+        bottom: max(1rem, env(safe-area-inset-bottom));
+      }
+    }
+
+    @media (min-width: 640px) {
+      .header-login-compact { display: none; }
+    }
   </style>
 <style>*, ::before, ::after{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/* ! tailwindcss v3.4.17 | MIT License | https://tailwindcss.com */*,::after,::before{box-sizing:border-box;border-width:0;border-style:solid;border-color:#e5e7eb}::after,::before{--tw-content:''}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;tab-size:4;font-family:Plus Jakarta Sans, Inter, system-ui, sans-serif;font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:JetBrains Mono, ui-monospace, monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0;padding:0}legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.pointer-events-none{pointer-events:none}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0px}.-bottom-10{bottom:-2.5rem}.-right-1{right:-0.25rem}.-right-10{right:-2.5rem}.-right-2{right:-0.5rem}.-top-1{top:-0.25rem}.top-0{top:0px}.top-4{top:1rem}.bottom-2{bottom:0.5rem}.bottom-5{bottom:1.25rem}.left-2{left:0.5rem}.right-5{right:1.25rem}.z-10{z-index:10}.z-30{z-index:30}.z-40{z-index:40}.z-50{z-index:50}.mx-auto{margin-left:auto;margin-right:auto}.mb-1{margin-bottom:0.25rem}.mt-0\.5{margin-top:0.125rem}.mt-1{margin-top:0.25rem}.mt-12{margin-top:3rem}.mb-2{margin-bottom:0.5rem}.mt-2\.5{margin-top:0.625rem}.mt-3{margin-top:0.75rem}.block{display:block}.flex{display:flex}.inline-flex{display:inline-flex}.grid{display:grid}.hidden{display:none}.h-1\.5{height:0.375rem}.h-10{height:2.5rem}.h-12{height:3rem}.h-16{height:4rem}.h-2{height:0.5rem}.h-4{height:1rem}.h-96{height:24rem}.h-full{height:100%}.h-8{height:2rem}.h-80{height:20rem}.min-h-screen{min-height:100vh}.w-1\.5{width:0.375rem}.w-10{width:2.5rem}.w-12{width:3rem}.w-2{width:0.5rem}.w-4{width:1rem}.w-96{width:24rem}.w-full{width:100%}.w-16{width:4rem}.w-8{width:2rem}.max-w-2xl{max-width:42rem}.max-w-7xl{max-width:80rem}.max-w-xl{max-width:36rem}.max-w-lg{max-width:32rem}.max-w-md{max-width:28rem}.max-w-sm{max-width:24rem}.flex-1{flex:1 1 0%}.shrink-0{flex-shrink:0}.border-collapse{border-collapse:collapse}@keyframes pulse{50%{opacity:.5}}.animate-pulse{animation:pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite}.cursor-pointer{cursor:pointer}.select-none{-webkit-user-select:none;user-select:none}.grid-cols-1{grid-template-columns:repeat(1, minmax(0, 1fr))}.grid-cols-3{grid-template-columns:repeat(3, minmax(0, 1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-center{align-items:center}.items-baseline{align-items:baseline}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-1{gap:0.25rem}.gap-1\.5{gap:0.375rem}.gap-2{gap:0.5rem}.gap-3{gap:0.75rem}.gap-3\.5{gap:0.875rem}.gap-4{gap:1rem}.gap-2\.5{gap:0.625rem}.space-y-3 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(0.75rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(0.75rem * var(--tw-space-y-reverse))}.space-y-4 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(1rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(1rem * var(--tw-space-y-reverse))}.space-y-6 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(1.5rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(1.5rem * var(--tw-space-y-reverse))}.space-y-1 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(0.25rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(0.25rem * var(--tw-space-y-reverse))}.space-y-1\.5 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(0.375rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(0.375rem * var(--tw-space-y-reverse))}.space-y-2 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(0.5rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(0.5rem * var(--tw-space-y-reverse))}.space-y-5 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(1.25rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(1.25rem * var(--tw-space-y-reverse))}.divide-y > :not([hidden]) ~ :not([hidden]){--tw-divide-y-reverse:0;border-top-width:calc(1px * calc(1 - var(--tw-divide-y-reverse)));border-bottom-width:calc(1px * var(--tw-divide-y-reverse))}.divide-slate-800 > :not([hidden]) ~ :not([hidden]){--tw-divide-opacity:1;border-color:rgb(30 41 59 / var(--tw-divide-opacity, 1))}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.break-all{word-break:break-all}.rounded-2xl{border-radius:1rem}.rounded-3xl{border-radius:1.5rem}.rounded-\[10px\]{border-radius:10px}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:0.5rem}.rounded-md{border-radius:0.375rem}.rounded-xl{border-radius:0.75rem}.rounded{border-radius:0.25rem}.rounded-l-xl{border-top-left-radius:0.75rem;border-bottom-left-radius:0.75rem}.rounded-r-xl{border-top-right-radius:0.75rem;border-bottom-right-radius:0.75rem}.border{border-width:1px}.border-0{border-width:0px}.border-b{border-bottom-width:1px}.border-r-0{border-right-width:0px}.border-t{border-top-width:1px}.border-amber-500\/20{border-color:rgb(245 158 11 / 0.2)}.border-brand-400\/30{border-color:rgb(129 140 248 / 0.3)}.border-brand-500\/20{border-color:rgb(99 102 241 / 0.2)}.border-brand-900\/40{border-color:rgb(49 46 129 / 0.4)}.border-emerald-500\/20{border-color:rgb(16 185 129 / 0.2)}.border-emerald-500\/40{border-color:rgb(16 185 129 / 0.4)}.border-slate-700{--tw-border-opacity:1;border-color:rgb(51 65 85 / var(--tw-border-opacity, 1))}.border-slate-800{--tw-border-opacity:1;border-color:rgb(30 41 59 / var(--tw-border-opacity, 1))}.border-slate-800\/80{border-color:rgb(30 41 59 / 0.8)}.border-accent-500\/30{border-color:rgb(245 158 11 / 0.3)}.border-amber-400\/30{border-color:rgb(251 191 36 / 0.3)}.border-amber-900\/50{border-color:rgb(120 53 15 / 0.5)}.border-brand-900\/50{border-color:rgb(49 46 129 / 0.5)}.border-brand-900\/60{border-color:rgb(49 46 129 / 0.6)}.border-emerald-500\/30{border-color:rgb(16 185 129 / 0.3)}.border-emerald-900\/50{border-color:rgb(6 78 59 / 0.5)}.border-rose-900\/50{border-color:rgb(136 19 55 / 0.5)}.border-brand-500\/30{border-color:rgb(99 102 241 / 0.3)}.bg-accent-500{--tw-bg-opacity:1;background-color:rgb(245 158 11 / var(--tw-bg-opacity, 1))}.bg-amber-500\/10{background-color:rgb(245 158 11 / 0.1)}.bg-brand-500\/10{background-color:rgb(99 102 241 / 0.1)}.bg-brand-500\/20{background-color:rgb(99 102 241 / 0.2)}.bg-brand-600{--tw-bg-opacity:1;background-color:rgb(79 70 229 / var(--tw-bg-opacity, 1))}.bg-brand-600\/10{background-color:rgb(79 70 229 / 0.1)}.bg-emerald-400{--tw-bg-opacity:1;background-color:rgb(52 211 153 / var(--tw-bg-opacity, 1))}.bg-emerald-500\/10{background-color:rgb(16 185 129 / 0.1)}.bg-emerald-500\/20{background-color:rgb(16 185 129 / 0.2)}.bg-slate-800{--tw-bg-opacity:1;background-color:rgb(30 41 59 / var(--tw-bg-opacity, 1))}.bg-slate-900{--tw-bg-opacity:1;background-color:rgb(15 23 42 / var(--tw-bg-opacity, 1))}.bg-slate-900\/80{background-color:rgb(15 23 42 / 0.8)}.bg-slate-900\/90{background-color:rgb(15 23 42 / 0.9)}.bg-slate-950{--tw-bg-opacity:1;background-color:rgb(2 6 23 / var(--tw-bg-opacity, 1))}.bg-accent-500\/20{background-color:rgb(245 158 11 / 0.2)}.bg-amber-400{--tw-bg-opacity:1;background-color:rgb(251 191 36 / var(--tw-bg-opacity, 1))}.bg-amber-400\/20{background-color:rgb(251 191 36 / 0.2)}.bg-amber-950\/40{background-color:rgb(69 26 3 / 0.4)}.bg-brand-950\/40{background-color:rgb(30 27 75 / 0.4)}.bg-emerald-600{--tw-bg-opacity:1;background-color:rgb(5 150 105 / var(--tw-bg-opacity, 1))}.bg-emerald-950\/40{background-color:rgb(2 44 34 / 0.4)}.bg-rose-950\/40{background-color:rgb(76 5 25 / 0.4)}.bg-slate-950\/70{background-color:rgb(2 6 23 / 0.7)}.bg-slate-950\/80{background-color:rgb(2 6 23 / 0.8)}.bg-gradient-to-r{background-image:linear-gradient(to right, var(--tw-gradient-stops))}.bg-gradient-to-tr{background-image:linear-gradient(to top right, var(--tw-gradient-stops))}.from-accent-600{--tw-gradient-from:#d97706 var(--tw-gradient-from-position);--tw-gradient-to:rgb(217 119 6 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), var(--tw-gradient-to)}.from-brand-600{--tw-gradient-from:#4f46e5 var(--tw-gradient-from-position);--tw-gradient-to:rgb(79 70 229 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), var(--tw-gradient-to)}.from-brand-950{--tw-gradient-from:#1e1b4b var(--tw-gradient-from-position);--tw-gradient-to:rgb(30 27 75 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), var(--tw-gradient-to)}.from-slate-900{--tw-gradient-from:#0f172a var(--tw-gradient-from-position);--tw-gradient-to:rgb(15 23 42 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), var(--tw-gradient-to)}.from-accent-500{--tw-gradient-from:#f59e0b var(--tw-gradient-from-position);--tw-gradient-to:rgb(245 158 11 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), var(--tw-gradient-to)}.via-amber-500{--tw-gradient-to:rgb(245 158 11 / 0)  var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), #f59e0b var(--tw-gradient-via-position), var(--tw-gradient-to)}.via-brand-500{--tw-gradient-to:rgb(99 102 241 / 0)  var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), #6366f1 var(--tw-gradient-via-position), var(--tw-gradient-to)}.via-brand-950{--tw-gradient-to:rgb(30 27 75 / 0)  var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), #1e1b4b var(--tw-gradient-via-position), var(--tw-gradient-to)}.via-slate-900{--tw-gradient-to:rgb(15 23 42 / 0)  var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), #0f172a var(--tw-gradient-via-position), var(--tw-gradient-to)}.to-accent-500{--tw-gradient-to:#f59e0b var(--tw-gradient-to-position)}.to-accent-600{--tw-gradient-to:#d97706 var(--tw-gradient-to-position)}.to-brand-950{--tw-gradient-to:#1e1b4b var(--tw-gradient-to-position)}.to-slate-900{--tw-gradient-to:#0f172a var(--tw-gradient-to-position)}.to-amber-300{--tw-gradient-to:#fcd34d var(--tw-gradient-to-position)}.p-0\.5{padding:0.125rem}.p-1\.5{padding:0.375rem}.p-2{padding:0.5rem}.p-4{padding:1rem}.p-6{padding:1.5rem}.p-1{padding:0.25rem}.p-2\.5{padding:0.625rem}.p-3{padding:0.75rem}.p-3\.5{padding:0.875rem}.p-5{padding:1.25rem}.px-2{padding-left:0.5rem;padding-right:0.5rem}.px-2\.5{padding-left:0.625rem;padding-right:0.625rem}.px-3{padding-left:0.75rem;padding-right:0.75rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.py-0\.5{padding-top:0.125rem;padding-bottom:0.125rem}.py-1{padding-top:0.25rem;padding-bottom:0.25rem}.py-1\.5{padding-top:0.375rem;padding-bottom:0.375rem}.py-2{padding-top:0.5rem;padding-bottom:0.5rem}.py-2\.5{padding-top:0.625rem;padding-bottom:0.625rem}.py-6{padding-top:1.5rem;padding-bottom:1.5rem}.px-3\.5{padding-left:0.875rem;padding-right:0.875rem}.py-3{padding-top:0.75rem;padding-bottom:0.75rem}.px-1{padding-left:0.25rem;padding-right:0.25rem}.px-1\.5{padding-left:0.375rem;padding-right:0.375rem}.py-8{padding-top:2rem;padding-bottom:2rem}.pt-2{padding-top:0.5rem}.pb-1{padding-bottom:0.25rem}.pb-2{padding-bottom:0.5rem}.pb-3{padding-bottom:0.75rem}.pb-4{padding-bottom:1rem}.pt-1{padding-top:0.25rem}.pt-3{padding-top:0.75rem}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.font-mono{font-family:JetBrains Mono, ui-monospace, monospace}.font-sans{font-family:Plus Jakarta Sans, Inter, system-ui, sans-serif}.text-2xl{font-size:1.5rem;line-height:2rem}.text-9xl{font-size:8rem;line-height:1}.text-\[10px\]{font-size:10px}.text-\[11px\]{font-size:11px}.text-base{font-size:1rem;line-height:1.5rem}.text-sm{font-size:0.875rem;line-height:1.25rem}.text-xs{font-size:0.75rem;line-height:1rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.font-black{font-weight:900}.font-bold{font-weight:700}.font-extrabold{font-weight:800}.font-medium{font-weight:500}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.italic{font-style:italic}.leading-relaxed{line-height:1.625}.leading-tight{line-height:1.25}.leading-snug{line-height:1.375}.tracking-tight{letter-spacing:-0.025em}.tracking-tighter{letter-spacing:-0.05em}.tracking-wider{letter-spacing:0.05em}.tracking-widest{letter-spacing:0.1em}.text-accent-400{--tw-text-opacity:1;color:rgb(251 191 36 / var(--tw-text-opacity, 1))}.text-amber-300{--tw-text-opacity:1;color:rgb(252 211 77 / var(--tw-text-opacity, 1))}.text-amber-400{--tw-text-opacity:1;color:rgb(251 191 36 / var(--tw-text-opacity, 1))}.text-brand-300{--tw-text-opacity:1;color:rgb(165 180 252 / var(--tw-text-opacity, 1))}.text-brand-400{--tw-text-opacity:1;color:rgb(129 140 248 / var(--tw-text-opacity, 1))}.text-emerald-300{--tw-text-opacity:1;color:rgb(110 231 183 / var(--tw-text-opacity, 1))}.text-emerald-400{--tw-text-opacity:1;color:rgb(52 211 153 / var(--tw-text-opacity, 1))}.text-rose-400{--tw-text-opacity:1;color:rgb(251 113 133 / var(--tw-text-opacity, 1))}.text-slate-100{--tw-text-opacity:1;color:rgb(241 245 249 / var(--tw-text-opacity, 1))}.text-slate-200{--tw-text-opacity:1;color:rgb(226 232 240 / var(--tw-text-opacity, 1))}.text-slate-300{--tw-text-opacity:1;color:rgb(203 213 225 / var(--tw-text-opacity, 1))}.text-slate-400{--tw-text-opacity:1;color:rgb(148 163 184 / var(--tw-text-opacity, 1))}.text-slate-700{--tw-text-opacity:1;color:rgb(51 65 85 / var(--tw-text-opacity, 1))}.text-slate-950{--tw-text-opacity:1;color:rgb(2 6 23 / var(--tw-text-opacity, 1))}.text-white{--tw-text-opacity:1;color:rgb(255 255 255 / var(--tw-text-opacity, 1))}.text-emerald-200{--tw-text-opacity:1;color:rgb(167 243 208 / var(--tw-text-opacity, 1))}.text-slate-500{--tw-text-opacity:1;color:rgb(100 116 139 / var(--tw-text-opacity, 1))}.text-brand-200{--tw-text-opacity:1;color:rgb(199 210 254 / var(--tw-text-opacity, 1))}.line-through{-webkit-text-decoration-line:line-through;text-decoration-line:line-through}.opacity-20{opacity:0.2}.shadow{--tw-shadow:0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 1px 3px 0 var(--tw-shadow-color), 0 1px 2px -1px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-lg{--tw-shadow:0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 10px 15px -3px var(--tw-shadow-color), 0 4px 6px -4px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-sm{--tw-shadow:0 1px 2px 0 rgb(0 0 0 / 0.05);--tw-shadow-colored:0 1px 2px 0 var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color), 0 8px 10px -6px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgb(0 0 0 / 0.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-inner{--tw-shadow:inset 0 2px 4px 0 rgb(0 0 0 / 0.05);--tw-shadow-colored:inset 0 2px 4px 0 var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-md{--tw-shadow:0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 4px 6px -1px var(--tw-shadow-color), 0 2px 4px -2px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-brand-500\/20{--tw-shadow-color:rgb(99 102 241 / 0.2);--tw-shadow:var(--tw-shadow-colored)}.shadow-brand-600\/30{--tw-shadow-color:rgb(79 70 229 / 0.3);--tw-shadow:var(--tw-shadow-colored)}.shadow-accent-500\/30{--tw-shadow-color:rgb(245 158 11 / 0.3);--tw-shadow:var(--tw-shadow-colored)}.blur-3xl{--tw-blur:blur(64px);filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.backdrop-blur-md{--tw-backdrop-blur:blur(12px);-webkit-backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia)}.transition{transition-property:color, background-color, border-color, fill, stroke, opacity, box-shadow, transform, filter, -webkit-text-decoration-color, -webkit-backdrop-filter;transition-property:color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;transition-property:color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter, -webkit-text-decoration-color, -webkit-backdrop-filter;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.transition-all{transition-property:all;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.selection\:bg-brand-500 *::selection{--tw-bg-opacity:1;background-color:rgb(99 102 241 / var(--tw-bg-opacity, 1))}.selection\:text-white *::selection{--tw-text-opacity:1;color:rgb(255 255 255 / var(--tw-text-opacity, 1))}.selection\:bg-brand-500::selection{--tw-bg-opacity:1;background-color:rgb(99 102 241 / var(--tw-bg-opacity, 1))}.selection\:text-white::selection{--tw-text-opacity:1;color:rgb(255 255 255 / var(--tw-text-opacity, 1))}.hover\:border-slate-700:hover{--tw-border-opacity:1;border-color:rgb(51 65 85 / var(--tw-border-opacity, 1))}.hover\:bg-accent-400:hover{--tw-bg-opacity:1;background-color:rgb(251 191 36 / var(--tw-bg-opacity, 1))}.hover\:bg-brand-500:hover{--tw-bg-opacity:1;background-color:rgb(99 102 241 / var(--tw-bg-opacity, 1))}.hover\:bg-emerald-500\/30:hover{background-color:rgb(16 185 129 / 0.3)}.hover\:bg-slate-700:hover{--tw-bg-opacity:1;background-color:rgb(51 65 85 / var(--tw-bg-opacity, 1))}.hover\:bg-slate-800:hover{--tw-bg-opacity:1;background-color:rgb(30 41 59 / var(--tw-bg-opacity, 1))}.hover\:bg-slate-800\/60:hover{background-color:rgb(30 41 59 / 0.6)}.hover\:bg-slate-900:hover{--tw-bg-opacity:1;background-color:rgb(15 23 42 / var(--tw-bg-opacity, 1))}.hover\:bg-amber-300:hover{--tw-bg-opacity:1;background-color:rgb(252 211 77 / var(--tw-bg-opacity, 1))}.hover\:bg-emerald-500:hover{--tw-bg-opacity:1;background-color:rgb(16 185 129 / var(--tw-bg-opacity, 1))}.hover\:bg-slate-800\/40:hover{background-color:rgb(30 41 59 / 0.4)}.hover\:text-rose-300:hover{--tw-text-opacity:1;color:rgb(253 164 175 / var(--tw-text-opacity, 1))}.hover\:text-white:hover{--tw-text-opacity:1;color:rgb(255 255 255 / var(--tw-text-opacity, 1))}.hover\:underline:hover{-webkit-text-decoration-line:underline;text-decoration-line:underline}.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}.focus\:ring-2:focus{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000)}.focus\:ring-brand-500:focus{--tw-ring-opacity:1;--tw-ring-color:rgb(99 102 241 / var(--tw-ring-opacity, 1))}.disabled\:text-slate-600:disabled{--tw-text-opacity:1;color:rgb(71 85 105 / var(--tw-text-opacity, 1))}.disabled\:no-underline:disabled{-webkit-text-decoration-line:none;text-decoration-line:none}.group:hover .group-hover\:text-brand-300{--tw-text-opacity:1;color:rgb(165 180 252 / var(--tw-text-opacity, 1))}.group:hover .group-hover\:shadow-glow-indigo{--tw-shadow:0 0 25px -5px rgba(99, 102, 241, 0.35);--tw-shadow-colored:0 0 25px -5px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}@media (min-width: 640px){.sm\:inline{display:inline}.sm\:h-96{height:24rem}.sm\:grid-cols-3{grid-template-columns:repeat(3, minmax(0, 1fr))}.sm\:grid-cols-2{grid-template-columns:repeat(2, minmax(0, 1fr))}.sm\:flex-row{flex-direction:row}.sm\:items-center{align-items:center}.sm\:gap-3{gap:0.75rem}.sm\:p-8{padding:2rem}.sm\:px-6{padding-left:1.5rem;padding-right:1.5rem}.sm\:text-4xl{font-size:2.25rem;line-height:2.5rem}.sm\:text-sm{font-size:0.875rem;line-height:1.25rem}}@media (min-width: 768px){.md\:block{display:block}.md\:inline{display:inline}.md\:w-auto{width:auto}.md\:grid-cols-2{grid-template-columns:repeat(2, minmax(0, 1fr))}.md\:flex-row{flex-direction:row}.md\:items-center{align-items:center}.md\:p-10{padding:2.5rem}}@media (min-width: 1024px){.lg\:grid-cols-4{grid-template-columns:repeat(4, minmax(0, 1fr))}}</style></head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-brand-500 selection:text-white radial-bg">
@@ -170,7 +228,7 @@
         </span>
       </div>
       <div class="flex items-center gap-3 shrink-0">
-        <button id="headerSosQuickBtn" class="text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1 cursor-pointer">
+        <button type="button" id="headerSosQuickBtn" class="text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1 cursor-pointer" aria-label="Open campus emergency contacts">
           <span>🚨</span> Emergency SOS
         </button>
       </div>
@@ -179,10 +237,10 @@
 
   <!-- Main Navigation Bar -->
   <header class="glass-header border-b border-slate-800/80 sticky top-0 z-30 transition-all">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+    <div class="app-header-main max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
       
       <!-- Brand & Campus Label -->
-      <div class="flex items-center gap-3 cursor-pointer group" onclick="window.location.reload()">
+      <a href="/" class="campus-brand flex items-center gap-3 group" aria-label="CampusPool home">
         <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 via-brand-500 to-accent-500 p-0.5 shadow-lg shadow-brand-500/20 group-hover:shadow-glow-indigo transition">
           <div class="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center font-black text-amber-400 text-base tracking-tighter">
             ADT
@@ -197,25 +255,26 @@
           </div>
           <p class="text-[11px] text-slate-400 font-medium">Loni Kalbhor • Pune Solapur Hwy (NH 65)</p>
         </div>
-      </div>
+      </a>
 
       <!-- Action Cluster -->
-      <div class="flex items-center gap-2 sm:gap-3">
+      <div class="header-actions flex items-center gap-2 sm:gap-3 shrink-0">
         <!-- Live Connection & Offline Badge -->
-        <button id="networkStatusBtn" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-900 border border-slate-800 text-slate-300 hover:border-slate-700 transition" title="Connection &amp; Solapur Highway Cache Status">
+        <button type="button" id="networkStatusBtn" class="network-status flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-900 border border-slate-800 text-slate-300 hover:border-slate-700 transition" title="Connection &amp; Solapur Highway Cache Status">
           <span id="networkStatusDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
           <span id="networkStatusLabel" class="hidden sm:inline">Online</span>
         </button>
 
         <!-- User Authentication & Profile Bar -->
         <div id="userProfileBar" class="flex items-center gap-2">
-          <button id="headerLoginBtn" class="bg-brand-600 hover:bg-brand-500 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition shadow-md cursor-pointer flex items-center gap-1.5">
-            <span>Sign In / Register</span>
+          <button type="button" id="headerLoginBtn" class="header-login-button bg-brand-600 hover:bg-brand-500 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition shadow-md cursor-pointer flex items-center gap-1.5" aria-label="Sign in or register">
+            <span class="header-login-compact" aria-hidden="true">👤</span>
+            <span class="header-login-label">Sign In / Register</span>
           </button>
         </div>
 
         <!-- Notification Bell -->
-        <button id="notificationTriggerBtn" class="relative p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 transition cursor-pointer" title="View Notifications">
+        <button type="button" id="notificationTriggerBtn" class="relative p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 transition cursor-pointer" aria-label="View commute notifications" title="View Notifications">
           <span class="text-base">🔔</span>
           <span id="notifBadge" class="absolute -top-1 -right-1 bg-accent-500 text-slate-950 text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow">3</span>
         </button>
@@ -322,26 +381,26 @@
     </div>
 
     <!-- Navigation Tab Bar -->
-    <div class="flex border-b border-slate-800 bg-slate-900/80 rounded-2xl p-1.5 shadow-sm overflow-x-auto text-xs sm:text-sm">
-      <button id="tabFindRides" class="tab-btn active px-4 py-2.5 rounded-xl flex items-center gap-2 shrink-0 cursor-pointer shadow-xs bg-brand-600 text-white font-bold">
+    <div class="flex border-b border-slate-800 bg-slate-900/80 rounded-2xl p-1.5 shadow-sm overflow-x-auto text-xs sm:text-sm" role="tablist" aria-label="CampusPool sections">
+      <button type="button" id="tabFindRides" role="tab" aria-selected="true" aria-controls="viewFindRides" tabindex="0" class="tab-btn active px-4 py-2.5 rounded-xl flex items-center gap-2 shrink-0 cursor-pointer shadow-xs bg-brand-600 text-white font-bold">
         <span>🔍</span> Available Rides (<span id="countAvailableRides">0</span>)
       </button>
-      <button id="tabOfferRide" class="tab-btn px-4 py-2.5 font-semibold rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 flex items-center gap-2 shrink-0 cursor-pointer transition">
+      <button type="button" id="tabOfferRide" role="tab" aria-selected="false" aria-controls="viewOfferRide" tabindex="-1" class="tab-btn px-4 py-2.5 font-semibold rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 flex items-center gap-2 shrink-0 cursor-pointer transition">
         <span>➕</span> Offer a Ride
       </button>
-      <button id="tabMyRides" class="tab-btn px-4 py-2.5 font-semibold rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 flex items-center gap-2 shrink-0 cursor-pointer transition">
+      <button type="button" id="tabMyRides" role="tab" aria-selected="false" aria-controls="viewMyRides" tabindex="-1" class="tab-btn px-4 py-2.5 font-semibold rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 flex items-center gap-2 shrink-0 cursor-pointer transition">
         <span>🎫</span> My Bookings &amp; Payouts (<span id="countMyTotalRides">0</span>)
       </button>
-      <button id="tabCampusMap" class="tab-btn px-4 py-2.5 font-semibold rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 flex items-center gap-2 shrink-0 cursor-pointer transition">
+      <button type="button" id="tabCampusMap" role="tab" aria-selected="false" aria-controls="viewCampusMap" tabindex="-1" class="tab-btn px-4 py-2.5 font-semibold rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 flex items-center gap-2 shrink-0 cursor-pointer transition">
         <span>🗺️</span> Campus Gates &amp; Live Map
       </button>
-      <button id="tabLeaderboard" class="tab-btn px-4 py-2.5 font-semibold rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 flex items-center gap-2 shrink-0 cursor-pointer transition">
+      <button type="button" id="tabLeaderboard" role="tab" aria-selected="false" aria-controls="viewLeaderboard" tabindex="-1" class="tab-btn px-4 py-2.5 font-semibold rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 flex items-center gap-2 shrink-0 cursor-pointer transition">
         <span>🏆</span> Student Leaderboard
       </button>
     </div>
 
     <!-- VIEW 1: Available Rides (Find Rides) -->
-    <section id="viewFindRides" class="space-y-4">
+    <section id="viewFindRides" role="tabpanel" aria-labelledby="tabFindRides" tabindex="0" class="space-y-4">
       <!-- Search & Filters Strip -->
       <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col md:flex-row gap-3 items-center justify-between">
         <!-- Destination Quick Chips -->
@@ -395,9 +454,9 @@
           </div>
 
           <div class="space-y-1.5 max-w-sm">
-            <h3 class="text-lg sm:text-xl font-black text-white tracking-tight">No more rides near you</h3>
+            <h3 class="text-lg sm:text-xl font-black text-white tracking-tight">No rides found near you</h3>
             <p class="text-xs text-slate-400 leading-relaxed">
-              All carpools and bikepools from Campus Gates 1–4 are currently full or departed. Be the first student or faculty member to offer a seat!
+              No more rides near you right now. All carpools and bikepools from Campus Gates 1–4 are currently full or departed. Be the first student or faculty member to offer a seat!
             </p>
           </div>
 
@@ -414,7 +473,7 @@
     </section>
 
     <!-- VIEW 2: Offer a Ride Form -->
-    <section id="viewOfferRide" class="hidden max-w-2xl mx-auto">
+    <section id="viewOfferRide" role="tabpanel" aria-labelledby="tabOfferRide" tabindex="0" hidden class="hidden max-w-2xl mx-auto">
       <div class="bg-slate-900 border border-slate-800 p-6 sm:p-8 rounded-3xl shadow-xl space-y-6">
         <div class="border-b border-slate-800 pb-4">
           <span class="bg-brand-500/20 text-brand-300 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">Student Driver Portal</span>
@@ -464,7 +523,7 @@
 
             <div>
               <label for="offerSeats" class="block text-xs font-bold uppercase text-slate-400 mb-1">Available Seats</label>
-              <input type="number" id="offerSeats" value="1" min="1" max="4" required="" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none">
+              <input type="number" id="offerSeats" value="1" min="1" max="1" required="" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none">
             </div>
           </div>
 
@@ -528,7 +587,7 @@
 
             <div class="relative">
               <span class="absolute left-3.5 top-2.5 text-emerald-400 font-extrabold text-lg">₹</span>
-              <input type="number" id="offerStudentFare" value="208" min="20" step="5" required="" class="w-full bg-slate-950 border border-emerald-500/50 text-white text-lg font-black rounded-xl pl-9 pr-4 py-2.5 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/30 focus:outline-none" placeholder="Enter seat fare">
+              <input type="number" id="offerStudentFare" value="104" min="20" step="1" required="" class="w-full bg-slate-950 border border-emerald-500/50 text-white text-lg font-black rounded-xl pl-9 pr-4 py-2.5 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/30 focus:outline-none" placeholder="Enter seat fare">
             </div>
 
             <!-- Live Transparent Fee & Earnings Breakdown -->
@@ -566,7 +625,7 @@
     </section>
 
     <!-- VIEW 3: My Bookings & Driver Payouts -->
-    <section id="viewMyRides" class="hidden max-w-2xl mx-auto space-y-4">
+    <section id="viewMyRides" role="tabpanel" aria-labelledby="tabMyRides" tabindex="0" hidden class="hidden max-w-2xl mx-auto space-y-4">
       <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
           <div>
@@ -575,18 +634,18 @@
           </div>
 
           <!-- Passenger / Driver Toggle -->
-          <div class="flex bg-slate-950 p-1 rounded-xl text-xs font-bold border border-slate-800">
-            <button id="togglePassengerSubTab" class="px-3 py-1.5 rounded-lg bg-brand-600 text-white shadow-xs transition cursor-pointer">
+          <div class="flex bg-slate-950 p-1 rounded-xl text-xs font-bold border border-slate-800" role="tablist" aria-label="My rides role">
+            <button type="button" id="togglePassengerSubTab" role="tab" aria-selected="true" aria-controls="passengerBookingsSection" class="px-3 py-1.5 rounded-lg bg-brand-600 text-white shadow-xs transition cursor-pointer">
               🎟️ As Passenger (<span id="badgePassengerCount">0</span>)
             </button>
-            <button id="toggleDriverSubTab" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition cursor-pointer">
+            <button type="button" id="toggleDriverSubTab" role="tab" aria-selected="false" aria-controls="driverRidesSection" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition cursor-pointer">
               🚗 As Driver (<span id="badgeDriverCount">0</span>)
             </button>
           </div>
         </div>
 
         <!-- Passenger Bookings List -->
-        <div id="passengerBookingsSection" class="space-y-3">
+        <div id="passengerBookingsSection" role="tabpanel" aria-labelledby="togglePassengerSubTab" class="space-y-3">
             <div class="text-center py-8 text-slate-500 text-xs space-y-1">
               <span class="text-3xl block mb-2">🎟️</span>
               <p class="font-bold text-slate-300">No active ride bookings found.</p>
@@ -595,7 +654,7 @@
           </div>
 
         <!-- Driver Offered Rides List -->
-        <div id="driverRidesSection" class="hidden space-y-3">
+        <div id="driverRidesSection" role="tabpanel" aria-labelledby="toggleDriverSubTab" class="hidden space-y-3">
             <div class="text-center py-8 text-slate-500 text-xs space-y-1">
               <span class="text-3xl block mb-2">🚗</span>
               <p class="font-bold text-slate-300">You have not posted any rides yet.</p>
@@ -643,7 +702,7 @@
     </section>
 
     <!-- VIEW 4: Campus Map & Gates (Google Maps Free Embed) -->
-    <section id="viewCampusMap" class="hidden space-y-4">
+    <section id="viewCampusMap" role="tabpanel" aria-labelledby="tabCampusMap" tabindex="0" hidden class="hidden space-y-4">
       <div class="bg-slate-900 border border-slate-800 p-5 rounded-3xl shadow-xl space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-800">
           <div>
@@ -689,6 +748,10 @@
           </div>
 
           <div class="relative rounded-2xl overflow-hidden border border-slate-800 shadow-inner bg-slate-950">
+            
+          <!-- CP-004: Accessible Google Maps Frame -->
+          <iframe id="campusGoogleMapsIframe" title="MIT ADT campus gates and Pune commute map" class="w-full h-80 sm:h-96 border-0 rounded-2xl hidden" src="https://maps.google.com/maps?q=MIT+ADT+University,+Loni+Kalbhor,+Pune&z=15&output=embed" loading="lazy" allowfullscreen="" referrerpolicy="no-referrer-when-downgrade"></iframe>
+  
             <div id="campusLeafletMap" class="w-full h-80 sm:h-96 z-0"></div>
             <div class="absolute bottom-2 left-2 z-[400] bg-slate-900/90 backdrop-blur-xs border border-slate-800 px-2.5 py-1 rounded-lg text-[10px] font-semibold text-slate-300 shadow">
               📍 OpenStreetMap • 100% Free Real-Time Campus GPS
@@ -727,7 +790,7 @@
     </section>
 
     <!-- VIEW 5: Student Leaderboard -->
-    <section id="viewLeaderboard" class="hidden max-w-2xl mx-auto space-y-4">
+    <section id="viewLeaderboard" role="tabpanel" aria-labelledby="tabLeaderboard" tabindex="0" hidden class="hidden max-w-2xl mx-auto space-y-4">
       <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl space-y-4">
         <div>
           <span class="bg-amber-400/20 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider border border-amber-400/30">Campus Green Commute</span>
@@ -821,8 +884,8 @@
   </main>
 
   <!-- MODAL: Landing "What We Do" Pop Screen -->
-  <div id="welcomePopModal" hidden style="display: none;" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl fade-in space-y-5">
+  <div id="welcomePopModal" hidden style="display: none;" role="dialog" aria-modal="true" aria-labelledby="welcomePopModalTitle" class="modal-overlay hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="modal-panel bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl fade-in space-y-5">
       <div class="text-center space-y-2">
         <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-tr from-accent-500 to-amber-300 text-slate-950 font-black text-2xl flex items-center justify-center shadow-lg">
           ADT
@@ -830,7 +893,7 @@
         <div class="inline-flex items-center gap-1.5 bg-brand-500/20 text-brand-300 text-[11px] font-bold px-3 py-1 rounded-full border border-brand-400/30">
           <span>🎓</span> Official MIT ADT Commuter Network
         </div>
-        <h2 class="text-2xl font-black text-white tracking-tight">Welcome to CampusPool</h2>
+        <h2 id="welcomePopModalTitle" class="text-2xl font-black text-white tracking-tight">Welcome to CampusPool</h2>
         <p class="text-xs sm:text-sm text-slate-400 max-w-sm mx-auto leading-relaxed">
           The verified student carpool &amp; bikepool platform for <strong>MIT Art, Design and Technology University, Loni Kalbhor</strong>.
         </p>
@@ -876,8 +939,8 @@
   </div>
 
   <!-- MODAL: Student Verification / Login (3 Steps Dual OTP) -->
-  <div id="authModal" hidden style="display: none;" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl fade-in space-y-4">
+  <div id="authModal" hidden style="display: none;" role="dialog" aria-modal="true" aria-labelledby="authModalTitle" class="modal-overlay hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="modal-panel bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl fade-in space-y-4">
       <div class="flex items-center justify-between pb-3 border-b border-slate-800">
         <div class="flex items-center gap-2">
           <div class="w-8 h-8 rounded-lg bg-brand-500/20 text-brand-400 flex items-center justify-center font-bold text-sm">🎓</div>
@@ -887,11 +950,11 @@
       </div>
 
       <!-- Auth Mode Switcher (Sign In vs Register) -->
-      <div id="authModeSwitcher" class="grid grid-cols-2 gap-1 bg-slate-950 p-1 rounded-2xl border border-slate-800 text-xs font-bold">
-        <button type="button" id="tabAuthSignIn" class="py-2 rounded-xl bg-brand-600 text-white shadow-sm transition cursor-pointer flex items-center justify-center gap-1.5">
+      <div id="authModeSwitcher" class="grid grid-cols-2 gap-1 bg-slate-950 p-1 rounded-2xl border border-slate-800 text-xs font-bold" role="tablist" aria-label="Authentication mode">
+        <button type="button" id="tabAuthSignIn" role="tab" aria-selected="true" aria-controls="authSignInView" tabindex="0" class="py-2 rounded-xl bg-brand-600 text-white shadow-sm transition cursor-pointer flex items-center justify-center gap-1.5">
           <span>🔑</span> Sign In
         </button>
-        <button type="button" id="tabAuthRegister" class="py-2 rounded-xl text-slate-400 hover:text-white transition cursor-pointer flex items-center justify-center gap-1.5">
+        <button type="button" id="tabAuthRegister" role="tab" aria-selected="false" aria-controls="authRegisterView" tabindex="-1" class="py-2 rounded-xl text-slate-400 hover:text-white transition cursor-pointer flex items-center justify-center gap-1.5">
           <span>✨</span> New Account
         </button>
       </div>
@@ -908,7 +971,7 @@
       <!-- STEP 1: Basic Information -->
       <form id="authForm" class="space-y-3">
         <!-- VIEW A: SIGN IN (Fast Single-Field for Existing Users) -->
-        <div id="authSignInView" class="space-y-3">
+        <div id="authSignInView" role="tabpanel" aria-labelledby="tabAuthSignIn" class="space-y-3">
           <p class="text-xs text-slate-400 leading-relaxed">
             Welcome back! Enter your registered university email or 10-digit mobile number to sign in.
           </p>
@@ -932,20 +995,20 @@
         </div>
 
         <!-- VIEW B: REGISTER (For New Campus Commuters) -->
-        <div id="authRegisterView" class="hidden space-y-3">
+        <div id="authRegisterView" role="tabpanel" aria-labelledby="tabAuthRegister" class="hidden space-y-3">
           <p class="text-xs text-slate-400 leading-relaxed">
             Create your official campus commuter profile. Access verified student peer rides with zero booking commissions.
           </p>
 
           <div>
             <label for="inputStudentName" class="block text-xs font-bold text-slate-400 uppercase mb-1">Your Full Name</label>
-            <input type="text" id="inputStudentName" placeholder="e.g. Aryan Shinde" required class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3.5 py-2 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none">
+            <input type="text" id="inputStudentName" autocomplete="name" placeholder="e.g. Aryan Shinde" required class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3.5 py-2 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none">
             <p id="authNameError" class="hidden text-[11px] text-rose-400 font-semibold mt-1">⚠️ Please enter your full name.</p>
           </div>
 
           <div>
             <label for="inputStudentEmail" class="block text-xs font-bold text-slate-400 uppercase mb-1">Email ID (@students.mituniversity.edu.in or @mituniversity.edu.in)</label>
-            <input type="email" id="inputStudentEmail" placeholder="e.g. 1032210123@students.mituniversity.edu.in or faculty@mituniversity.edu.in" required class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3.5 py-2 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none">
+            <input type="email" id="inputStudentEmail" autocomplete="email" placeholder="e.g. 1032210123@students.mituniversity.edu.in or faculty@mituniversity.edu.in" required class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3.5 py-2 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none">
             <p id="authEmailError" class="hidden text-[11px] text-rose-400 font-semibold mt-1">⚠️ Please enter a valid email address.</p>
           </div>
 
@@ -953,7 +1016,7 @@
             <label for="inputStudentPhone" class="block text-xs font-bold text-slate-400 uppercase mb-1">Mobile / WhatsApp Number</label>
             <div class="flex">
               <span class="inline-flex items-center px-3 text-xs text-slate-400 bg-slate-800 border border-r-0 border-slate-700 rounded-l-xl font-bold">+91</span>
-              <input type="tel" id="inputStudentPhone" maxlength="10" placeholder="9822012345" required class="w-full bg-slate-800 border border-slate-700 text-white rounded-r-xl px-3.5 py-2 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none">
+              <input type="tel" id="inputStudentPhone" inputmode="numeric" autocomplete="tel-national" maxlength="10" placeholder="9822012345" required class="w-full bg-slate-800 border border-slate-700 text-white rounded-r-xl px-3.5 py-2 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none">
             </div>
             <p id="authPhoneError" class="hidden text-[11px] text-rose-400 font-semibold mt-1">⚠️ Please enter a valid 10-digit mobile number.</p>
           </div>
@@ -1005,7 +1068,7 @@
 
           <div>
             <label for="inputEmailOtp" class="block text-xs font-bold text-slate-400 uppercase mb-1">Enter 6-Digit Email OTP</label>
-            <input type="text" id="inputEmailOtp" maxlength="6" placeholder="• • • • • •" required="" class="w-full text-center tracking-widest font-mono text-lg font-bold bg-slate-800 border border-slate-700 text-white rounded-xl px-3.5 py-2 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+            <input type="text" id="inputEmailOtp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" placeholder="• • • • • •" required="" class="w-full text-center tracking-widest font-mono text-lg font-bold bg-slate-800 border border-slate-700 text-white rounded-xl px-3.5 py-2 focus:ring-2 focus:ring-brand-500 focus:outline-none">
             <p id="emailOtpError" class="hidden text-[11px] text-rose-400 font-semibold mt-1">⚠️ Incorrect OTP. Please enter the valid 6-digit code.</p>
           </div>
 
@@ -1047,7 +1110,7 @@
 
           <div>
             <label for="inputPhoneOtp" class="block text-xs font-bold text-slate-400 uppercase mb-1">Enter 6-Digit Mobile SMS OTP</label>
-            <input type="text" id="inputPhoneOtp" maxlength="6" placeholder="• • • • • •" required="" class="w-full text-center tracking-widest font-mono text-lg font-bold bg-slate-800 border border-slate-700 text-white rounded-xl px-3.5 py-2 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+            <input type="text" id="inputPhoneOtp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" placeholder="• • • • • •" required="" class="w-full text-center tracking-widest font-mono text-lg font-bold bg-slate-800 border border-slate-700 text-white rounded-xl px-3.5 py-2 focus:ring-2 focus:ring-brand-500 focus:outline-none">
             <p id="phoneOtpError" class="hidden text-[11px] text-rose-400 font-semibold mt-1">⚠️ Incorrect SMS OTP. Please check the 6-digit code.</p>
           </div>
 
@@ -1070,12 +1133,12 @@
   </div>
 
   <!-- MODAL: Reserve / Confirm Seat -->
-  <div id="bookingModal" hidden style="display: none;" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl fade-in space-y-4">
+  <div id="bookingModal" hidden style="display: none;" role="dialog" aria-modal="true" aria-labelledby="bookingModalTitle" class="modal-overlay hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="modal-panel bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl fade-in space-y-4">
       <div class="flex items-center justify-between pb-3 border-b border-slate-800">
         <div>
           <span class="text-[10px] font-bold uppercase text-brand-300 bg-brand-500/20 px-2 py-0.5 rounded">Seat Reservation</span>
-          <h2 class="font-bold text-base text-white mt-0.5">Confirm Campus Ride</h2>
+          <h2 id="bookingModalTitle" class="font-bold text-base text-white mt-0.5">Confirm Campus Ride</h2>
         </div>
         <button id="closeBookingModalBtn" class="text-slate-400 hover:text-white text-xl font-bold p-1 cursor-pointer">×</button>
       </div>
@@ -1096,12 +1159,12 @@
   </div>
 
   <!-- MODAL: Instant UPI Payment -->
-  <div id="paymentModal" hidden style="display: none;" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 shadow-2xl fade-in space-y-4 text-center">
+  <div id="paymentModal" hidden style="display: none;" role="dialog" aria-modal="true" aria-labelledby="paymentModalTitle" class="modal-overlay hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="modal-panel bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 shadow-2xl fade-in space-y-4 text-center">
       <div class="flex items-center justify-between pb-3 border-b border-slate-800">
         <div class="flex items-center gap-2">
           <span class="text-lg">⚡</span>
-          <h2 class="font-bold text-sm text-white">Direct Student Fuel Transfer</h2>
+          <h2 id="paymentModalTitle" class="font-bold text-sm text-white">Direct Student Fuel Transfer</h2>
         </div>
         <button id="closePaymentModalBtn" class="text-slate-400 hover:text-white text-xl font-bold p-1 cursor-pointer">×</button>
       </div>
@@ -1122,13 +1185,13 @@
   </div>
 
   <!-- MODAL: Weekly Driver Commission Settlement -->
-  <div id="driverSettlementModal" hidden style="display: none;" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 shadow-2xl fade-in space-y-4 text-center">
+  <div id="driverSettlementModal" hidden style="display: none;" role="dialog" aria-modal="true" aria-labelledby="driverSettlementModalTitle" class="modal-overlay hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="modal-panel bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 shadow-2xl fade-in space-y-4 text-center">
       <div class="flex items-center justify-between pb-3 border-b border-slate-800">
         <div class="flex items-center gap-2">
           <span class="text-xl">💰</span>
           <div>
-            <h2 class="font-bold text-sm text-white text-left">Weekly Driver Settlement</h2>
+            <h2 id="driverSettlementModalTitle" class="font-bold text-sm text-white text-left">Weekly Driver Settlement</h2>
             <p class="text-[10px] text-slate-400 text-left">10% Platform Green Fund Share</p>
           </div>
         </div>
@@ -1173,8 +1236,8 @@
   </div>
 
   <!-- MODAL: Settlement & Anti-Defaulter Restriction Modal -->
-  <div id="settlementLockModal" hidden style="display: none;" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-rose-500/40 rounded-3xl max-w-sm w-full p-6 shadow-2xl fade-in space-y-4 text-center">
+  <div id="settlementLockModal" hidden style="display: none;" role="dialog" aria-modal="true" aria-labelledby="settleModalTitle" class="modal-overlay hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="modal-panel bg-slate-900 border border-rose-500/40 rounded-3xl max-w-sm w-full p-6 shadow-2xl fade-in space-y-4 text-center">
       <div class="flex items-center justify-between pb-3 border-b border-slate-800">
         <div class="flex items-center gap-2">
           <div class="w-8 h-8 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center font-bold text-sm">🚨</div>
@@ -1227,8 +1290,145 @@
     </div>
   </div>
 
+  <!-- MODAL: Campus Emergency SOS -->
+  <div id="sosModal" hidden style="display: none;" role="dialog" aria-modal="true" aria-labelledby="sosModalTitle" class="modal-overlay hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="modal-panel bg-slate-900 border border-rose-900/60 rounded-3xl max-w-sm w-full p-6 shadow-2xl fade-in space-y-4 text-center">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div class="flex items-center gap-2">
+          <span class="text-xl">🚨</span>
+          <h2 id="sosModalTitle" class="font-bold text-sm text-white text-left">Campus Emergency Contacts</h2>
+        </div>
+        <button id="closeSosModalBtn" class="text-slate-400 hover:text-white text-xl font-bold p-1 cursor-pointer">×</button>
+      </div>
+      <p class="text-xs text-slate-300 text-left">Immediate 24/7 emergency hotlines for MIT ADT University & Solapur Highway (NH 65):</p>
+      <div class="space-y-2 text-xs">
+        <a href="tel:+912030273400" class="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-brand-500 transition">
+          <div class="text-left">
+            <strong class="text-white block">Campus Security Main Bay</strong>
+            <span class="text-slate-400 text-[11px]">Gates 1–4 CCTV Control</span>
+          </div>
+          <span class="font-mono text-brand-300 font-bold">020-30273400</span>
+        </a>
+        <a href="tel:112" class="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-rose-500 transition">
+          <div class="text-left">
+            <strong class="text-white block">Police Emergency (Loni Kalbhor)</strong>
+            <span class="text-slate-400 text-[11px]">Solapur Highway Patrol</span>
+          </div>
+          <span class="font-mono text-rose-400 font-bold">112</span>
+        </a>
+        <a href="tel:+912067650000" class="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-emerald-500 transition">
+          <div class="text-left">
+            <strong class="text-white block">VishwaRaj Hospital (Gate 4)</strong>
+            <span class="text-slate-400 text-[11px]">24/7 Trauma & Ambulance</span>
+          </div>
+          <span class="font-mono text-emerald-400 font-bold">020-67650000</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Campus Commute Notifications -->
+  <div id="notificationsModal" hidden style="display: none;" role="dialog" aria-modal="true" aria-labelledby="notificationsModalTitle" class="modal-overlay hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="modal-panel bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 shadow-2xl fade-in space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div class="flex items-center gap-2">
+          <span class="text-lg">🔔</span>
+          <h2 id="notificationsModalTitle" class="font-bold text-sm text-white">Campus Commute Alerts</h2>
+        </div>
+        <button id="closeNotifModalBtn" class="text-slate-400 hover:text-white text-xl font-bold p-1 cursor-pointer">×</button>
+      </div>
+      <div class="space-y-2.5 text-xs">
+        <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+          <div class="flex justify-between items-center">
+            <strong class="text-white">Gate 1 Solapur Hwy Patrol</strong>
+            <span class="text-[10px] text-emerald-400 font-bold">ACTIVE</span>
+          </div>
+          <p class="text-[11px] text-slate-400">Evening carpool bay monitored by university security team.</p>
+        </div>
+        <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+          <div class="flex justify-between items-center">
+            <strong class="text-white">Hadapsar Gadital Route Advisory</strong>
+            <span class="text-[10px] text-amber-400 font-bold">SMOOTH</span>
+          </div>
+          <p class="text-[11px] text-slate-400">Normal 25 min transit time from Gate 1 to Gadital.</p>
+        </div>
+        <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+          <div class="flex justify-between items-center">
+            <strong class="text-white">UPI Fuel Reimbursements</strong>
+            <span class="text-[10px] text-brand-300 font-bold">INFO</span>
+          </div>
+          <p class="text-[11px] text-slate-400">Remember to settle the 10% platform green share at the end of every week.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- MODAL: Real-Time Free GPS Commute Tracking -->
+  <div id="gpsTrackingModal" hidden style="display: none;" role="dialog" aria-modal="true" aria-labelledby="gpsModalTitle" class="modal-overlay hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
+    <div class="modal-panel bg-slate-900 border border-slate-800 rounded-3xl max-w-xl w-full p-4 sm:p-6 shadow-2xl fade-in space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-brand-500/20 text-brand-400 flex items-center justify-center font-bold text-sm">📡</div>
+          <div>
+            <h2 id="gpsModalTitle" class="font-bold text-sm sm:text-base text-white">Live Peer Commute GPS Tracking</h2>
+            <p id="gpsModalSubtitle" class="text-[11px] text-slate-400">100% Free HTML5 Geolocation &amp; OpenStreetMap</p>
+          </div>
+        </div>
+        <button id="closeGpsModalBtn" class="text-slate-400 hover:text-white text-xl font-bold p-1 cursor-pointer">×</button>
+      </div>
+
+      <!-- Real-Time Metrics Strip -->
+      <div class="grid grid-cols-3 gap-2 bg-slate-950 p-2.5 rounded-2xl border border-slate-800 text-center text-xs">
+        <div>
+          <span class="text-[10px] uppercase font-bold text-slate-500 block">Distance to You</span>
+          <span id="gpsDistanceDisplay" class="font-black text-brand-300 text-sm">-- km</span>
+        </div>
+        <div>
+          <span class="text-[10px] uppercase font-bold text-slate-500 block">Estimated Arrival</span>
+          <span id="gpsEtaDisplay" class="font-black text-emerald-400 text-sm">-- min</span>
+        </div>
+        <div>
+          <span class="text-[10px] uppercase font-bold text-slate-500 block">Vehicle Speed</span>
+          <span id="gpsSpeedDisplay" class="font-black text-amber-300 text-sm">-- km/h</span>
+        </div>
+      </div>
+
+      <!-- Map Canvas -->
+      <div class="relative rounded-2xl overflow-hidden border border-slate-800 shadow-inner bg-slate-950">
+        <div id="gpsTrackerMap" class="w-full h-64 sm:h-80 z-0"></div>
+        <div class="absolute top-2 left-2 z-[400] flex items-center gap-1.5 bg-slate-900/90 backdrop-blur-xs border border-slate-800 px-2.5 py-1 rounded-full text-[10px] font-semibold text-white shadow">
+          <span id="gpsLivePulseDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+          <span id="gpsLiveStatusText">Streaming GPS (Free)</span>
+        </div>
+      </div>
+
+      <!-- Interactive Controls based on User Role -->
+      <div class="space-y-2 pt-1">
+        <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div class="flex items-center gap-2">
+            <button type="button" id="gpsDriverBroadcastBtn" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-2 rounded-xl transition shadow-md flex items-center gap-1.5 cursor-pointer">
+              <span>📡</span> Start GPS Sharing
+            </button>
+            <button type="button" id="gpsPassengerShareLocationBtn" class="bg-brand-600 hover:bg-brand-500 text-white font-bold px-3 py-2 rounded-xl transition shadow-md flex items-center gap-1.5 cursor-pointer">
+              <span>📍</span> Send My Pickup GPS
+            </button>
+          </div>
+
+          <button type="button" id="gpsSimulateToggleBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-2 rounded-xl border border-slate-700 font-semibold text-[11px] flex items-center gap-1 cursor-pointer">
+            <span>🧪</span> Highway Demo
+          </button>
+        </div>
+
+        <p class="text-[10px] text-slate-500 text-center">
+          Powered by browser native Geolocation &amp; OpenStreetMap. Zero data charges, zero Google Maps API fees.
+        </p>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notification Alert -->
-  <div id="toastNotification" hidden style="display: none;" class="hidden fixed bottom-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 text-xs font-semibold border border-slate-700 fade-in">
+  <div id="toastNotification" hidden style="display: none;" role="status" aria-live="polite" aria-atomic="true" class="hidden fixed bottom-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 text-xs font-semibold border border-slate-700 fade-in">
     <span id="toastIcon" class="text-base">🔔</span>
     <span id="toastMessage">Notification</span>
   </div>
@@ -1246,7 +1446,7 @@
     // -------------------------------------------------------------
     // REAL APPLICATION DATA & LOCAL PERSISTENCE
     // -------------------------------------------------------------
-    const STORAGE_KEY = 'mit_adt_campuspool_live_db_v5';
+    const STORAGE_KEY = 'mit_adt_campuspool_live_db_v4';
     const ONBOARDING_POP_SEEN_KEY = 'mit_adt_campuspool_onboarding_seen';
     const ADMIN_COMMISSION_VPA = "campuspool.mitadt@okaxis";
 
@@ -1363,7 +1563,8 @@
     function isOfficialUniversityEmail(email) {
       if (!email || typeof email !== 'string') return false;
       const clean = email.trim().toLowerCase();
-      return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(clean);
+      // BUG-02: Strict institutional domain regex (@students.mituniversity.edu.in or @mituniversity.edu.in)
+      return /^[a-zA-Z0-9._%+-]+@(students\.)?mituniversity\.edu\.in$/i.test(clean);
     }
 
     function isValidIndianPhone(phone) {
@@ -1376,15 +1577,83 @@
       return Math.floor(100000 + Math.random() * 900000).toString();
     }
 
+    const modalFocusOrigins = new Map();
+    const modalFocusableSelector = [
+      'a[href]',
+      'button:not([disabled])',
+      'input:not([disabled]):not([type="hidden"])',
+      'select:not([disabled])',
+      'textarea:not([disabled])',
+      '[tabindex]:not([tabindex="-1"])'
+    ].join(',');
+    let toastTimer = null;
+
+    function getModal(modalOrId) {
+      return typeof modalOrId === 'string'
+        ? document.getElementById(modalOrId)
+        : modalOrId;
+    }
+
+    function showModal(modalOrId, initialFocusSelector) {
+      const modal = getModal(modalOrId);
+      if (!modal) return null;
+
+      if (modal.hasAttribute('hidden') && document.activeElement instanceof HTMLElement) {
+        modalFocusOrigins.set(modal.id, document.activeElement);
+      }
+
+      modal.removeAttribute('hidden');
+      modal.style.display = 'flex';
+      modal.classList.remove('hidden');
+
+      window.requestAnimationFrame(() => {
+        if (modal.hasAttribute('hidden')) return;
+        const target = (initialFocusSelector && modal.querySelector(initialFocusSelector))
+          || modal.querySelector('[data-dialog-initial-focus]')
+          || modal.querySelector(modalFocusableSelector)
+          || modal;
+        target?.focus();
+      });
+
+      return modal;
+    }
+
+    function hideModal(modalOrId) {
+      const modal = getModal(modalOrId);
+      if (!modal) return null;
+
+      const wasOpen = !modal.hasAttribute('hidden');
+      modal.setAttribute('hidden', '');
+      modal.style.display = 'none';
+      modal.classList.add('hidden');
+
+      const origin = modalFocusOrigins.get(modal.id);
+      modalFocusOrigins.delete(modal.id);
+      if (wasOpen && origin && document.contains(origin) && typeof origin.focus === 'function') {
+        window.requestAnimationFrame(() => origin.focus());
+      }
+
+      return modal;
+    }
+
+    function hideToast() {
+      const toast = document.getElementById('toastNotification');
+      if (!toast) return;
+      toast.setAttribute('hidden', '');
+      toast.style.display = 'none';
+      toast.classList.add('hidden');
+    }
+
     function showToast(message, icon = '✅') {
       const toast = document.getElementById('toastNotification');
       if (!toast) return;
       document.getElementById('toastMessage').textContent = message;
       document.getElementById('toastIcon').textContent = icon;
+      toast.removeAttribute('hidden');
+      toast.style.display = 'flex';
       toast.classList.remove('hidden');
-      setTimeout(() => {
-        toast.classList.add('hidden');
-      }, 3500);
+      if (toastTimer) window.clearTimeout(toastTimer);
+      toastTimer = window.setTimeout(hideToast, 3500);
     }
 
     // -------------------------------------------------------------
@@ -1466,9 +1735,9 @@
             </div>
 
             <div class="space-y-1.5 max-w-sm">
-              <h3 class="text-lg sm:text-xl font-black text-white tracking-tight">No more rides near you</h3>
+              <h3 class="text-lg sm:text-xl font-black text-white tracking-tight">No rides found near you</h3>
               <p class="text-xs text-slate-400 leading-relaxed">
-                All carpools and bikepools from Campus Gates 1–4 are currently full or departed. Be the first student or faculty member to offer a seat!
+              No more rides near you right now. All carpools and bikepools from Campus Gates 1–4 are currently full or departed. Be the first student or faculty member to offer a seat!
               </p>
             </div>
 
@@ -1656,7 +1925,7 @@
 
                 <div class="pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
                   <div class="flex items-center gap-1.5">
-                    <a href="https://wa.me/${cleanDriverPhone}?text=${whatsappMsg}" target="_blank" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1 cursor-pointer">
+                    <a href="https://wa.me/${cleanDriverPhone}?text=${whatsappMsg}" target="_blank" rel="noopener noreferrer" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1 cursor-pointer">
                       <span>💬</span> WhatsApp
                     </a>
                     <a href="tel:${cleanDriverPhone}" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-3 py-1.5 rounded-xl transition">
@@ -1969,20 +2238,11 @@
       if (qrImg) qrImg.src = qrUrl;
       if (upiLink) upiLink.href = upiUrl;
 
-      if (modal) {
-        modal.removeAttribute('hidden');
-        modal.style.display = 'flex';
-        modal.classList.remove('hidden');
-      }
+      showModal(modal);
     }
 
     document.getElementById('closeSettlementLockModalBtn')?.addEventListener('click', () => {
-      const modal = document.getElementById('settlementLockModal');
-      if (modal) {
-        modal.setAttribute('hidden', '');
-        modal.style.display = 'none';
-        modal.classList.add('hidden');
-      }
+      hideModal('settlementLockModal');
     });
 
     document.getElementById('bannerSettleBtn')?.addEventListener('click', () => {
@@ -1992,7 +2252,7 @@
     document.getElementById('confirmSettleDoneBtn')?.addEventListener('click', async () => {
       const restriction = checkUserSettlementRestriction();
       if (!restriction.isBlocked) {
-        document.getElementById('settlementLockModal')?.classList.add('hidden');
+        hideModal('settlementLockModal');
         return;
       }
 
@@ -2020,7 +2280,7 @@
             })
           }).catch(() => {});
 
-          document.getElementById('settlementLockModal')?.classList.add('hidden');
+          hideModal('settlementLockModal');
           showToast("Platform commission settled! All booking & inquiry locks removed.", "✅");
         } else if (restriction.hasUnpaidBooking) {
           const b = restriction.unpaidBooking;
@@ -2039,7 +2299,7 @@
             })
           }).catch(() => {});
 
-          document.getElementById('settlementLockModal')?.classList.add('hidden');
+          hideModal('settlementLockModal');
           showToast("Ride payment confirmed! All booking & inquiry locks removed.", "✅");
         }
       } finally {
@@ -2084,6 +2344,85 @@
     }
 
     // -------------------------------------------------------------
+    
+    // -------------------------------------------------------------
+    // ENTERPRISE ACCESSIBLE MODAL CONTROLLER (BUG-01, CP-002, CP-003)
+    // -------------------------------------------------------------
+    let lastActiveElement = null;
+
+    function openModalById(modalId, triggerEl = null) {
+      const modal = document.getElementById(modalId);
+      if (!modal) return;
+      lastActiveElement = triggerEl || document.activeElement;
+      modal.removeAttribute('hidden');
+      modal.style.display = 'flex';
+      modal.classList.remove('hidden');
+
+      // Focus first focusable element or panel
+      setTimeout(() => {
+        const focusable = modal.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+        if (focusable) focusable.focus();
+      }, 50);
+    }
+
+    function closeModalById(modalId) {
+      const modal = document.getElementById(modalId);
+      if (!modal) return;
+      modal.setAttribute('hidden', '');
+      modal.style.display = 'none';
+      modal.classList.add('hidden');
+
+      // Restore focus
+      if (lastActiveElement && typeof lastActiveElement.focus === 'function') {
+        try { lastActiveElement.focus(); } catch (e) {}
+      }
+    }
+
+    // Global Dismissal on Backdrop Click (Outside .modal-panel)
+    document.addEventListener('click', (e) => {
+      const overlay = e.target.closest('.modal-overlay');
+      if (overlay && e.target === overlay) {
+        closeModalById(overlay.id);
+      }
+    });
+
+    // Global Dismissal on Escape Key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        const openOverlays = document.querySelectorAll('.modal-overlay:not([hidden])');
+        openOverlays.forEach(m => {
+          if (m.style.display !== 'none' && !m.classList.contains('hidden')) {
+            closeModalById(m.id);
+          }
+        });
+      }
+    });
+
+    // W3C Accessible Focus Containment within Active Modal (CP-003)
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab') {
+        const activeModal = document.querySelector('.modal-overlay:not([hidden])');
+        if (activeModal && activeModal.style.display !== 'none' && !activeModal.classList.contains('hidden')) {
+          const focusables = Array.from(activeModal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+            .filter(el => el.offsetParent !== null);
+          if (focusables.length === 0) return;
+          const first = focusables[0];
+          const last = focusables[focusables.length - 1];
+
+          if (!activeModal.contains(document.activeElement)) {
+            first.focus();
+            e.preventDefault();
+          } else if (e.shiftKey && document.activeElement === first) {
+            last.focus();
+            e.preventDefault();
+          } else if (!e.shiftKey && document.activeElement === last) {
+            first.focus();
+            e.preventDefault();
+          }
+        }
+      }
+    });
+
     // MODAL OPERATIONS
     // -------------------------------------------------------------
     function checkFirstVisitWelcome() {
@@ -2094,21 +2433,11 @@
     }
 
     function openWelcomePopScreen() {
-      const modal = document.getElementById('welcomePopModal');
-      if (modal) {
-        modal.removeAttribute('hidden');
-        modal.style.display = 'flex';
-        modal.classList.remove('hidden');
-      }
+      showModal('welcomePopModal', '#welcomeRegisterBtn');
     }
 
     function closeWelcomePopScreen() {
-      const modal = document.getElementById('welcomePopModal');
-      if (modal) {
-        modal.setAttribute('hidden', '');
-        modal.style.display = 'none';
-        modal.classList.add('hidden');
-      }
+      hideModal('welcomePopModal');
       localStorage.setItem(ONBOARDING_POP_SEEN_KEY, 'true');
     }
 
@@ -2139,6 +2468,10 @@
           tabRegister.className = "py-2 rounded-xl bg-brand-600 text-white shadow-sm transition cursor-pointer flex items-center justify-center gap-1.5";
           tabSignIn.className = "py-2 rounded-xl text-slate-400 hover:text-white transition cursor-pointer flex items-center justify-center gap-1.5";
         }
+        tabSignIn.setAttribute('aria-selected', String(isSignIn));
+        tabRegister.setAttribute('aria-selected', String(!isSignIn));
+        tabSignIn.tabIndex = isSignIn ? 0 : -1;
+        tabRegister.tabIndex = isSignIn ? -1 : 0;
       }
 
       if (viewSignIn) viewSignIn.classList.toggle('hidden', !isSignIn);
@@ -2193,20 +2526,11 @@
         if (deptInput && appState.currentUser.dept) deptInput.value = appState.currentUser.dept;
         if (loginIdInput && !loginIdInput.value) loginIdInput.value = appState.currentUser.email || '';
       }
-      if (modal) {
-        modal.removeAttribute('hidden');
-        modal.style.display = 'flex';
-        modal.classList.remove('hidden');
-      }
+      showModal(modal, defaultMode === 'signin' ? '#inputLoginIdentifier' : '#inputStudentName');
     }
 
     function closeAuthModal() {
-      const modal = document.getElementById('authModal');
-      if (modal) {
-        modal.setAttribute('hidden', '');
-        modal.style.display = 'none';
-        modal.classList.add('hidden');
-      }
+      hideModal('authModal');
     }
 
     document.getElementById('closeAuthModalBtn')?.addEventListener('click', closeAuthModal);
@@ -2416,10 +2740,12 @@
       }
 
       if (!isOfficialUniversityEmail(email)) {
+        const msg = "⚠️ Only @students.mituniversity.edu.in or @mituniversity.edu.in permitted. Invalid institutional domain.";
         if (emailErr) {
-          emailErr.textContent = "⚠️ Please enter a valid email address.";
+          emailErr.textContent = msg;
           emailErr.classList.remove('hidden');
         }
+        showToast(msg, "⚠️");
         return;
       }
 
@@ -3094,20 +3420,32 @@
         if (btn) {
           btn.classList.remove('bg-brand-600', 'text-white', 'font-bold');
           btn.classList.add('text-slate-400', 'font-semibold');
+          btn.setAttribute('aria-selected', 'false');
+          btn.tabIndex = -1;
         }
       });
 
       viewSections.forEach(id => {
-        document.getElementById(id)?.classList.add('hidden');
+        const section = document.getElementById(id);
+        if (section) {
+          section.hidden = true;
+          section.classList.add('hidden');
+        }
       });
 
       const activeBtn = document.getElementById(tabBtnId);
       if (activeBtn) {
         activeBtn.classList.remove('text-slate-400', 'font-semibold');
         activeBtn.classList.add('bg-brand-600', 'text-white', 'font-bold');
+        activeBtn.setAttribute('aria-selected', 'true');
+        activeBtn.tabIndex = 0;
       }
 
-      document.getElementById(viewId)?.classList.remove('hidden');
+      const activeView = document.getElementById(viewId);
+      if (activeView) {
+        activeView.hidden = false;
+        activeView.classList.remove('hidden');
+      }
       if (viewId === 'viewCampusMap') {
         setTimeout(initCampusLeafletMap, 100);
       }
@@ -3118,6 +3456,25 @@
     document.getElementById('tabMyRides')?.addEventListener('click', () => switchMainTab('tabMyRides', 'viewMyRides'));
     document.getElementById('tabCampusMap')?.addEventListener('click', () => switchMainTab('tabCampusMap', 'viewCampusMap'));
     document.getElementById('tabLeaderboard')?.addEventListener('click', () => switchMainTab('tabLeaderboard', 'viewLeaderboard'));
+
+    document.querySelector('[aria-label="CampusPool sections"]')?.addEventListener('keydown', (event) => {
+      const tabIds = ['tabFindRides', 'tabOfferRide', 'tabMyRides', 'tabCampusMap', 'tabLeaderboard'];
+      const viewIds = ['viewFindRides', 'viewOfferRide', 'viewMyRides', 'viewCampusMap', 'viewLeaderboard'];
+      const currentIndex = tabIds.indexOf(event.target.id);
+      if (currentIndex === -1) return;
+
+      let nextIndex = currentIndex;
+      if (event.key === 'ArrowRight' || event.key === 'ArrowDown') nextIndex = (currentIndex + 1) % tabIds.length;
+      else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') nextIndex = (currentIndex - 1 + tabIds.length) % tabIds.length;
+      else if (event.key === 'Home') nextIndex = 0;
+      else if (event.key === 'End') nextIndex = tabIds.length - 1;
+      else return;
+
+      event.preventDefault();
+      const nextTab = document.getElementById(tabIds[nextIndex]);
+      switchMainTab(tabIds[nextIndex], viewIds[nextIndex]);
+      nextTab?.focus();
+    });
 
     document.getElementById('heroFindRideBtn')?.addEventListener('click', () => switchMainTab('tabFindRides', 'viewFindRides'));
     document.getElementById('heroOfferRideBtn')?.addEventListener('click', () => switchMainTab('tabOfferRide', 'viewOfferRide'));
@@ -3150,6 +3507,7 @@
 
     document.getElementById('filterVehicleSelect')?.addEventListener('change', (e) => {
       appState.activeVehicleFilter = e.target.value;
+      saveState();
       renderRidesGrid();
     });
 
@@ -3411,43 +3769,23 @@
       });
     });
 
-    // Emergency SOS Quick Button (with native hidden toggling)
-    document.getElementById('headerSosQuickBtn')?.addEventListener('click', () => {
-      const modal = document.getElementById('sosModal');
-      if (modal) {
-        modal.removeAttribute('hidden');
-        modal.style.display = 'flex';
-        modal.classList.remove('hidden');
-      }
+    // Emergency SOS Quick Button (BUG-01, CP-002)
+    document.getElementById('headerSosQuickBtn')?.addEventListener('click', (e) => {
+      openModalById('sosModal', e.currentTarget);
     });
-    document.getElementById('closeSosModalBtn')?.addEventListener('click', () => {
-      const modal = document.getElementById('sosModal');
-      if (modal) {
-        modal.setAttribute('hidden', '');
-        modal.style.display = 'none';
-        modal.classList.add('hidden');
-      }
-    });
+    document.getElementById('closeSosModalBtn')?.addEventListener('click', () => closeModalById('sosModal'));
 
-    // Notification Trigger Button & Clear Badge (with native hidden toggling)
-    document.getElementById('notificationTriggerBtn')?.addEventListener('click', () => {
-      const modal = document.getElementById('notificationsModal');
-      if (modal) {
-        modal.removeAttribute('hidden');
-        modal.style.display = 'flex';
-        modal.classList.remove('hidden');
-      }
+    // Notification Trigger Button & Clear Badge (BUG-01, UX-03)
+    document.getElementById('notificationTriggerBtn')?.addEventListener('click', (e) => {
+      openModalById('notificationsModal', e.currentTarget);
       const badge = document.getElementById('notifBadge');
-      if (badge) badge.classList.add('hidden');
-    });
-    document.getElementById('closeNotifModalBtn')?.addEventListener('click', () => {
-      const modal = document.getElementById('notificationsModal');
-      if (modal) {
-        modal.setAttribute('hidden', '');
-        modal.style.display = 'none';
-        modal.classList.add('hidden');
+      if (badge) {
+        badge.classList.add('hidden');
+        badge.textContent = '0';
       }
+      try { localStorage.setItem('mit_adt_campuspool_notif_seen', 'true'); } catch(e) {}
     });
+    document.getElementById('closeNotifModalBtn')?.addEventListener('click', () => closeModalById('notificationsModal'));
 
     // BUG-05 Fix: Wire Live Network Status (Online / Offline Highway Cache)
     function updateNetworkStatus() {
@@ -4009,6 +4347,11 @@
       document.getElementById('toastNotification')?.classList.add('hidden');
       switchMainTab('tabFindRides', 'viewFindRides');
       loadState();
+      // CP-005: Ensure filter select reflects persisted activeVehicleFilter
+      if (appState.activeVehicleFilter) {
+        const vSel = document.getElementById('filterVehicleSelect');
+        if (vSel) vSel.value = appState.activeVehicleFilter;
+      }
       renderUserHeader();
       renderRidesGrid();
       renderMyRidesViews();
@@ -4033,143 +4376,5 @@
       }, 12000);
     });
   </script>
-
-
-  <!-- MODAL: Campus Emergency SOS -->
-  <div id="sosModal" hidden style="display: none;" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-rose-900/60 rounded-3xl max-w-sm w-full p-6 shadow-2xl fade-in space-y-4 text-center">
-      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
-        <div class="flex items-center gap-2">
-          <span class="text-xl">🚨</span>
-          <h2 class="font-bold text-sm text-white text-left">Campus Emergency Contacts</h2>
-        </div>
-        <button id="closeSosModalBtn" class="text-slate-400 hover:text-white text-xl font-bold p-1 cursor-pointer">×</button>
-      </div>
-      <p class="text-xs text-slate-300 text-left">Immediate 24/7 emergency hotlines for MIT ADT University & Solapur Highway (NH 65):</p>
-      <div class="space-y-2 text-xs">
-        <a href="tel:+912030273400" class="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-brand-500 transition">
-          <div class="text-left">
-            <strong class="text-white block">Campus Security Main Bay</strong>
-            <span class="text-slate-400 text-[11px]">Gates 1–4 CCTV Control</span>
-          </div>
-          <span class="font-mono text-brand-300 font-bold">020-30273400</span>
-        </a>
-        <a href="tel:112" class="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-rose-500 transition">
-          <div class="text-left">
-            <strong class="text-white block">Police Emergency (Loni Kalbhor)</strong>
-            <span class="text-slate-400 text-[11px]">Solapur Highway Patrol</span>
-          </div>
-          <span class="font-mono text-rose-400 font-bold">112</span>
-        </a>
-        <a href="tel:+912067650000" class="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-emerald-500 transition">
-          <div class="text-left">
-            <strong class="text-white block">VishwaRaj Hospital (Gate 4)</strong>
-            <span class="text-slate-400 text-[11px]">24/7 Trauma & Ambulance</span>
-          </div>
-          <span class="font-mono text-emerald-400 font-bold">020-67650000</span>
-        </a>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL: Campus Commute Notifications -->
-  <div id="notificationsModal" hidden style="display: none;" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 shadow-2xl fade-in space-y-4">
-      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
-        <div class="flex items-center gap-2">
-          <span class="text-lg">🔔</span>
-          <h2 class="font-bold text-sm text-white">Campus Commute Alerts</h2>
-        </div>
-        <button id="closeNotifModalBtn" class="text-slate-400 hover:text-white text-xl font-bold p-1 cursor-pointer">×</button>
-      </div>
-      <div class="space-y-2.5 text-xs">
-        <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-          <div class="flex justify-between items-center">
-            <strong class="text-white">Gate 1 Solapur Hwy Patrol</strong>
-            <span class="text-[10px] text-emerald-400 font-bold">ACTIVE</span>
-          </div>
-          <p class="text-[11px] text-slate-400">Evening carpool bay monitored by university security team.</p>
-        </div>
-        <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-          <div class="flex justify-between items-center">
-            <strong class="text-white">Hadapsar Gadital Route Advisory</strong>
-            <span class="text-[10px] text-amber-400 font-bold">SMOOTH</span>
-          </div>
-          <p class="text-[11px] text-slate-400">Normal 25 min transit time from Gate 1 to Gadital.</p>
-        </div>
-        <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-          <div class="flex justify-between items-center">
-            <strong class="text-white">UPI Fuel Reimbursements</strong>
-            <span class="text-[10px] text-brand-300 font-bold">INFO</span>
-          </div>
-          <p class="text-[11px] text-slate-400">Remember to settle the 10% platform green share at the end of every week.</p>
-        </div>
-      </div>
-    </div>
-  </div>
-
-
-  <!-- MODAL: Real-Time Free GPS Commute Tracking -->
-  <div id="gpsTrackingModal" hidden style="display: none;" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
-    <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-xl w-full p-4 sm:p-6 shadow-2xl fade-in space-y-4">
-      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
-        <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-lg bg-brand-500/20 text-brand-400 flex items-center justify-center font-bold text-sm">📡</div>
-          <div>
-            <h2 id="gpsModalTitle" class="font-bold text-sm sm:text-base text-white">Live Peer Commute GPS Tracking</h2>
-            <p id="gpsModalSubtitle" class="text-[11px] text-slate-400">100% Free HTML5 Geolocation &amp; OpenStreetMap</p>
-          </div>
-        </div>
-        <button id="closeGpsModalBtn" class="text-slate-400 hover:text-white text-xl font-bold p-1 cursor-pointer">×</button>
-      </div>
-
-      <!-- Real-Time Metrics Strip -->
-      <div class="grid grid-cols-3 gap-2 bg-slate-950 p-2.5 rounded-2xl border border-slate-800 text-center text-xs">
-        <div>
-          <span class="text-[10px] uppercase font-bold text-slate-500 block">Distance to You</span>
-          <span id="gpsDistanceDisplay" class="font-black text-brand-300 text-sm">-- km</span>
-        </div>
-        <div>
-          <span class="text-[10px] uppercase font-bold text-slate-500 block">Estimated Arrival</span>
-          <span id="gpsEtaDisplay" class="font-black text-emerald-400 text-sm">-- min</span>
-        </div>
-        <div>
-          <span class="text-[10px] uppercase font-bold text-slate-500 block">Vehicle Speed</span>
-          <span id="gpsSpeedDisplay" class="font-black text-amber-300 text-sm">-- km/h</span>
-        </div>
-      </div>
-
-      <!-- Map Canvas -->
-      <div class="relative rounded-2xl overflow-hidden border border-slate-800 shadow-inner bg-slate-950">
-        <div id="gpsTrackerMap" class="w-full h-64 sm:h-80 z-0"></div>
-        <div class="absolute top-2 left-2 z-[400] flex items-center gap-1.5 bg-slate-900/90 backdrop-blur-xs border border-slate-800 px-2.5 py-1 rounded-full text-[10px] font-semibold text-white shadow">
-          <span id="gpsLivePulseDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-          <span id="gpsLiveStatusText">Streaming GPS (Free)</span>
-        </div>
-      </div>
-
-      <!-- Interactive Controls based on User Role -->
-      <div class="space-y-2 pt-1">
-        <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
-          <div class="flex items-center gap-2">
-            <button type="button" id="gpsDriverBroadcastBtn" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-2 rounded-xl transition shadow-md flex items-center gap-1.5 cursor-pointer">
-              <span>📡</span> Start GPS Sharing
-            </button>
-            <button type="button" id="gpsPassengerShareLocationBtn" class="bg-brand-600 hover:bg-brand-500 text-white font-bold px-3 py-2 rounded-xl transition shadow-md flex items-center gap-1.5 cursor-pointer">
-              <span>📍</span> Send My Pickup GPS
-            </button>
-          </div>
-
-          <button type="button" id="gpsSimulateToggleBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-2 rounded-xl border border-slate-700 font-semibold text-[11px] flex items-center gap-1 cursor-pointer">
-            <span>🧪</span> Highway Demo
-          </button>
-        </div>
-
-        <p class="text-[10px] text-slate-500 text-center">
-          Powered by browser native Geolocation &amp; OpenStreetMap. Zero data charges, zero Google Maps API fees.
-        </p>
-      </div>
-    </div>
-  </div>
 
 </body></html>

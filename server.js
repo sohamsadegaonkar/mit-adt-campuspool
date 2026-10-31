@@ -194,6 +194,8 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.setHeader('Content-Security-Policy', "default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob:; img-src 'self' https: data: blob:; font-src 'self' https: data:; frame-src 'self' https://maps.google.com https://www.google.com;");
 
   // Parse JSON Body Helper
   async function parseBody() {
@@ -332,13 +334,14 @@ const server = http.createServer(async (req, res) => {
     const name = (body.name || '').trim();
     const phone = (body.phone || '').trim();
 
-    // 1. Accept any valid email format (University or Personal)
-    const validEmail = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email);
-    if (!validEmail) {
+    // 1. Enforce strict MIT ADT institutional email domain policy
+    const isInstitutional = /^[a-zA-Z0-9._%+-]+@(students\.)?mituniversity\.edu\.in$/i.test(email);
+    if (!isInstitutional) {
       return sendJson(400, {
         success: false,
+        field: 'email',
         error: 'INVALID_DOMAIN',
-        message: 'Please enter a valid email address.'
+        message: 'Only @students.mituniversity.edu.in or @mituniversity.edu.in institutional email addresses are permitted. Invalid institutional domain.'
       });
     }
 
@@ -445,9 +448,7 @@ const server = http.createServer(async (req, res) => {
       isLogin: !!uniqueCheck.isExistingUser,
       existingUser: uniqueCheck.user || null,
       deliveredToInbox: isRealDelivery,
-      message: isRealDelivery
-        ? `A secure 6-digit verification code has been dispatched to ${email}. Check your inbox or spam folder.`
-        : `A 6-digit verification code has been generated. Please check your inbox (or check your server terminal if testing locally).`,
+      message: 'A 6-digit verification code has been sent to your university inbox.',
       expiresInSeconds: 600
     });
   }
