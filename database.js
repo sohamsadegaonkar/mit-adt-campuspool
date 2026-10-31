@@ -16,7 +16,7 @@ class SQLiteCampusDatabase {
     this.dbPath = dbPath;
     this.db = new Database(this.dbPath);
 
-    // High performance write-ahead logging & strict relational integrity
+    // High performance write-ahead logging, concurrency timeout & strict relational integrity
     try {
       this.db.pragma('journal_mode = WAL');
     } catch (e) {
@@ -24,6 +24,7 @@ class SQLiteCampusDatabase {
       this.db.pragma('journal_mode = DELETE');
     }
     this.db.pragma('foreign_keys = ON');
+    this.db.pragma('busy_timeout = 5000');
 
     this.initTables();
     this.migrateOrSeed();
@@ -101,6 +102,13 @@ class SQLiteCampusDatabase {
         driver_email TEXT NOT NULL COLLATE NOCASE,
         amount REAL NOT NULL,
         settled_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS live_locations (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        data TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
       );
 
       CREATE INDEX IF NOT EXISTS idx_profiles_email ON profiles(email);
@@ -765,6 +773,30 @@ class SQLiteCampusDatabase {
       token: r.token,
       isVerified: Boolean(r.is_verified)
     };
+  }
+
+  // -----------------------------------------------------------------------
+  // Real-Time GPS Location Storage for Multi-Worker / Clustered Load Balancing
+  // -----------------------------------------------------------------------
+  setLiveLocation(id, type, data) {
+    if (!id || !data) return;
+    const stmt = this.db.prepare(`
+      INSERT INTO live_locations (id, type, data, updated_at)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at
+    `);
+    stmt.run(id, type, JSON.stringify(data), Date.now());
+  }
+
+  getLiveLocation(id) {
+    if (!id) return null;
+    const row = this.db.prepare('SELECT data FROM live_locations WHERE id = ?').get(id);
+    if (!row) return null;
+    try {
+      return JSON.parse(row.data);
+    } catch (e) {
+      return null;
+    }
   }
 
   // -----------------------------------------------------------------------

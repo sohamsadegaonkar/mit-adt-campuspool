@@ -1,0 +1,86 @@
+# =========================================================================
+# MIT ADT CampusPool - Multi-Container Load Balanced Architecture
+# Spins up:
+# 1. Nginx Reverse Proxy & Load Balancer (Port 80/443)
+# 2. 3x Replicated Backend Nodes with WAL-synchronized persistent SQLite
+# =========================================================================
+
+version: '3.8'
+
+services:
+  # -----------------------------------------------------------------------
+  # Load Balancer: High-Performance Nginx Reverse Proxy
+  # -----------------------------------------------------------------------
+  loadbalancer:
+    image: nginx:alpine
+    container_name: campuspool-loadbalancer
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - app-node-1
+      - app-node-2
+      - app-node-3
+    networks:
+      - campuspool-network
+
+  # -----------------------------------------------------------------------
+  # Application Node 1
+  # -----------------------------------------------------------------------
+  app-node-1:
+    build: .
+    container_name: campuspool-node-1
+    restart: always
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      - DATABASE_PATH=/app/data/campuspool.db
+      - CLUSTER_WORKERS=2
+    volumes:
+      - campuspool-sqlite-data:/app/data
+    networks:
+      - campuspool-network
+
+  # -----------------------------------------------------------------------
+  # Application Node 2
+  # -----------------------------------------------------------------------
+  app-node-2:
+    build: .
+    container_name: campuspool-node-2
+    restart: always
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      - DATABASE_PATH=/app/data/campuspool.db
+      - CLUSTER_WORKERS=2
+    volumes:
+      - campuspool-sqlite-data:/app/data
+    networks:
+      - campuspool-network
+
+  # -----------------------------------------------------------------------
+  # Application Node 3
+  # -----------------------------------------------------------------------
+  app-node-3:
+    build: .
+    container_name: campuspool-node-3
+    restart: always
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      - DATABASE_PATH=/app/data/campuspool.db
+      - CLUSTER_WORKERS=2
+    volumes:
+      - campuspool-sqlite-data:/app/data
+    networks:
+      - campuspool-network
+
+volumes:
+  campuspool-sqlite-data:
+    driver: local
+
+networks:
+  campuspool-network:
+    driver: bridge

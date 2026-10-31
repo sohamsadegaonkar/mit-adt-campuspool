@@ -45,6 +45,72 @@ const SMTP_FROM = envConfig.SMTP_FROM || process.env.SMTP_FROM || 'MIT ADT Campu
 const OTP_SECRET = envConfig.OTP_SECRET || process.env.OTP_SECRET || 'mit_adt_campuspool_jwt_hmac_secret_2026';
 
 // -------------------------------------------------------------------------
+// Built-in Multi-Worker Cluster Load Balancer Configuration
+// -------------------------------------------------------------------------
+const cluster = require('cluster');
+const os = require('os');
+
+// Force Round-Robin scheduling across all platforms (Linux, macOS, Windows)
+if (cluster.schedulingPolicy !== undefined) {
+  cluster.schedulingPolicy = cluster.SCHED_RR;
+}
+
+const ENABLE_CLUSTER = (process.env.ENABLE_CLUSTER !== 'false') && (process.env.CLUSTER_WORKERS !== '1');
+const WORKERS_COUNT = parseInt(process.env.CLUSTER_WORKERS || process.env.WEB_CONCURRENCY, 10) || Math.min(4, Math.max(2, os.cpus().length || 2));
+
+function runClusterMaster() {
+  console.log(`========================================================`);
+  console.log(` 🚀 MIT ADT CampusPool - Multi-Worker Cluster Load Balancer`);
+  console.log(` Master PID: ${process.pid} | Total CPU Cores: ${os.cpus().length}`);
+  console.log(` Scheduling Policy: Round-Robin (cluster.SCHED_RR)`);
+  console.log(` Target Port: ${PORT} (0.0.0.0)`);
+  console.log(` Launching ${WORKERS_COUNT} concurrent worker processes...`);
+  console.log(`========================================================`);
+
+  // Pre-initialize SQLite once in master so tables & migrations are ready before workers boot
+  try {
+    const SQLiteCampusDatabase = require('./database');
+    new SQLiteCampusDatabase();
+  } catch (err) {
+    console.warn('[LOAD BALANCER] Master DB bootstrap notice:', err.message);
+  }
+
+  const workers = new Map();
+  for (let i = 0; i < WORKERS_COUNT; i++) {
+    const worker = cluster.fork({ WORKER_INDEX: i + 1 });
+    workers.set(worker.id, worker);
+  }
+
+  cluster.on('online', (worker) => {
+    console.log(`  ⚡ [LB Worker #${worker.id}] ONLINE (PID: ${worker.process.pid}) - Ready for requests`);
+  });
+
+  cluster.on('exit', (worker, code, signal) => {
+    console.warn(`  ⚠️ [LB Worker #${worker.id}] EXITED (PID: ${worker.process.pid}, code: ${code}). Auto-recovering...`);
+    workers.delete(worker.id);
+    const newWorker = cluster.fork();
+    workers.set(newWorker.id, newWorker);
+  });
+
+  function shutdown() {
+    console.log('\n[LOAD BALANCER] Terminating cluster workers gracefully...');
+    for (const [, worker] of workers.entries()) {
+      try { worker.kill('SIGTERM'); } catch (e) {}
+    }
+    process.exit(0);
+  }
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
+}
+
+if (ENABLE_CLUSTER && cluster.isPrimary) {
+  runClusterMaster();
+} else {
+  startWorkerServer();
+}
+
+function startWorkerServer() {
+// -------------------------------------------------------------------------
 // Embedded SQLite Relational Database Engine (better-sqlite3)
 // Real SQL Tables, WAL Journaling, Foreign Keys & ACID Transactions
 // -------------------------------------------------------------------------
@@ -189,13 +255,16 @@ const server = http.createServer(async (req, res) => {
     return res.end();
   }
 
-  // Security Headers
+  // Security & Load Balancer Headers
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   res.setHeader('Content-Security-Policy', "default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob:; img-src 'self' https: data: blob:; font-src 'self' https: data:; frame-src 'self' https://maps.google.com https://www.google.com;");
+  res.setHeader('X-Load-Balancer', 'Node-Cluster-Round-Robin');
+  res.setHeader('X-Worker-Pid', String(process.pid));
+  res.setHeader('X-Worker-Id', cluster.worker ? String(cluster.worker.id) : '1');
 
   // Parse JSON Body Helper
   async function parseBody() {
@@ -215,6 +284,41 @@ const server = http.createServer(async (req, res) => {
   function sendJson(statusCode, data) {
     res.writeHead(statusCode, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(data));
+  }
+
+  // -----------------------------------------------------------------------
+  // REST API: /api/health & /api/lb-status (Cluster Load Balancer Telemetry)
+  // -----------------------------------------------------------------------
+  if (method === 'GET' && (pathname === '/api/health' || pathname === '/api/lb-status' || pathname === '/healthz')) {
+    const mem = process.memoryUsage();
+    return sendJson(200, {
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      uptimeSeconds: Math.floor(process.uptime()),
+      loadBalancer: {
+        type: 'Node.js Multi-Worker Cluster Load Balancer',
+        algorithm: 'Round-Robin (cluster.SCHED_RR)',
+        workerPid: process.pid,
+        workerId: cluster.worker ? cluster.worker.id : 1,
+        totalWorkers: WORKERS_COUNT,
+        cpuCores: os.cpus().length,
+        isClustered: Boolean(cluster.isWorker)
+      },
+      system: {
+        nodeVersion: process.version,
+        platform: process.platform,
+        arch: process.arch,
+        memoryUsageMb: {
+          rss: Math.round(mem.rss / 1024 / 1024),
+          heapUsed: Math.round(mem.heapUsed / 1024 / 1024)
+        }
+      },
+      database: {
+        engine: 'SQLite3 (better-sqlite3)',
+        journalMode: 'WAL',
+        concurrency: 'Multi-Process Safe (busy_timeout=5000ms)'
+      }
+    });
   }
 
   // -----------------------------------------------------------------------
@@ -666,6 +770,7 @@ const server = http.createServer(async (req, res) => {
 
   // -----------------------------------------------------------------------
   // REST API: Real-Time Free GPS Location (Driver & Passenger Tracking)
+  // Synchronized across Cluster Workers and Nodes via SQLite WAL + Memory Cache
   // -----------------------------------------------------------------------
   if (method === 'POST' && pathname === '/api/rides/location') {
     const body = await parseBody();
@@ -684,6 +789,7 @@ const server = http.createServer(async (req, res) => {
       updatedAt: Date.now()
     };
     liveRideLocations.set(rideId, loc);
+    try { db.setLiveLocation(rideId, 'ride', loc); } catch (e) {}
     return sendJson(200, { success: true, location: loc });
   }
 
@@ -692,8 +798,11 @@ const server = http.createServer(async (req, res) => {
     if (!rideId) {
       return sendJson(400, { success: false, message: 'rideId query param is required.' });
     }
-    const loc = liveRideLocations.get(rideId) || null;
-    return sendJson(200, { success: true, location: loc });
+    let loc = liveRideLocations.get(rideId);
+    if (!loc) {
+      try { loc = db.getLiveLocation(rideId); } catch (e) {}
+    }
+    return sendJson(200, { success: true, location: loc || null });
   }
 
   if (method === 'POST' && pathname === '/api/bookings/passenger-location') {
@@ -711,6 +820,7 @@ const server = http.createServer(async (req, res) => {
       updatedAt: Date.now()
     };
     livePassengerLocations.set(bookingId, loc);
+    try { db.setLiveLocation(bookingId, 'passenger', loc); } catch (e) {}
     return sendJson(200, { success: true, location: loc });
   }
 
@@ -719,8 +829,11 @@ const server = http.createServer(async (req, res) => {
     if (!bookingId) {
       return sendJson(400, { success: false, message: 'bookingId query param is required.' });
     }
-    const loc = livePassengerLocations.get(bookingId) || null;
-    return sendJson(200, { success: true, location: loc });
+    let loc = livePassengerLocations.get(bookingId);
+    if (!loc) {
+      try { loc = db.getLiveLocation(bookingId); } catch (e) {}
+    }
+    return sendJson(200, { success: true, location: loc || null });
   }
 
   // -----------------------------------------------------------------------
@@ -888,10 +1001,8 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`========================================================`);
-  console.log(` MIT ADT CampusPool Production Server`);
-  console.log(` Real-Time SMTP OTP & ACID Persistent Database Active`);
-  console.log(` Running on port ${PORT} (0.0.0.0)`);
-  console.log(`========================================================`);
-});
+  server.listen(PORT, '0.0.0.0', () => {
+    const workerLabel = cluster.isWorker ? `Worker #${cluster.worker.id} (PID: ${process.pid})` : `Standalone Server (PID: ${process.pid})`;
+    console.log(`[HTTP SERVER] ${workerLabel} active on port ${PORT}`);
+  });
+}

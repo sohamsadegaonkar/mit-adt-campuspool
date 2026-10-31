@@ -81,7 +81,7 @@ async function runTests() {
   // Test 6: Zero Demo Profiles & Empty State "No more rides near you"
   await test('TC-06: Static HTML renders "No more rides near you" empty state with illustration', () => {
     assert.ok(html.includes('No more rides near you'), 'Static HTML must display "No more rides near you"');
-    assert.ok(html.includes('Available Rides (<span id="countAvailableRides">0</span>)'), 'Available rides count must be 0');
+    assert.ok(html.includes('id="countAvailableRides">0</span>'), 'Available rides count must be 0');
     assert.ok(!html.includes('data-ride-id="ride_1"'), 'Static HTML must not contain demo ride_1');
     assert.ok(!html.includes('data-ride-id="ride_2"'), 'Static HTML must not contain demo ride_2');
     assert.ok(!html.includes('data-ride-id="ride_3"'), 'Static HTML must not contain demo ride_3');

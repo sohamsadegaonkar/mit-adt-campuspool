@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "test:lb": "node test_load_balancer.js",
+    "test:qa": "node test_qa_suite.js"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",

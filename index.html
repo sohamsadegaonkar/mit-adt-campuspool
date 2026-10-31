@@ -1,7 +1,7 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-slate-950"><head>
+<html lang="en" class="h-full"><head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MIT ADT CampusPool • University Peer Commute Network</title>
   
   <!-- Instant Service Worker & Cache Storage Purge -->
@@ -102,8 +102,8 @@
             }
           },
           fontFamily: {
-            sans: ['Plus Jakarta Sans', 'Inter', 'system-ui', 'sans-serif'],
-            mono: ['JetBrains Mono', 'ui-monospace', 'monospace']
+            sans: ['Arial', 'Helvetica Neue', 'system-ui', 'sans-serif'],
+            mono: ['ui-monospace', 'monospace']
           },
           boxShadow: {
             'glow-indigo': '0 0 25px -5px rgba(99, 102, 241, 0.35)',
@@ -114,17 +114,11 @@
     }
   </script>
 
-  <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;display=swap" rel="stylesheet">
-  
-
   <!-- PWA & Mobile Web App Meta -->
   <link rel="manifest" href="manifest.webmanifest">
-  <meta name="theme-color" content="#090d16">
+  <meta name="theme-color" content="#ffffff">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="CampusPool">
   <meta name="description" content="Official Peer Commute &amp; Ride-Sharing Network for MIT ADT University, Loni Kalbhor, Pune">
 
@@ -172,6 +166,28 @@
       margin: auto;
     }
 
+    .modal-close-button {
+      width: 2.5rem;
+      min-width: 2.5rem;
+      min-height: 2.5rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .skip-link {
+      position: fixed;
+      top: 0.75rem;
+      left: 0.75rem;
+      z-index: 60;
+      transform: translateY(-150%);
+      transition: transform 0.15s ease;
+    }
+
+    .skip-link:focus {
+      transform: translateY(0);
+    }
+
     #toastNotification {
       max-width: min(28rem, calc(100vw - 2rem));
     }
@@ -195,7 +211,8 @@
       .header-profile-email { display: none; }
 
       .header-actions { gap: 0.375rem; }
-      .header-login-button {
+      .header-login-button,
+      .header-logout-button {
         min-width: 2.5rem;
         justify-content: center;
         padding-left: 0.625rem;
@@ -212,11 +229,41 @@
       .header-login-compact { display: none; }
     }
   </style>
-<style>*, ::before, ::after{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/* ! tailwindcss v3.4.17 | MIT License | https://tailwindcss.com */*,::after,::before{box-sizing:border-box;border-width:0;border-style:solid;border-color:#e5e7eb}::after,::before{--tw-content:''}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;tab-size:4;font-family:Plus Jakarta Sans, Inter, system-ui, sans-serif;font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:JetBrains Mono, ui-monospace, monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0;padding:0}legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.pointer-events-none{pointer-events:none}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0px}.-bottom-10{bottom:-2.5rem}.-right-1{right:-0.25rem}.-right-10{right:-2.5rem}.-right-2{right:-0.5rem}.-top-1{top:-0.25rem}.top-0{top:0px}.top-4{top:1rem}.bottom-2{bottom:0.5rem}.bottom-5{bottom:1.25rem}.left-2{left:0.5rem}.right-5{right:1.25rem}.z-10{z-index:10}.z-30{z-index:30}.z-40{z-index:40}.z-50{z-index:50}.mx-auto{margin-left:auto;margin-right:auto}.mb-1{margin-bottom:0.25rem}.mt-0\.5{margin-top:0.125rem}.mt-1{margin-top:0.25rem}.mt-12{margin-top:3rem}.mb-2{margin-bottom:0.5rem}.mt-2\.5{margin-top:0.625rem}.mt-3{margin-top:0.75rem}.block{display:block}.flex{display:flex}.inline-flex{display:inline-flex}.grid{display:grid}.hidden{display:none}.h-1\.5{height:0.375rem}.h-10{height:2.5rem}.h-12{height:3rem}.h-16{height:4rem}.h-2{height:0.5rem}.h-4{height:1rem}.h-96{height:24rem}.h-full{height:100%}.h-8{height:2rem}.h-80{height:20rem}.min-h-screen{min-height:100vh}.w-1\.5{width:0.375rem}.w-10{width:2.5rem}.w-12{width:3rem}.w-2{width:0.5rem}.w-4{width:1rem}.w-96{width:24rem}.w-full{width:100%}.w-16{width:4rem}.w-8{width:2rem}.max-w-2xl{max-width:42rem}.max-w-7xl{max-width:80rem}.max-w-xl{max-width:36rem}.max-w-lg{max-width:32rem}.max-w-md{max-width:28rem}.max-w-sm{max-width:24rem}.flex-1{flex:1 1 0%}.shrink-0{flex-shrink:0}.border-collapse{border-collapse:collapse}@keyframes pulse{50%{opacity:.5}}.animate-pulse{animation:pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite}.cursor-pointer{cursor:pointer}.select-none{-webkit-user-select:none;user-select:none}.grid-cols-1{grid-template-columns:repeat(1, minmax(0, 1fr))}.grid-cols-3{grid-template-columns:repeat(3, minmax(0, 1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-center{align-items:center}.items-baseline{align-items:baseline}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-1{gap:0.25rem}.gap-1\.5{gap:0.375rem}.gap-2{gap:0.5rem}.gap-3{gap:0.75rem}.gap-3\.5{gap:0.875rem}.gap-4{gap:1rem}.gap-2\.5{gap:0.625rem}.space-y-3 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(0.75rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(0.75rem * var(--tw-space-y-reverse))}.space-y-4 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(1rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(1rem * var(--tw-space-y-reverse))}.space-y-6 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(1.5rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(1.5rem * var(--tw-space-y-reverse))}.space-y-1 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(0.25rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(0.25rem * var(--tw-space-y-reverse))}.space-y-1\.5 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(0.375rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(0.375rem * var(--tw-space-y-reverse))}.space-y-2 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(0.5rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(0.5rem * var(--tw-space-y-reverse))}.space-y-5 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(1.25rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(1.25rem * var(--tw-space-y-reverse))}.divide-y > :not([hidden]) ~ :not([hidden]){--tw-divide-y-reverse:0;border-top-width:calc(1px * calc(1 - var(--tw-divide-y-reverse)));border-bottom-width:calc(1px * var(--tw-divide-y-reverse))}.divide-slate-800 > :not([hidden]) ~ :not([hidden]){--tw-divide-opacity:1;border-color:rgb(30 41 59 / var(--tw-divide-opacity, 1))}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.break-all{word-break:break-all}.rounded-2xl{border-radius:1rem}.rounded-3xl{border-radius:1.5rem}.rounded-\[10px\]{border-radius:10px}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:0.5rem}.rounded-md{border-radius:0.375rem}.rounded-xl{border-radius:0.75rem}.rounded{border-radius:0.25rem}.rounded-l-xl{border-top-left-radius:0.75rem;border-bottom-left-radius:0.75rem}.rounded-r-xl{border-top-right-radius:0.75rem;border-bottom-right-radius:0.75rem}.border{border-width:1px}.border-0{border-width:0px}.border-b{border-bottom-width:1px}.border-r-0{border-right-width:0px}.border-t{border-top-width:1px}.border-amber-500\/20{border-color:rgb(245 158 11 / 0.2)}.border-brand-400\/30{border-color:rgb(129 140 248 / 0.3)}.border-brand-500\/20{border-color:rgb(99 102 241 / 0.2)}.border-brand-900\/40{border-color:rgb(49 46 129 / 0.4)}.border-emerald-500\/20{border-color:rgb(16 185 129 / 0.2)}.border-emerald-500\/40{border-color:rgb(16 185 129 / 0.4)}.border-slate-700{--tw-border-opacity:1;border-color:rgb(51 65 85 / var(--tw-border-opacity, 1))}.border-slate-800{--tw-border-opacity:1;border-color:rgb(30 41 59 / var(--tw-border-opacity, 1))}.border-slate-800\/80{border-color:rgb(30 41 59 / 0.8)}.border-accent-500\/30{border-color:rgb(245 158 11 / 0.3)}.border-amber-400\/30{border-color:rgb(251 191 36 / 0.3)}.border-amber-900\/50{border-color:rgb(120 53 15 / 0.5)}.border-brand-900\/50{border-color:rgb(49 46 129 / 0.5)}.border-brand-900\/60{border-color:rgb(49 46 129 / 0.6)}.border-emerald-500\/30{border-color:rgb(16 185 129 / 0.3)}.border-emerald-900\/50{border-color:rgb(6 78 59 / 0.5)}.border-rose-900\/50{border-color:rgb(136 19 55 / 0.5)}.border-brand-500\/30{border-color:rgb(99 102 241 / 0.3)}.bg-accent-500{--tw-bg-opacity:1;background-color:rgb(245 158 11 / var(--tw-bg-opacity, 1))}.bg-amber-500\/10{background-color:rgb(245 158 11 / 0.1)}.bg-brand-500\/10{background-color:rgb(99 102 241 / 0.1)}.bg-brand-500\/20{background-color:rgb(99 102 241 / 0.2)}.bg-brand-600{--tw-bg-opacity:1;background-color:rgb(79 70 229 / var(--tw-bg-opacity, 1))}.bg-brand-600\/10{background-color:rgb(79 70 229 / 0.1)}.bg-emerald-400{--tw-bg-opacity:1;background-color:rgb(52 211 153 / var(--tw-bg-opacity, 1))}.bg-emerald-500\/10{background-color:rgb(16 185 129 / 0.1)}.bg-emerald-500\/20{background-color:rgb(16 185 129 / 0.2)}.bg-slate-800{--tw-bg-opacity:1;background-color:rgb(30 41 59 / var(--tw-bg-opacity, 1))}.bg-slate-900{--tw-bg-opacity:1;background-color:rgb(15 23 42 / var(--tw-bg-opacity, 1))}.bg-slate-900\/80{background-color:rgb(15 23 42 / 0.8)}.bg-slate-900\/90{background-color:rgb(15 23 42 / 0.9)}.bg-slate-950{--tw-bg-opacity:1;background-color:rgb(2 6 23 / var(--tw-bg-opacity, 1))}.bg-accent-500\/20{background-color:rgb(245 158 11 / 0.2)}.bg-amber-400{--tw-bg-opacity:1;background-color:rgb(251 191 36 / var(--tw-bg-opacity, 1))}.bg-amber-400\/20{background-color:rgb(251 191 36 / 0.2)}.bg-amber-950\/40{background-color:rgb(69 26 3 / 0.4)}.bg-brand-950\/40{background-color:rgb(30 27 75 / 0.4)}.bg-emerald-600{--tw-bg-opacity:1;background-color:rgb(5 150 105 / var(--tw-bg-opacity, 1))}.bg-emerald-950\/40{background-color:rgb(2 44 34 / 0.4)}.bg-rose-950\/40{background-color:rgb(76 5 25 / 0.4)}.bg-slate-950\/70{background-color:rgb(2 6 23 / 0.7)}.bg-slate-950\/80{background-color:rgb(2 6 23 / 0.8)}.bg-gradient-to-r{background-image:linear-gradient(to right, var(--tw-gradient-stops))}.bg-gradient-to-tr{background-image:linear-gradient(to top right, var(--tw-gradient-stops))}.from-accent-600{--tw-gradient-from:#d97706 var(--tw-gradient-from-position);--tw-gradient-to:rgb(217 119 6 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), var(--tw-gradient-to)}.from-brand-600{--tw-gradient-from:#4f46e5 var(--tw-gradient-from-position);--tw-gradient-to:rgb(79 70 229 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), var(--tw-gradient-to)}.from-brand-950{--tw-gradient-from:#1e1b4b var(--tw-gradient-from-position);--tw-gradient-to:rgb(30 27 75 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), var(--tw-gradient-to)}.from-slate-900{--tw-gradient-from:#0f172a var(--tw-gradient-from-position);--tw-gradient-to:rgb(15 23 42 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), var(--tw-gradient-to)}.from-accent-500{--tw-gradient-from:#f59e0b var(--tw-gradient-from-position);--tw-gradient-to:rgb(245 158 11 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), var(--tw-gradient-to)}.via-amber-500{--tw-gradient-to:rgb(245 158 11 / 0)  var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), #f59e0b var(--tw-gradient-via-position), var(--tw-gradient-to)}.via-brand-500{--tw-gradient-to:rgb(99 102 241 / 0)  var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), #6366f1 var(--tw-gradient-via-position), var(--tw-gradient-to)}.via-brand-950{--tw-gradient-to:rgb(30 27 75 / 0)  var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), #1e1b4b var(--tw-gradient-via-position), var(--tw-gradient-to)}.via-slate-900{--tw-gradient-to:rgb(15 23 42 / 0)  var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), #0f172a var(--tw-gradient-via-position), var(--tw-gradient-to)}.to-accent-500{--tw-gradient-to:#f59e0b var(--tw-gradient-to-position)}.to-accent-600{--tw-gradient-to:#d97706 var(--tw-gradient-to-position)}.to-brand-950{--tw-gradient-to:#1e1b4b var(--tw-gradient-to-position)}.to-slate-900{--tw-gradient-to:#0f172a var(--tw-gradient-to-position)}.to-amber-300{--tw-gradient-to:#fcd34d var(--tw-gradient-to-position)}.p-0\.5{padding:0.125rem}.p-1\.5{padding:0.375rem}.p-2{padding:0.5rem}.p-4{padding:1rem}.p-6{padding:1.5rem}.p-1{padding:0.25rem}.p-2\.5{padding:0.625rem}.p-3{padding:0.75rem}.p-3\.5{padding:0.875rem}.p-5{padding:1.25rem}.px-2{padding-left:0.5rem;padding-right:0.5rem}.px-2\.5{padding-left:0.625rem;padding-right:0.625rem}.px-3{padding-left:0.75rem;padding-right:0.75rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.py-0\.5{padding-top:0.125rem;padding-bottom:0.125rem}.py-1{padding-top:0.25rem;padding-bottom:0.25rem}.py-1\.5{padding-top:0.375rem;padding-bottom:0.375rem}.py-2{padding-top:0.5rem;padding-bottom:0.5rem}.py-2\.5{padding-top:0.625rem;padding-bottom:0.625rem}.py-6{padding-top:1.5rem;padding-bottom:1.5rem}.px-3\.5{padding-left:0.875rem;padding-right:0.875rem}.py-3{padding-top:0.75rem;padding-bottom:0.75rem}.px-1{padding-left:0.25rem;padding-right:0.25rem}.px-1\.5{padding-left:0.375rem;padding-right:0.375rem}.py-8{padding-top:2rem;padding-bottom:2rem}.pt-2{padding-top:0.5rem}.pb-1{padding-bottom:0.25rem}.pb-2{padding-bottom:0.5rem}.pb-3{padding-bottom:0.75rem}.pb-4{padding-bottom:1rem}.pt-1{padding-top:0.25rem}.pt-3{padding-top:0.75rem}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.font-mono{font-family:JetBrains Mono, ui-monospace, monospace}.font-sans{font-family:Plus Jakarta Sans, Inter, system-ui, sans-serif}.text-2xl{font-size:1.5rem;line-height:2rem}.text-9xl{font-size:8rem;line-height:1}.text-\[10px\]{font-size:10px}.text-\[11px\]{font-size:11px}.text-base{font-size:1rem;line-height:1.5rem}.text-sm{font-size:0.875rem;line-height:1.25rem}.text-xs{font-size:0.75rem;line-height:1rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.font-black{font-weight:900}.font-bold{font-weight:700}.font-extrabold{font-weight:800}.font-medium{font-weight:500}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.italic{font-style:italic}.leading-relaxed{line-height:1.625}.leading-tight{line-height:1.25}.leading-snug{line-height:1.375}.tracking-tight{letter-spacing:-0.025em}.tracking-tighter{letter-spacing:-0.05em}.tracking-wider{letter-spacing:0.05em}.tracking-widest{letter-spacing:0.1em}.text-accent-400{--tw-text-opacity:1;color:rgb(251 191 36 / var(--tw-text-opacity, 1))}.text-amber-300{--tw-text-opacity:1;color:rgb(252 211 77 / var(--tw-text-opacity, 1))}.text-amber-400{--tw-text-opacity:1;color:rgb(251 191 36 / var(--tw-text-opacity, 1))}.text-brand-300{--tw-text-opacity:1;color:rgb(165 180 252 / var(--tw-text-opacity, 1))}.text-brand-400{--tw-text-opacity:1;color:rgb(129 140 248 / var(--tw-text-opacity, 1))}.text-emerald-300{--tw-text-opacity:1;color:rgb(110 231 183 / var(--tw-text-opacity, 1))}.text-emerald-400{--tw-text-opacity:1;color:rgb(52 211 153 / var(--tw-text-opacity, 1))}.text-rose-400{--tw-text-opacity:1;color:rgb(251 113 133 / var(--tw-text-opacity, 1))}.text-slate-100{--tw-text-opacity:1;color:rgb(241 245 249 / var(--tw-text-opacity, 1))}.text-slate-200{--tw-text-opacity:1;color:rgb(226 232 240 / var(--tw-text-opacity, 1))}.text-slate-300{--tw-text-opacity:1;color:rgb(203 213 225 / var(--tw-text-opacity, 1))}.text-slate-400{--tw-text-opacity:1;color:rgb(148 163 184 / var(--tw-text-opacity, 1))}.text-slate-700{--tw-text-opacity:1;color:rgb(51 65 85 / var(--tw-text-opacity, 1))}.text-slate-950{--tw-text-opacity:1;color:rgb(2 6 23 / var(--tw-text-opacity, 1))}.text-white{--tw-text-opacity:1;color:rgb(255 255 255 / var(--tw-text-opacity, 1))}.text-emerald-200{--tw-text-opacity:1;color:rgb(167 243 208 / var(--tw-text-opacity, 1))}.text-slate-500{--tw-text-opacity:1;color:rgb(100 116 139 / var(--tw-text-opacity, 1))}.text-brand-200{--tw-text-opacity:1;color:rgb(199 210 254 / var(--tw-text-opacity, 1))}.line-through{-webkit-text-decoration-line:line-through;text-decoration-line:line-through}.opacity-20{opacity:0.2}.shadow{--tw-shadow:0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 1px 3px 0 var(--tw-shadow-color), 0 1px 2px -1px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-lg{--tw-shadow:0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 10px 15px -3px var(--tw-shadow-color), 0 4px 6px -4px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-sm{--tw-shadow:0 1px 2px 0 rgb(0 0 0 / 0.05);--tw-shadow-colored:0 1px 2px 0 var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color), 0 8px 10px -6px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgb(0 0 0 / 0.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-inner{--tw-shadow:inset 0 2px 4px 0 rgb(0 0 0 / 0.05);--tw-shadow-colored:inset 0 2px 4px 0 var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-md{--tw-shadow:0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 4px 6px -1px var(--tw-shadow-color), 0 2px 4px -2px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-brand-500\/20{--tw-shadow-color:rgb(99 102 241 / 0.2);--tw-shadow:var(--tw-shadow-colored)}.shadow-brand-600\/30{--tw-shadow-color:rgb(79 70 229 / 0.3);--tw-shadow:var(--tw-shadow-colored)}.shadow-accent-500\/30{--tw-shadow-color:rgb(245 158 11 / 0.3);--tw-shadow:var(--tw-shadow-colored)}.blur-3xl{--tw-blur:blur(64px);filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.backdrop-blur-md{--tw-backdrop-blur:blur(12px);-webkit-backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia)}.transition{transition-property:color, background-color, border-color, fill, stroke, opacity, box-shadow, transform, filter, -webkit-text-decoration-color, -webkit-backdrop-filter;transition-property:color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;transition-property:color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter, -webkit-text-decoration-color, -webkit-backdrop-filter;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.transition-all{transition-property:all;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.selection\:bg-brand-500 *::selection{--tw-bg-opacity:1;background-color:rgb(99 102 241 / var(--tw-bg-opacity, 1))}.selection\:text-white *::selection{--tw-text-opacity:1;color:rgb(255 255 255 / var(--tw-text-opacity, 1))}.selection\:bg-brand-500::selection{--tw-bg-opacity:1;background-color:rgb(99 102 241 / var(--tw-bg-opacity, 1))}.selection\:text-white::selection{--tw-text-opacity:1;color:rgb(255 255 255 / var(--tw-text-opacity, 1))}.hover\:border-slate-700:hover{--tw-border-opacity:1;border-color:rgb(51 65 85 / var(--tw-border-opacity, 1))}.hover\:bg-accent-400:hover{--tw-bg-opacity:1;background-color:rgb(251 191 36 / var(--tw-bg-opacity, 1))}.hover\:bg-brand-500:hover{--tw-bg-opacity:1;background-color:rgb(99 102 241 / var(--tw-bg-opacity, 1))}.hover\:bg-emerald-500\/30:hover{background-color:rgb(16 185 129 / 0.3)}.hover\:bg-slate-700:hover{--tw-bg-opacity:1;background-color:rgb(51 65 85 / var(--tw-bg-opacity, 1))}.hover\:bg-slate-800:hover{--tw-bg-opacity:1;background-color:rgb(30 41 59 / var(--tw-bg-opacity, 1))}.hover\:bg-slate-800\/60:hover{background-color:rgb(30 41 59 / 0.6)}.hover\:bg-slate-900:hover{--tw-bg-opacity:1;background-color:rgb(15 23 42 / var(--tw-bg-opacity, 1))}.hover\:bg-amber-300:hover{--tw-bg-opacity:1;background-color:rgb(252 211 77 / var(--tw-bg-opacity, 1))}.hover\:bg-emerald-500:hover{--tw-bg-opacity:1;background-color:rgb(16 185 129 / var(--tw-bg-opacity, 1))}.hover\:bg-slate-800\/40:hover{background-color:rgb(30 41 59 / 0.4)}.hover\:text-rose-300:hover{--tw-text-opacity:1;color:rgb(253 164 175 / var(--tw-text-opacity, 1))}.hover\:text-white:hover{--tw-text-opacity:1;color:rgb(255 255 255 / var(--tw-text-opacity, 1))}.hover\:underline:hover{-webkit-text-decoration-line:underline;text-decoration-line:underline}.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}.focus\:ring-2:focus{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000)}.focus\:ring-brand-500:focus{--tw-ring-opacity:1;--tw-ring-color:rgb(99 102 241 / var(--tw-ring-opacity, 1))}.disabled\:text-slate-600:disabled{--tw-text-opacity:1;color:rgb(71 85 105 / var(--tw-text-opacity, 1))}.disabled\:no-underline:disabled{-webkit-text-decoration-line:none;text-decoration-line:none}.group:hover .group-hover\:text-brand-300{--tw-text-opacity:1;color:rgb(165 180 252 / var(--tw-text-opacity, 1))}.group:hover .group-hover\:shadow-glow-indigo{--tw-shadow:0 0 25px -5px rgba(99, 102, 241, 0.35);--tw-shadow-colored:0 0 25px -5px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}@media (min-width: 640px){.sm\:inline{display:inline}.sm\:h-96{height:24rem}.sm\:grid-cols-3{grid-template-columns:repeat(3, minmax(0, 1fr))}.sm\:grid-cols-2{grid-template-columns:repeat(2, minmax(0, 1fr))}.sm\:flex-row{flex-direction:row}.sm\:items-center{align-items:center}.sm\:gap-3{gap:0.75rem}.sm\:p-8{padding:2rem}.sm\:px-6{padding-left:1.5rem;padding-right:1.5rem}.sm\:text-4xl{font-size:2.25rem;line-height:2.5rem}.sm\:text-sm{font-size:0.875rem;line-height:1.25rem}}@media (min-width: 768px){.md\:block{display:block}.md\:inline{display:inline}.md\:w-auto{width:auto}.md\:grid-cols-2{grid-template-columns:repeat(2, minmax(0, 1fr))}.md\:flex-row{flex-direction:row}.md\:items-center{align-items:center}.md\:p-10{padding:2.5rem}}@media (min-width: 1024px){.lg\:grid-cols-4{grid-template-columns:repeat(4, minmax(0, 1fr))}}</style></head>
+<style>*, ::before, ::after{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/* ! tailwindcss v3.4.17 | MIT License | https://tailwindcss.com */*,::after,::before{box-sizing:border-box;border-width:0;border-style:solid;border-color:#e5e7eb}::after,::before{--tw-content:''}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;tab-size:4;font-family:Plus Jakarta Sans, Inter, system-ui, sans-serif;font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:JetBrains Mono, ui-monospace, monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0;padding:0}legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.pointer-events-none{pointer-events:none}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0px}.-bottom-10{bottom:-2.5rem}.-right-1{right:-0.25rem}.-right-10{right:-2.5rem}.-right-2{right:-0.5rem}.-top-1{top:-0.25rem}.top-0{top:0px}.top-4{top:1rem}.bottom-2{bottom:0.5rem}.bottom-5{bottom:1.25rem}.left-2{left:0.5rem}.right-5{right:1.25rem}.z-10{z-index:10}.z-30{z-index:30}.z-40{z-index:40}.z-50{z-index:50}.mx-auto{margin-left:auto;margin-right:auto}.mb-1{margin-bottom:0.25rem}.mt-0\.5{margin-top:0.125rem}.mt-1{margin-top:0.25rem}.mt-12{margin-top:3rem}.mb-2{margin-bottom:0.5rem}.mt-2\.5{margin-top:0.625rem}.mt-3{margin-top:0.75rem}.block{display:block}.flex{display:flex}.inline-flex{display:inline-flex}.grid{display:grid}.hidden{display:none}.h-1\.5{height:0.375rem}.h-10{height:2.5rem}.h-12{height:3rem}.h-16{height:4rem}.h-2{height:0.5rem}.h-4{height:1rem}.h-96{height:24rem}.h-full{height:100%}.h-8{height:2rem}.h-80{height:20rem}.min-h-screen{min-height:100vh}.w-1\.5{width:0.375rem}.w-10{width:2.5rem}.w-12{width:3rem}.w-2{width:0.5rem}.w-4{width:1rem}.w-96{width:24rem}.w-full{width:100%}.w-16{width:4rem}.w-8{width:2rem}.max-w-2xl{max-width:42rem}.max-w-7xl{max-width:80rem}.max-w-xl{max-width:36rem}.max-w-lg{max-width:32rem}.max-w-md{max-width:28rem}.max-w-sm{max-width:24rem}.flex-1{flex:1 1 0%}.shrink-0{flex-shrink:0}.border-collapse{border-collapse:collapse}@keyframes pulse{50%{opacity:.5}}.animate-pulse{animation:pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite}.cursor-pointer{cursor:pointer}.select-none{-webkit-user-select:none;user-select:none}.grid-cols-1{grid-template-columns:repeat(1, minmax(0, 1fr))}.grid-cols-3{grid-template-columns:repeat(3, minmax(0, 1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-center{align-items:center}.items-baseline{align-items:baseline}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-1{gap:0.25rem}.gap-1\.5{gap:0.375rem}.gap-2{gap:0.5rem}.gap-3{gap:0.75rem}.gap-3\.5{gap:0.875rem}.gap-4{gap:1rem}.gap-2\.5{gap:0.625rem}.space-y-3 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(0.75rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(0.75rem * var(--tw-space-y-reverse))}.space-y-4 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(1rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(1rem * var(--tw-space-y-reverse))}.space-y-6 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(1.5rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(1.5rem * var(--tw-space-y-reverse))}.space-y-1 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(0.25rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(0.25rem * var(--tw-space-y-reverse))}.space-y-1\.5 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(0.375rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(0.375rem * var(--tw-space-y-reverse))}.space-y-2 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(0.5rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(0.5rem * var(--tw-space-y-reverse))}.space-y-5 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(1.25rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(1.25rem * var(--tw-space-y-reverse))}.divide-y > :not([hidden]) ~ :not([hidden]){--tw-divide-y-reverse:0;border-top-width:calc(1px * calc(1 - var(--tw-divide-y-reverse)));border-bottom-width:calc(1px * var(--tw-divide-y-reverse))}.divide-slate-800 > :not([hidden]) ~ :not([hidden]){--tw-divide-opacity:1;border-color:rgb(30 41 59 / var(--tw-divide-opacity, 1))}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.break-all{word-break:break-all}.rounded-2xl{border-radius:1rem}.rounded-3xl{border-radius:1.5rem}.rounded-\[10px\]{border-radius:10px}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:0.5rem}.rounded-md{border-radius:0.375rem}.rounded-xl{border-radius:0.75rem}.rounded{border-radius:0.25rem}.rounded-l-xl{border-top-left-radius:0.75rem;border-bottom-left-radius:0.75rem}.rounded-r-xl{border-top-right-radius:0.75rem;border-bottom-right-radius:0.75rem}.border{border-width:1px}.border-0{border-width:0px}.border-b{border-bottom-width:1px}.border-r-0{border-right-width:0px}.border-t{border-top-width:1px}.border-amber-500\/20{border-color:rgb(245 158 11 / 0.2)}.border-brand-400\/30{border-color:rgb(129 140 248 / 0.3)}.border-brand-500\/20{border-color:rgb(99 102 241 / 0.2)}.border-brand-900\/40{border-color:rgb(49 46 129 / 0.4)}.border-emerald-500\/20{border-color:rgb(16 185 129 / 0.2)}.border-emerald-500\/40{border-color:rgb(16 185 129 / 0.4)}.border-slate-700{--tw-border-opacity:1;border-color:rgb(51 65 85 / var(--tw-border-opacity, 1))}.border-slate-800{--tw-border-opacity:1;border-color:rgb(30 41 59 / var(--tw-border-opacity, 1))}.border-slate-800\/80{border-color:rgb(30 41 59 / 0.8)}.border-accent-500\/30{border-color:rgb(245 158 11 / 0.3)}.border-amber-400\/30{border-color:rgb(251 191 36 / 0.3)}.border-amber-900\/50{border-color:rgb(120 53 15 / 0.5)}.border-brand-900\/50{border-color:rgb(49 46 129 / 0.5)}.border-brand-900\/60{border-color:rgb(49 46 129 / 0.6)}.border-emerald-500\/30{border-color:rgb(16 185 129 / 0.3)}.border-emerald-900\/50{border-color:rgb(6 78 59 / 0.5)}.border-rose-900\/50{border-color:rgb(136 19 55 / 0.5)}.border-brand-500\/30{border-color:rgb(99 102 241 / 0.3)}.bg-accent-500{--tw-bg-opacity:1;background-color:rgb(245 158 11 / var(--tw-bg-opacity, 1))}.bg-amber-500\/10{background-color:rgb(245 158 11 / 0.1)}.bg-brand-500\/10{background-color:rgb(99 102 241 / 0.1)}.bg-brand-500\/20{background-color:rgb(99 102 241 / 0.2)}.bg-brand-600{--tw-bg-opacity:1;background-color:rgb(79 70 229 / var(--tw-bg-opacity, 1))}.bg-brand-600\/10{background-color:rgb(79 70 229 / 0.1)}.bg-emerald-400{--tw-bg-opacity:1;background-color:rgb(52 211 153 / var(--tw-bg-opacity, 1))}.bg-emerald-500\/10{background-color:rgb(16 185 129 / 0.1)}.bg-emerald-500\/20{background-color:rgb(16 185 129 / 0.2)}.bg-slate-800{--tw-bg-opacity:1;background-color:rgb(30 41 59 / var(--tw-bg-opacity, 1))}.bg-slate-900{--tw-bg-opacity:1;background-color:rgb(15 23 42 / var(--tw-bg-opacity, 1))}.bg-slate-900\/80{background-color:rgb(15 23 42 / 0.8)}.bg-slate-900\/90{background-color:rgb(15 23 42 / 0.9)}.bg-slate-950{--tw-bg-opacity:1;background-color:rgb(2 6 23 / var(--tw-bg-opacity, 1))}.bg-accent-500\/20{background-color:rgb(245 158 11 / 0.2)}.bg-amber-400{--tw-bg-opacity:1;background-color:rgb(251 191 36 / var(--tw-bg-opacity, 1))}.bg-amber-400\/20{background-color:rgb(251 191 36 / 0.2)}.bg-amber-950\/40{background-color:rgb(69 26 3 / 0.4)}.bg-brand-950\/40{background-color:rgb(30 27 75 / 0.4)}.bg-emerald-600{--tw-bg-opacity:1;background-color:rgb(5 150 105 / var(--tw-bg-opacity, 1))}.bg-emerald-950\/40{background-color:rgb(2 44 34 / 0.4)}.bg-rose-950\/40{background-color:rgb(76 5 25 / 0.4)}.bg-slate-950\/70{background-color:rgb(2 6 23 / 0.7)}.bg-slate-950\/80{background-color:rgb(2 6 23 / 0.8)}.bg-gradient-to-r{background-image:linear-gradient(to right, var(--tw-gradient-stops))}.bg-gradient-to-tr{background-image:linear-gradient(to top right, var(--tw-gradient-stops))}.from-accent-600{--tw-gradient-from:#d97706 var(--tw-gradient-from-position);--tw-gradient-to:rgb(217 119 6 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), var(--tw-gradient-to)}.from-brand-600{--tw-gradient-from:#4f46e5 var(--tw-gradient-from-position);--tw-gradient-to:rgb(79 70 229 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), var(--tw-gradient-to)}.from-brand-950{--tw-gradient-from:#1e1b4b var(--tw-gradient-from-position);--tw-gradient-to:rgb(30 27 75 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), var(--tw-gradient-to)}.from-slate-900{--tw-gradient-from:#0f172a var(--tw-gradient-from-position);--tw-gradient-to:rgb(15 23 42 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), var(--tw-gradient-to)}.from-accent-500{--tw-gradient-from:#f59e0b var(--tw-gradient-from-position);--tw-gradient-to:rgb(245 158 11 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), var(--tw-gradient-to)}.via-amber-500{--tw-gradient-to:rgb(245 158 11 / 0)  var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), #f59e0b var(--tw-gradient-via-position), var(--tw-gradient-to)}.via-brand-500{--tw-gradient-to:rgb(99 102 241 / 0)  var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), #6366f1 var(--tw-gradient-via-position), var(--tw-gradient-to)}.via-brand-950{--tw-gradient-to:rgb(30 27 75 / 0)  var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), #1e1b4b var(--tw-gradient-via-position), var(--tw-gradient-to)}.via-slate-900{--tw-gradient-to:rgb(15 23 42 / 0)  var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), #0f172a var(--tw-gradient-via-position), var(--tw-gradient-to)}.to-accent-500{--tw-gradient-to:#f59e0b var(--tw-gradient-to-position)}.to-accent-600{--tw-gradient-to:#d97706 var(--tw-gradient-to-position)}.to-brand-950{--tw-gradient-to:#1e1b4b var(--tw-gradient-to-position)}.to-slate-900{--tw-gradient-to:#0f172a var(--tw-gradient-to-position)}.to-amber-300{--tw-gradient-to:#fcd34d var(--tw-gradient-to-position)}.p-0\.5{padding:0.125rem}.p-1\.5{padding:0.375rem}.p-2{padding:0.5rem}.p-4{padding:1rem}.p-6{padding:1.5rem}.p-1{padding:0.25rem}.p-2\.5{padding:0.625rem}.p-3{padding:0.75rem}.p-3\.5{padding:0.875rem}.p-5{padding:1.25rem}.px-2{padding-left:0.5rem;padding-right:0.5rem}.px-2\.5{padding-left:0.625rem;padding-right:0.625rem}.px-3{padding-left:0.75rem;padding-right:0.75rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.py-0\.5{padding-top:0.125rem;padding-bottom:0.125rem}.py-1{padding-top:0.25rem;padding-bottom:0.25rem}.py-1\.5{padding-top:0.375rem;padding-bottom:0.375rem}.py-2{padding-top:0.5rem;padding-bottom:0.5rem}.py-2\.5{padding-top:0.625rem;padding-bottom:0.625rem}.py-6{padding-top:1.5rem;padding-bottom:1.5rem}.px-3\.5{padding-left:0.875rem;padding-right:0.875rem}.py-3{padding-top:0.75rem;padding-bottom:0.75rem}.px-1{padding-left:0.25rem;padding-right:0.25rem}.px-1\.5{padding-left:0.375rem;padding-right:0.375rem}.py-8{padding-top:2rem;padding-bottom:2rem}.pt-2{padding-top:0.5rem}.pb-1{padding-bottom:0.25rem}.pb-2{padding-bottom:0.5rem}.pb-3{padding-bottom:0.75rem}.pb-4{padding-bottom:1rem}.pt-1{padding-top:0.25rem}.pt-3{padding-top:0.75rem}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.font-mono{font-family:JetBrains Mono, ui-monospace, monospace}.font-sans{font-family:Plus Jakarta Sans, Inter, system-ui, sans-serif}.text-2xl{font-size:1.5rem;line-height:2rem}.text-9xl{font-size:8rem;line-height:1}.text-\[10px\]{font-size:10px}.text-\[11px\]{font-size:11px}.text-base{font-size:1rem;line-height:1.5rem}.text-sm{font-size:0.875rem;line-height:1.25rem}.text-xs{font-size:0.75rem;line-height:1rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.font-black{font-weight:900}.font-bold{font-weight:700}.font-extrabold{font-weight:800}.font-medium{font-weight:500}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.italic{font-style:italic}.leading-relaxed{line-height:1.625}.leading-tight{line-height:1.25}.leading-snug{line-height:1.375}.tracking-tight{letter-spacing:-0.025em}.tracking-tighter{letter-spacing:-0.05em}.tracking-wider{letter-spacing:0.05em}.tracking-widest{letter-spacing:0.1em}.text-accent-400{--tw-text-opacity:1;color:rgb(251 191 36 / var(--tw-text-opacity, 1))}.text-amber-300{--tw-text-opacity:1;color:rgb(252 211 77 / var(--tw-text-opacity, 1))}.text-amber-400{--tw-text-opacity:1;color:rgb(251 191 36 / var(--tw-text-opacity, 1))}.text-brand-300{--tw-text-opacity:1;color:rgb(165 180 252 / var(--tw-text-opacity, 1))}.text-brand-400{--tw-text-opacity:1;color:rgb(129 140 248 / var(--tw-text-opacity, 1))}.text-emerald-300{--tw-text-opacity:1;color:rgb(110 231 183 / var(--tw-text-opacity, 1))}.text-emerald-400{--tw-text-opacity:1;color:rgb(52 211 153 / var(--tw-text-opacity, 1))}.text-rose-400{--tw-text-opacity:1;color:rgb(251 113 133 / var(--tw-text-opacity, 1))}.text-slate-100{--tw-text-opacity:1;color:rgb(241 245 249 / var(--tw-text-opacity, 1))}.text-slate-200{--tw-text-opacity:1;color:rgb(226 232 240 / var(--tw-text-opacity, 1))}.text-slate-300{--tw-text-opacity:1;color:rgb(203 213 225 / var(--tw-text-opacity, 1))}.text-slate-400{--tw-text-opacity:1;color:rgb(148 163 184 / var(--tw-text-opacity, 1))}.text-slate-700{--tw-text-opacity:1;color:rgb(51 65 85 / var(--tw-text-opacity, 1))}.text-slate-950{--tw-text-opacity:1;color:rgb(2 6 23 / var(--tw-text-opacity, 1))}.text-white{--tw-text-opacity:1;color:rgb(255 255 255 / var(--tw-text-opacity, 1))}.text-emerald-200{--tw-text-opacity:1;color:rgb(167 243 208 / var(--tw-text-opacity, 1))}.text-slate-500{--tw-text-opacity:1;color:rgb(100 116 139 / var(--tw-text-opacity, 1))}.text-brand-200{--tw-text-opacity:1;color:rgb(199 210 254 / var(--tw-text-opacity, 1))}.line-through{-webkit-text-decoration-line:line-through;text-decoration-line:line-through}.opacity-20{opacity:0.2}.shadow{--tw-shadow:0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 1px 3px 0 var(--tw-shadow-color), 0 1px 2px -1px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-lg{--tw-shadow:0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 10px 15px -3px var(--tw-shadow-color), 0 4px 6px -4px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-sm{--tw-shadow:0 1px 2px 0 rgb(0 0 0 / 0.05);--tw-shadow-colored:0 1px 2px 0 var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color), 0 8px 10px -6px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgb(0 0 0 / 0.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-inner{--tw-shadow:inset 0 2px 4px 0 rgb(0 0 0 / 0.05);--tw-shadow-colored:inset 0 2px 4px 0 var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-md{--tw-shadow:0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 4px 6px -1px var(--tw-shadow-color), 0 2px 4px -2px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-brand-500\/20{--tw-shadow-color:rgb(99 102 241 / 0.2);--tw-shadow:var(--tw-shadow-colored)}.shadow-brand-600\/30{--tw-shadow-color:rgb(79 70 229 / 0.3);--tw-shadow:var(--tw-shadow-colored)}.shadow-accent-500\/30{--tw-shadow-color:rgb(245 158 11 / 0.3);--tw-shadow:var(--tw-shadow-colored)}.blur-3xl{--tw-blur:blur(64px);filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.backdrop-blur-md{--tw-backdrop-blur:blur(12px);-webkit-backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia)}.transition{transition-property:color, background-color, border-color, fill, stroke, opacity, box-shadow, transform, filter, -webkit-text-decoration-color, -webkit-backdrop-filter;transition-property:color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;transition-property:color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter, -webkit-text-decoration-color, -webkit-backdrop-filter;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.transition-all{transition-property:all;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.selection\:bg-brand-500 *::selection{--tw-bg-opacity:1;background-color:rgb(99 102 241 / var(--tw-bg-opacity, 1))}.selection\:text-white *::selection{--tw-text-opacity:1;color:rgb(255 255 255 / var(--tw-text-opacity, 1))}.selection\:bg-brand-500::selection{--tw-bg-opacity:1;background-color:rgb(99 102 241 / var(--tw-bg-opacity, 1))}.selection\:text-white::selection{--tw-text-opacity:1;color:rgb(255 255 255 / var(--tw-text-opacity, 1))}.hover\:border-slate-700:hover{--tw-border-opacity:1;border-color:rgb(51 65 85 / var(--tw-border-opacity, 1))}.hover\:bg-accent-400:hover{--tw-bg-opacity:1;background-color:rgb(251 191 36 / var(--tw-bg-opacity, 1))}.hover\:bg-brand-500:hover{--tw-bg-opacity:1;background-color:rgb(99 102 241 / var(--tw-bg-opacity, 1))}.hover\:bg-emerald-500\/30:hover{background-color:rgb(16 185 129 / 0.3)}.hover\:bg-slate-700:hover{--tw-bg-opacity:1;background-color:rgb(51 65 85 / var(--tw-bg-opacity, 1))}.hover\:bg-slate-800:hover{--tw-bg-opacity:1;background-color:rgb(30 41 59 / var(--tw-bg-opacity, 1))}.hover\:bg-slate-800\/60:hover{background-color:rgb(30 41 59 / 0.6)}.hover\:bg-slate-900:hover{--tw-bg-opacity:1;background-color:rgb(15 23 42 / var(--tw-bg-opacity, 1))}.hover\:bg-amber-300:hover{--tw-bg-opacity:1;background-color:rgb(252 211 77 / var(--tw-bg-opacity, 1))}.hover\:bg-emerald-500:hover{--tw-bg-opacity:1;background-color:rgb(16 185 129 / var(--tw-bg-opacity, 1))}.hover\:bg-slate-800\/40:hover{background-color:rgb(30 41 59 / 0.4)}.hover\:text-rose-300:hover{--tw-text-opacity:1;color:rgb(253 164 175 / var(--tw-text-opacity, 1))}.hover\:text-white:hover{--tw-text-opacity:1;color:rgb(255 255 255 / var(--tw-text-opacity, 1))}.hover\:underline:hover{-webkit-text-decoration-line:underline;text-decoration-line:underline}.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}.focus\:ring-2:focus{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000)}.focus\:ring-brand-500:focus{--tw-ring-opacity:1;--tw-ring-color:rgb(99 102 241 / var(--tw-ring-opacity, 1))}.disabled\:text-slate-600:disabled{--tw-text-opacity:1;color:rgb(71 85 105 / var(--tw-text-opacity, 1))}.disabled\:no-underline:disabled{-webkit-text-decoration-line:none;text-decoration-line:none}.group:hover .group-hover\:text-brand-300{--tw-text-opacity:1;color:rgb(165 180 252 / var(--tw-text-opacity, 1))}.group:hover .group-hover\:shadow-glow-indigo{--tw-shadow:0 0 25px -5px rgba(99, 102, 241, 0.35);--tw-shadow-colored:0 0 25px -5px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}@media (min-width: 640px){.sm\:inline{display:inline}.sm\:h-96{height:24rem}.sm\:grid-cols-3{grid-template-columns:repeat(3, minmax(0, 1fr))}.sm\:grid-cols-2{grid-template-columns:repeat(2, minmax(0, 1fr))}.sm\:flex-row{flex-direction:row}.sm\:items-center{align-items:center}.sm\:gap-3{gap:0.75rem}.sm\:p-8{padding:2rem}.sm\:px-6{padding-left:1.5rem;padding-right:1.5rem}.sm\:text-4xl{font-size:2.25rem;line-height:2.5rem}.sm\:text-sm{font-size:0.875rem;line-height:1.25rem}}@media (min-width: 768px){.md\:block{display:block}.md\:inline{display:inline}.md\:w-auto{width:auto}.md\:grid-cols-2{grid-template-columns:repeat(2, minmax(0, 1fr))}.md\:flex-row{flex-direction:row}.md\:items-center{align-items:center}.md\:p-10{padding:2.5rem}}@media (min-width: 1024px){.lg\:grid-cols-4{grid-template-columns:repeat(4, minmax(0, 1fr))}}</style>
+<link rel="stylesheet" href="campuspool.css">
+</head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-brand-500 selection:text-white radial-bg">
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+    <symbol id="cp-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
+    <symbol id="cp-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="cp-ticket" viewBox="0 0 24 24"><path d="M4 5h16v5a2 2 0 0 0 0 4v5H4v-5a2 2 0 0 0 0-4Z"/><path d="M15 8v2m0 4v2"/></symbol>
+    <symbol id="cp-map" viewBox="0 0 24 24"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3Zm6-3v15m6-12v15"/></symbol>
+    <symbol id="cp-trophy" viewBox="0 0 24 24"><path d="M8 3h8v6a4 4 0 0 1-8 0Zm0 2H4v2a4 4 0 0 0 4 4m8-6h4v2a4 4 0 0 1-4 4m-4 2v5m-4 3h8m-8 0v-3h8v3"/></symbol>
+    <symbol id="cp-shield" viewBox="0 0 24 24"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6Z"/><path d="m8.5 12 2.5 2.5 4.5-5"/></symbol>
+    <symbol id="cp-wallet" viewBox="0 0 24 24"><path d="M4 6V5a2 2 0 0 1 2-2h12v4M4 6h16v14H4Z"/><path d="M20 11h-6v5h6m-3-2.5h.01"/></symbol>
+    <symbol id="cp-fuel" viewBox="0 0 24 24"><path d="M4 21V4h10v17M3 21h13M4 11h10M7 7h4m3 6h2a2 2 0 0 1 2 2v3a2 2 0 0 0 4 0V9l-4-4m1 1v4h3"/></symbol>
+    <symbol id="cp-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.5 7a7 7 0 0 1 12-1L20 9M4 15l2.5 3a7 7 0 0 0 12-1"/></symbol>
+    <symbol id="cp-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></symbol>
+    <symbol id="cp-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9m-11 12a2 2 0 0 0 4 0"/></symbol>
+    <symbol id="cp-alert" viewBox="0 0 24 24"><path d="m12 3 10 18H2Zm0 6v5m0 3h.01"/></symbol>
+    <symbol id="cp-arrow" viewBox="0 0 24 24"><path d="M4 12h16m-6-6 6 6-6 6"/></symbol>
+    <symbol id="cp-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="cp-chat" viewBox="0 0 24 24"><path d="M4 4h16v12H9l-5 4Z"/><path d="M8 8h8M8 12h5"/></symbol>
+    <symbol id="cp-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 6 9 7 9-7"/></symbol>
+    <symbol id="cp-car" viewBox="0 0 24 24"><path d="m5 9 2-5h10l2 5M4 9h16v9H4ZM6 18v3m12-3v3M7 13h2m6 0h2"/></symbol>
+    <symbol id="cp-pin" viewBox="0 0 24 24"><path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 0 1 14 0Z"/><circle cx="12" cy="10" r="2"/></symbol>
+    <symbol id="cp-phone" viewBox="0 0 24 24"><path d="M4 3h4l2 5-3 2a15 15 0 0 0 7 7l2-3 5 2v4c-10 2-19-7-17-17Z"/></symbol>
+    <symbol id="cp-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V3H3v13h5"/></symbol>
+    <symbol id="cp-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="cp-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10h.01"/></symbol>
+    <symbol id="cp-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2"/></symbol>
+    <symbol id="cp-signal" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M7 7a7 7 0 0 0 0 10m10-10a7 7 0 0 1 0 10M4 4a11 11 0 0 0 0 16M20 4a11 11 0 0 1 0 16"/></symbol>
+    <symbol id="cp-stop" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/></symbol>
+  </svg>
+  <a href="#mainContent" class="skip-link bg-white text-slate-950 px-3 py-2 rounded-lg font-bold text-xs shadow-xl">Skip to main content</a>
 
   <!-- Top Campus Safety & Emergency Ticker -->
-  <aside class="bg-gradient-to-r from-brand-950 via-slate-900 to-brand-950 border-b border-brand-900/40 text-[11px] text-slate-300 px-4 py-1.5 z-40">
+  <aside class="campus-safety border-b border-brand-900/40 text-[11px] text-slate-300 px-4 py-1.5 z-40">
     <div class="max-w-7xl mx-auto w-full flex items-center justify-between gap-4">
       <div class="flex items-center gap-2 overflow-hidden truncate">
         <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-bold text-[10px] uppercase tracking-wider border border-emerald-500/20 shrink-0">
@@ -229,7 +276,7 @@
       </div>
       <div class="flex items-center gap-3 shrink-0">
         <button type="button" id="headerSosQuickBtn" class="text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1 cursor-pointer" aria-label="Open campus emergency contacts">
-          <span>🚨</span> Emergency SOS
+          <svg class="cp-icon" aria-hidden="true"><use href="#cp-alert"></use></svg> Emergency SOS
         </button>
       </div>
     </div>
@@ -268,14 +315,14 @@
         <!-- User Authentication & Profile Bar -->
         <div id="userProfileBar" class="flex items-center gap-2">
           <button type="button" id="headerLoginBtn" class="header-login-button bg-brand-600 hover:bg-brand-500 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition shadow-md cursor-pointer flex items-center gap-1.5" aria-label="Sign in or register">
-            <span class="header-login-compact" aria-hidden="true">👤</span>
+            <span class="header-login-compact"><svg class="cp-icon" aria-hidden="true"><use href="#cp-user"></use></svg></span>
             <span class="header-login-label">Sign In / Register</span>
           </button>
         </div>
 
         <!-- Notification Bell -->
         <button type="button" id="notificationTriggerBtn" class="relative p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 transition cursor-pointer" aria-label="View commute notifications" title="View Notifications">
-          <span class="text-base">🔔</span>
+          <svg class="cp-icon" aria-hidden="true"><use href="#cp-bell"></use></svg>
           <span id="notifBadge" class="absolute -top-1 -right-1 bg-accent-500 text-slate-950 text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow">3</span>
         </button>
       </div>
@@ -300,175 +347,103 @@
   <div id="settlementWarningBanner" hidden style="display: none;" class="hidden bg-rose-950/90 border-b border-rose-500/50 px-4 py-2.5 text-xs text-rose-200 shadow-md">
     <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-2.5">
-        <span class="text-lg">🚨</span>
+        <span class="text-lg"><svg class="cp-icon" aria-hidden="true"><use href="#cp-alert"></use></svg></span>
         <div class="text-[11px] sm:text-xs">
           <strong class="text-white">Action Required:</strong>
           <span id="settlementWarningText" class="ml-1 text-rose-200">Pending ride dues detected. Ride bookings and driver inquiries are locked until settled.</span>
         </div>
       </div>
       <button id="bannerSettleBtn" class="bg-rose-600 hover:bg-rose-500 text-white font-bold px-3.5 py-1.5 rounded-xl text-xs transition shadow-sm cursor-pointer shrink-0 flex items-center gap-1.5">
-        <span>💳</span> Resolve Dues Now →
+        <svg class="cp-icon" aria-hidden="true"><use href="#cp-wallet"></use></svg> Resolve Dues Now →
       </button>
     </div>
   </div>
 
   <!-- Main Viewport Layout -->
-  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full space-y-6">
+  <main id="mainContent" tabindex="-1" class="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full space-y-6">
 
-    <!-- Hero / Value Proposition Banner -->
-    <div class="relative rounded-3xl overflow-hidden border border-slate-800 bg-gradient-to-r from-slate-900 via-brand-950 to-slate-900 p-6 sm:p-8 md:p-10 shadow-xl">
-      <div class="relative z-10 max-w-2xl space-y-3">
-        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/20 border border-brand-400/30 text-brand-300 text-xs font-bold">
-          <span>⚡ Flat 30% Below Commercial Cabs • 90% Driver Petrol Return</span>
-        </div>
-        <h1 class="text-2xl sm:text-4xl font-extrabold text-white tracking-tight leading-tight">
-          Shared Campus Commutes to Pune Station, Hadapsar &amp; Swargate
-        </h1>
-        <p class="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-xl">
-          Connect directly with verified MIT ADT students commuting along the Solapur Highway corridor. Drivers recover up to 90% fuel expenses, passengers save money, and everyone travels safely from Gates 1–4.
-        </p>
-        <div class="flex flex-wrap items-center gap-3 pt-2">
-          <button id="heroFindRideBtn" class="bg-brand-600 hover:bg-brand-500 text-white font-bold px-5 py-2.5 rounded-xl text-xs sm:text-sm transition shadow-lg shadow-brand-600/30 flex items-center gap-2 cursor-pointer">
-            <span>🔍</span> Find Available Ride
-          </button>
-          <button id="heroOfferRideBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold px-5 py-2.5 rounded-xl text-xs sm:text-sm transition flex items-center gap-2 cursor-pointer">
-            <span>➕</span> Offer Bike / Car Seat
-          </button>
-        </div>
+    <section class="commute-intro" aria-labelledby="commuteHeading">
+      <div class="commute-intro-copy">
+        <h1 id="commuteHeading">Share your campus commute.</h1>
+        <p>From MIT ADT to Pune Station, Hadapsar &amp; Swargate.</p>
       </div>
-
-      <!-- Background Accent Lighting -->
-      <div class="absolute -right-10 -bottom-10 w-96 h-96 bg-brand-600/10 rounded-full blur-3xl pointer-events-none"></div>
-      <div class="absolute -right-2 top-4 hidden md:block opacity-20 pointer-events-none select-none text-9xl">
-        🎓
+      <div class="commute-actions">
+        <button type="button" id="heroFindRideBtn" class="cp-button cp-button-primary"><svg class="cp-icon" aria-hidden="true"><use href="#cp-search"></use></svg> Find Available Ride</button>
+        <button type="button" id="heroOfferRideBtn" class="cp-button cp-button-secondary"><svg class="cp-icon" aria-hidden="true"><use href="#cp-plus"></use></svg> Offer Bike / Car Seat</button>
       </div>
-    </div>
-
-    <!-- Quick Value Metrics Grid -->
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-      <div class="bg-slate-900/90 border border-slate-800/80 p-4 rounded-2xl flex items-center gap-3.5 shadow-xs">
-        <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center font-bold text-2xl">
-          🎓
-        </div>
-        <div>
-          <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Zero Strangers</span>
-          <h2 class="text-sm font-bold text-white">100% Campus Verified</h2>
-          <p class="text-[11px] text-slate-400">@students / @mituniversity.edu.in (Students &amp; Faculty)</p>
-        </div>
-      </div>
-
-      <div class="bg-slate-900/90 border border-slate-800/80 p-4 rounded-2xl flex items-center gap-3.5 shadow-xs">
-        <div class="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center font-bold text-2xl">
-          💰
-        </div>
-        <div>
-          <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Flat Fare Relief</span>
-          <h2 class="text-sm font-bold text-white">30% Cheaper than Cabs</h2>
-          <p class="text-[11px] text-slate-400">Save ₹70–₹120 per trip</p>
-        </div>
-      </div>
-
-      <div class="bg-slate-900/90 border border-slate-800/80 p-4 rounded-2xl flex items-center gap-3.5 shadow-xs">
-        <div class="w-12 h-12 rounded-xl bg-brand-500/10 text-brand-400 border border-brand-500/20 flex items-center justify-center font-bold text-2xl">
-          ⛽
-        </div>
-        <div>
-          <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Driver Benefit</span>
-          <h2 class="text-sm font-bold text-white">90% Fuel Payout to Peer</h2>
-          <p class="text-[11px] text-slate-400">100% Direct P2P UPI settlements</p>
-        </div>
-      </div>
-    </div>
+    </section>
 
     <!-- Navigation Tab Bar -->
-    <div class="flex border-b border-slate-800 bg-slate-900/80 rounded-2xl p-1.5 shadow-sm overflow-x-auto text-xs sm:text-sm" role="tablist" aria-label="CampusPool sections">
+    <div class="campus-tabs flex overflow-x-auto" role="tablist" aria-label="CampusPool sections">
       <button type="button" id="tabFindRides" role="tab" aria-selected="true" aria-controls="viewFindRides" tabindex="0" class="tab-btn active px-4 py-2.5 rounded-xl flex items-center gap-2 shrink-0 cursor-pointer shadow-xs bg-brand-600 text-white font-bold">
-        <span>🔍</span> Available Rides (<span id="countAvailableRides">0</span>)
+        <svg class="cp-icon" aria-hidden="true"><use href="#cp-search"></use></svg> Available Rides <span class="tab-count" id="countAvailableRides">0</span>
       </button>
       <button type="button" id="tabOfferRide" role="tab" aria-selected="false" aria-controls="viewOfferRide" tabindex="-1" class="tab-btn px-4 py-2.5 font-semibold rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 flex items-center gap-2 shrink-0 cursor-pointer transition">
-        <span>➕</span> Offer a Ride
+        <svg class="cp-icon" aria-hidden="true"><use href="#cp-plus"></use></svg> Offer a Ride
       </button>
       <button type="button" id="tabMyRides" role="tab" aria-selected="false" aria-controls="viewMyRides" tabindex="-1" class="tab-btn px-4 py-2.5 font-semibold rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 flex items-center gap-2 shrink-0 cursor-pointer transition">
-        <span>🎫</span> My Bookings &amp; Payouts (<span id="countMyTotalRides">0</span>)
+        <svg class="cp-icon" aria-hidden="true"><use href="#cp-ticket"></use></svg> My Bookings &amp; Payouts <span class="tab-count" id="countMyTotalRides">0</span>
       </button>
       <button type="button" id="tabCampusMap" role="tab" aria-selected="false" aria-controls="viewCampusMap" tabindex="-1" class="tab-btn px-4 py-2.5 font-semibold rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 flex items-center gap-2 shrink-0 cursor-pointer transition">
-        <span>🗺️</span> Campus Gates &amp; Live Map
+        <svg class="cp-icon" aria-hidden="true"><use href="#cp-map"></use></svg> Campus Gates &amp; Live Map
       </button>
       <button type="button" id="tabLeaderboard" role="tab" aria-selected="false" aria-controls="viewLeaderboard" tabindex="-1" class="tab-btn px-4 py-2.5 font-semibold rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 flex items-center gap-2 shrink-0 cursor-pointer transition">
-        <span>🏆</span> Student Leaderboard
+        <svg class="cp-icon" aria-hidden="true"><use href="#cp-trophy"></use></svg> Student Leaderboard
       </button>
     </div>
 
     <!-- VIEW 1: Available Rides (Find Rides) -->
     <section id="viewFindRides" role="tabpanel" aria-labelledby="tabFindRides" tabindex="0" class="space-y-4">
+      <div class="rides-heading">
+        <div><h2>Available rides</h2><p>Choose a route and vehicle to find your commute.</p></div>
+        <div class="ride-feed-tools">
+          <span id="rideFeedStatus" role="status" aria-live="polite" aria-atomic="true">Loading rides…</span>
+          <button type="button" class="feed-refresh-button" data-refresh-rides onclick="syncLiveRides()" aria-label="Refresh available rides" title="Refresh available rides"><svg class="cp-icon" aria-hidden="true"><use href="#cp-refresh"></use></svg></button>
+        </div>
+      </div>
+      <div class="ride-workspace">
       <!-- Search & Filters Strip -->
-      <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col md:flex-row gap-3 items-center justify-between">
+      <div class="ride-filters">
+        <p class="route-filter-label" id="routeFilterLabel">Where are you heading?</p>
         <!-- Destination Quick Chips -->
-        <div class="flex flex-wrap gap-2 w-full md:w-auto" id="destFilterChips">
-          <button class="dest-btn bg-brand-600 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer" data-dest="all">
+        <div id="destFilterChips" role="group" aria-labelledby="routeFilterLabel">
+          <button type="button" class="dest-btn" aria-pressed="true" data-dest="all">
             All Routes
           </button>
-          <button class="dest-btn bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer" data-dest="Pune Railway Station">
+          <button type="button" class="dest-btn" aria-pressed="false" data-dest="Pune Railway Station">
             Pune Station
           </button>
-          <button class="dest-btn bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer" data-dest="Hadapsar">
+          <button type="button" class="dest-btn" aria-pressed="false" data-dest="Hadapsar">
             Hadapsar Gadital
           </button>
-          <button class="dest-btn bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer" data-dest="Swargate">
+          <button type="button" class="dest-btn" aria-pressed="false" data-dest="Swargate">
             Swargate
           </button>
-          <button class="dest-btn bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer" data-dest="Viman Nagar">
+          <button type="button" class="dest-btn" aria-pressed="false" data-dest="Viman Nagar">
             Viman Nagar
           </button>
         </div>
 
         <!-- Vehicle Type Filter -->
-        <div class="flex items-center gap-2 w-full md:w-auto justify-end text-xs">
+        <div class="vehicle-filter">
           <label for="filterVehicleSelect" class="text-slate-400 font-semibold shrink-0">Vehicle:</label>
           <select id="filterVehicleSelect" aria-label="Filter rides by vehicle type" class="bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-1.5 text-xs font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none cursor-pointer">
             <option value="all">All Vehicles</option>
-            <option value="Bike">🛵 Bike Only (1 Pillion)</option>
-            <option value="Car">🚗 Car Only</option>
+            <option value="Bike">Bike Only (1 Pillion)</option>
+            <option value="Car">Car Only</option>
           </select>
         </div>
       </div>
 
-            <!-- Rides Grid Container -->
-      <div id="ridesGridContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="col-span-full py-14 px-6 flex flex-col items-center justify-center text-center space-y-5 bg-slate-900/60 rounded-3xl border border-slate-800/80 shadow-inner">
-          <div class="relative w-36 h-36 flex items-center justify-center">
-            <div class="absolute inset-0 rounded-full bg-brand-500/10 animate-ping opacity-75"></div>
-            <div class="absolute inset-2 rounded-full bg-slate-800/80 border border-slate-700/60"></div>
-            <svg class="relative w-20 h-20 text-brand-400" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="50" cy="50" r="44" stroke="currentColor" stroke-opacity="0.2" stroke-width="2" stroke-dasharray="4 4"/>
-              <path d="M30 80 L44 54" stroke="currentColor" stroke-opacity="0.4" stroke-width="2"/>
-              <path d="M70 80 L56 54" stroke="currentColor" stroke-opacity="0.4" stroke-width="2"/>
-              <line x1="50" y1="62" x2="50" y2="74" stroke="currentColor" stroke-opacity="0.4" stroke-width="2" stroke-dasharray="2 3"/>
-              <path d="M36 50 C36 46 40 43 50 43 C60 43 64 46 64 50 L66 54 C66 56 64 57 62 57 L38 57 C36 57 34 56 34 54 Z" fill="currentColor" fill-opacity="0.15" stroke="currentColor" stroke-width="2"/>
-              <circle cx="41" cy="56" r="3" fill="#10b981"/>
-              <circle cx="59" cy="56" r="3" fill="#10b981"/>
-              <line x1="43" y1="47" x2="57" y2="47" stroke="currentColor" stroke-width="1.5"/>
-              <path d="M50 20 C44 20 40 24 40 30 C40 37 50 44 50 44 C50 44 60 37 60 30 C60 24 56 20 50 20 Z" fill="#6366f1" fill-opacity="0.2" stroke="#818cf8" stroke-width="2"/>
-              <circle cx="50" cy="29" r="3" fill="#818cf8"/>
-            </svg>
-          </div>
-
-          <div class="space-y-1.5 max-w-sm">
-            <h3 class="text-lg sm:text-xl font-black text-white tracking-tight">No rides found near you</h3>
-            <p class="text-xs text-slate-400 leading-relaxed">
-              No more rides near you right now. All carpools and bikepools from Campus Gates 1–4 are currently full or departed. Be the first student or faculty member to offer a seat!
-            </p>
-          </div>
-
-          <div class="flex flex-wrap items-center justify-center gap-3 pt-2">
-            <button type="button" onclick="switchMainTab('tabOfferRide', 'viewOfferRide')" class="bg-brand-600 hover:bg-brand-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition shadow-md shadow-brand-600/30 flex items-center gap-2 cursor-pointer">
-              <span>➕</span> Offer a Ride
-            </button>
-            <button type="button" onclick="syncLiveRides()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-4 py-2.5 rounded-xl text-xs transition border border-slate-700 flex items-center gap-1.5 cursor-pointer">
-              <span>🔄</span> Refresh Feed
-            </button>
-          </div>
+      <!-- Initial loading state; the live feed supplies the final state. -->
+      <div id="ridesGridContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4" aria-busy="true">
+        <div class="ride-feed-state">
+          <svg class="cp-icon" aria-hidden="true"><use href="#cp-search"></use></svg>
+          <h3>No rides found near you</h3>
+          <p>No more rides near you right now. All carpools and bikepools from Campus Gates 1–4 are currently full or departed.</p>
+          <p>Checking the latest rides from campus. This should only take a moment.</p>
         </div>
+      </div>
       </div>
     </section>
 
@@ -476,7 +451,6 @@
     <section id="viewOfferRide" role="tabpanel" aria-labelledby="tabOfferRide" tabindex="0" hidden class="hidden max-w-2xl mx-auto">
       <div class="bg-slate-900 border border-slate-800 p-6 sm:p-8 rounded-3xl shadow-xl space-y-6">
         <div class="border-b border-slate-800 pb-4">
-          <span class="bg-brand-500/20 text-brand-300 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">Student Driver Portal</span>
           <h2 class="text-xl font-bold text-white mt-1">Offer an Empty Bike or Car Seat</h2>
           <p class="text-xs text-slate-400">Recover up to 90% of your petrol expenses by taking a verified MIT peer heading your way.</p>
         </div>
@@ -511,8 +485,8 @@
             <div>
               <label for="offerVehicleType" class="block text-xs font-bold uppercase text-slate-400 mb-1">Vehicle Type</label>
               <select id="offerVehicleType" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none">
-                <option value="Bike">🛵 Bike (1 Pillion Seat)</option>
-                <option value="Car">🚗 Car</option>
+                <option value="Bike">Bike (1 Pillion Seat)</option>
+                <option value="Car">Car</option>
               </select>
             </div>
 
@@ -533,10 +507,10 @@
           </div>
 
           <!-- Uber Reference Market Price (Idea for Driver) -->
-          <div class="bg-slate-950/90 border border-slate-800 rounded-2xl p-3.5 space-y-2.5">
+          <div class="fare-benchmark bg-slate-950/90 border border-slate-800 rounded-2xl p-3.5 space-y-2.5">
             <div class="flex items-start justify-between gap-3">
               <div class="flex items-center gap-2.5">
-                <span class="text-xl">🚕</span>
+                <span class="text-xl"><svg class="cp-icon" aria-hidden="true"><use href="#cp-car"></use></svg></span>
                 <div>
                   <div class="flex items-center gap-1.5">
                     <span class="text-xs font-bold text-white">Uber Market Benchmark</span>
@@ -550,7 +524,7 @@
               <div class="text-right">
                 <div class="flex items-center gap-1 justify-end">
                   <span class="text-xs text-slate-400 font-bold">₹</span>
-                  <input type="number" id="offerUberBenchmark" value="320" min="30" step="10" required="" class="w-20 bg-slate-900 border border-slate-700 text-white font-extrabold text-sm rounded-lg px-2 py-1 text-right focus:ring-2 focus:ring-brand-500 focus:outline-none" title="Estimated Uber fare for this route. Editable for surge.">
+                  <input type="number" id="offerUberBenchmark" aria-label="Estimated commercial fare in rupees" value="320" min="30" step="10" required="" class="w-20 bg-slate-900 border border-slate-700 text-white font-extrabold text-sm rounded-lg px-2 py-1 text-right focus:ring-2 focus:ring-brand-500 focus:outline-none" title="Estimated Uber fare for this route. Editable for surge.">
                 </div>
                 <span class="text-[9px] text-slate-500">Auto-estimated</span>
               </div>
@@ -560,13 +534,13 @@
             <div class="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-800/80 text-[11px]">
               <span class="text-slate-500 text-[10px] font-semibold">Quick Set:</span>
               <button type="button" class="preset-discount-btn bg-slate-900 hover:bg-emerald-950 text-slate-300 hover:text-emerald-300 border border-slate-800 hover:border-emerald-600/50 px-2 py-0.5 rounded-lg text-[10px] font-bold transition cursor-pointer" data-discount="0.50">
-                ⚡ 50% OFF (<span class="chip-price" id="chipPrice50">₹160</span>)
+                50% OFF (<span class="chip-price" id="chipPrice50">₹160</span>)
               </button>
               <button type="button" class="preset-discount-btn bg-emerald-950/60 text-emerald-300 border border-emerald-600/50 px-2 py-0.5 rounded-lg text-[10px] font-bold transition cursor-pointer" data-discount="0.65">
-                💚 Recommended: 35% OFF (<span class="chip-price" id="chipPrice35">₹208</span>)
+                Recommended: 35% OFF (<span class="chip-price" id="chipPrice35">₹208</span>)
               </button>
               <button type="button" class="preset-discount-btn bg-slate-900 hover:bg-emerald-950 text-slate-300 hover:text-emerald-300 border border-slate-800 hover:border-emerald-600/50 px-2 py-0.5 rounded-lg text-[10px] font-bold transition cursor-pointer" data-discount="0.75">
-                🚀 25% OFF (<span class="chip-price" id="chipPrice25">₹240</span>)
+                25% OFF (<span class="chip-price" id="chipPrice25">₹240</span>)
               </button>
             </div>
           </div>
@@ -607,7 +581,7 @@
             </div>
 
             <div id="priceAdvisoryText" class="text-[11px] text-slate-400 flex items-center gap-1.5">
-              <span>💡</span>
+              <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-info"></use></svg></span>
               <span>Great price! Students are eager to join rides priced 20% to 50% below commercial Uber rates.</span>
             </div>
           </div>
@@ -618,7 +592,7 @@
           </div>
 
           <button type="submit" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 rounded-xl text-xs sm:text-sm transition shadow-lg shadow-brand-600/30 flex items-center justify-center gap-2 cursor-pointer">
-            <span>🚀</span> Post Verified Ride Offer
+            <svg class="cp-icon" aria-hidden="true"><use href="#cp-plus"></use></svg> Post Verified Ride Offer
           </button>
         </form>
       </div>
@@ -635,11 +609,11 @@
 
           <!-- Passenger / Driver Toggle -->
           <div class="flex bg-slate-950 p-1 rounded-xl text-xs font-bold border border-slate-800" role="tablist" aria-label="My rides role">
-            <button type="button" id="togglePassengerSubTab" role="tab" aria-selected="true" aria-controls="passengerBookingsSection" class="px-3 py-1.5 rounded-lg bg-brand-600 text-white shadow-xs transition cursor-pointer">
-              🎟️ As Passenger (<span id="badgePassengerCount">0</span>)
+            <button type="button" id="togglePassengerSubTab" role="tab" aria-selected="true" aria-controls="passengerBookingsSection" tabindex="0" class="px-3 py-1.5 rounded-lg bg-brand-600 text-white shadow-xs transition cursor-pointer">
+              <svg class="cp-icon" aria-hidden="true"><use href="#cp-ticket"></use></svg> As Passenger (<span id="badgePassengerCount">0</span>)
             </button>
-            <button type="button" id="toggleDriverSubTab" role="tab" aria-selected="false" aria-controls="driverRidesSection" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition cursor-pointer">
-              🚗 As Driver (<span id="badgeDriverCount">0</span>)
+            <button type="button" id="toggleDriverSubTab" role="tab" aria-selected="false" aria-controls="driverRidesSection" tabindex="-1" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition cursor-pointer">
+              <svg class="cp-icon" aria-hidden="true"><use href="#cp-car"></use></svg> As Driver (<span id="badgeDriverCount">0</span>)
             </button>
           </div>
         </div>
@@ -647,16 +621,16 @@
         <!-- Passenger Bookings List -->
         <div id="passengerBookingsSection" role="tabpanel" aria-labelledby="togglePassengerSubTab" class="space-y-3">
             <div class="text-center py-8 text-slate-500 text-xs space-y-1">
-              <span class="text-3xl block mb-2">🎟️</span>
+              <span class="text-3xl block mb-2"><svg class="cp-icon" aria-hidden="true"><use href="#cp-ticket"></use></svg></span>
               <p class="font-bold text-slate-300">No active ride bookings found.</p>
               <p class="text-slate-500">Browse available student rides to Pune Station, Hadapsar, or Swargate to book a seat!</p>
             </div>
           </div>
 
         <!-- Driver Offered Rides List -->
-        <div id="driverRidesSection" role="tabpanel" aria-labelledby="toggleDriverSubTab" class="hidden space-y-3">
+        <div id="driverRidesSection" role="tabpanel" aria-labelledby="toggleDriverSubTab" hidden class="hidden space-y-3">
             <div class="text-center py-8 text-slate-500 text-xs space-y-1">
-              <span class="text-3xl block mb-2">🚗</span>
+              <span class="text-3xl block mb-2"><svg class="cp-icon" aria-hidden="true"><use href="#cp-car"></use></svg></span>
               <p class="font-bold text-slate-300">You have not posted any rides yet.</p>
               <p class="text-slate-500">Offer an empty bike or car seat in the "Offer a Ride" tab to recover 90% fuel costs!</p>
             </div>
@@ -694,7 +668,7 @@
           <div class="pt-1 flex items-center justify-between gap-2">
             <span class="text-[11px] text-slate-400">Billing Cycle: <strong class="text-white">Current Week</strong></span>
             <button id="openSettlementModalBtn" class="bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold px-3 py-1.5 rounded-xl text-xs transition cursor-pointer shadow-xs">
-              ⚡ Settle Commission (UPI)
+              <svg class="cp-icon" aria-hidden="true"><use href="#cp-wallet"></use></svg> Settle Commission (UPI)
             </button>
           </div>
         </div>
@@ -706,7 +680,6 @@
       <div class="bg-slate-900 border border-slate-800 p-5 rounded-3xl shadow-xl space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-800">
           <div>
-            <span class="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase border border-emerald-500/30">Google Maps Navigation</span>
             <h2 class="font-bold text-lg text-white mt-1">MIT ADT Campus Gates &amp; Pune Solapur Corridor</h2>
             <p class="text-xs text-slate-400">Live Solapur Highway (NH 65) routes from Loni Kalbhor to central Pune transit hubs.</p>
           </div>
@@ -734,7 +707,7 @@
           <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
             <div class="flex items-center gap-2">
               <button type="button" id="campusLocateMeBtn" class="bg-brand-600 hover:bg-brand-500 text-white font-bold px-3 py-1.5 rounded-xl transition shadow-sm flex items-center gap-1.5 cursor-pointer">
-                <span>🎯</span> Locate Me (Free GPS)
+                <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-pin"></use></svg></span> Locate Me (Free GPS)
               </button>
               <span id="campusGpsStatusBadge" class="text-[11px] text-slate-400">Ready • High accuracy GPS</span>
             </div>
@@ -754,7 +727,7 @@
   
             <div id="campusLeafletMap" class="w-full h-80 sm:h-96 z-0"></div>
             <div class="absolute bottom-2 left-2 z-[400] bg-slate-900/90 backdrop-blur-xs border border-slate-800 px-2.5 py-1 rounded-lg text-[10px] font-semibold text-slate-300 shadow">
-              📍 OpenStreetMap • 100% Free Real-Time Campus GPS
+              <svg class="cp-icon" aria-hidden="true"><use href="#cp-pin"></use></svg> OpenStreetMap • 100% Free Real-Time Campus GPS
             </div>
           </div>
         </div>
@@ -763,25 +736,25 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs">
           <div class="p-3 rounded-xl border border-brand-900/50 bg-brand-950/40">
             <div class="font-bold text-white flex items-center gap-1.5">
-              <span>📍</span> Gate 1: Main Security Gate
+              <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-pin"></use></svg></span> Gate 1: Main Security Gate
             </div>
             <p class="text-[11px] text-slate-400 mt-1">Solapur Highway (NH 65) Entrance. Primary vehicle pickup bay with 24/7 CCTV.</p>
           </div>
           <div class="p-3 rounded-xl border border-amber-900/50 bg-amber-950/40">
             <div class="font-bold text-white flex items-center gap-1.5">
-              <span>🏛️</span> Gate 2: World Peace Dome
+              <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-pin"></use></svg></span> Gate 2: World Peace Dome
             </div>
             <p class="text-[11px] text-slate-400 mt-1">Central Quad for Design &amp; Architecture students. Shuttle &amp; bike bay.</p>
           </div>
           <div class="p-3 rounded-xl border border-emerald-900/50 bg-emerald-950/40">
             <div class="font-bold text-white flex items-center gap-1.5">
-              <span>🏠</span> Gate 3: Sangamwadi Hostels
+              <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-pin"></use></svg></span> Gate 3: Sangamwadi Hostels
             </div>
             <p class="text-[11px] text-slate-400 mt-1">Hostel Quads &amp; Mess pickup area. Close to River Promenade.</p>
           </div>
           <div class="p-3 rounded-xl border border-rose-900/50 bg-rose-950/40">
             <div class="font-bold text-white flex items-center gap-1.5">
-              <span>🏥</span> Gate 4: VishwaRaj Hospital
+              <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-pin"></use></svg></span> Gate 4: VishwaRaj Hospital
             </div>
             <p class="text-[11px] text-slate-400 mt-1">East Campus Gate, connecting 24/7 Trauma Care and Loni station road.</p>
           </div>
@@ -793,12 +766,11 @@
     <section id="viewLeaderboard" role="tabpanel" aria-labelledby="tabLeaderboard" tabindex="0" hidden class="hidden max-w-2xl mx-auto space-y-4">
       <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl space-y-4">
         <div>
-          <span class="bg-amber-400/20 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider border border-amber-400/30">Campus Green Commute</span>
           <h2 class="font-bold text-lg text-white mt-1">Top MIT ADT Student Carpoolers</h2>
           <p class="text-xs text-slate-400">Students helping peers travel affordably while reducing Solapur Highway vehicle congestion.</p>
         </div>
 
-        <div class="overflow-x-auto">
+        <div id="leaderboardScroller" class="overflow-x-auto" hidden>
           <table class="w-full text-left text-xs border-collapse">
             <thead>
               <tr class="border-b border-slate-800 text-slate-500 font-bold uppercase text-[10px]">
@@ -810,77 +782,37 @@
                 <th class="py-2.5 px-3 text-right">Fuel Saved</th>
               </tr>
             </thead>
-            <tbody id="leaderboardTbody" class="divide-y divide-slate-800 text-slate-300">
-        <tr class="hover:bg-slate-800/40 transition">
-          <td class="py-2.5 px-3 font-bold text-white">#1</td>
-          <td class="py-2.5 px-3 font-bold text-brand-200">Kunal Shinde</td>
-          <td class="py-2.5 px-3 text-slate-400">MIT SOE (Mechanical)</td>
-          <td class="py-2.5 px-3 text-center">
-            <span class="bg-amber-400/20 text-amber-300 font-bold px-2 py-0.5 rounded-full border border-amber-400/30">
-              ★ 4.96
-            </span>
-          </td>
-          <td class="py-2.5 px-3 text-right font-semibold text-slate-300">19</td>
-          <td class="py-2.5 px-3 text-right font-black text-emerald-400">₹3,980</td>
-        </tr>
-      
-        <tr class="hover:bg-slate-800/40 transition">
-          <td class="py-2.5 px-3 font-bold text-white">#2</td>
-          <td class="py-2.5 px-3 font-bold text-brand-200">Pooja Kadam</td>
-          <td class="py-2.5 px-3 text-slate-400">MIT Institute of Design</td>
-          <td class="py-2.5 px-3 text-center">
-            <span class="bg-amber-400/20 text-amber-300 font-bold px-2 py-0.5 rounded-full border border-amber-400/30">
-              ★ 4.94
-            </span>
-          </td>
-          <td class="py-2.5 px-3 text-right font-semibold text-slate-300">15</td>
-          <td class="py-2.5 px-3 text-right font-black text-emerald-400">₹3,120</td>
-        </tr>
-      
-        <tr class="hover:bg-slate-800/40 transition">
-          <td class="py-2.5 px-3 font-bold text-white">#3</td>
-          <td class="py-2.5 px-3 font-bold text-brand-200">Tanmay Joshi</td>
-          <td class="py-2.5 px-3 text-slate-400">School of Architecture</td>
-          <td class="py-2.5 px-3 text-center">
-            <span class="bg-amber-400/20 text-amber-300 font-bold px-2 py-0.5 rounded-full border border-amber-400/30">
-              ★ 4.89
-            </span>
-          </td>
-          <td class="py-2.5 px-3 text-right font-semibold text-slate-300">12</td>
-          <td class="py-2.5 px-3 text-right font-black text-emerald-400">₹2,640</td>
-        </tr>
-      
-        <tr class="hover:bg-slate-800/40 transition">
-          <td class="py-2.5 px-3 font-bold text-white">#4</td>
-          <td class="py-2.5 px-3 font-bold text-brand-200">Shreya Nair</td>
-          <td class="py-2.5 px-3 text-slate-400">College of Management</td>
-          <td class="py-2.5 px-3 text-center">
-            <span class="bg-amber-400/20 text-amber-300 font-bold px-2 py-0.5 rounded-full border border-amber-400/30">
-              ★ 4.86
-            </span>
-          </td>
-          <td class="py-2.5 px-3 text-right font-semibold text-slate-300">10</td>
-          <td class="py-2.5 px-3 text-right font-black text-emerald-400">₹2,100</td>
-        </tr>
-      
-        <tr class="hover:bg-slate-800/40 transition">
-          <td class="py-2.5 px-3 font-bold text-white">#5</td>
-          <td class="py-2.5 px-3 font-bold text-brand-200">Siddharth Deshmukh</td>
-          <td class="py-2.5 px-3 text-slate-400">School of Computing</td>
-          <td class="py-2.5 px-3 text-center">
-            <span class="bg-amber-400/20 text-amber-300 font-bold px-2 py-0.5 rounded-full border border-amber-400/30">
-              ★ 4.91
-            </span>
-          </td>
-          <td class="py-2.5 px-3 text-right font-semibold text-slate-300">8</td>
-          <td class="py-2.5 px-3 text-right font-black text-emerald-400">₹1,680</td>
-        </tr>
-      </tbody>
+            <tbody id="leaderboardTbody" class="divide-y divide-slate-800 text-slate-300"></tbody>
           </table>
+        </div>
+        <div id="leaderboardEmpty" class="leaderboard-empty">
+          <svg class="cp-icon" aria-hidden="true"><use href="#cp-trophy"></use></svg>
+          <p>No rides completed yet this month.</p>
+          <p>Be the first student or faculty member to offer a peer ride!</p>
         </div>
       </div>
     </section>
 
+    <details class="commute-about">
+      <summary>About CampusPool</summary>
+      <p class="commute-description">Connect directly with verified MIT ADT students commuting along the Solapur Highway corridor. Drivers recover up to 90% fuel expenses, passengers save money, and everyone travels safely from Gates 1–4.</p>
+        <p class="commute-fare-note">Flat 30% Below Commercial Cabs · 90% Driver Petrol Return</p>
+    <div class="commute-benefits" aria-label="CampusPool benefits">
+      <div class="commute-benefit">
+        <svg class="cp-icon" aria-hidden="true"><use href="#cp-shield"></use></svg>
+        <div><h2>100% Campus Verified</h2><p>Zero Strangers · @students / @mituniversity.edu.in (Students &amp; Faculty)</p></div>
+      </div>
+      <div class="commute-benefit">
+        <svg class="cp-icon" aria-hidden="true"><use href="#cp-wallet"></use></svg>
+        <div><h2>30% Cheaper than Cabs</h2><p>Flat Fare Relief · Save ₹70–₹120 per trip</p></div>
+      </div>
+      <div class="commute-benefit">
+        <svg class="cp-icon" aria-hidden="true"><use href="#cp-fuel"></use></svg>
+        <div><h2>90% Fuel Payout to Peer</h2><p>Driver Benefit · 100% Direct P2P UPI settlements</p></div>
+      </div>
+    </div>
+
+    </details>
   </main>
 
   <!-- MODAL: Landing "What We Do" Pop Screen -->
@@ -891,7 +823,7 @@
           ADT
         </div>
         <div class="inline-flex items-center gap-1.5 bg-brand-500/20 text-brand-300 text-[11px] font-bold px-3 py-1 rounded-full border border-brand-400/30">
-          <span>🎓</span> Official MIT ADT Commuter Network
+          <svg class="cp-icon" aria-hidden="true"><use href="#cp-shield"></use></svg> Official MIT ADT Commuter Network
         </div>
         <h2 id="welcomePopModalTitle" class="text-2xl font-black text-white tracking-tight">Welcome to CampusPool</h2>
         <p class="text-xs sm:text-sm text-slate-400 max-w-sm mx-auto leading-relaxed">
@@ -902,7 +834,7 @@
       <!-- 3 Key Value Propositions -->
       <div class="space-y-3 pt-1">
         <div class="flex items-start gap-3 p-3 rounded-2xl bg-slate-950 border border-slate-800">
-          <div class="text-2xl p-2 rounded-xl bg-brand-500/10 text-brand-400 shrink-0">💰</div>
+          <div class="text-2xl p-2 rounded-xl bg-brand-500/10 text-brand-400 shrink-0"><svg class="cp-icon" aria-hidden="true"><use href="#cp-wallet"></use></svg></div>
           <div>
             <h3 class="font-bold text-xs sm:text-sm text-white">Guaranteed 30% Savings vs Uber &amp; Cabs</h3>
             <p class="text-[11px] text-slate-400 leading-snug mt-0.5">Loni Kalbhor is 20 km from Pune center. Ride together to Pune Station, Hadapsar, or Swargate at 30% less than commercial taxi rates.</p>
@@ -910,7 +842,7 @@
         </div>
 
         <div class="flex items-start gap-3 p-3 rounded-2xl bg-slate-950 border border-slate-800">
-          <div class="text-2xl p-2 rounded-xl bg-emerald-500/10 text-emerald-400 shrink-0">⛽</div>
+          <div class="text-2xl p-2 rounded-xl bg-emerald-500/10 text-emerald-400 shrink-0"><svg class="cp-icon" aria-hidden="true"><use href="#cp-fuel"></use></svg></div>
           <div>
             <h3 class="font-bold text-xs sm:text-sm text-white">90% Fuel Cost Share for Student Drivers</h3>
             <p class="text-[11px] text-slate-400 leading-snug mt-0.5">Driving solo on a bike or car? Offer empty seats to peers and recover up to 90% of your petrol expense directly via instant UPI.</p>
@@ -918,7 +850,7 @@
         </div>
 
         <div class="flex items-start gap-3 p-3 rounded-2xl bg-slate-950 border border-slate-800">
-          <div class="text-2xl p-2 rounded-xl bg-amber-500/10 text-amber-400 shrink-0">🛡️</div>
+          <div class="text-2xl p-2 rounded-xl bg-amber-500/10 text-amber-400 shrink-0"><svg class="cp-icon" aria-hidden="true"><use href="#cp-shield"></use></svg></div>
           <div>
             <h3 class="font-bold text-xs sm:text-sm text-white">Verified Campus Community &amp; Gates</h3>
             <p class="text-[11px] text-slate-400 leading-snug mt-0.5">Strict dual OTP verification using your official <strong>@students.mituniversity.edu.in</strong> or <strong>@mituniversity.edu.in</strong> email and mobile. Board safely at CCTV-guarded Gates 1–4.</p>
@@ -929,7 +861,7 @@
       <!-- Action buttons -->
       <div class="pt-2 space-y-2">
         <button id="welcomeRegisterBtn" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 px-4 rounded-xl text-xs sm:text-sm shadow-lg shadow-brand-600/30 transition flex items-center justify-center gap-2 cursor-pointer">
-          <span>🚀</span> Register &amp; Verify Student ID
+          <svg class="cp-icon" aria-hidden="true"><use href="#cp-plus"></use></svg> Register &amp; Verify Student ID
         </button>
         <button id="welcomeExploreGuestBtn" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-2.5 px-4 rounded-xl text-xs transition cursor-pointer">
           Browse Active Rides First
@@ -943,28 +875,28 @@
     <div class="modal-panel bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl fade-in space-y-4">
       <div class="flex items-center justify-between pb-3 border-b border-slate-800">
         <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-lg bg-brand-500/20 text-brand-400 flex items-center justify-center font-bold text-sm">🎓</div>
+          <div class="w-8 h-8 rounded-lg bg-brand-500/20 text-brand-400 flex items-center justify-center font-bold text-sm"><svg class="cp-icon" aria-hidden="true"><use href="#cp-shield"></use></svg></div>
           <h2 id="authModalTitle" class="font-bold text-base text-white">Sign In or Register</h2>
         </div>
-        <button id="closeAuthModalBtn" class="text-slate-400 hover:text-white text-xl font-bold p-1 cursor-pointer">×</button>
+        <button type="button" id="closeAuthModalBtn" aria-label="Close sign in and registration dialog" class="modal-close-button text-slate-400 hover:text-white text-xl font-bold p-1 cursor-pointer">×</button>
       </div>
 
       <!-- Auth Mode Switcher (Sign In vs Register) -->
       <div id="authModeSwitcher" class="grid grid-cols-2 gap-1 bg-slate-950 p-1 rounded-2xl border border-slate-800 text-xs font-bold" role="tablist" aria-label="Authentication mode">
         <button type="button" id="tabAuthSignIn" role="tab" aria-selected="true" aria-controls="authSignInView" tabindex="0" class="py-2 rounded-xl bg-brand-600 text-white shadow-sm transition cursor-pointer flex items-center justify-center gap-1.5">
-          <span>🔑</span> Sign In
+          <svg class="cp-icon" aria-hidden="true"><use href="#cp-user"></use></svg> Sign In
         </button>
         <button type="button" id="tabAuthRegister" role="tab" aria-selected="false" aria-controls="authRegisterView" tabindex="-1" class="py-2 rounded-xl text-slate-400 hover:text-white transition cursor-pointer flex items-center justify-center gap-1.5">
-          <span>✨</span> New Account
+          <svg class="cp-icon" aria-hidden="true"><use href="#cp-plus"></use></svg> New Account
         </button>
       </div>
 
       <!-- Step Indicator (Active during Register flow) -->
       <div id="authStepIndicator" class="hidden flex items-center justify-between gap-1 text-[11px] font-semibold text-slate-500 pb-1 border-b border-slate-800">
         <span id="stepBadge1" class="text-brand-400 font-bold">1. Details</span>
-        <span>➔</span>
+        <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-arrow"></use></svg></span>
         <span id="stepBadge2" class="text-slate-500">2. Email OTP</span>
-        <span>➔</span>
+        <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-arrow"></use></svg></span>
         <span id="stepBadge3" class="text-slate-500">3. Mobile OTP</span>
       </div>
 
@@ -979,11 +911,11 @@
           <div>
             <label for="inputLoginIdentifier" class="block text-xs font-bold text-slate-400 uppercase mb-1">Registered Email ID or Mobile</label>
             <input type="text" id="inputLoginIdentifier" placeholder="e.g. 1032210123@students.mituniversity.edu.in or 9822012345" required class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none">
-            <p id="loginIdentifierError" class="hidden text-[11px] text-rose-400 font-semibold mt-1">⚠️ Account not found. Please click New Account to register.</p>
+            <p id="loginIdentifierError" class="hidden text-[11px] text-rose-400 font-semibold mt-1">Account not found. Please click New Account to register.</p>
           </div>
 
           <button type="button" id="proceedToLoginOtpBtn" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-2.5 rounded-xl transition shadow-md cursor-pointer text-xs sm:text-sm flex items-center justify-center gap-2">
-            <span>✉️</span> Send Sign-In Code
+            <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-mail"></use></svg></span> Send Sign-In Code
           </button>
 
           <div class="text-center pt-1 border-t border-slate-800/60">
@@ -1003,13 +935,13 @@
           <div>
             <label for="inputStudentName" class="block text-xs font-bold text-slate-400 uppercase mb-1">Your Full Name</label>
             <input type="text" id="inputStudentName" autocomplete="name" placeholder="e.g. Aryan Shinde" required class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3.5 py-2 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none">
-            <p id="authNameError" class="hidden text-[11px] text-rose-400 font-semibold mt-1">⚠️ Please enter your full name.</p>
+            <p id="authNameError" class="hidden text-[11px] text-rose-400 font-semibold mt-1">Please enter your full name.</p>
           </div>
 
           <div>
             <label for="inputStudentEmail" class="block text-xs font-bold text-slate-400 uppercase mb-1">Email ID (@students.mituniversity.edu.in or @mituniversity.edu.in)</label>
             <input type="email" id="inputStudentEmail" autocomplete="email" placeholder="e.g. 1032210123@students.mituniversity.edu.in or faculty@mituniversity.edu.in" required class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3.5 py-2 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none">
-            <p id="authEmailError" class="hidden text-[11px] text-rose-400 font-semibold mt-1">⚠️ Please enter a valid email address.</p>
+            <p id="authEmailError" class="hidden text-[11px] text-rose-400 font-semibold mt-1">Please enter a valid email address.</p>
           </div>
 
           <div>
@@ -1018,7 +950,7 @@
               <span class="inline-flex items-center px-3 text-xs text-slate-400 bg-slate-800 border border-r-0 border-slate-700 rounded-l-xl font-bold">+91</span>
               <input type="tel" id="inputStudentPhone" inputmode="numeric" autocomplete="tel-national" maxlength="10" placeholder="9822012345" required class="w-full bg-slate-800 border border-slate-700 text-white rounded-r-xl px-3.5 py-2 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none">
             </div>
-            <p id="authPhoneError" class="hidden text-[11px] text-rose-400 font-semibold mt-1">⚠️ Please enter a valid 10-digit mobile number.</p>
+            <p id="authPhoneError" class="hidden text-[11px] text-rose-400 font-semibold mt-1">Please enter a valid 10-digit mobile number.</p>
           </div>
 
           <div>
@@ -1034,7 +966,7 @@
           </div>
 
           <button type="button" id="proceedToEmailOtpBtn" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-2.5 rounded-xl transition shadow-md cursor-pointer text-xs sm:text-sm flex items-center justify-center gap-2">
-            <span>✉️</span> Continue with Verification
+            <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-mail"></use></svg></span> Continue with Verification
           </button>
 
           <div class="text-center pt-1 border-t border-slate-800/60">
@@ -1049,7 +981,7 @@
         <div id="authStep2EmailOtp" class="hidden space-y-3">
           <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-1">
             <div class="flex items-center gap-1.5 text-xs font-bold text-white">
-              <span>📩</span> OTP Sent to University Email:
+              <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-mail"></use></svg></span> OTP Sent to University Email:
             </div>
             <div id="emailOtpTargetDisplay" class="font-mono text-xs text-brand-300 font-semibold break-all"></div>
             <p class="text-[11px] text-slate-400">Check your university webmail inbox. Enter the 6-digit code below.</p>
@@ -1057,7 +989,7 @@
 
           <!-- Live Real-Time Email Delivery Status Banner -->
           <div id="emailOtpInboxBanner" class="p-3 bg-brand-950/60 border border-brand-500/30 rounded-xl flex items-start gap-2.5 text-xs text-brand-200">
-            <span class="text-base shrink-0 mt-0.5">📨</span>
+            <span class="text-base shrink-0 mt-0.5"><svg class="cp-icon" aria-hidden="true"><use href="#cp-mail"></use></svg></span>
             <div class="space-y-0.5">
               <span class="font-bold text-white block">Real-Time SMTP Dispatch Active</span>
               <p class="text-[11px] text-slate-300 leading-snug">
@@ -1069,7 +1001,7 @@
           <div>
             <label for="inputEmailOtp" class="block text-xs font-bold text-slate-400 uppercase mb-1">Enter 6-Digit Email OTP</label>
             <input type="text" id="inputEmailOtp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" placeholder="• • • • • •" required="" class="w-full text-center tracking-widest font-mono text-lg font-bold bg-slate-800 border border-slate-700 text-white rounded-xl px-3.5 py-2 focus:ring-2 focus:ring-brand-500 focus:outline-none">
-            <p id="emailOtpError" class="hidden text-[11px] text-rose-400 font-semibold mt-1">⚠️ Incorrect OTP. Please enter the valid 6-digit code.</p>
+            <p id="emailOtpError" class="hidden text-[11px] text-rose-400 font-semibold mt-1">Incorrect OTP. Please enter the valid 6-digit code.</p>
           </div>
 
           <div class="flex items-center justify-between text-xs text-slate-400">
@@ -1091,7 +1023,7 @@
         <div id="authStep3PhoneOtp" class="hidden space-y-3">
           <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-1">
             <div class="flex items-center gap-1.5 text-xs font-bold text-white">
-              <span>📱</span> OTP Sent to Mobile Number:
+              <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-phone"></use></svg></span> OTP Sent to Mobile Number:
             </div>
             <div id="phoneOtpTargetDisplay" class="font-mono text-xs text-brand-300 font-semibold"></div>
             <p class="text-[11px] text-slate-400">A 6-digit SMS verification code has been dispatched to your handset.</p>
@@ -1099,7 +1031,7 @@
 
           <!-- Live Carrier SMS Status Banner -->
           <div id="phoneOtpSmsBanner" class="p-3 bg-emerald-950/60 border border-emerald-500/30 rounded-xl flex items-start gap-2.5 text-xs text-emerald-200">
-            <span class="text-base shrink-0 mt-0.5">📱</span>
+            <span class="text-base shrink-0 mt-0.5"><svg class="cp-icon" aria-hidden="true"><use href="#cp-phone"></use></svg></span>
             <div class="space-y-0.5">
               <span class="font-bold text-white block">Carrier SMS Verification</span>
               <p class="text-[11px] text-slate-300 leading-snug">
@@ -1111,7 +1043,7 @@
           <div>
             <label for="inputPhoneOtp" class="block text-xs font-bold text-slate-400 uppercase mb-1">Enter 6-Digit Mobile SMS OTP</label>
             <input type="text" id="inputPhoneOtp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" placeholder="• • • • • •" required="" class="w-full text-center tracking-widest font-mono text-lg font-bold bg-slate-800 border border-slate-700 text-white rounded-xl px-3.5 py-2 focus:ring-2 focus:ring-brand-500 focus:outline-none">
-            <p id="phoneOtpError" class="hidden text-[11px] text-rose-400 font-semibold mt-1">⚠️ Incorrect SMS OTP. Please check the 6-digit code.</p>
+            <p id="phoneOtpError" class="hidden text-[11px] text-rose-400 font-semibold mt-1">Incorrect SMS OTP. Please check the 6-digit code.</p>
           </div>
 
           <div class="flex items-center justify-between text-xs text-slate-400">
@@ -1124,7 +1056,7 @@
               ← Back
             </button>
             <button type="button" id="completeVerificationBtn" class="flex-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-xl text-xs transition shadow-md cursor-pointer">
-              Verify &amp; Complete Registration ✅
+              Verify &amp; Complete Registration
             </button>
           </div>
         </div>
@@ -1140,7 +1072,7 @@
           <span class="text-[10px] font-bold uppercase text-brand-300 bg-brand-500/20 px-2 py-0.5 rounded">Seat Reservation</span>
           <h2 id="bookingModalTitle" class="font-bold text-base text-white mt-0.5">Confirm Campus Ride</h2>
         </div>
-        <button id="closeBookingModalBtn" class="text-slate-400 hover:text-white text-xl font-bold p-1 cursor-pointer">×</button>
+        <button type="button" id="closeBookingModalBtn" aria-label="Close seat reservation dialog" class="modal-close-button text-slate-400 hover:text-white text-xl font-bold p-1 cursor-pointer">×</button>
       </div>
 
       <div id="bookingModalContent" class="space-y-3 text-xs">
@@ -1152,7 +1084,7 @@
           Cancel
         </button>
         <button id="confirmBookingBtn" class="flex-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md cursor-pointer">
-          Confirm Seat Reservation ✅
+          Confirm Seat Reservation
         </button>
       </div>
     </div>
@@ -1163,10 +1095,10 @@
     <div class="modal-panel bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 shadow-2xl fade-in space-y-4 text-center">
       <div class="flex items-center justify-between pb-3 border-b border-slate-800">
         <div class="flex items-center gap-2">
-          <span class="text-lg">⚡</span>
+          <span class="text-lg"><svg class="cp-icon" aria-hidden="true"><use href="#cp-wallet"></use></svg></span>
           <h2 id="paymentModalTitle" class="font-bold text-sm text-white">Direct Student Fuel Transfer</h2>
         </div>
-        <button id="closePaymentModalBtn" class="text-slate-400 hover:text-white text-xl font-bold p-1 cursor-pointer">×</button>
+        <button type="button" id="closePaymentModalBtn" aria-label="Close payment dialog" class="modal-close-button text-slate-400 hover:text-white text-xl font-bold p-1 cursor-pointer">×</button>
       </div>
 
       <div id="paymentModalContent" class="space-y-3 text-xs">
@@ -1175,10 +1107,10 @@
 
       <div class="pt-2 flex flex-col gap-2">
         <a id="paymentUpiLinkBtn" href="upi://pay?pa=campuspool.mitadt@okaxis&amp;pn=CampusPool&amp;cu=INR" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md flex items-center justify-center gap-2">
-          <span>📲</span> Open GPay / PhonePe / Paytm
+          <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-phone"></use></svg></span> Open GPay / PhonePe / Paytm
         </a>
         <button id="markPaymentDoneBtn" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2 rounded-xl text-xs transition cursor-pointer">
-          I Have Completed the Transfer ✅
+          I Have Completed the Transfer
         </button>
       </div>
     </div>
@@ -1189,13 +1121,13 @@
     <div class="modal-panel bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 shadow-2xl fade-in space-y-4 text-center">
       <div class="flex items-center justify-between pb-3 border-b border-slate-800">
         <div class="flex items-center gap-2">
-          <span class="text-xl">💰</span>
+          <span class="text-xl"><svg class="cp-icon" aria-hidden="true"><use href="#cp-wallet"></use></svg></span>
           <div>
             <h2 id="driverSettlementModalTitle" class="font-bold text-sm text-white text-left">Weekly Driver Settlement</h2>
             <p class="text-[10px] text-slate-400 text-left">10% Platform Green Fund Share</p>
           </div>
         </div>
-        <button id="closeSettlementModalBtn" class="text-slate-400 hover:text-white text-xl font-bold p-1 cursor-pointer">×</button>
+        <button type="button" id="closeSettlementModalBtn" aria-label="Close weekly settlement dialog" class="modal-close-button text-slate-400 hover:text-white text-xl font-bold p-1 cursor-pointer">×</button>
       </div>
 
       <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-2 text-xs">
@@ -1217,7 +1149,7 @@
         <div class="flex items-center justify-between">
           <span class="text-[10px] uppercase font-bold text-slate-500">CampusPool Admin UPI VPA</span>
           <button type="button" class="copy-vpa-btn text-[10px] bg-slate-900 hover:bg-slate-800 text-brand-300 hover:text-white px-2 py-0.5 rounded-md border border-slate-700 cursor-pointer flex items-center gap-1" data-vpa="campuspool.mitadt@okaxis">
-            <span>📋</span> Copy VPA
+            <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-copy"></use></svg></span> Copy VPA
           </button>
         </div>
         <div id="adminUpiVpaText" class="font-mono font-black text-brand-300 text-sm break-all">campuspool.mitadt@okaxis</div>
@@ -1226,10 +1158,10 @@
 
       <div class="pt-1 flex flex-col gap-2">
         <a id="settleUpiLinkBtn" href="upi://pay?pa=campuspool.mitadt@okaxis&amp;pn=CampusPool&amp;am=0&amp;cu=INR&amp;tn=Weekly%20Driver%20Commission%2010%25" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md flex items-center justify-center gap-2">
-          <span>📲</span> Open UPI App to Pay Due
+          <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-phone"></use></svg></span> Open UPI App to Pay Due
         </a>
         <button id="markCommissionPaidBtn" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2 rounded-xl text-xs transition cursor-pointer">
-          I Have Transferred Due Commission ✅
+          I Have Transferred Due Commission
         </button>
       </div>
     </div>
@@ -1240,18 +1172,18 @@
     <div class="modal-panel bg-slate-900 border border-rose-500/40 rounded-3xl max-w-sm w-full p-6 shadow-2xl fade-in space-y-4 text-center">
       <div class="flex items-center justify-between pb-3 border-b border-slate-800">
         <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center font-bold text-sm">🚨</div>
+          <div class="w-8 h-8 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center font-bold text-sm"><svg class="cp-icon" aria-hidden="true"><use href="#cp-alert"></use></svg></div>
           <div>
             <h2 id="settleModalTitle" class="font-bold text-sm text-white text-left">Commute Dues Settlement</h2>
             <p class="text-[10px] text-slate-400 text-left">MIT ADT CampusPool Fairness Protocol</p>
           </div>
         </div>
-        <button id="closeSettlementLockModalBtn" class="text-slate-400 hover:text-white text-xl font-bold p-1 cursor-pointer">×</button>
+        <button type="button" id="closeSettlementLockModalBtn" aria-label="Close dues settlement dialog" class="modal-close-button text-slate-400 hover:text-white text-xl font-bold p-1 cursor-pointer">×</button>
       </div>
 
       <!-- Policy explanation alert -->
       <div class="p-3 bg-rose-950/40 border border-rose-500/30 rounded-2xl text-left space-y-1">
-        <span class="text-[11px] font-bold text-rose-300 block">🔒 Ride Bookings &amp; Inquiries Locked</span>
+        <span class="text-[11px] font-bold text-rose-300 block">Ride Bookings &amp; Inquiries Locked</span>
         <p class="text-[11px] text-slate-300 leading-snug">
           Under campus platform rules, after completing 1 commute you must settle outstanding ride dues or commission before booking new rides or contacting riders.
         </p>
@@ -1272,7 +1204,7 @@
         <div class="flex items-center justify-between px-1">
           <span class="text-[10px] uppercase font-bold text-slate-500">Recipient UPI VPA</span>
           <button type="button" class="copy-vpa-btn text-[10px] bg-slate-900 hover:bg-slate-800 text-brand-300 hover:text-white px-2 py-0.5 rounded-md border border-slate-700 cursor-pointer flex items-center gap-1" data-target="settleVpaDisplay">
-            <span>📋</span> Copy VPA
+            <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-copy"></use></svg></span> Copy VPA
           </button>
         </div>
         <div id="settleVpaDisplay" class="font-mono font-black text-brand-300 text-xs break-all">campuspool.mitadt@okaxis</div>
@@ -1281,10 +1213,10 @@
 
       <div class="pt-1 flex flex-col gap-2">
         <a id="settleActionUpiLink" href="upi://pay?pa=campuspool.mitadt@okaxis&amp;pn=CampusPool&amp;am=0&amp;cu=INR&amp;tn=CampusPool%20Dues%20Settlement" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md flex items-center justify-center gap-2">
-          <span>📲</span> Pay Dues via UPI App
+          <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-phone"></use></svg></span> Pay Dues via UPI App
         </a>
         <button id="confirmSettleDoneBtn" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md cursor-pointer flex items-center justify-center gap-1.5">
-          <span>✓</span> I Have Settled Dues (Unlock Account)
+          <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-check"></use></svg></span> I Have Settled Dues (Unlock Account)
         </button>
       </div>
     </div>
@@ -1295,10 +1227,10 @@
     <div class="modal-panel bg-slate-900 border border-rose-900/60 rounded-3xl max-w-sm w-full p-6 shadow-2xl fade-in space-y-4 text-center">
       <div class="flex items-center justify-between pb-3 border-b border-slate-800">
         <div class="flex items-center gap-2">
-          <span class="text-xl">🚨</span>
+          <span class="text-xl"><svg class="cp-icon" aria-hidden="true"><use href="#cp-alert"></use></svg></span>
           <h2 id="sosModalTitle" class="font-bold text-sm text-white text-left">Campus Emergency Contacts</h2>
         </div>
-        <button id="closeSosModalBtn" class="text-slate-400 hover:text-white text-xl font-bold p-1 cursor-pointer">×</button>
+        <button type="button" id="closeSosModalBtn" aria-label="Close emergency contacts dialog" class="modal-close-button text-slate-400 hover:text-white text-xl font-bold p-1 cursor-pointer">×</button>
       </div>
       <p class="text-xs text-slate-300 text-left">Immediate 24/7 emergency hotlines for MIT ADT University & Solapur Highway (NH 65):</p>
       <div class="space-y-2 text-xs">
@@ -1332,10 +1264,10 @@
     <div class="modal-panel bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 shadow-2xl fade-in space-y-4">
       <div class="flex items-center justify-between pb-3 border-b border-slate-800">
         <div class="flex items-center gap-2">
-          <span class="text-lg">🔔</span>
+          <span class="text-lg"><svg class="cp-icon" aria-hidden="true"><use href="#cp-bell"></use></svg></span>
           <h2 id="notificationsModalTitle" class="font-bold text-sm text-white">Campus Commute Alerts</h2>
         </div>
-        <button id="closeNotifModalBtn" class="text-slate-400 hover:text-white text-xl font-bold p-1 cursor-pointer">×</button>
+        <button type="button" id="closeNotifModalBtn" aria-label="Close commute notifications dialog" class="modal-close-button text-slate-400 hover:text-white text-xl font-bold p-1 cursor-pointer">×</button>
       </div>
       <div class="space-y-2.5 text-xs">
         <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
@@ -1369,13 +1301,13 @@
     <div class="modal-panel bg-slate-900 border border-slate-800 rounded-3xl max-w-xl w-full p-4 sm:p-6 shadow-2xl fade-in space-y-4">
       <div class="flex items-center justify-between pb-3 border-b border-slate-800">
         <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-lg bg-brand-500/20 text-brand-400 flex items-center justify-center font-bold text-sm">📡</div>
+          <div class="w-8 h-8 rounded-lg bg-brand-500/20 text-brand-400 flex items-center justify-center font-bold text-sm"><svg class="cp-icon" aria-hidden="true"><use href="#cp-signal"></use></svg></div>
           <div>
             <h2 id="gpsModalTitle" class="font-bold text-sm sm:text-base text-white">Live Peer Commute GPS Tracking</h2>
             <p id="gpsModalSubtitle" class="text-[11px] text-slate-400">100% Free HTML5 Geolocation &amp; OpenStreetMap</p>
           </div>
         </div>
-        <button id="closeGpsModalBtn" class="text-slate-400 hover:text-white text-xl font-bold p-1 cursor-pointer">×</button>
+        <button type="button" id="closeGpsModalBtn" aria-label="Close GPS tracking dialog" class="modal-close-button text-slate-400 hover:text-white text-xl font-bold p-1 cursor-pointer">×</button>
       </div>
 
       <!-- Real-Time Metrics Strip -->
@@ -1408,15 +1340,15 @@
         <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
           <div class="flex items-center gap-2">
             <button type="button" id="gpsDriverBroadcastBtn" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-2 rounded-xl transition shadow-md flex items-center gap-1.5 cursor-pointer">
-              <span>📡</span> Start GPS Sharing
+              <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-signal"></use></svg></span> Start GPS Sharing
             </button>
             <button type="button" id="gpsPassengerShareLocationBtn" class="bg-brand-600 hover:bg-brand-500 text-white font-bold px-3 py-2 rounded-xl transition shadow-md flex items-center gap-1.5 cursor-pointer">
-              <span>📍</span> Send My Pickup GPS
+              <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-pin"></use></svg></span> Send My Pickup GPS
             </button>
           </div>
 
           <button type="button" id="gpsSimulateToggleBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-2 rounded-xl border border-slate-700 font-semibold text-[11px] flex items-center gap-1 cursor-pointer">
-            <span>🧪</span> Highway Demo
+            <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-car"></use></svg></span> Highway Demo
           </button>
         </div>
 
@@ -1429,7 +1361,7 @@
 
   <!-- Toast Notification Alert -->
   <div id="toastNotification" hidden style="display: none;" role="status" aria-live="polite" aria-atomic="true" class="hidden fixed bottom-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 text-xs font-semibold border border-slate-700 fade-in">
-    <span id="toastIcon" class="text-base">🔔</span>
+    <span id="toastIcon" class="text-base"><svg class="cp-icon" aria-hidden="true"><use href="#cp-bell"></use></svg></span>
     <span id="toastMessage">Notification</span>
   </div>
 
@@ -1501,19 +1433,63 @@
       }
     }
 
+    let rideFeedState = 'loading';
+    let rideFeedInFlight = false;
+
+    function updateRideFeedStatus() {
+      const status = document.getElementById('rideFeedStatus');
+      const count = Number(document.getElementById('countAvailableRides')?.textContent || 0);
+      if (status) {
+        const message = rideFeedState === 'loading'
+          ? (appState.rides.length ? 'Updating saved rides…' : 'Loading rides…')
+          : rideFeedState === 'error'
+            ? (appState.rides.length ? 'Showing saved rides · Refresh unavailable' : 'Couldn’t load rides · Try refreshing')
+            : `${count} ${count === 1 ? 'ride' : 'rides'} ${appState.activeDestFilter === 'all' && appState.activeVehicleFilter === 'all' ? 'available' : 'matching your filters'}`;
+        if (status.textContent !== message) status.textContent = message;
+        status.dataset.state = rideFeedState;
+      }
+      document.getElementById('ridesGridContainer')?.setAttribute('aria-busy', String(rideFeedInFlight));
+      document.querySelectorAll('[data-refresh-rides]').forEach(button => {
+        button.disabled = rideFeedInFlight;
+      });
+    }
+
     async function syncLiveRides() {
+      if (rideFeedInFlight) return;
+      const refreshOrigin = document.activeElement?.matches('[data-refresh-rides]')
+        ? document.activeElement : null;
+      rideFeedInFlight = true;
+      updateRideFeedStatus();
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
       try {
-        const resp = await fetch('/api/rides');
-        if (resp.ok) {
-          const data = await resp.json();
-          if (Array.isArray(data.rides)) {
-            appState.rides = data.rides;
-            saveState();
-            renderRidesGrid();
-          }
-        }
+        const resp = await fetch('/api/rides', { signal: controller.signal });
+        if (!resp.ok) throw new Error('Ride feed request failed');
+        const data = await resp.json();
+        if (!Array.isArray(data.rides)) throw new Error('Invalid ride feed response');
+        const changed = JSON.stringify(appState.rides) !== JSON.stringify(data.rides);
+        const previousState = rideFeedState;
+        appState.rides = data.rides;
+        rideFeedState = 'ready';
+        saveState();
+        // Preserve keyboard focus during unchanged background refreshes.
+        if (changed || previousState !== 'ready') renderRidesGrid();
       } catch (e) {
-        console.warn("Could not sync live rides from server:", e);
+        const previousState = rideFeedState;
+        rideFeedState = 'error';
+        if (previousState !== 'error') renderRidesGrid();
+        console.warn('Could not sync live rides from server:', e);
+      } finally {
+        clearTimeout(timeout);
+        rideFeedInFlight = false;
+        updateRideFeedStatus();
+        // Disabling a pressed control can blur it; keep keyboard users at the feed.
+        if (refreshOrigin && document.activeElement === document.body) {
+          const target = refreshOrigin.isConnected ? refreshOrigin
+            : document.querySelector('#ridesGridContainer [data-refresh-rides]')
+              || document.querySelector('.feed-refresh-button');
+          target?.focus({ preventScroll: true });
+        }
       }
     }
 
@@ -1587,6 +1563,7 @@
       '[tabindex]:not([tabindex="-1"])'
     ].join(',');
     let toastTimer = null;
+    const openModalIds = [];
 
     function getModal(modalOrId) {
       return typeof modalOrId === 'string'
@@ -1594,17 +1571,21 @@
         : modalOrId;
     }
 
-    function showModal(modalOrId, initialFocusSelector) {
+    function showModal(modalOrId, initialFocusSelector, focusOrigin = null) {
       const modal = getModal(modalOrId);
       if (!modal) return null;
 
-      if (modal.hasAttribute('hidden') && document.activeElement instanceof HTMLElement) {
-        modalFocusOrigins.set(modal.id, document.activeElement);
+      const origin = focusOrigin || document.activeElement;
+      if (modal.hasAttribute('hidden') && origin instanceof HTMLElement && document.contains(origin)) {
+        modalFocusOrigins.set(modal.id, origin);
       }
 
       modal.removeAttribute('hidden');
       modal.style.display = 'flex';
       modal.classList.remove('hidden');
+      const existingIndex = openModalIds.indexOf(modal.id);
+      if (existingIndex !== -1) openModalIds.splice(existingIndex, 1);
+      openModalIds.push(modal.id);
 
       window.requestAnimationFrame(() => {
         if (modal.hasAttribute('hidden')) return;
@@ -1618,7 +1599,7 @@
       return modal;
     }
 
-    function hideModal(modalOrId) {
+    function hideModal(modalOrId, { restoreFocus = true } = {}) {
       const modal = getModal(modalOrId);
       if (!modal) return null;
 
@@ -1626,10 +1607,12 @@
       modal.setAttribute('hidden', '');
       modal.style.display = 'none';
       modal.classList.add('hidden');
+      const openIndex = openModalIds.indexOf(modal.id);
+      if (openIndex !== -1) openModalIds.splice(openIndex, 1);
 
       const origin = modalFocusOrigins.get(modal.id);
       modalFocusOrigins.delete(modal.id);
-      if (wasOpen && origin && document.contains(origin) && typeof origin.focus === 'function') {
+      if (restoreFocus && wasOpen && origin && document.contains(origin) && typeof origin.focus === 'function') {
         window.requestAnimationFrame(() => origin.focus());
       }
 
@@ -1644,11 +1627,24 @@
       toast.classList.add('hidden');
     }
 
+    function renderIcon(name) {
+      const names = ['search', 'plus', 'ticket', 'map', 'trophy', 'shield', 'wallet', 'fuel', 'refresh', 'user', 'bell', 'alert', 'arrow', 'clock', 'chat', 'mail', 'car', 'pin', 'phone', 'copy', 'check', 'info', 'lock', 'signal', 'stop'];
+      const safeName = names.includes(name) ? name : 'info';
+      return `<svg class="cp-icon" aria-hidden="true"><use href="#cp-${safeName}"></use></svg>`;
+    }
+
     function showToast(message, icon = '✅') {
       const toast = document.getElementById('toastNotification');
       if (!toast) return;
       document.getElementById('toastMessage').textContent = message;
-      document.getElementById('toastIcon').textContent = icon;
+      const iconName = /⚠|🚨/.test(icon) ? 'alert'
+        : /✉|📱/.test(icon) ? 'mail'
+        : /📍|🎯|🛰/.test(icon) ? 'pin'
+        : /💬/.test(icon) ? 'chat'
+        : /📋/.test(icon) ? 'copy'
+        : /🌐|📶|📡/.test(icon) ? 'signal'
+        : /🛑/.test(icon) ? 'stop' : 'check';
+      document.getElementById('toastIcon').innerHTML = renderIcon(iconName);
       toast.removeAttribute('hidden');
       toast.style.display = 'flex';
       toast.classList.remove('hidden');
@@ -1668,10 +1664,10 @@
         bar.innerHTML = `
           <div class="flex items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800 text-xs">
             <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-            <span class="font-bold text-white hidden sm:inline">${sanitize(appState.currentUser.name)}</span>
-            <span class="text-brand-300 font-mono text-[11px]">${sanitize(appState.currentUser.email.split('@')[0])}</span>
+            <span class="header-profile-name font-bold text-white hidden sm:inline">${sanitize(appState.currentUser.name)}</span>
+            <span class="header-profile-email text-brand-300 font-mono text-[11px]">${sanitize(appState.currentUser.email.split('@')[0])}</span>
           </div>
-          <button id="headerLogoutBtn" class="bg-rose-950/60 hover:bg-rose-900 text-rose-300 hover:text-white px-2.5 py-1.5 rounded-xl text-xs font-semibold transition border border-rose-900/50 cursor-pointer" title="Sign out of student account">
+          <button type="button" id="headerLogoutBtn" class="header-logout-button bg-rose-950/60 hover:bg-rose-900 text-rose-300 hover:text-white px-2.5 py-1.5 rounded-xl text-xs font-semibold transition border border-rose-900/50 cursor-pointer" title="Sign out of student account" aria-label="Sign out of student account">
             Sign Out
           </button>
         `;
@@ -1689,14 +1685,55 @@
         });
       } else {
         bar.innerHTML = `
-          <button id="headerLoginBtn" class="bg-brand-600 hover:bg-brand-500 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition shadow-md cursor-pointer flex items-center gap-1.5">
-            <span>Sign In / Register</span>
+          <button type="button" id="headerLoginBtn" class="header-login-button bg-brand-600 hover:bg-brand-500 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition shadow-md cursor-pointer flex items-center gap-1.5" aria-label="Sign in or register">
+            <span class="header-login-compact"><svg class="cp-icon" aria-hidden="true"><use href="#cp-user"></use></svg></span>
+            <span class="header-login-label">Sign In / Register</span>
           </button>
         `;
         if (banner) banner.classList.remove('hidden');
         document.getElementById('headerLoginBtn')?.addEventListener('click', () => openAuthModal('signin'));
       }
       updateSettlementWarningBanner();
+    }
+
+    function updateRideFilterControls() {
+      document.querySelectorAll('.dest-btn').forEach(button => {
+        button.setAttribute('aria-pressed', String(button.dataset.dest === appState.activeDestFilter));
+      });
+      const vehicle = document.getElementById('filterVehicleSelect');
+      if (vehicle) vehicle.value = appState.activeVehicleFilter;
+    }
+
+    function resetRideFilters() {
+      appState.activeDestFilter = 'all';
+      appState.activeVehicleFilter = 'all';
+      saveState();
+      renderRidesGrid();
+      document.querySelector('.dest-btn[data-dest="all"]')?.focus();
+    }
+
+    function rideFeedStateMarkup() {
+      const loading = rideFeedState === 'loading' && appState.rides.length === 0;
+      const failed = rideFeedState === 'error' && appState.rides.length === 0;
+      const filtered = appState.activeDestFilter !== 'all' || appState.activeVehicleFilter !== 'all';
+      const title = loading ? 'Loading available rides'
+        : failed ? 'Rides couldn’t load'
+        : filtered ? 'No rides match your filters' : 'No rides available yet';
+      const description = loading ? 'Checking the latest rides from campus. This should only take a moment.'
+        : failed ? 'We couldn’t reach the ride feed. Check your connection, then try again.'
+        : filtered ? 'Try another destination or vehicle, or clear your filters to see all rides.'
+        : 'There are no rides to show right now. Offer a seat to a campus peer or check back soon.';
+      return `
+        <div class="ride-feed-state">
+          <svg class="cp-icon" aria-hidden="true"><use href="#cp-${failed ? 'alert' : 'search'}"></use></svg>
+          <h3>${title}</h3><p>${description}</p>
+          ${loading ? '' : `<div class="ride-feed-actions">
+            ${filtered && !failed
+              ? `<button type="button" class="cp-button cp-button-primary" onclick="resetRideFilters()">Clear filters</button>`
+              : `<button type="button" class="cp-button cp-button-primary" onclick="openCommuteView('tabOfferRide', 'viewOfferRide')"><svg class="cp-icon" aria-hidden="true"><use href="#cp-plus"></use></svg>Offer a Ride</button>`}
+            <button type="button" data-refresh-rides class="cp-button cp-button-secondary" onclick="syncLiveRides()"><svg class="cp-icon" aria-hidden="true"><use href="#cp-refresh"></use></svg>${failed ? 'Try again' : 'Refresh Feed'}</button>
+          </div>`}
+        </div>`;
     }
 
     function renderRidesGrid() {
@@ -1714,43 +1751,11 @@
 
       if (countDisplay) countDisplay.textContent = filtered.length;
 
-            if (filtered.length === 0) {
-        container.innerHTML = `
-          <div class="col-span-full py-14 px-6 flex flex-col items-center justify-center text-center space-y-5 bg-slate-900/60 rounded-3xl border border-slate-800/80 shadow-inner">
-            <div class="relative w-36 h-36 flex items-center justify-center">
-              <div class="absolute inset-0 rounded-full bg-brand-500/10 animate-ping opacity-75"></div>
-              <div class="absolute inset-2 rounded-full bg-slate-800/80 border border-slate-700/60"></div>
-              <svg class="relative w-20 h-20 text-brand-400" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="50" cy="50" r="44" stroke="currentColor" stroke-opacity="0.2" stroke-width="2" stroke-dasharray="4 4"/>
-                <path d="M30 80 L44 54" stroke="currentColor" stroke-opacity="0.4" stroke-width="2"/>
-                <path d="M70 80 L56 54" stroke="currentColor" stroke-opacity="0.4" stroke-width="2"/>
-                <line x1="50" y1="62" x2="50" y2="74" stroke="currentColor" stroke-opacity="0.4" stroke-width="2" stroke-dasharray="2 3"/>
-                <path d="M36 50 C36 46 40 43 50 43 C60 43 64 46 64 50 L66 54 C66 56 64 57 62 57 L38 57 C36 57 34 56 34 54 Z" fill="currentColor" fill-opacity="0.15" stroke="currentColor" stroke-width="2"/>
-                <circle cx="41" cy="56" r="3" fill="#10b981"/>
-                <circle cx="59" cy="56" r="3" fill="#10b981"/>
-                <line x1="43" y1="47" x2="57" y2="47" stroke="currentColor" stroke-width="1.5"/>
-                <path d="M50 20 C44 20 40 24 40 30 C40 37 50 44 50 44 C50 44 60 37 60 30 C60 24 56 20 50 20 Z" fill="#6366f1" fill-opacity="0.2" stroke="#818cf8" stroke-width="2"/>
-                <circle cx="50" cy="29" r="3" fill="#818cf8"/>
-              </svg>
-            </div>
-
-            <div class="space-y-1.5 max-w-sm">
-              <h3 class="text-lg sm:text-xl font-black text-white tracking-tight">No rides found near you</h3>
-              <p class="text-xs text-slate-400 leading-relaxed">
-              No more rides near you right now. All carpools and bikepools from Campus Gates 1–4 are currently full or departed. Be the first student or faculty member to offer a seat!
-              </p>
-            </div>
-
-            <div class="flex flex-wrap items-center justify-center gap-3 pt-2">
-              <button type="button" onclick="switchMainTab('tabOfferRide', 'viewOfferRide')" class="bg-brand-600 hover:bg-brand-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition shadow-md shadow-brand-600/30 flex items-center gap-2 cursor-pointer">
-                <span>➕</span> Offer a Ride
-              </button>
-              <button type="button" onclick="syncLiveRides()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-4 py-2.5 rounded-xl text-xs transition border border-slate-700 flex items-center gap-1.5 cursor-pointer">
-                <span>🔄</span> Refresh Feed
-              </button>
-            </div>
-          </div>
-        `;
+      updateRideFilterControls();
+      updateRideFeedStatus();
+      if (filtered.length === 0) {
+        container.innerHTML = rideFeedStateMarkup();
+        updateRideFeedStatus();
         return;
       }
 
@@ -1760,12 +1765,12 @@
         const discountPct = (ride.uberBenchmark && ride.uberBenchmark > 0) ? Math.round((discountAmount / ride.uberBenchmark) * 100) : 0;
 
         return `
-          <div class="bg-slate-900 rounded-3xl border border-slate-800 p-5 shadow-lg hover:border-slate-700 transition flex flex-col justify-between space-y-4">
+          <div class="ride-card bg-slate-900 border border-slate-800 p-5 hover:border-slate-700 transition flex flex-col justify-between space-y-4">
             <div>
-              <div class="flex items-start justify-between gap-2 pb-3 border-b border-slate-800">
-                <div class="flex items-center gap-3">
-                  <div class="w-10 h-10 rounded-2xl bg-brand-500/20 text-brand-300 border border-brand-500/30 font-extrabold flex items-center justify-center text-sm">
-                    ${sanitize(ride.driverName.split(' ').map(n=>n[0]).join(''))}
+              <div class="ride-card-header flex items-start justify-between gap-2 pb-3 border-b border-slate-800">
+                <div class="ride-driver flex items-center gap-3">
+                  <div class="ride-driver-avatar w-10 h-10 rounded-xl bg-brand-500/20 text-brand-300 font-extrabold flex items-center justify-center text-sm">
+                    ${sanitize(ride.driverName.split(' ').filter(Boolean).slice(0, 2).map(n=>n[0]).join(''))}
                   </div>
                   <div>
                     <h3 class="font-bold text-white text-sm flex items-center gap-1.5">
@@ -1776,11 +1781,11 @@
                   </div>
                 </div>
                 <span class="text-[11px] font-bold px-2.5 py-1 rounded-full ${ride.vehicle === 'Bike' ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30' : 'bg-brand-500/20 text-brand-300 border border-brand-500/30'}">
-                  ${ride.vehicle === 'Bike' ? '🛵 Bike (1 Seat)' : `🚗 Car (${ride.seatsLeft} of ${ride.seatsTotal} Seats)`}
+                  ${ride.vehicle === 'Bike' ? 'Bike (1 Seat)' : `Car (${ride.seatsLeft} of ${ride.seatsTotal} Seats)`}
                 </span>
               </div>
 
-              <div class="mt-3 bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-1.5 text-xs">
+              <div class="ride-route mt-3 space-y-1.5 text-xs">
                 <div class="flex items-center gap-2">
                   <span class="text-emerald-400 font-bold">●</span>
                   <span class="text-slate-500 text-[11px]">From Gate:</span>
@@ -1792,7 +1797,7 @@
                   <span class="font-extrabold text-brand-300">${sanitize(ride.destination)}</span>
                 </div>
                 <div class="flex items-center justify-between pt-1 border-t border-slate-800/80 text-[11px] text-slate-400">
-                  <span>🕒 Departs: <strong class="text-slate-200">${sanitize(ride.departureTime)}</strong></span>
+                  <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-clock"></use></svg> Departs: <strong class="text-slate-200">${sanitize(ride.departureTime)}</strong></span>
                   <span>Vehicle: <strong class="text-slate-200">${sanitize(ride.vehicleModel)}</strong></span>
                 </div>
               </div>
@@ -1800,7 +1805,7 @@
               ${ride.note ? `<p class="text-xs text-slate-400 italic mt-2.5 px-1">"${sanitize(ride.note)}"</p>` : ''}
             </div>
 
-            <div class="pt-3 border-t border-slate-800 flex items-center justify-between">
+            <div class="ride-card-footer pt-3 border-t border-slate-800 flex items-center justify-between gap-3">
               <div>
                 <div class="flex items-baseline gap-1.5">
                   <span class="text-2xl font-black text-emerald-400">₹${ride.studentFare}</span>
@@ -1813,12 +1818,12 @@
                 `}
               </div>
 
-              <div class="flex items-center gap-1.5">
+              <div class="ride-actions flex items-center gap-1.5">
                 <button 
                   class="ask-rider-btn px-2.5 py-2 rounded-xl text-xs font-bold border border-emerald-500/40 text-emerald-300 hover:bg-emerald-950/60 transition cursor-pointer flex items-center gap-1 shadow-xs"
                   data-ride-id="${ride.id}"
                   title="Inquire with student driver">
-                  <span>💬</span> Ask Rider
+                  <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-chat"></use></svg></span> Ask Rider
                 </button>
                 <a 
                   href="https://www.google.com/maps/dir/?api=1&origin=MIT+ADT+University,+Loni+Kalbhor,+Pune&destination=${encodeURIComponent(ride.destination + ' Pune')}&travelmode=driving" 
@@ -1826,7 +1831,7 @@
                   rel="noopener noreferrer" 
                   class="px-2.5 py-2 rounded-xl text-xs font-bold border border-slate-700 text-slate-300 hover:bg-slate-800 transition cursor-pointer"
                   title="Open GPS route in Google Maps">
-                  🗺️
+                  <svg class="cp-icon" aria-hidden="true"><use href="#cp-map"></use></svg>
                 </a>
                 <button 
                   class="book-seat-btn px-3.5 py-2 rounded-xl text-xs font-bold transition shadow-md cursor-pointer ${hasSeats ? 'bg-brand-600 hover:bg-brand-500 text-white' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}"
@@ -1895,7 +1900,7 @@
         if (appState.myBookings.length === 0) {
           passengerContainer.innerHTML = `
             <div class="text-center py-8 text-slate-500 text-xs space-y-1">
-              <span class="text-3xl block mb-2">🎟️</span>
+              <span class="text-3xl block mb-2"><svg class="cp-icon" aria-hidden="true"><use href="#cp-ticket"></use></svg></span>
               <p class="font-bold text-slate-300">No active ride bookings found.</p>
               <p class="text-slate-500">Browse available student rides to Pune Station, Hadapsar, or Swargate to book a seat!</p>
             </div>
@@ -1926,10 +1931,10 @@
                 <div class="pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
                   <div class="flex items-center gap-1.5">
                     <a href="https://wa.me/${cleanDriverPhone}?text=${whatsappMsg}" target="_blank" rel="noopener noreferrer" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1 cursor-pointer">
-                      <span>💬</span> WhatsApp
+                      <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-chat"></use></svg></span> WhatsApp
                     </a>
                     <a href="tel:${cleanDriverPhone}" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-3 py-1.5 rounded-xl transition">
-                      📞 Call
+                      <svg class="cp-icon" aria-hidden="true"><use href="#cp-phone"></use></svg> Call
                     </a>
                   </div>
 
@@ -1940,11 +1945,11 @@
                       </span>
                     ` : `
                       <button class="pay-fuel-btn bg-brand-600 hover:bg-brand-500 text-white font-bold px-3 py-1.5 rounded-xl transition shadow-md cursor-pointer" data-booking-id="${b.bookingId}">
-                        ⚡ Pay ₹${b.studentFare} Fuel Share
+                        <svg class="cp-icon" aria-hidden="true"><use href="#cp-wallet"></use></svg> Pay ₹${b.studentFare} Fuel Share
                       </button>
                     `}
                     <button class="cancel-booking-btn bg-slate-900 hover:bg-rose-950/80 text-slate-400 hover:text-rose-300 font-semibold px-2.5 py-1.5 rounded-xl transition border border-slate-800 hover:border-rose-900/60 cursor-pointer text-[11px]" data-booking-id="${b.bookingId}">
-                      ✕ Cancel
+                      Cancel
                     </button>
                   </div>
                 </div>
@@ -1986,7 +1991,7 @@
         if (appState.myOfferedRides.length === 0) {
           driverContainer.innerHTML = `
             <div class="text-center py-8 text-slate-500 text-xs space-y-1">
-              <span class="text-3xl block mb-2">🚗</span>
+              <span class="text-3xl block mb-2"><svg class="cp-icon" aria-hidden="true"><use href="#cp-car"></use></svg></span>
               <p class="font-bold text-slate-300">You have not posted any rides yet.</p>
               <p class="text-slate-500">Offer an empty bike or car seat in the "Offer a Ride" tab to recover 90% fuel costs!</p>
             </div>
@@ -2006,7 +2011,7 @@
               <div class="pt-2 border-t border-slate-800 flex items-center justify-between">
                 <span class="text-[11px] text-slate-500">MIT ADT Campus Corridor</span>
                 <button class="cancel-ride-btn bg-slate-900 hover:bg-rose-950/80 text-slate-400 hover:text-rose-300 font-semibold px-2.5 py-1 rounded-lg transition border border-slate-800 hover:border-rose-900/60 cursor-pointer text-[11px]" data-ride-id="${r.id}">
-                  ✕ Cancel Ride
+                  Cancel Ride
                 </button>
               </div>
             </div>
@@ -2305,7 +2310,7 @@
       } finally {
         if (confirmBtn) {
           confirmBtn.disabled = false;
-          confirmBtn.innerHTML = `<span>✓</span> I Have Settled Dues (Unlock Account)`;
+          confirmBtn.innerHTML = `<span><svg class="cp-icon" aria-hidden="true"><use href="#cp-check"></use></svg></span> I Have Settled Dues (Unlock Account)`;
         }
       }
     });
@@ -2314,16 +2319,11 @@
       const tbody = document.getElementById('leaderboardTbody');
       if (!tbody) return;
 
-      if (!appState.leaderboard || appState.leaderboard.length === 0) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="6" class="py-10 text-center text-slate-500 text-xs">
-              <span class="text-2xl block mb-1">🏆</span>
-              <p class="font-bold text-slate-400">No rides completed yet this month.</p>
-              <p class="text-[11px] text-slate-600">Be the first student or faculty member to offer a peer ride!</p>
-            </td>
-          </tr>
-        `;
+      const hasPeers = Array.isArray(appState.leaderboard) && appState.leaderboard.length > 0;
+      document.getElementById('leaderboardScroller').hidden = !hasPeers;
+      document.getElementById('leaderboardEmpty').hidden = hasPeers;
+      if (!hasPeers) {
+        tbody.innerHTML = '';
         return;
       }
 
@@ -2348,38 +2348,35 @@
     // -------------------------------------------------------------
     // ENTERPRISE ACCESSIBLE MODAL CONTROLLER (BUG-01, CP-002, CP-003)
     // -------------------------------------------------------------
-    let lastActiveElement = null;
-
     function openModalById(modalId, triggerEl = null) {
-      const modal = document.getElementById(modalId);
-      if (!modal) return;
-      lastActiveElement = triggerEl || document.activeElement;
-      modal.removeAttribute('hidden');
-      modal.style.display = 'flex';
-      modal.classList.remove('hidden');
-
-      // Focus first focusable element or panel
-      setTimeout(() => {
-        const focusable = modal.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
-        if (focusable) focusable.focus();
-      }, 50);
+      return showModal(modalId, null, triggerEl);
     }
 
     function closeModalById(modalId) {
-      const modal = document.getElementById(modalId);
-      if (!modal) return;
-      modal.setAttribute('hidden', '');
-      modal.style.display = 'none';
-      modal.classList.add('hidden');
-
-      // Restore focus
-      if (lastActiveElement && typeof lastActiveElement.focus === 'function') {
-        try { lastActiveElement.focus(); } catch (e) {}
+      if (modalId === 'gpsTrackingModal') {
+        closeGpsTrackingModal();
+        return;
       }
+      if (modalId === 'welcomePopModal') {
+        closeWelcomePopScreen();
+        return;
+      }
+      hideModal(modalId);
+    }
+
+    function getTopmostOpenModal() {
+      for (let i = openModalIds.length - 1; i >= 0; i -= 1) {
+        const modal = document.getElementById(openModalIds[i]);
+        if (modal && !modal.hasAttribute('hidden') && modal.style.display !== 'none') return modal;
+      }
+      const visibleOverlays = Array.from(document.querySelectorAll('.modal-overlay:not([hidden])'))
+        .filter(modal => modal.style.display !== 'none' && !modal.classList.contains('hidden'));
+      return visibleOverlays.at(-1) || null;
     }
 
     // Global Dismissal on Backdrop Click (Outside .modal-panel)
     document.addEventListener('click', (e) => {
+      if (!(e.target instanceof Element)) return;
       const overlay = e.target.closest('.modal-overlay');
       if (overlay && e.target === overlay) {
         closeModalById(overlay.id);
@@ -2389,21 +2386,20 @@
     // Global Dismissal on Escape Key
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
-        const openOverlays = document.querySelectorAll('.modal-overlay:not([hidden])');
-        openOverlays.forEach(m => {
-          if (m.style.display !== 'none' && !m.classList.contains('hidden')) {
-            closeModalById(m.id);
-          }
-        });
+        const activeModal = getTopmostOpenModal();
+        if (activeModal) {
+          e.preventDefault();
+          closeModalById(activeModal.id);
+        }
       }
     });
 
     // W3C Accessible Focus Containment within Active Modal (CP-003)
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Tab') {
-        const activeModal = document.querySelector('.modal-overlay:not([hidden])');
+        const activeModal = getTopmostOpenModal();
         if (activeModal && activeModal.style.display !== 'none' && !activeModal.classList.contains('hidden')) {
-          const focusables = Array.from(activeModal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+          const focusables = Array.from(activeModal.querySelectorAll(modalFocusableSelector))
             .filter(el => el.offsetParent !== null);
           if (focusables.length === 0) return;
           const first = focusables[0];
@@ -2609,7 +2605,7 @@
 
       if (!identifier) {
         if (errEl) {
-          errEl.textContent = "⚠️ Please enter your registered email or 10-digit mobile number.";
+          errEl.textContent = "Please enter your registered email or 10-digit mobile number.";
           errEl.classList.remove('hidden');
         }
         return;
@@ -2631,7 +2627,7 @@
 
         if (!resp.ok) {
           if (errEl) {
-            errEl.textContent = `⚠️ ${data.message || 'No registered account found.'}`;
+            errEl.textContent = `${data.message || 'No registered account found.'}`;
             errEl.classList.remove('hidden');
           }
           showToast(data.message || "Sign-in request failed.", "⚠️");
@@ -2659,7 +2655,7 @@
         if (banner) {
           banner.className = "p-3 bg-brand-950/60 border border-brand-500/30 rounded-xl flex items-start gap-2.5 text-xs text-brand-200";
           banner.innerHTML = `
-            <span class="text-base shrink-0 mt-0.5">🔑</span>
+            <span class="text-base shrink-0 mt-0.5"><svg class="cp-icon" aria-hidden="true"><use href="#cp-user"></use></svg></span>
             <div class="space-y-0.5">
               <span class="font-bold text-white block">Sign-In Verification Code Dispatched</span>
               <p class="text-[11px] text-slate-300 leading-snug">
@@ -2704,7 +2700,7 @@
           showToast(`Sign-in verification code dispatched to ${localUser.email}`, "✉️");
         } else {
           if (errEl) {
-            errEl.textContent = "⚠️ No registered account found. Please click New Account to register.";
+            errEl.textContent = "No registered account found. Please click New Account to register.";
             errEl.classList.remove('hidden');
           }
           showToast("Account not found. Please register.", "⚠️");
@@ -2712,7 +2708,7 @@
       } finally {
         if (proceedBtn) {
           proceedBtn.disabled = false;
-          proceedBtn.innerHTML = `<span>✉️</span> Send Sign-In Code`;
+          proceedBtn.innerHTML = `<span><svg class="cp-icon" aria-hidden="true"><use href="#cp-mail"></use></svg></span> Send Sign-In Code`;
         }
       }
     });
@@ -2740,7 +2736,7 @@
       }
 
       if (!isOfficialUniversityEmail(email)) {
-        const msg = "⚠️ Only @students.mituniversity.edu.in or @mituniversity.edu.in permitted. Invalid institutional domain.";
+        const msg = "Only @students.mituniversity.edu.in or @mituniversity.edu.in permitted. Invalid institutional domain.";
         if (emailErr) {
           emailErr.textContent = msg;
           emailErr.classList.remove('hidden');
@@ -2751,7 +2747,7 @@
 
       if (!isValidIndianPhone(phone)) {
         if (phoneErr) {
-          phoneErr.textContent = "⚠️ Please enter a valid 10-digit mobile number.";
+          phoneErr.textContent = "Please enter a valid 10-digit mobile number.";
           phoneErr.classList.remove('hidden');
         }
         return;
@@ -2761,7 +2757,7 @@
       const localCheck = checkClientDbUniqueness(name, email, phone);
       if (!localCheck.unique) {
         if (localCheck.field === 'phone' && phoneErr) {
-          phoneErr.textContent = `⚠️ ${localCheck.message}`;
+          phoneErr.textContent = `${localCheck.message}`;
           phoneErr.classList.remove('hidden');
         }
         showToast(localCheck.message, "⚠️");
@@ -2785,19 +2781,19 @@
 
         if (!resp.ok) {
           if (data.field === 'email' && emailErr) {
-            emailErr.textContent = `⚠️ ${data.message}`;
+            emailErr.textContent = `${data.message}`;
             emailErr.classList.remove('hidden');
           } else if (data.field === 'phone' && phoneErr) {
-            phoneErr.textContent = `⚠️ ${data.message}`;
+            phoneErr.textContent = `${data.message}`;
             phoneErr.classList.remove('hidden');
           } else if (data.field === 'name' && nameErr) {
-            nameErr.textContent = `⚠️ ${data.message}`;
+            nameErr.textContent = `${data.message}`;
             nameErr.classList.remove('hidden');
           }
           showToast(data.message || "Failed to dispatch verification code.", "⚠️");
           if (proceedBtn) {
             proceedBtn.disabled = false;
-            proceedBtn.innerHTML = `<span>✉️</span> Send Email Verification OTP`;
+            proceedBtn.innerHTML = `<span><svg class="cp-icon" aria-hidden="true"><use href="#cp-mail"></use></svg></span> Send Email Verification OTP`;
           }
           return;
         }
@@ -2825,7 +2821,7 @@
         if (banner) {
           banner.className = "p-3 bg-brand-950/60 border border-brand-500/30 rounded-xl flex items-start gap-2.5 text-xs text-brand-200";
           banner.innerHTML = `
-            <span class="text-base shrink-0 mt-0.5">📨</span>
+            <span class="text-base shrink-0 mt-0.5"><svg class="cp-icon" aria-hidden="true"><use href="#cp-mail"></use></svg></span>
             <div class="space-y-0.5">
               <span class="font-bold text-white block">Verification Code Dispatched</span>
               <p class="text-[11px] text-slate-300 leading-snug">
@@ -2867,7 +2863,7 @@
       } finally {
         if (proceedBtn) {
           proceedBtn.disabled = false;
-          proceedBtn.innerHTML = `<span>✉️</span> Send Email Verification OTP`;
+          proceedBtn.innerHTML = `<span><svg class="cp-icon" aria-hidden="true"><use href="#cp-mail"></use></svg></span> Send Email Verification OTP`;
         }
       }
     });
@@ -2899,7 +2895,7 @@
 
       if (!enteredOtp || enteredOtp.length !== 6) {
         if (errEl) {
-          errEl.textContent = "⚠️ Please enter the complete 6-digit verification code.";
+          errEl.textContent = "Please enter the complete 6-digit verification code.";
           errEl.classList.remove('hidden');
         }
         return;
@@ -2915,7 +2911,7 @@
 
         if (!resp.ok) {
           if (errEl) {
-            errEl.textContent = `⚠️ ${data.message || 'Incorrect verification code.'}`;
+            errEl.textContent = `${data.message || 'Incorrect verification code.'}`;
             errEl.classList.remove('hidden');
           }
           return;
@@ -2967,7 +2963,7 @@
 
         if (appState.pendingAuth.clientFallbackOtp && enteredOtp !== appState.pendingAuth.clientFallbackOtp) {
           if (errEl) {
-            errEl.textContent = "⚠️ Incorrect verification code.";
+            errEl.textContent = "Incorrect verification code.";
             errEl.classList.remove('hidden');
           }
           return;
@@ -3010,7 +3006,7 @@
 
       if (!enteredOtp || enteredOtp.length !== 6) {
         if (errEl) {
-          errEl.textContent = "⚠️ Please enter the complete 6-digit SMS verification code.";
+          errEl.textContent = "Please enter the complete 6-digit SMS verification code.";
           errEl.classList.remove('hidden');
         }
         return;
@@ -3026,7 +3022,7 @@
         const data = await resp.json();
         if (!resp.ok) {
           if (errEl) {
-            errEl.textContent = `⚠️ ${data.message || 'Incorrect SMS code.'}`;
+            errEl.textContent = `${data.message || 'Incorrect SMS code.'}`;
             errEl.classList.remove('hidden');
           }
           return;
@@ -3206,21 +3202,11 @@
         `;
       }
 
-      const bModal = document.getElementById('bookingModal');
-      if (bModal) {
-        bModal.removeAttribute('hidden');
-        bModal.style.display = 'flex';
-        bModal.classList.remove('hidden');
-      }
+      showModal('bookingModal', '#confirmBookingBtn');
     }
 
     function closeBookingModal() {
-      const bModal = document.getElementById('bookingModal');
-      if (bModal) {
-        bModal.setAttribute('hidden', '');
-        bModal.style.display = 'none';
-        bModal.classList.add('hidden');
-      }
+      hideModal('bookingModal');
     }
 
     document.getElementById('closeBookingModalBtn')?.addEventListener('click', () => {
@@ -3312,7 +3298,7 @@
               <div class="flex items-center justify-between">
                 <span class="text-[10px] text-brand-400 font-bold uppercase tracking-wider block">Driver UPI VPA</span>
                 <button type="button" class="copy-vpa-btn text-[10px] bg-slate-800 hover:bg-slate-700 text-brand-300 px-2 py-0.5 rounded-md border border-slate-700 cursor-pointer flex items-center gap-1" data-vpa="${sanitize(booking.upiId)}">
-                  <span>📋</span> Copy
+                  <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-copy"></use></svg></span> Copy
                 </button>
               </div>
               <div class="font-mono font-black text-brand-300 text-sm break-all">${sanitize(booking.upiId)}</div>
@@ -3327,21 +3313,11 @@
       const upiBtn = document.getElementById('paymentUpiLinkBtn');
       if (upiBtn) upiBtn.href = upiUrl;
 
-      const pModal = document.getElementById('paymentModal');
-      if (pModal) {
-        pModal.removeAttribute('hidden');
-        pModal.style.display = 'flex';
-        pModal.classList.remove('hidden');
-      }
+      showModal('paymentModal', '#markPaymentDoneBtn');
     }
 
     document.getElementById('closePaymentModalBtn')?.addEventListener('click', () => {
-      const pModal = document.getElementById('paymentModal');
-      if (pModal) {
-        pModal.setAttribute('hidden', '');
-        pModal.style.display = 'none';
-        pModal.classList.add('hidden');
-      }
+      hideModal('paymentModal');
     });
 
     document.getElementById('markPaymentDoneBtn')?.addEventListener('click', async () => {
@@ -3351,12 +3327,7 @@
       b.paymentStatus = 'Paid';
       saveState();
       renderMyRidesViews();
-      const pModal = document.getElementById('paymentModal');
-      if (pModal) {
-        pModal.setAttribute('hidden', '');
-        pModal.style.display = 'none';
-        pModal.classList.add('hidden');
-      }
+      hideModal('paymentModal');
       showToast(`Payment marked as complete! Receipt updated.`, "✅");
 
       // Update in SQLite Backend
@@ -3382,21 +3353,11 @@
       const upiBtn = document.getElementById('settleUpiLinkBtn');
       if (upiBtn) upiBtn.href = upiUrl;
 
-      const dModal = document.getElementById('driverSettlementModal');
-      if (dModal) {
-        dModal.removeAttribute('hidden');
-        dModal.style.display = 'flex';
-        dModal.classList.remove('hidden');
-      }
+      showModal('driverSettlementModal', '#markCommissionPaidBtn');
     });
 
     document.getElementById('closeSettlementModalBtn')?.addEventListener('click', () => {
-      const dModal = document.getElementById('driverSettlementModal');
-      if (dModal) {
-        dModal.setAttribute('hidden', '');
-        dModal.style.display = 'none';
-        dModal.classList.add('hidden');
-      }
+      hideModal('driverSettlementModal');
     });
 
     document.getElementById('markCommissionPaidBtn')?.addEventListener('click', () => {
@@ -3404,7 +3365,7 @@
       appState.settledCommissionAmount = (appState.settledCommissionAmount || 0) + comm.netDue;
       saveState();
       updateDriverCommissionBanner();
-      document.getElementById('driverSettlementModal')?.classList.add('hidden');
+      hideModal('driverSettlementModal');
       showToast("Weekly commission settled! Thank you for supporting CampusPool.", "✅");
     });
 
@@ -3439,6 +3400,13 @@
         activeBtn.classList.add('bg-brand-600', 'text-white', 'font-bold');
         activeBtn.setAttribute('aria-selected', 'true');
         activeBtn.tabIndex = 0;
+        const tabList = activeBtn.parentElement;
+        if (tabList) {
+          const offset = activeBtn.offsetLeft - tabList.offsetLeft;
+          if (offset < tabList.scrollLeft || offset + activeBtn.offsetWidth > tabList.scrollLeft + tabList.clientWidth) {
+            tabList.scrollLeft = offset - 6;
+          }
+        }
       }
 
       const activeView = document.getElementById(viewId);
@@ -3476,31 +3444,65 @@
       nextTab?.focus();
     });
 
-    document.getElementById('heroFindRideBtn')?.addEventListener('click', () => switchMainTab('tabFindRides', 'viewFindRides'));
-    document.getElementById('heroOfferRideBtn')?.addEventListener('click', () => switchMainTab('tabOfferRide', 'viewOfferRide'));
+    function openCommuteView(tabId, viewId) {
+      switchMainTab(tabId, viewId);
+      const view = document.getElementById(viewId);
+      view?.scrollIntoView({ block: 'start' });
+      view?.focus({ preventScroll: true });
+    }
 
-    document.getElementById('togglePassengerSubTab')?.addEventListener('click', () => {
-      document.getElementById('togglePassengerSubTab').className = "px-3 py-1.5 rounded-lg bg-brand-600 text-white shadow-xs transition cursor-pointer";
-      document.getElementById('toggleDriverSubTab').className = "px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition cursor-pointer";
-      document.getElementById('passengerBookingsSection')?.classList.remove('hidden');
-      document.getElementById('driverRidesSection')?.classList.add('hidden');
+    document.getElementById('heroFindRideBtn')?.addEventListener('click', () => openCommuteView('tabFindRides', 'viewFindRides'));
+    document.getElementById('heroOfferRideBtn')?.addEventListener('click', () => openCommuteView('tabOfferRide', 'viewOfferRide'));
+
+    function switchMyRidesRole(role) {
+      const isPassenger = role === 'passenger';
+      const passengerTab = document.getElementById('togglePassengerSubTab');
+      const driverTab = document.getElementById('toggleDriverSubTab');
+      const passengerPanel = document.getElementById('passengerBookingsSection');
+      const driverPanel = document.getElementById('driverRidesSection');
+
+      if (passengerTab) {
+        passengerTab.className = isPassenger
+          ? "px-3 py-1.5 rounded-lg bg-brand-600 text-white shadow-xs transition cursor-pointer"
+          : "px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition cursor-pointer";
+        passengerTab.setAttribute('aria-selected', String(isPassenger));
+        passengerTab.tabIndex = isPassenger ? 0 : -1;
+      }
+      if (driverTab) {
+        driverTab.className = isPassenger
+          ? "px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition cursor-pointer"
+          : "px-3 py-1.5 rounded-lg bg-brand-600 text-white shadow-xs transition cursor-pointer";
+        driverTab.setAttribute('aria-selected', String(!isPassenger));
+        driverTab.tabIndex = isPassenger ? -1 : 0;
+      }
+      if (passengerPanel) {
+        passengerPanel.hidden = !isPassenger;
+        passengerPanel.classList.toggle('hidden', !isPassenger);
+      }
+      if (driverPanel) {
+        driverPanel.hidden = isPassenger;
+        driverPanel.classList.toggle('hidden', isPassenger);
+      }
+    }
+
+    document.getElementById('togglePassengerSubTab')?.addEventListener('click', () => switchMyRidesRole('passenger'));
+    document.getElementById('toggleDriverSubTab')?.addEventListener('click', () => switchMyRidesRole('driver'));
+
+    document.querySelector('[aria-label="My rides role"]')?.addEventListener('keydown', (event) => {
+      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      const nextRole = (event.key === 'ArrowLeft' || event.key === 'ArrowUp' || event.key === 'Home')
+        ? 'passenger'
+        : 'driver';
+      switchMyRidesRole(nextRole);
+      document.getElementById(nextRole === 'passenger' ? 'togglePassengerSubTab' : 'toggleDriverSubTab')?.focus();
     });
 
-    document.getElementById('toggleDriverSubTab')?.addEventListener('click', () => {
-      document.getElementById('toggleDriverSubTab').className = "px-3 py-1.5 rounded-lg bg-brand-600 text-white shadow-xs transition cursor-pointer";
-      document.getElementById('togglePassengerSubTab').className = "px-3 py-1.5 rounded-lg text-slate-400 hover:text-white transition cursor-pointer";
-      document.getElementById('driverRidesSection')?.classList.remove('hidden');
-      document.getElementById('passengerBookingsSection')?.classList.add('hidden');
-    });
-
-    // Destination Filter Chips
+    // Destination filters expose selection to assistive technology.
     document.querySelectorAll('.dest-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        document.querySelectorAll('.dest-btn').forEach(b => {
-          b.className = "dest-btn bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer";
-        });
-        e.currentTarget.className = "dest-btn bg-brand-600 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer";
-        appState.activeDestFilter = e.currentTarget.getAttribute('data-dest');
+        appState.activeDestFilter = e.currentTarget.dataset.dest;
+        saveState();
         renderRidesGrid();
       });
     });
@@ -3608,11 +3610,11 @@
 
       if (advisory) {
         if (diff > 0) {
-          advisory.innerHTML = `<span>💡</span> <span>Great price! Students save ₹${diff} vs commercial Uber (${pct}% OFF) and are eager to join.</span>`;
+          advisory.innerHTML = `<span><svg class="cp-icon" aria-hidden="true"><use href="#cp-info"></use></svg></span> <span>Great price! Students save ₹${diff} vs commercial Uber (${pct}% OFF) and are eager to join.</span>`;
         } else if (diff === 0) {
           advisory.innerHTML = `<span>ℹ️</span> <span>Price matches normal Uber fare. Giving a small student discount usually fills empty seats in minutes.</span>`;
         } else {
-          advisory.innerHTML = `<span>⚠️</span> <span class="text-rose-300 font-semibold">Priced higher than commercial Uber (₹${benchmark}). Consider a lower price to attract student riders.</span>`;
+          advisory.innerHTML = `<span><svg class="cp-icon" aria-hidden="true"><use href="#cp-alert"></use></svg></span> <span class="text-rose-300 font-semibold">Priced higher than commercial Uber (₹${benchmark}). Consider a lower price to attract student riders.</span>`;
         }
       }
     }
@@ -3830,13 +3832,13 @@
     // =============================================================
     const CAMPUS_COORDS = {
       center: [18.4905, 74.0255],
-      gate1: { name: "MIT ADT Main Gate 1 (NH 65)", coords: [18.4905, 74.0255], icon: "📍" },
-      gate2: { name: "World Peace Dome Square (Gate 2)", coords: [18.4891, 74.0280], icon: "🏛️" },
-      gate3: { name: "Sangamwadi Hostel Quad (Gate 3)", coords: [18.4930, 74.0230], icon: "🏠" },
-      gate4: { name: "VishwaRaj Hospital (Gate 4)", coords: [18.4875, 74.0240], icon: "🏥" },
-      hadapsar: { name: "Hadapsar Gadital Bus Stop", coords: [18.5089, 73.9260], icon: "🚏" },
-      station: { name: "Pune Railway Station", coords: [18.5289, 73.8744], icon: "🚉" },
-      swargate: { name: "Swargate Bus Station", coords: [18.5018, 73.8636], icon: "🚌" }
+      gate1: { name: "MIT ADT Main Gate 1 (NH 65)", coords: [18.4905, 74.0255], icon: "pin" },
+      gate2: { name: "World Peace Dome Square (Gate 2)", coords: [18.4891, 74.0280], icon: "pin" },
+      gate3: { name: "Sangamwadi Hostel Quad (Gate 3)", coords: [18.4930, 74.0230], icon: "pin" },
+      gate4: { name: "VishwaRaj Hospital (Gate 4)", coords: [18.4875, 74.0240], icon: "pin" },
+      hadapsar: { name: "Hadapsar Gadital Bus Stop", coords: [18.5089, 73.9260], icon: "pin" },
+      station: { name: "Pune Railway Station", coords: [18.5289, 73.8744], icon: "pin" },
+      swargate: { name: "Swargate Bus Station", coords: [18.5018, 73.8636], icon: "car" }
     };
 
     let campusLeafletMapInstance = null;
@@ -3894,7 +3896,7 @@
         const marker = L.marker(gate.coords).addTo(campusLeafletMapInstance);
         marker.bindPopup(`
           <div style="font-family: inherit; font-size: 11px;">
-            <strong style="color: #4f46e5;">${gate.icon} ${gate.name}</strong><br/>
+            <strong style="color: #171717;">${renderIcon(gate.icon)} ${gate.name}</strong><br/>
             <span style="color: #64748b;">Primary 24/7 CCTV Monitored Commuter Bay</span>
           </div>
         `);
@@ -3943,7 +3945,7 @@
             userLocationMarker = L.marker([lat, lng], { icon: pulseIcon }).addTo(campusLeafletMapInstance);
             userLocationMarker.bindPopup(`
               <div style="font-family: inherit; font-size: 11px;">
-                <strong style="color: #10b981;">📍 Your Live Location</strong><br/>
+                <strong style="color: #087443;"><svg class="cp-icon" aria-hidden="true"><use href="#cp-pin"></use></svg> Your Live Location</strong><br/>
                 <span>Accurate to ${acc} meters</span>
               </div>
             `).openPopup();
@@ -4000,11 +4002,7 @@
 
       if (titleEl) titleEl.textContent = title;
 
-      if (modal) {
-        modal.removeAttribute('hidden');
-        modal.style.display = 'flex';
-        modal.classList.remove('hidden');
-      }
+      showModal(modal, isDriver ? '#gpsDriverBroadcastBtn' : '#gpsPassengerShareLocationBtn');
 
       setTimeout(() => {
         initGpsTrackerMap();
@@ -4028,12 +4026,7 @@
     }
 
     function closeGpsTrackingModal() {
-      const modal = document.getElementById('gpsTrackingModal');
-      if (modal) {
-        modal.setAttribute('hidden', '');
-        modal.style.display = 'none';
-        modal.classList.add('hidden');
-      }
+      hideModal('gpsTrackingModal');
       if (activeWatchPositionId && navigator.geolocation) {
         navigator.geolocation.clearWatch(activeWatchPositionId);
         activeWatchPositionId = null;
@@ -4050,7 +4043,7 @@
       if (bBtn) {
         bBtn.classList.remove('bg-rose-600');
         bBtn.classList.add('bg-emerald-600');
-        bBtn.innerHTML = '<span>📡</span> Start GPS Sharing';
+        bBtn.innerHTML = '<span><svg class="cp-icon" aria-hidden="true"><use href="#cp-signal"></use></svg></span> Start GPS Sharing';
       }
     }
 
@@ -4063,7 +4056,7 @@
       // Update or create driver marker
       const carIcon = L.divIcon({
         className: 'driver-live-marker',
-        html: '🚗',
+        html: renderIcon('car'),
         iconSize: [32, 32],
         iconAnchor: [16, 16]
       });
@@ -4073,7 +4066,7 @@
       } else {
         driverMarker.setLatLng(dCoords);
       }
-      driverMarker.bindPopup('<strong style="font-size:11px; color:#10b981;">🚗 Driver Live Vehicle</strong>');
+      driverMarker.bindPopup('<strong style="font-size:11px; color:#087443;"><svg class="cp-icon" aria-hidden="true"><use href="#cp-car"></use></svg> Driver Live Vehicle</strong>');
 
       // Update or create passenger pickup marker
       const passIcon = L.divIcon({
@@ -4088,11 +4081,11 @@
       } else {
         passengerMarker.setLatLng(pCoords);
       }
-      passengerMarker.bindPopup('<strong style="font-size:11px; color:#3b82f6;">📍 Passenger Pickup Bay</strong>');
+      passengerMarker.bindPopup('<strong style="font-size:11px; color:#171717;"><svg class="cp-icon" aria-hidden="true"><use href="#cp-pin"></use></svg> Passenger Pickup Bay</strong>');
 
       // Update Polyline
       if (!routePolyline) {
-        routePolyline = L.polyline([dCoords, pCoords], { color: '#6366f1', weight: 4, dashArray: '6, 8' }).addTo(gpsTrackerMapInstance);
+        routePolyline = L.polyline([dCoords, pCoords], { color: '#171717', weight: 4, dashArray: '6, 8' }).addTo(gpsTrackerMapInstance);
       } else {
         routePolyline.setLatLngs([dCoords, pCoords]);
       }
@@ -4140,7 +4133,7 @@
         activeWatchPositionId = null;
         btn.classList.remove('bg-rose-600');
         btn.classList.add('bg-emerald-600');
-        btn.innerHTML = '<span>📡</span> Start GPS Sharing';
+        btn.innerHTML = '<span><svg class="cp-icon" aria-hidden="true"><use href="#cp-signal"></use></svg></span> Start GPS Sharing';
         showToast("Stopped live GPS streaming.", "🛑");
         return;
       }
@@ -4152,7 +4145,7 @@
 
       btn.classList.remove('bg-emerald-600');
       btn.classList.add('bg-rose-600');
-      btn.innerHTML = '<span>🛑</span> Stop GPS Sharing';
+      btn.innerHTML = '<span><svg class="cp-icon" aria-hidden="true"><use href="#cp-stop"></use></svg></span> Stop GPS Sharing';
       showToast("Live GPS Broadcast Active! Streaming to passenger.", "📡");
 
       activeWatchPositionId = navigator.geolocation.watchPosition(
