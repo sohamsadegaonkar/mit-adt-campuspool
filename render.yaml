@@ -19,10 +19,10 @@ services:
       - key: SMTP_SECURE
         value: "true"
       - key: SMTP_USER
-        value: sadegaonkarsg@gmail.com
+        sync: false
       - key: SMTP_PASS
-        value: ngvs yldy rgpu kfpm
+        sync: false
       - key: SMTP_FROM
-        value: MIT ADT CampusPool <sadegaonkarsg@gmail.com>
+        sync: false
       - key: OTP_SECRET
         generateValue: true
