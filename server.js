@@ -11,6 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const url = require('url');
+const smsProvider = require('./sms-provider');
 
 const PORT = process.env.PORT || 3000;
 const DB_FILE = path.join(__dirname, 'campuspool_database.json');
@@ -972,62 +973,51 @@ const server = http.createServer(async (req, res) => {
   // REST API: /api/auth/send-phone-otp
   // -----------------------------------------------------------------------
   if (method === 'POST' && pathname === '/api/auth/send-phone-otp') {
-    if (IS_PRODUCTION) {
-      // This codebase has no functioning SMS provider integration. Never claim an SMS was delivered.
-      return sendJson(503, { success: false, error: 'SMS_PROVIDER_NOT_CONFIGURED', message: 'Phone verification is temporarily unavailable.' });
+    if (!smsProvider.isConfigured()) {
+      return sendJson(503, { success: false, error: 'SMS_PROVIDER_NOT_CONFIGURED',
+        message: 'SMS verification is temporarily unavailable.' });
     }
     const body = await parseBody();
-    const phone = (body.phone || '').trim();
-    const cleanDigits = phone.replace(/[^0-9]/g, '').slice(-10);
-
-    if (cleanDigits.length !== 10 || !/^[6-9]\d{9}$/.test(cleanDigits)) {
-      return sendJson(400, {
-        success: false,
-        error: 'INVALID_PHONE',
-        message: 'Must be a valid 10-digit Indian mobile number.'
-      });
+    const digits = typeof body.phone === 'string' ? body.phone.replace(/[^0-9]/g, '').slice(-10) : '';
+    if (!/^[6-9][0-9]{9}$/.test(digits)) {
+      return sendJson(400, { success: false, error: 'INVALID_PHONE', message: 'Enter a valid Indian mobile number.' });
     }
-
-    // Check database uniqueness for phone
-    const profiles = db.getProfiles();
-    for (const p of profiles) {
-      if (p.phone.replace(/[^0-9]/g, '').slice(-10) === cleanDigits) {
-        return sendJson(409, {
-          success: false,
-          field: 'phone',
-          error: 'DUPLICATE_PHONE',
-          message: `This mobile number (+91 ${cleanDigits}) is already registered.`
-        });
-      }
+    const uniqueProfile = db.getProfiles().some(profile =>
+      (profile.phone || '').replace(/[^0-9]/g, '').slice(-10) === digits
+    );
+    if (uniqueProfile) {
+      return sendJson(409, { success: false, error: 'PHONE_ALREADY_REGISTERED',
+        message: 'This mobile number is already registered.' });
     }
-
+    const previous = db.findOtp(digits, 'PHONE');
+    if (previous && previous.resendCooldownUntil > Date.now()) {
+      return sendJson(429, { success: false, error: 'OTP_RESEND_COOLDOWN',
+        retryAfter: Math.ceil((previous.resendCooldownUntil - Date.now()) / 1000) });
+    }
     const otp = generateOtpCode();
-    const hashed = hashOtp(cleanDigits, otp);
-    const expiresAt = Date.now() + 10 * 60 * 1000;
-
-    db.cleanExpiredOtps(cleanDigits);
-
+    try {
+      await smsProvider.sendOtpSms(digits, otp);
+    } catch (error) {
+      console.warn('[SMS] Provider rejected or could not accept OTP delivery');
+      return sendJson(503, { success: false, error: 'SMS_DELIVERY_UNAVAILABLE',
+        message: 'SMS delivery failed. Please try again later.' });
+    }
+    db.cleanExpiredOtps(digits);
     db.saveOtp({
       id: crypto.randomUUID(),
-      identifier: cleanDigits,
+      identifier: digits,
       type: 'PHONE',
-      hashedOtp: hashed,
+      hashedOtp: hashOtp(digits, otp),
       attemptsLeft: 5,
-      expiresAt: expiresAt,
+      expiresAt: Date.now() + 10 * 60 * 1000,
       resendCooldownUntil: Date.now() + 45 * 1000,
       isVerified: false,
       token: null,
       createdAt: Date.now()
     });
-
-    if (ALLOW_DEV_OTP) console.log('[DEV-ONLY] Phone OTP is available for explicit local testing:', otp);
-    else console.log('[AUTH-PHONE] Local-only OTP generated but SMS delivery is not available');
-
-    return sendJson(200, {
-      success: true,
-      message: `SMS verification code dispatched to +91 ${cleanDigits}.`,
-      expiresInSeconds: 600
-    });
+    return sendJson(200, { success: true,
+      message: 'SMS verification code submitted for delivery.',
+      expiresInSeconds: 600 });
   }
 
   // -----------------------------------------------------------------------
@@ -1036,7 +1026,10 @@ const server = http.createServer(async (req, res) => {
   if (method === 'POST' && pathname === '/api/auth/verify-phone-otp') {
     const body = await parseBody();
     const cleanDigits = (body.phone || '').replace(/[^0-9]/g, '').slice(-10);
-    const enteredOtp = (body.otp || '').trim();
+    const enteredOtp = typeof body.otp === 'string' ? body.otp.trim() : '';
+    if (!/^[0-9]{6}$/.test(enteredOtp)) {
+      return sendJson(400, { success: false, error: 'INVALID_OTP_FORMAT' });
+    }
 
     const record = db.findOtp(cleanDigits, 'PHONE');
     if (!record) {
