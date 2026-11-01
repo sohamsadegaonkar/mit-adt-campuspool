@@ -18,6 +18,8 @@ async function migrate({
     await pool.query(hardeningSql);
     const indexSql=fs.readFileSync(path.join(__dirname,'migrations','004_audit_user_index.sql'),'utf8');
     await pool.query(indexSql);
+    const roleSql=fs.readFileSync(path.join(__dirname,'migrations','005_staging_backend_role.sql'),'utf8');
+    await pool.query(roleSql);
     console.log('[OTP MIGRATION] Applied OTP, identity, and private-table security migrations');
   } finally {
     await pool.end();
