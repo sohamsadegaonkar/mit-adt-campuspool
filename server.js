@@ -50,6 +50,22 @@ if (IS_PRODUCTION && (!OTP_SECRET || OTP_SECRET === 'mit_adt_campuspool_jwt_hmac
 }
 const ALLOWED_CORS_ORIGINS = new Set((process.env.CORS_ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean));
 const TRUSTED_PROXY_ADDRESSES = new Set((process.env.TRUSTED_PROXY_ADDRESSES || '').split(',').map(s => s.trim()).filter(Boolean));
+const STAGING_ONLY = process.env.APP_ENV === 'staging';
+const STAGING_BASIC_AUTH_PASSWORD = process.env.STAGING_BASIC_AUTH_PASSWORD || '';
+if (STAGING_ONLY && STAGING_BASIC_AUTH_PASSWORD.length < 20) {
+  throw new Error('Staging requires a strong STAGING_BASIC_AUTH_PASSWORD (at least 20 characters)');
+}
+function constantTimeMatch(a, b) {
+  const left = crypto.createHash('sha256').update(String(a)).digest();
+  const right = crypto.createHash('sha256').update(String(b)).digest();
+  return crypto.timingSafeEqual(left, right);
+}
+function validStagingBasicAuth(header) {
+  if (!header || !header.startsWith('Basic ') || header.length > 512) return false;
+  let plain;
+  try { plain = Buffer.from(header.slice(6), 'base64').toString('utf8'); } catch { return false; }
+  return constantTimeMatch(plain, 'staging:' + STAGING_BASIC_AUTH_PASSWORD);
+}
 
 // -------------------------------------------------------------------------
 // Built-in Multi-Worker Cluster Load Balancer Configuration
@@ -360,6 +376,13 @@ const server = http.createServer(async (req, res) => {
   const parsedUrl = url.parse(req.url, true);
   const pathname = parsedUrl.pathname || '/';
   const method = req.method.toUpperCase();
+  if (STAGING_ONLY && pathname !== '/healthz' && !validStagingBasicAuth(req.headers.authorization)) {
+    res.writeHead(401, {
+      'WWW-Authenticate': 'Basic realm="CampusPool staging", charset="UTF-8"',
+      'Cache-Control': 'no-store', 'Content-Type': 'text/plain; charset=utf-8'
+    });
+    return res.end('Staging access restricted');
+  }
   res.on('finish', () => {
     // Structured operational logging: path only, no query parameters or credentials.
     const durationMs = Date.now() - startedAt;
@@ -381,7 +404,7 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('Vary', 'Origin');
   if (allowedOrigin) res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-CSRF-Token');
   res.setHeader('Access-Control-Expose-Headers', 'RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset, Retry-After');
   if (origin && !allowedOrigin) {
     res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -540,10 +563,32 @@ const server = http.createServer(async (req, res) => {
     res.setHeader('Set-Cookie', 'cp_session=' + token + '; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800' + (IS_PRODUCTION ? '; Secure' : ''));
     return true;
   }
-  const authenticatedUser = db.getSessionUser(readSessionToken());
+  const sessionToken = readSessionToken();
+  const authenticatedUser = db.getSessionUser(sessionToken);
+  // CSRF token is tied to a server-issued session, never persisted in a browser storage.
+  function csrfForSession(token) {
+    return crypto.createHmac('sha256', OTP_SECRET).update('csrf:v1:' + token).digest('hex');
+  }
+  function authenticatedMutationAllowed() {
+    if (!sessionToken || !authenticatedUser) return false;
+    const provided = req.headers['x-csrf-token'];
+    return typeof provided === 'string' && /^[a-f0-9]{64}$/.test(provided)
+      && constantTimeMatch(provided, csrfForSession(sessionToken));
+  }
   const publicApiRoute = pathname.startsWith('/api/auth/') || pathname === '/api/health' || pathname === '/api/lb-status' || pathname === '/healthz';
   if (pathname.startsWith('/api/') && !publicApiRoute && !authenticatedUser) {
     return sendJson(401, { success: false, error: 'AUTH_REQUIRED', message: 'Sign in with your verified campus account.' });
+  }
+  if (method === 'GET' && pathname === '/api/auth/me') {
+    if (!authenticatedUser) {
+      return sendJson(401, { success: false, error: 'AUTH_REQUIRED' });
+    }
+    return sendJson(200, { success: true, user: authenticatedUser, csrfToken: csrfForSession(sessionToken) });
+  }
+  if (pathname.startsWith('/api/') && (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE')
+    && authenticatedUser && (!pathname.startsWith('/api/auth/') || pathname === '/api/auth/logout')
+    && !authenticatedMutationAllowed()) {
+    return sendJson(403, { success: false, error: 'CSRF_REQUIRED', message: 'Refresh your session and try again.' });
   }
   if (method === 'POST' && pathname === '/api/auth/logout') {
     const token = readSessionToken();
