@@ -1,0 +1,59 @@
+name: Stage 1 PostgreSQL OTP tests
+
+on:
+  push:
+    branches:
+      - feature/stage1-postgres-otp
+  pull_request:
+    paths:
+      - 'stage1-otp/**'
+      - 'test_stage1_otp.js'
+      - 'server.js'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/stage1-otp.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-otp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: stage1-ci-only
+          POSTGRES_DB: campuspool_stage1_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d campuspool_stage1_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      OTP_DATABASE_URL: postgresql://postgres:stage1-ci-only@127.0.0.1:5432/campuspool_stage1_ci
+      OTP_DB_SSL: "false"
+      AUTH_OTP_BACKEND: postgres
+      OTP_HMAC_KEY: stage1-ci-only-randomized-in-real-environments-0000000000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Verify source syntax
+        run: |
+          node --check server.js
+          node --check stage1-otp/pg-store.js
+          node --check stage1-otp/auth-routes.js
+          node --check stage1-otp/email-provider.js
+          node --check stage1-otp/migrate.js
+          node --check test_stage1_otp.js
+      - name: Run isolated PostgreSQL integration tests
+        run: npm run test:stage1
