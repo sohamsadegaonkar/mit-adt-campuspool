@@ -5,7 +5,7 @@ services:
   - type: web
     runtime: node
     name: mit-adt-campuspool-staging
-    region: oregon
+    region: singapore
     plan: free
     branch: feature/stage1-postgres-otp
     autoDeployTrigger: 'off'
