@@ -187,7 +187,7 @@ test('CampusPool pre-deploy security smoke tests (isolated local database)', { t
       assert.equal(blocked.status,403);
       rideFields.driverEmail=person.email;
       const created=await fetch(base+'/api/rides',{
-        method:'POST',headers:{...cookie,'Content-Type':'application/json'},body:JSON.stringify(rideFields)
+        method:'POST',headers:{...authenticatedHeaders,'Content-Type':'application/json'},body:JSON.stringify(rideFields)
       });
       assert.equal(created.status,201);
       const record=(await created.json()).ride;
