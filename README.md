@@ -1,3 +1,8 @@
+> [!CAUTION]
+> **Predeployment security work is in progress. Do not deploy this branch or accept real payments yet.** See [SECURITY_DEPLOYMENT.md](SECURITY_DEPLOYMENT.md) for the current no-go findings, rotation steps, authentication changes, SMS delivery blocker, testing and rollback plan.
+>
+> Credentials previously committed to this public repository must be revoked/rotated. Never commit `.env.production`, app passwords, OTP secrets or live databases. Configure SMTP details in Render's secret environment variables instead. Historical Git commits are not sanitized by deleting the file in a new branch.
+
 # MIT ADT CampusPool • Production Deployment & Real Email Setup Guide
 
 Exclusive student ride-sharing & bikepooling application for MIT Art, Design and Technology University, Loni Kalbhor, Pune.
