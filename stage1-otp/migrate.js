@@ -16,6 +16,8 @@ async function migrate({
     await pool.query(identitySql);
     const hardeningSql=fs.readFileSync(path.join(__dirname,'migrations','003_supabase_private_tables.sql'),'utf8');
     await pool.query(hardeningSql);
+    const indexSql=fs.readFileSync(path.join(__dirname,'migrations','004_audit_user_index.sql'),'utf8');
+    await pool.query(indexSql);
     console.log('[OTP MIGRATION] Applied OTP, identity, and private-table security migrations');
   } finally {
     await pool.end();
