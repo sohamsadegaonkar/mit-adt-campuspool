@@ -42,7 +42,14 @@ const SMTP_SECURE = (envConfig.SMTP_SECURE || process.env.SMTP_SECURE || 'true')
 const SMTP_USER = envConfig.SMTP_USER || process.env.SMTP_USER || '';
 const SMTP_PASS = envConfig.SMTP_PASS || process.env.SMTP_PASS || '';
 const SMTP_FROM = envConfig.SMTP_FROM || process.env.SMTP_FROM || 'MIT ADT CampusPool <no-reply@students.mituniversity.edu.in>';
-const OTP_SECRET = envConfig.OTP_SECRET || process.env.OTP_SECRET || 'mit_adt_campuspool_jwt_hmac_secret_2026';
+const OTP_SECRET = envConfig.OTP_SECRET || process.env.OTP_SECRET || '';
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const ALLOW_DEV_OTP = !IS_PRODUCTION && process.env.ALLOW_DEV_OTP === 'true';
+if (IS_PRODUCTION && (!OTP_SECRET || OTP_SECRET === 'mit_adt_campuspool_jwt_hmac_secret_2026')) {
+  throw new Error('OTP_SECRET must be a strong, privately configured secret in production');
+}
+const ALLOWED_CORS_ORIGINS = new Set((process.env.CORS_ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean));
+const TRUSTED_PROXY_ADDRESSES = new Set((process.env.TRUSTED_PROXY_ADDRESSES || '').split(',').map(s => s.trim()).filter(Boolean));
 
 // -------------------------------------------------------------------------
 // Built-in Multi-Worker Cluster Load Balancer Configuration
@@ -348,16 +355,38 @@ function invalidateRidesCache() {
 // HTTP Server & Router
 // -------------------------------------------------------------------------
 const server = http.createServer(async (req, res) => {
+  const startedAt = Date.now();
+  try {
   const parsedUrl = url.parse(req.url, true);
-  const pathname = parsedUrl.pathname;
+  const pathname = parsedUrl.pathname || '/';
   const method = req.method.toUpperCase();
+  res.on('finish', () => {
+    // Structured operational logging: path only, no query parameters or credentials.
+    const durationMs = Date.now() - startedAt;
+    console.log(JSON.stringify({ event: 'http_request', method, path: pathname, status: res.statusCode, durationMs }));
+    if (res.statusCode >= 500) console.warn(JSON.stringify({ event: 'server_error_alert', path: pathname, status: res.statusCode }));
+  });
 
-  // CORS Headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // Same-origin by default. Cross-origin requests need an explicit allowlist.
+  // Do not trust X-Forwarded-Host or accept arbitrary CORS origins.
+  const origin = req.headers.origin;
+  let sameOrigin = false;
+  if (origin) {
+    try {
+      const incoming = new URL(origin);
+      sameOrigin = ['http:', 'https:'].includes(incoming.protocol) && incoming.host === req.headers.host;
+    } catch { sameOrigin = false; }
+  }
+  const allowedOrigin = origin && (sameOrigin || ALLOWED_CORS_ORIGINS.has(origin));
+  res.setHeader('Vary', 'Origin');
+  if (allowedOrigin) res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Forwarded-For');
-  res.setHeader('Access-Control-Expose-Headers', 'RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset, Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-RateLimit-Tier, X-Load-Balancer, X-Worker-Pid, X-Worker-Id, X-Cache');
-
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Expose-Headers', 'RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset, Retry-After');
+  if (origin && !allowedOrigin) {
+    res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+    return res.end(JSON.stringify({ success: false, error: 'CORS_ORIGIN_DENIED' }));
+  }
   if (method === 'OPTIONS') {
     res.writeHead(204);
     return res.end();
@@ -376,19 +405,14 @@ const server = http.createServer(async (req, res) => {
 
   // Client IP Detection Helper (Supports Proxies & Normalization)
   function getClientIp() {
-    const forwarded = req.headers['x-forwarded-for'];
-    if (forwarded) {
-      const firstIp = forwarded.split(',')[0].trim();
-      if (firstIp) return firstIp;
+    const remote = req.socket?.remoteAddress || 'unknown';
+    // Forwarded IP headers are untrusted unless the TCP peer is a configured reverse proxy.
+    if (TRUSTED_PROXY_ADDRESSES.has(remote)) {
+      const forwarded = req.headers['x-forwarded-for'];
+      const candidate = forwarded && forwarded.split(',')[0].trim();
+      if (candidate && require('net').isIP(candidate)) return candidate;
     }
-    const realIp = req.headers['x-real-ip'];
-    if (realIp && realIp.trim()) return realIp.trim();
-    const remote = req.socket?.remoteAddress;
-    if (remote) {
-      if (remote === '::1' || remote === '::ffff:127.0.0.1') return '127.0.0.1';
-      return remote;
-    }
-    return '127.0.0.1';
+    return remote === '::1' || remote === '::ffff:127.0.0.1' ? '127.0.0.1' : remote;
   }
 
   // Tiered Rate Limiting Policy Resolver
@@ -472,17 +496,32 @@ const server = http.createServer(async (req, res) => {
 
   // Parse JSON Body Helper
   async function parseBody() {
-    return new Promise((resolve) => {
-      let body = '';
-      req.on('data', chunk => { body += chunk; });
-      req.on('end', () => {
-        try {
-          resolve(body ? JSON.parse(body) : {});
-        } catch {
-          resolve({});
-        }
-      });
-    });
+    const limitBytes = 64 * 1024;
+    let bytes = 0;
+    const chunks = [];
+    for await (const chunk of req) {
+      bytes += chunk.length;
+      if (bytes > limitBytes) {
+        const err = new Error('JSON body exceeds 64 KB');
+        err.httpStatus = 413;
+        throw err;
+      }
+      chunks.push(chunk);
+    }
+    const raw = Buffer.concat(chunks).toString('utf8');
+    if (!raw.trim()) return {};
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch {
+      const err = new Error('Malformed JSON body');
+      err.httpStatus = 400;
+      throw err;
+    }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      const err = new Error('JSON object required');
+      err.httpStatus = 400;
+      throw err;
+    }
+    return parsed;
   }
 
   function sendJson(statusCode, data) {
@@ -1250,17 +1289,21 @@ const server = http.createServer(async (req, res) => {
   // -----------------------------------------------------------------------
   // Static File Serving (Security Hardened & In-Memory Cached with ETags)
   // -----------------------------------------------------------------------
-  const blockedFiles = ['/server.js', '/database.js', '/schema.sql', '/firestore.rules', '/package.json', '/package-lock.json', '/.env', '/.env.production', '/campuspool_database.json', '/campuspool.db', '/campuspool.db-wal', '/campuspool.db-shm'];
-  if (blockedFiles.includes(pathname) || pathname.startsWith('/.') || pathname.endsWith('.sql') || pathname.endsWith('.rules') || pathname.endsWith('.db') || pathname.endsWith('.db-wal') || pathname.endsWith('.db-shm')) {
-    res.writeHead(403, { 'Content-Type': 'text/plain' });
-    return res.end('Access Denied: Protected System File');
+  if (pathname.startsWith('/api/') || pathname === '/api') {
+    return sendJson(404, { success: false, error: 'NOT_FOUND', message: 'Unknown API endpoint' });
   }
-
-  let filePath = path.join(__dirname, pathname === '/' ? 'index.html' : pathname);
-
-  if (!fs.existsSync(filePath)) {
-    filePath = path.join(__dirname, 'index.html');
+  if (method !== 'GET' && method !== 'HEAD') {
+    res.writeHead(405, { 'Content-Type': 'text/plain', 'Allow': 'GET, HEAD' });
+    return res.end('Method Not Allowed');
   }
+  // Explicit public asset allowlist blocks source code, runtime databases, secrets,
+  // traversal and unrecognized paths (instead of returning index.html with HTTP 200).
+  const publicAssets = new Set(['/', '/index.html', '/campuspool.css', '/campuspool-icon.svg', '/manifest.webmanifest', '/sw.js']);
+  if (!publicAssets.has(pathname)) {
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+    return res.end('404 — Page not found');
+  }
+  const filePath = path.join(__dirname, pathname === '/' ? 'index.html' : pathname.slice(1));
 
   const ext = path.extname(filePath).toLowerCase();
   const mimeTypes = {
@@ -1321,8 +1364,21 @@ const server = http.createServer(async (req, res) => {
     'Cache-Control': cached.cacheControl,
     'X-Cache': 'HIT'
   });
+  if (method === 'HEAD') return res.end();
   res.end(cached.content);
+  } catch (err) {
+    const status = err && [400, 413].includes(err.httpStatus) ? err.httpStatus : 500;
+    console.error(JSON.stringify({ event: 'request_failed', status, reason: status === 500 ? 'INTERNAL_ERROR' : err.message }));
+    if (!res.headersSent) {
+      res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify({ success: false, error: status === 413 ? 'PAYLOAD_TOO_LARGE' : status === 400 ? 'BAD_REQUEST' : 'INTERNAL_ERROR', message: status === 500 ? 'An internal error occurred' : err.message }));
+    } else {
+      res.end();
+    }
+  }
 });
+  server.requestTimeout = 15000;
+  server.headersTimeout = 16000;
 
   server.listen(PORT, '0.0.0.0', () => {
     const workerLabel = cluster.isWorker ? `Worker #${cluster.worker.id} (PID: ${process.pid})` : `Standalone Server (PID: ${process.pid})`;
