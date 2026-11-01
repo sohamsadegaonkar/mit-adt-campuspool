@@ -139,7 +139,7 @@ class PgOtpStore {
       const valid=crypto.timingSafeEqual(Buffer.from(expected,'hex'),Buffer.from(c.code_hmac,'hex'));
       if(!valid) {
         const attempts=c.attempt_count+1;
-        await client.query("UPDATE otp_challenges SET attempt_count=$2,state=CASE WHEN $2 >= $3 THEN 'locked' ELSE 'active' END,updated_at=now() WHERE id=$1",
+        await client.query("UPDATE otp_challenges SET attempt_count=$2::integer,state=CASE WHEN $2::integer >= $3::integer THEN 'locked' ELSE 'active' END,updated_at=now() WHERE id=$1",
           [c.id,attempts,MAX_ATTEMPTS]);
         // Return a failed result rather than throwing: failed-attempt update must COMMIT.
         return {ok:false,error:attempts>=MAX_ATTEMPTS?'OTP_LOCKED':'INVALID_OTP',
