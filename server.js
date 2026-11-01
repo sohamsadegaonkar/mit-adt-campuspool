@@ -374,7 +374,7 @@ const server = http.createServer(async (req, res) => {
   if (origin) {
     try {
       const incoming = new URL(origin);
-      sameOrigin = ['http:', 'https:'].includes(incoming.protocol) && incoming.host === req.headers.host;
+      sameOrigin = incoming.protocol === (IS_PRODUCTION ? 'https:' : 'http:') && incoming.host === req.headers.host;
     } catch { sameOrigin = false; }
   }
   const allowedOrigin = origin && (sameOrigin || ALLOWED_CORS_ORIGINS.has(origin));
@@ -555,7 +555,8 @@ const server = http.createServer(async (req, res) => {
     return authenticatedUser && typeof email === 'string' && authenticatedUser.email.toLowerCase() === email.trim().toLowerCase();
   }
   function validLocation(lat, lng) {
-    return Number.isFinite(Number(lat)) && Number.isFinite(Number(lng)) &&
+    return lat !== null && lng !== null && lat !== '' && lng !== '' &&
+      Number.isFinite(Number(lat)) && Number.isFinite(Number(lng)) &&
       Number(lat) >= -90 && Number(lat) <= 90 && Number(lng) >= -180 && Number(lng) <= 180;
   }
   function validText(value, max) {
