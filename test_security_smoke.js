@@ -144,6 +144,23 @@ test('CampusPool pre-deploy security smoke tests (isolated local database)', { t
     assert.ok(session && session.length>40);
     assert.equal(localDB.getSessionUser(session).email,person.email);
     const cookie={Cookie:'cp_session='+session};
+    const identity=await fetch(base+'/api/auth/me',{headers:cookie});
+    assert.equal(identity.status,200);
+    const identityData=await identity.json();
+    assert.equal(identityData.user.email,person.email);
+    const csrf=identityData.csrfToken;
+    assert.match(csrf,/^[a-f0-9]{64}$/);
+    const authenticatedHeaders={...cookie,'X-CSRF-Token':csrf};
+    await t.test('CSRF-protected mutations reject missing and invalid tokens', async () => {
+      const invalid=await fetch(base+'/api/bookings/payment-status',{
+        method:'POST',headers:{...cookie,'Content-Type':'application/json'},body:'{}'
+      });
+      assert.equal(invalid.status,403);
+      const invalidToken=await fetch(base+'/api/bookings/payment-status',{
+        method:'POST',headers:{...cookie,'X-CSRF-Token':'0'.repeat(64),'Content-Type':'application/json'},body:'{}'
+      });
+      assert.equal(invalidToken.status,403);
+    });
 
     await t.test('Verified sessions scope personal data to the account owner', async () => {
       const rides=await fetch(base+'/api/rides',{headers:cookie});
@@ -165,7 +182,7 @@ test('CampusPool pre-deploy security smoke tests (isolated local database)', { t
         departureTime:'2026-11-05 17:30',seatsTotal:2,uberBenchmark:100,studentFare:60,driverPayout:54
       };
       const blocked=await fetch(base+'/api/rides',{
-        method:'POST',headers:{...cookie,'Content-Type':'application/json'},body:JSON.stringify(rideFields)
+        method:'POST',headers:{...authenticatedHeaders,'Content-Type':'application/json'},body:JSON.stringify(rideFields)
       });
       assert.equal(blocked.status,403);
       rideFields.driverEmail=person.email;
@@ -176,14 +193,14 @@ test('CampusPool pre-deploy security smoke tests (isolated local database)', { t
       const record=(await created.json()).ride;
       assert.equal(record.driverName,person.name);
       const wrongLocation=await fetch(base+'/api/rides/location',{
-        method:'POST',headers:{...cookie,'Content-Type':'application/json'},
+        method:'POST',headers:{...authenticatedHeaders,'Content-Type':'application/json'},
         body:JSON.stringify({rideId:record.id,lat:200,lng:74})
       });
       assert.equal(wrongLocation.status,400);
     });
 
     await t.test('Unverified payment and settlement claims cannot mark a transaction paid', async () => {
-      const headers={...cookie,'Content-Type':'application/json'};
+      const headers={...authenticatedHeaders,'Content-Type':'application/json'};
       for(const route of ['/api/bookings/payment-status','/api/driver/settle-commission']){
         const res=await fetch(base+route,{method:'POST',headers,body:JSON.stringify({bookingId:'made-up',driverEmail:person.email,amount:100,paymentStatus:'Paid'})});
         assert.equal(res.status,501);
@@ -203,7 +220,7 @@ test('CampusPool pre-deploy security smoke tests (isolated local database)', { t
     });
 
     await t.test('Session logout revokes the cookie server-side', async () => {
-      const logout=await fetch(base+'/api/auth/logout',{method:'POST',headers:cookie});
+      const logout=await fetch(base+'/api/auth/logout',{method:'POST',headers:authenticatedHeaders});
       assert.equal(logout.status,200);
       assert.equal(localDB.getSessionUser(session),null);
       assert.equal((await fetch(base+'/api/rides',{headers:cookie})).status,401);
