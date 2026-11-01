@@ -36,7 +36,7 @@ function resultOrError(out,sendJson) {
 }
 
 async function handlePgAuth({pathname,method,parseBody,sendJson,db,setSessionCookie,getClientIp,store,
-  mailProvider=emailProvider,smsDeliveryProvider=smsProvider}) {
+  mailProvider=emailProvider,smsDeliveryProvider=smsProvider,identity=null,setPostgresCookie=null}) {
   if(method!=='POST'||!paths.has(pathname))return false;
   try {
     if(pathname==='/api/auth/login-request') {
@@ -44,7 +44,7 @@ async function handlePgAuth({pathname,method,parseBody,sendJson,db,setSessionCoo
       if(typeof body.identifier!=='string'||body.identifier.trim().length>254) {
         throw new OtpError('INVALID_IDENTIFIER');
       }
-      const user=db.getProfileByIdentifier(body.identifier.trim());
+      const user=identity?await identity.getProfileByIdentifier(body.identifier.trim()):db.getProfileByIdentifier(body.identifier.trim());
       if(!user||!user.isVerified) {
         sendJson(404,{success:false,error:'USER_NOT_FOUND',message:'No verified campus account found.'});
         return true;
@@ -62,7 +62,7 @@ async function handlePgAuth({pathname,method,parseBody,sendJson,db,setSessionCoo
       const body=await parseBody(),email=normalize('email',body.email);
       if(!validateText(body.name,100)||typeof body.phone!=='string') throw new OtpError('INVALID_PROFILE');
       const phone=normalize('sms',body.phone);
-      const check=db.checkUniqueness(body.name.trim(),email,phone);
+      const check=identity?await identity.checkUniqueness(body.name.trim(),email,phone):db.checkUniqueness(body.name.trim(),email,phone);
       if(!check.unique) {
         sendJson(409,{success:false,error:'NOT_UNIQUE',message:'These details could not be registered.'});
         return true;
@@ -78,14 +78,17 @@ async function handlePgAuth({pathname,method,parseBody,sendJson,db,setSessionCoo
     }
     if(pathname==='/api/auth/verify-email-otp') {
       const body=await parseBody(),email=normalize('email',body.email);
-      const user=db.getProfileByEmail(email);
+      const user=identity?await identity.getProfileByEmail(email):db.getProfileByEmail(email);
       const out=await store.verify({
         purpose:user?'login':'signup_email',channel:'email',
         target:email,code:body.otp,ip:getClientIp()
       });
       if(resultOrError(out,sendJson))return true;
       if(user) {
-        if(!setSessionCookie(user.email)) throw new OtpError('SESSION_FAILED',500);
+        if(identity){
+          const session=await identity.sessionForEmail(user.email);
+          if(!session||!setPostgresCookie(session))throw new OtpError('SESSION_FAILED',500);
+        }else if(!setSessionCookie(user.email))throw new OtpError('SESSION_FAILED',500);
         sendJson(200,{success:true,isLogin:true,user,
           message:'Campus email verified. You are signed in.'});
       } else {
@@ -96,7 +99,7 @@ async function handlePgAuth({pathname,method,parseBody,sendJson,db,setSessionCoo
     }
     if(pathname==='/api/auth/send-phone-otp') {
       const body=await parseBody(),phone=normalize('sms',body.phone);
-      const exists=db.getProfiles().some(x=>{
+      const exists=identity?await identity.phoneExists(phone):db.getProfiles().some(x=>{
         const digits=String(x.phone||'').replace(/\D/g,'').slice(-10);
         return digits===phone;
       });
@@ -132,18 +135,24 @@ async function handlePgAuth({pathname,method,parseBody,sendJson,db,setSessionCoo
         sendJson(409,{success:false,error:'NOT_UNIQUE',message:'An account already exists with these details.'});
         return true;
       }
-      // Atomic, single-use redemption of both proof tokens in PostgreSQL.
-      // Cross-database atomicity with the legacy SQLite profile table is not
-      // possible; do NOT enable real signup without staging failure testing.
+      if(identity){
+        const result=await identity.register({
+          name:body.name,email,phone,dept:body.dept,
+          emailProof:body.emailToken,phoneProof:body.phoneToken
+        });
+        if(!setPostgresCookie(result.token))throw new OtpError('SESSION_FAILED',500);
+        sendJson(201,{success:true,user:result.user,message:'Campus account created and verified.'});
+        return true;
+      }
+      // Compatibility only while legacy SQLite identity remains enabled.
       await store.consumeRegistration({
         email,phone,emailProof:body.emailToken,phoneProof:body.phoneToken
       });
       let profile;
-      try {
+      try{
         profile=db.createProfile({name:body.name.trim(),email,phone,dept:body.dept.trim()});
-      } catch(_) {
-        sendJson(409,{success:false,error:'PROFILE_CREATION_FAILED',
-          message:'Could not create account. Please restart verification.'});
+      }catch(_){
+        sendJson(409,{success:false,error:'PROFILE_CREATION_FAILED'});
         return true;
       }
       if(!setSessionCookie(profile.email))throw new OtpError('SESSION_FAILED',500);
