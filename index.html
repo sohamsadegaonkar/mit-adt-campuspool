@@ -1475,8 +1475,9 @@
       const status = document.getElementById('rideFeedStatus');
       const count = Number(document.getElementById('countAvailableRides')?.textContent || 0);
       if (status) {
-        const message = rideFeedState === 'loading'
-          ? (appState.rides.length ? 'Updating saved rides…' : 'Loading rides…')
+        const message = rideFeedState === 'unauthenticated' ? 'Sign in to view current campus rides'
+          : rideFeedState === 'loading'
+          ? (appState.rides.length ? 'Updating rides…' : 'Loading rides…')
           : rideFeedState === 'error'
             ? (appState.rides.length ? 'Showing saved rides · Refresh unavailable' : 'Couldn’t load rides · Try refreshing')
             : `${count} ${count === 1 ? 'ride' : 'rides'} ${appState.activeDestFilter === 'all' && appState.activeVehicleFilter === 'all' ? 'available' : 'matching your filters'}`;
@@ -1765,11 +1766,14 @@
     function rideFeedStateMarkup() {
       const loading = rideFeedState === 'loading' && appState.rides.length === 0;
       const failed = rideFeedState === 'error' && appState.rides.length === 0;
+      const guest = rideFeedState === 'unauthenticated';
       const filtered = appState.activeDestFilter !== 'all' || appState.activeVehicleFilter !== 'all';
-      const title = loading ? 'Loading available rides'
+      const title = guest ? 'Sign in to browse rides'
+        : loading ? 'Loading available rides'
         : failed ? 'Rides couldn’t load'
         : filtered ? 'No rides match your filters' : 'No rides available yet';
-      const description = loading ? 'Checking the latest rides from campus. This should only take a moment.'
+      const description = guest ? 'Verify your MIT-ADT account to view live offers and reserve seats securely.'
+        : loading ? 'Checking the latest rides from campus. This should only take a moment.'
         : failed ? 'We couldn’t reach the ride feed. Check your connection, then try again.'
         : filtered ? 'Try another destination or vehicle, or clear your filters to see all rides.'
         : 'There are no rides to show right now. Offer a seat to a campus peer or check back soon.';
@@ -1777,7 +1781,7 @@
         <div class="ride-feed-state">
           <svg class="cp-icon" aria-hidden="true"><use href="#cp-${failed ? 'alert' : 'search'}"></use></svg>
           <h3>${title}</h3><p>${description}</p>
-          ${loading ? '' : `<div class="ride-feed-actions">
+          ${guest ? `<div class="ride-feed-actions"><button type="button" class="cp-button cp-button-primary" onclick="openAuthModal('signin')">Sign in to CampusPool</button></div>` : loading ? '' : `<div class="ride-feed-actions">
             ${filtered && !failed
               ? `<button type="button" class="cp-button cp-button-primary" onclick="resetRideFilters()">Clear filters</button>`
               : `<button type="button" class="cp-button cp-button-primary" onclick="openCommuteView('tabOfferRide', 'viewOfferRide')"><svg class="cp-icon" aria-hidden="true"><use href="#cp-plus"></use></svg>Offer a Ride</button>`}
@@ -2432,7 +2436,7 @@
 
     document.getElementById('welcomeExploreGuestBtn')?.addEventListener('click', () => {
       closeWelcomePopScreen();
-      showToast("Browsing as guest. Verify your ID whenever you are ready to ride!", "👋");
+      showToast("You can explore campus information as a guest. Sign in to view live rides.", "ℹ️");
     });
 
     document.getElementById('welcomeRegisterBtn')?.addEventListener('click', () => {
@@ -2485,6 +2489,10 @@
     }
 
     function resetAuthStepsUI(mode = 'signin') {
+      serverVerificationTokens = { emailToken: null, phoneToken: null };
+      appState.pendingAuth = { ...initialRealState.pendingAuth };
+      const phoneComplete = document.getElementById('completeVerificationBtn');
+      if (phoneComplete) phoneComplete.disabled = true;
       document.getElementById('authModeSwitcher')?.classList.remove('hidden');
       document.getElementById('authStep2EmailOtp')?.classList.add('hidden');
       document.getElementById('authStep3PhoneOtp')?.classList.add('hidden');
