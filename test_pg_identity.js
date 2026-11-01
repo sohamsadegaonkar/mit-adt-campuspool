@@ -74,6 +74,25 @@ test('PostgreSQL identity: atomic signup, durable sessions and login', {skip:!ur
      assert.equal(await identity.getSessionUser(sessions.at(-1)),null);
      await afterRestart.store.close();
    });
+   await t.test('concurrent registration commits exactly one user and one session',async()=>{
+     const email='race-'+fresh()+'@students.mituniversity.edu.in';
+     const phone='9'+String(100000000+crypto.randomInt(0,899999999));
+     const sentEmail=[],sentPhone=[];
+     await store.issue({purpose:'signup_email',channel:'email',target:email,ip:'192.0.2.179',
+       deliver:async({code})=>{sentEmail.push(code);return {accepted:true};}});
+     await store.issue({purpose:'signup_phone',channel:'sms',target:phone,ip:'192.0.2.179',
+       deliver:async({code})=>{sentPhone.push(code);return {accepted:true};}});
+     const emailProof=(await store.verify({purpose:'signup_email',channel:'email',target:email,
+       code:sentEmail[0],ip:'192.0.2.179'})).proof;
+     const phoneProof=(await store.verify({purpose:'signup_phone',channel:'sms',target:phone,
+       code:sentPhone[0],ip:'192.0.2.179'})).proof;
+     const details={name:'Race Student',email,phone,dept:'Engineering',emailProof,phoneProof};
+     const responses=await Promise.allSettled([identity.register(details),identity.register(details)]);
+     assert.equal(responses.filter(x=>x.status==='fulfilled').length,1);
+     assert.equal(responses.filter(x=>x.status==='rejected'&&x.reason.code==='VERIFICATION_REQUIRED').length,1);
+     assert.equal((await store.pool.query('SELECT count(*)::int AS n FROM campus_users WHERE email=$1',[email])).rows[0].n,1);
+     assert.equal((await store.pool.query('SELECT count(*)::int AS n FROM campus_sessions s JOIN campus_users u ON u.id=s.user_id WHERE u.email=$1',[email])).rows[0].n,1);
+   });
    await t.test('atomic registration rolls back on duplicate identity',async()=>{
      const db=await store.pool.query('SELECT count(*)::int AS n FROM campus_users WHERE phone=$1',[phone]);
      assert.equal(db.rows[0].n,1);
