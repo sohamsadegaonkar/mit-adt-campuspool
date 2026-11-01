@@ -155,3 +155,86 @@ test('Transactional email adapter requires credentials and validates response',a
     env,fetchImpl:async()=>({ok:false,status:403})}),/EMAIL_PROVIDER_REJECTED/);
   await assert.rejects(sendOtpEmail('example@students.mituniversity.edu.in','123456'),/EMAIL_PROVIDER_NOT_CONFIGURED/);
 });
+
+
+test('Stage 1 API contract: email signup, phone signup, registration and login', {
+  skip:!connectionString?'OTP_DATABASE_URL test database required':false
+},async()=>{
+  const {handlePgAuth}=require('./stage1-otp/auth-routes');
+  const store=await makeStore();
+  const email=unique('complete-flow'),phone='9123456788';
+  const profiles=[];
+  const emailCodes=[],smsCodes=[];
+  const mockDb={
+    getProfiles:()=>profiles,
+    getProfileByEmail:identifier=>profiles.find(x=>x.email===identifier)||null,
+    getProfileByIdentifier:identifier=>profiles.find(x=>x.email===identifier||x.phone===identifier)||null,
+    checkUniqueness:(_name,identifier,mobile)=>({
+      unique:!profiles.some(x=>x.email===identifier||x.phone===mobile)
+    }),
+    createProfile:details=>{
+      if(profiles.some(x=>x.email===details.email)) throw Error('duplicate');
+      const user={...details,id:crypto.randomUUID(),isVerified:true};
+      profiles.push(user);return user;
+    }
+  };
+  const mailProvider={
+    configured:()=>true,
+    sendOtpEmail:async(target,code)=>{emailCodes.push({target,code});return {accepted:true};}
+  };
+  const smsDeliveryProvider={
+    isConfigured:()=>true,
+    sendOtpSms:async(target,code)=>{smsCodes.push({target,code});return {accepted:true};}
+  };
+  let sessions=0;
+  const call=async (pathname,body)=>{
+    let status=null,output=null;
+    const handled=await handlePgAuth({
+      pathname,method:'POST',parseBody:async()=>body,
+      sendJson:(code,payload)=>{status=code;output=payload;},
+      db:mockDb,setSessionCookie:()=>{sessions++;return true;},
+      getClientIp:()=> '198.51.100.177',store,mailProvider,smsDeliveryProvider
+    });
+    assert.equal(handled,true);
+    return {status,...output};
+  };
+
+  const requestEmail=await call('/api/auth/send-email-otp',{name:'Sample Student',email,phone});
+  assert.equal(requestEmail.status,200);
+  assert.equal(emailCodes.length,1);
+  const verifiedEmail=await call('/api/auth/verify-email-otp',{email,otp:emailCodes[0].code});
+  assert.equal(verifiedEmail.status,200);
+  assert.equal(verifiedEmail.isLogin,false);
+  assert.match(verifiedEmail.emailToken,/^[A-Za-z0-9_-]{43}$/);
+  const replayEmail=await call('/api/auth/verify-email-otp',{email,otp:emailCodes[0].code});
+  assert.equal(replayEmail.status,400);
+
+  const requestPhone=await call('/api/auth/send-phone-otp',{phone:'+91 '+phone});
+  assert.equal(requestPhone.status,200);
+  assert.equal(smsCodes.length,1);
+  const verifiedPhone=await call('/api/auth/verify-phone-otp',{phone,otp:smsCodes[0].code});
+  assert.equal(verifiedPhone.status,200);
+
+  const registered=await call('/api/auth/register',{
+    name:'Sample Student',email,phone,dept:'Engineering',
+    emailToken:verifiedEmail.emailToken,phoneToken:verifiedPhone.phoneToken
+  });
+  assert.equal(registered.status,201);
+  assert.equal(profiles.length,1);
+  assert.equal(sessions,1);
+  const replayRegister=await call('/api/auth/register',{
+    name:'Sample Student',email,phone,dept:'Engineering',
+    emailToken:verifiedEmail.emailToken,phoneToken:verifiedPhone.phoneToken
+  });
+  assert.equal(replayRegister.status,409);
+  assert.equal(profiles.length,1);
+
+  const signIn=await call('/api/auth/login-request',{identifier:email});
+  assert.equal(signIn.status,200);
+  assert.equal(emailCodes.length,2);
+  const signedIn=await call('/api/auth/verify-email-otp',{email,otp:emailCodes[1].code});
+  assert.equal(signedIn.status,200);
+  assert.equal(signedIn.isLogin,true);
+  assert.equal(sessions,2);
+  await store.close();
+});
