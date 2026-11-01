@@ -1,3 +1,5 @@
+> **Security note (2026-11-01):** Rotate any previously committed SMTP App Password and OTP signing secret in the relevant providers. Values in earlier commits remain exposed in Git history. Set replacement values only in Render's private environment settings; never push credentials or runtime databases to this repository. See [SECURITY_CREDENTIAL_ROTATION.md](SECURITY_CREDENTIAL_ROTATION.md).
+
 # MIT ADT CampusPool • Production Deployment & Real Email Setup Guide
 
 Exclusive student ride-sharing & bikepooling application for MIT Art, Design and Technology University, Loni Kalbhor, Pune.
