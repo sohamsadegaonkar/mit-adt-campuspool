@@ -162,3 +162,37 @@ test('Actual CampusPool HTTP API accepts PostgreSQL sessions and CSRF, rejects s
    fs.rmSync(dir,{recursive:true,force:true});
  }
 });
+
+
+test('Supabase-facing auth tables enforce RLS and deny public access', {skip: !url}, async () => {
+  await migrate({connectionString:url,ssl:false});
+  const store=new PgOtpStore({connectionString:url,ssl:false,hmacKey:key});
+  try {
+    const required=['otp_challenges','otp_rate_buckets','campus_users','campus_sessions','campus_identity_audit'];
+    const sql=[
+      'SELECT c.relname, c.relrowsecurity,',
+      'EXISTS (SELECT 1 FROM aclexplode(COALESCE(c.relacl, acldefault($2, c.relowner))) acl',
+      'WHERE acl.grantee=0) AS has_public_grant',
+      'FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace',
+      "WHERE n.nspname='public' AND c.relname=ANY($1::text[])"
+    ].join(' ');
+    const rows=(await store.pool.query(sql,[required,'r'])).rows;
+    assert.equal(rows.length,required.length);
+    for (const table of rows) {
+      assert.equal(table.relrowsecurity,true,table.relname+' requires RLS');
+      assert.equal(table.has_public_grant,false,table.relname+' grants PUBLIC privileges');
+    }
+    const roles=(await store.pool.query(
+      "SELECT rolname FROM pg_roles WHERE rolname IN ('anon','authenticated')"
+    )).rows.map(r=>r.rolname);
+    for (const role of roles) {
+      for (const table of required) {
+        const result=await store.pool.query(
+          'SELECT has_table_privilege($1,$2,$3) AS allowed',[role,'public.'+table,'SELECT']);
+        assert.equal(result.rows[0].allowed,false,role+' should not read '+table);
+      }
+    }
+  } finally {
+    await store.close();
+  }
+});
