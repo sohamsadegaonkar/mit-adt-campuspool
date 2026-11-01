@@ -79,7 +79,7 @@ test('CampusPool pre-deploy security smoke tests (isolated local database)', { t
     });
 
     await t.test('Unknown files, secrets, backend source and APIs never return SPA HTML', async () => {
-      for (const pathname of ['/server.js','/database.js','/.env.production','/campuspool.db','/unlisted-file.js','/api/not-real']) {
+      for (const pathname of ['/server.js','/database.js','/.env.production','/campuspool.db','/unlisted-file.js']) {
         const res = await fetch(base+pathname);
         assert.equal(res.status, 404, pathname);
       }
@@ -154,6 +154,8 @@ test('CampusPool pre-deploy security smoke tests (isolated local database)', { t
       assert.equal(other.status,403);
       const otherRides=await fetch(base+'/api/my-rides?email=somebody@students.mituniversity.edu.in',{headers:cookie});
       assert.equal(otherRides.status,403);
+      const unknown=await fetch(base+'/api/not-real',{headers:cookie});
+      assert.equal(unknown.status,404);
     });
 
     await t.test('Client-supplied owner email cannot create rides for other students', async () => {
