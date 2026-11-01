@@ -525,7 +525,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   function sendJson(statusCode, data) {
-    res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+    res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
     res.end(JSON.stringify(data));
   }
 
@@ -669,7 +669,7 @@ const server = http.createServer(async (req, res) => {
       </div>
     `;
 
-    console.log(`[SIGN-IN-OTP] Dispatched Sign-In code (${otp}) to ${user.email} for ${user.name}`);
+    console.log('[SIGN-IN-OTP] One-time code generated for email sign-in (redacted)');
 
     let emailStatus = { delivered: false };
     try {
@@ -687,6 +687,9 @@ const server = http.createServer(async (req, res) => {
     }
 
     const isRealDelivery = emailStatus.delivered === true;
+    if (IS_PRODUCTION && !isRealDelivery) {
+      return sendJson(503, { success: false, error: 'EMAIL_DELIVERY_UNAVAILABLE', message: 'Email verification is temporarily unavailable. Please try later.' });
+    }
 
     return sendJson(200, {
       success: true,
@@ -695,7 +698,7 @@ const server = http.createServer(async (req, res) => {
       name: user.name,
       phone: user.phone,
       deliveredToInbox: isRealDelivery,
-      devOtpHint: !isRealDelivery ? otp : undefined
+      devOtpHint: ALLOW_DEV_OTP && !isRealDelivery ? otp : undefined
     });
   }
 
@@ -801,20 +804,13 @@ const server = http.createServer(async (req, res) => {
       emailStatus.error = err.message;
     }
 
-    // Prominent console output for terminal developer convenience
-    console.log(`\n==================================================================`);
-    console.log(` 📨 MIT ADT CampusPool - Real-Time OTP Verification Dispatch`);
-    console.log(` Recipient: ${email}`);
-    console.log(` Verification Code: ${otp}`);
-    if (emailStatus.delivered) {
-      console.log(` Delivery Status: DELIVERED (via ${emailStatus.provider || 'SMTP'})`);
-    } else {
-      console.log(` Delivery Status: LOCAL CONSOLE MODE`);
-      console.log(` Notice: Cloud host firewall (e.g. Render Free Tier) may block port 465.`);
-    }
-    console.log(`==================================================================\n`);
+    // Avoid emitting OTP values or personal identifiers in application logs.
+    console.log('[AUTH-EMAIL] Verification delivery attempt complete; delivered=' + Boolean(emailStatus.delivered));
 
     const isRealDelivery = emailStatus.delivered === true;
+    if (IS_PRODUCTION && !isRealDelivery) {
+      return sendJson(503, { success: false, error: 'EMAIL_DELIVERY_UNAVAILABLE', message: 'Email verification is temporarily unavailable. Please try later.' });
+    }
 
     return sendJson(200, {
       success: true,
@@ -823,7 +819,7 @@ const server = http.createServer(async (req, res) => {
       deliveredToInbox: isRealDelivery,
       message: 'A 6-digit verification code has been sent to your university inbox.',
       expiresInSeconds: 600,
-      devOtpHint: !isRealDelivery ? otp : undefined
+      devOtpHint: ALLOW_DEV_OTP && !isRealDelivery ? otp : undefined
     });
   }
 
@@ -850,6 +846,10 @@ const server = http.createServer(async (req, res) => {
         error: 'OTP_EXPIRED',
         message: 'Verification code has expired. Please request a fresh code.'
       });
+    }
+
+    if (record.isVerified) {
+      return sendJson(400, { success: false, error: 'OTP_ALREADY_USED', message: 'This code has already been verified. Request a new code.' });
     }
 
     if (record.attemptsLeft <= 0) {
@@ -890,6 +890,10 @@ const server = http.createServer(async (req, res) => {
   // REST API: /api/auth/send-phone-otp
   // -----------------------------------------------------------------------
   if (method === 'POST' && pathname === '/api/auth/send-phone-otp') {
+    if (IS_PRODUCTION) {
+      // This codebase has no functioning SMS provider integration. Never claim an SMS was delivered.
+      return sendJson(503, { success: false, error: 'SMS_PROVIDER_NOT_CONFIGURED', message: 'Phone verification is temporarily unavailable.' });
+    }
     const body = await parseBody();
     const phone = (body.phone || '').trim();
     const cleanDigits = phone.replace(/[^0-9]/g, '').slice(-10);
@@ -934,7 +938,8 @@ const server = http.createServer(async (req, res) => {
       createdAt: Date.now()
     });
 
-    console.log(`[SMS-GATEWAY-DISPATCH] Dispatched SMS OTP (${otp}) to +91 ${cleanDigits} (Gateway: MSG91 / Fast2SMS DLT template)`);
+    if (ALLOW_DEV_OTP) console.log('[DEV-ONLY] Phone OTP is available for explicit local testing:', otp);
+    else console.log('[AUTH-PHONE] Local-only OTP generated but SMS delivery is not available');
 
     return sendJson(200, {
       success: true,
@@ -958,6 +963,9 @@ const server = http.createServer(async (req, res) => {
 
     if (Date.now() > record.expiresAt) {
       return sendJson(400, { success: false, error: 'OTP_EXPIRED', message: 'SMS code expired. Request a new code.' });
+    }
+    if (record.isVerified || record.attemptsLeft <= 0) {
+      return sendJson(403, { success: false, error: 'OTP_UNAVAILABLE', message: 'This verification code can no longer be used.' });
     }
 
     const expectedHash = hashOtp(cleanDigits, enteredOtp);
@@ -1000,6 +1008,7 @@ const server = http.createServer(async (req, res) => {
 
     try {
       const profile = db.createProfile({ name, email, phone, dept });
+      db.consumeVerificationTokens(emailToken, phoneToken);
       return sendJson(201, {
         success: true,
         message: `Welcome ${profile.name}! Your student account is registered in the campus database.`,
