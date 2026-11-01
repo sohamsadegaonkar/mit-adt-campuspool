@@ -7,6 +7,13 @@ yarn-error.log*
 .vscode/
 .idea/
 *.log
+.impeccable/
+# Local secrets — provide values via hosting provider at deployment.
+.env
+.env.*
+!.env.example
+# Runtime state and local database files must never be committed.
+*.db
 *.db-shm
 *.db-wal
-.impeccable/
+campuspool_database.json
