@@ -42,7 +42,11 @@ const SMTP_SECURE = (envConfig.SMTP_SECURE || process.env.SMTP_SECURE || 'true')
 const SMTP_USER = envConfig.SMTP_USER || process.env.SMTP_USER || '';
 const SMTP_PASS = envConfig.SMTP_PASS || process.env.SMTP_PASS || '';
 const SMTP_FROM = envConfig.SMTP_FROM || process.env.SMTP_FROM || 'MIT ADT CampusPool <no-reply@students.mituniversity.edu.in>';
-const OTP_SECRET = envConfig.OTP_SECRET || process.env.OTP_SECRET || 'mit_adt_campuspool_jwt_hmac_secret_2026';
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const OTP_SECRET = process.env.OTP_SECRET || envConfig.OTP_SECRET || (IS_PRODUCTION ? '' : crypto.randomBytes(32).toString('hex'));
+if (IS_PRODUCTION && (!OTP_SECRET || OTP_SECRET.length < 32)) {
+  throw new Error('OTP_SECRET must be configured as a strong private environment variable in production');
+}
 
 // -------------------------------------------------------------------------
 // Built-in Multi-Worker Cluster Load Balancer Configuration
