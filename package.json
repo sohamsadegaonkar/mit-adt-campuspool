@@ -13,7 +13,8 @@
     "test:security": "node --test test_security_smoke.js",
     "test:auth": "node --test test_auth_integration.js",
     "migrate:otp": "node stage1-otp/migrate.js",
-    "test:stage1": "node --test test_stage1_otp.js"
+    "test:stage1": "node --test test_stage1_otp.js",
+    "prune:otp": "node stage1-otp/prune.js"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
