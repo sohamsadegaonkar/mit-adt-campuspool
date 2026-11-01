@@ -1,0 +1,48 @@
+# Optional, manually created staging Blueprint. NOT linked to production.
+# In Render > New > Blueprint, explicitly select THIS file and the feature branch.
+# Creating the file does not create/deploy a service.
+services:
+  - type: web
+    runtime: node
+    name: mit-adt-campuspool-staging
+    region: oregon
+    plan: free
+    branch: feature/auth-staging-integration
+    autoDeployTrigger: 'off'
+    buildCommand: npm ci --omit=dev
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: APP_ENV
+        value: staging
+      - key: NODE_VERSION
+        value: "22.12.0"
+      - key: ENABLE_CLUSTER
+        value: "false"
+      - key: DATABASE_PATH
+        value: /tmp/campuspool-staging.db
+      - key: OTP_SECRET
+        generateValue: true
+      - key: STAGING_BASIC_AUTH_PASSWORD
+        sync: false
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "465"
+      - key: SMTP_SECURE
+        value: "true"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      # Explicitly disabled until a staging-only approved MSG91 sender/template is configured.
+      - key: SMS_PROVIDER
+        value: disabled
+      - key: MSG91_AUTHKEY
+        sync: false
+      - key: MSG91_FLOW_TEMPLATE_ID
+        sync: false
