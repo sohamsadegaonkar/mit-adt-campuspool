@@ -81,9 +81,12 @@ class PgOtpStore {
     const id=crypto.randomUUID();
     const code=crypto.randomInt(100000,1000000).toString();
     const hashed=this.codeDigest(id,purpose,channel,targetHash,code);
+    // Count even rejected resends; otherwise cooldown can bypass IP throttling.
     await this.tx(async client=>{
       await this.rate(client,'send-ip',ip||'unknown',10,60);
       await this.rate(client,'send-target',targetHash,4,600);
+    });
+    await this.tx(async client=>{
       const sql=[
         'INSERT INTO otp_challenges',
         '(id,purpose,channel,target_hash,code_hmac,state,expires_at,resend_at)',
@@ -117,9 +120,12 @@ class PgOtpStore {
     const normalized=normalize(channel,target);
     if(typeof code!=='string'||!/^[0-9]{6}$/.test(code)) throw new OtpError('INVALID_OTP_FORMAT');
     const targetHash=this.targetDigest(channel,normalized);
-    return this.tx(async client=>{
+    // Persist abuse counters even when a code is expired, locked or invalid.
+    await this.tx(async client=>{
       await this.rate(client,'verify-ip',ip||'unknown',30,60);
       await this.rate(client,'verify-target',targetHash,15,600);
+    });
+    return this.tx(async client=>{
       const r=await client.query(
         'SELECT id,code_hmac,state,attempt_count,expires_at FROM otp_challenges WHERE purpose=$1 AND channel=$2 AND target_hash=$3 FOR UPDATE',
         [purpose,channel,targetHash]);
