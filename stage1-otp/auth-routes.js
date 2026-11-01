@@ -130,7 +130,7 @@ async function handlePgAuth({pathname,method,parseBody,sendJson,db,setSessionCoo
       const body=await parseBody();
       const email=normalize('email',body.email),phone=normalize('sms',body.phone);
       if(!validateText(body.name,100)||!validateText(body.dept,100)) throw new OtpError('INVALID_PROFILE');
-      const check=db.checkUniqueness(body.name.trim(),email,phone);
+      const check=identity?await identity.checkUniqueness(body.name.trim(),email,phone):db.checkUniqueness(body.name.trim(),email,phone);
       if(!check.unique) {
         sendJson(409,{success:false,error:'NOT_UNIQUE',message:'An account already exists with these details.'});
         return true;
