@@ -2562,26 +2562,6 @@
     // -------------------------------------------------------------
     let serverVerificationTokens = { emailToken: null, phoneToken: null };
 
-    // Check unique constraints on existing registered users
-    function checkClientDbUniqueness(name, email, phone) {
-      const cleanEmail = (email || '').trim().toLowerCase();
-      const cleanPhone = (phone || '').replace(/[^0-9]/g, '').slice(-10);
-
-      // Check current appState profiles/users
-      const existingUsers = appState.profiles || [];
-
-      for (const u of existingUsers) {
-        if (u.email && u.email.toLowerCase() === cleanEmail) {
-          return { unique: true, isLogin: true, user: u };
-        }
-        if (cleanPhone && u.phone && u.phone.replace(/[^0-9]/g, '').slice(-10) === cleanPhone) {
-          return { unique: false, field: 'phone', message: "This mobile number is already registered to another account." };
-        }
-      }
-      return { unique: true, isLogin: false };
-    }
-
-    // -------------------------------------------------------------
     // SIGN IN VIEW: Dedicated Instant OTP for Existing Accounts
     // -------------------------------------------------------------
     document.getElementById('inputLoginIdentifier')?.addEventListener('keydown', (e) => {
@@ -2654,20 +2634,7 @@
               <p class="text-[11px] text-slate-300 leading-snug">
                 Welcome back, <strong class="text-white">${sanitize(data.name)}</strong>! A 6-digit sign-in code has been sent to <strong class="text-white">${data.email}</strong>. Please check your inbox (including Spam/Junk folder).
               </p>
-              ${data.devOtpHint ? `
-                <div class="mt-2 p-2.5 bg-amber-950/80 border border-amber-500/50 rounded-xl text-amber-200 text-xs">
-                  <div class="flex items-center justify-between gap-2">
-                    <span class="font-bold text-amber-300 flex items-center gap-1">⚡ Cloud Host Bypass Code:</span>
-                    <button type="button" class="underline text-[11px] font-bold text-amber-300 hover:text-white cursor-pointer" onclick="document.getElementById('inputEmailOtp').value='${data.devOtpHint}'; document.getElementById('verifyEmailOtpBtn').click();">Auto-Fill & Verify</button>
-                  </div>
-                  <div class="mt-1.5 flex items-center gap-2">
-                    <span class="font-mono text-base tracking-widest font-black text-white bg-slate-900 border border-amber-500/40 px-3 py-1 rounded-lg inline-block">
-                      ${data.devOtpHint}
-                    </span>
-                    <span class="text-[10px] text-amber-400/90 leading-tight">Render Free Tier firewall blocks outbound port 465. Code provided here so sign-in is instant.</span>
-                  </div>
-                </div>
-              ` : ''}
+
             </div>
           `;
         }
@@ -2680,38 +2647,11 @@
           document.getElementById('inputEmailOtp')?.focus();
         }, 50);
       } catch (err) {
-        console.warn("Sign-in request error:", err);
-        // Fallback: search in local profiles
-        const cleanId = identifier.toLowerCase().replace(/[^0-9a-z@._-]/g, '');
-        const localUser = (appState.profiles || []).find(p => 
-          (p.email && p.email.toLowerCase() === cleanId) || 
-          (p.phone && p.phone.replace(/[^0-9]/g, '').slice(-10) === cleanId.slice(-10))
-        );
-
-        if (localUser) {
-          appState.pendingAuth = {
-            isLoginFlow: true,
-            email: localUser.email,
-            name: localUser.name,
-            phone: localUser.phone,
-            clientFallbackOtp: generateSixDigitOtp()
-          };
-          document.getElementById('authModeSwitcher')?.classList.add('hidden');
-          document.getElementById('authSignInView')?.classList.add('hidden');
-          document.getElementById('authRegisterView')?.classList.add('hidden');
-          document.getElementById('authStep2EmailOtp')?.classList.remove('hidden');
-          document.getElementById('emailOtpTargetDisplay').textContent = localUser.email;
-          document.getElementById('inputEmailOtp').value = '';
-          clearInterval(emailTimerInterval);
-          emailTimerInterval = startOtpTimer('emailTimerText', 'resendEmailOtpBtn');
-          showToast(`Sign-in verification code dispatched to ${localUser.email}`, "✉️");
-        } else {
-          if (errEl) {
-            errEl.textContent = "No registered account found. Please click New Account to register.";
-            errEl.classList.remove('hidden');
-          }
-          showToast("Account not found. Please register.", "⚠️");
+        if (errEl) {
+          errEl.textContent = 'CampusPool could not reach the verification server. Try again when connected.';
+          errEl.classList.remove('hidden');
         }
+        showToast('Sign-in requires a connection to the campus server.', '⚠️');
       } finally {
         if (proceedBtn) {
           proceedBtn.disabled = false;
@@ -2760,16 +2700,7 @@
         return;
       }
 
-      // Check client DB constraints
-      const localCheck = checkClientDbUniqueness(name, email, phone);
-      if (!localCheck.unique) {
-        if (localCheck.field === 'phone' && phoneErr) {
-          phoneErr.textContent = `${localCheck.message}`;
-          phoneErr.classList.remove('hidden');
-        }
-        showToast(localCheck.message, "⚠️");
-        return;
-      }
+      // The backend verifies uniqueness; browser-local identity data is never authoritative.
 
       const proceedBtn = document.getElementById('proceedToEmailOtpBtn');
       if (proceedBtn) {
@@ -2810,8 +2741,7 @@
           name: name,
           email: email,
           phone: "+91 " + phone.replace(/[^0-9]/g, '').slice(-10),
-          dept: dept,
-          devOtpHint: data.devOtpHint
+          dept: dept
         };
 
         document.getElementById('authModeSwitcher')?.classList.add('hidden');
@@ -2834,20 +2764,7 @@
               <p class="text-[11px] text-slate-300 leading-snug">
                 A 6-digit verification code has been dispatched to <strong class="text-white">${email}</strong>. Please check your inbox (including Spam/Junk folder).
               </p>
-              ${data.devOtpHint ? `
-                <div class="mt-2 p-2.5 bg-amber-950/80 border border-amber-500/50 rounded-xl text-amber-200 text-xs">
-                  <div class="flex items-center justify-between gap-2">
-                    <span class="font-bold text-amber-300 flex items-center gap-1">⚡ Cloud Host Bypass Code:</span>
-                    <button type="button" class="underline text-[11px] font-bold text-amber-300 hover:text-white cursor-pointer" onclick="document.getElementById('inputEmailOtp').value='${data.devOtpHint}'; document.getElementById('verifyEmailOtpBtn').click();">Auto-Fill & Verify</button>
-                  </div>
-                  <div class="mt-1.5 flex items-center gap-2">
-                    <span class="font-mono text-base tracking-widest font-black text-white bg-slate-900 border border-amber-500/40 px-3 py-1 rounded-lg inline-block">
-                      ${data.devOtpHint}
-                    </span>
-                    <span class="text-[10px] text-amber-400/90 leading-tight">Render Free Tier firewall blocks outbound port 465. Code provided here so registration is instant.</span>
-                  </div>
-                </div>
-              ` : ''}
+
             </div>
           `;
         }
@@ -2860,27 +2777,7 @@
           document.getElementById('inputEmailOtp')?.focus();
         }, 50);
       } catch (err) {
-        console.warn("Backend API unavailable, using local secure verification:", err.message);
-        appState.pendingAuth = {
-          isLoginFlow: false,
-          name: name,
-          email: email,
-          phone: "+91 " + phone.replace(/[^0-9]/g, '').slice(-10),
-          dept: dept,
-          clientFallbackOtp: generateSixDigitOtp()
-        };
-        document.getElementById('authModeSwitcher')?.classList.add('hidden');
-        document.getElementById('authRegisterView')?.classList.add('hidden');
-        document.getElementById('authSignInView')?.classList.add('hidden');
-        document.getElementById('authStepIndicator')?.classList.remove('hidden');
-        document.getElementById('authStep2EmailOtp')?.classList.remove('hidden');
-        document.getElementById('stepBadge1').className = "text-emerald-400 font-bold";
-        document.getElementById('stepBadge2').className = "text-brand-400 font-bold";
-        document.getElementById('emailOtpTargetDisplay').textContent = email;
-        document.getElementById('inputEmailOtp').value = '';
-        clearInterval(emailTimerInterval);
-        emailTimerInterval = startOtpTimer('emailTimerText', 'resendEmailOtpBtn');
-        showToast(`Verification code dispatched to ${email}`, "✉️");
+        showToast('Verification server unavailable. Registration requires an online connection.', '⚠️');
       } finally {
         if (proceedBtn) {
           proceedBtn.disabled = false;
@@ -2938,61 +2835,28 @@
           return;
         }
 
-        // Returning user logging in: Log in instantly!
-        if ((data.isLogin && data.user) || appState.pendingAuth?.isLoginFlow) {
-          const user = data.user || (appState.profiles || []).find(p => p.email.toLowerCase() === appState.pendingAuth.email.toLowerCase()) || {
-            name: appState.pendingAuth.name,
-            email: appState.pendingAuth.email,
-            phone: appState.pendingAuth.phone,
-            dept: "MIT School of Computing",
-            isVerified: true
-          };
-          appState.currentUser = user;
-          if (!appState.profiles) appState.profiles = [];
-          if (!appState.profiles.some(p => p.email.toLowerCase() === user.email.toLowerCase())) {
-            appState.profiles.push(user);
-          }
-          saveState();
+        // Successful verification is not enough by itself: require the server-issued
+        // HttpOnly cookie and /api/auth/me identity to be valid.
+        if (data.isLogin) {
+          if (!(await refreshSession())) throw new Error('Login succeeded but session verification failed');
           renderUserHeader();
-          syncUserBookings();
-          syncLiveRides();
+          await syncUserBookings();
+          await syncLiveRides();
           closeAuthModal();
-          showToast(`Welcome back, ${user.name}! Signed in successfully.`, "🎉");
+          showToast('Signed in with your verified campus account.', '✅');
           return;
         }
-
+        if (appState.pendingAuth?.isLoginFlow) throw new Error('Sign-in account not found');
         serverVerificationTokens.emailToken = data.emailToken;
       } catch (e) {
-        // Fallback if offline
-        if (appState.pendingAuth?.isLoginFlow) {
-          const user = (appState.profiles || []).find(p => p.email.toLowerCase() === appState.pendingAuth.email.toLowerCase()) || {
-            name: appState.pendingAuth.name,
-            email: appState.pendingAuth.email,
-            phone: appState.pendingAuth.phone,
-            dept: "MIT School of Computing",
-            isVerified: true
-          };
-          appState.currentUser = user;
-          saveState();
-          renderUserHeader();
-          syncUserBookings();
-          syncLiveRides();
-          closeAuthModal();
-          showToast(`Welcome back, ${user.name}!`, "🎉");
-          return;
+        if (errEl) {
+          errEl.textContent = 'Verification failed or the server connection was lost. Please retry.';
+          errEl.classList.remove('hidden');
         }
-
-        if (appState.pendingAuth.clientFallbackOtp && enteredOtp !== appState.pendingAuth.clientFallbackOtp) {
-          if (errEl) {
-            errEl.textContent = "Incorrect verification code.";
-            errEl.classList.remove('hidden');
-          }
-          return;
-        }
-        serverVerificationTokens.emailToken = "token_offline_verified";
+        return;
       }
 
-      if (errEl) errEl.classList.add('hidden');
+            if (errEl) errEl.classList.add('hidden');
 
       // Proceed to Step 3 (Mobile Phone SMS OTP)
       document.getElementById('authStep2EmailOtp')?.classList.add('hidden');
@@ -3052,7 +2916,11 @@
         }
         phoneToken = data.phoneToken;
       } catch (e) {
-        phoneToken = "token_phone_offline_verified";
+        if (errEl) {
+          errEl.textContent = 'Could not verify your phone. Reconnect and try again.';
+          errEl.classList.remove('hidden');
+        }
+        return;
       }
 
       // Complete Registration in Database
@@ -3074,26 +2942,19 @@
           showToast(regData.message || "Registration failed.", "⚠️");
           return;
         }
-        appState.currentUser = regData.user;
+        if (!(await refreshSession())) throw new Error('Registration session could not be verified');
       } catch (e) {
-        appState.currentUser = {
-          name: appState.pendingAuth.name,
-          email: appState.pendingAuth.email,
-          phone: appState.pendingAuth.phone,
-          dept: appState.pendingAuth.dept,
-          isVerified: true,
-          verifiedAt: new Date().toISOString()
-        };
+        showToast('Registration could not be confirmed by the server. Please try again.', '⚠️');
+        return;
       }
 
-      if (!appState.profiles) appState.profiles = [];
-      appState.profiles.push(appState.currentUser);
-
-      saveState();
+            serverVerificationTokens = { emailToken: null, phoneToken: null };
+      appState.pendingAuth = initialRealState.pendingAuth;
       renderUserHeader();
-      syncUserBookings();
+      await syncUserBookings();
+      await syncLiveRides();
       closeAuthModal();
-      showToast(`Welcome ${appState.currentUser.name}! Registered in MIT ADT database.`, "🎉");
+      showToast('Campus account verified and registered successfully.', '✅');
     });
 
     // Enter key listeners for OTP inputs
