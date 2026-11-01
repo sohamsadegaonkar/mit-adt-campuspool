@@ -82,3 +82,64 @@ test('PostgreSQL identity: atomic signup, durable sessions and login', {skip:!ur
    });
  }finally{await store.close();}
 });
+
+
+test('Actual CampusPool HTTP API accepts PostgreSQL sessions and CSRF, rejects spoofing', {skip:!url,timeout:45000},async()=>{
+ const {spawn}=require('node:child_process'),net=require('node:net'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'cp-identity-http-'));
+ const dbFile=path.join(dir,'ride-test.db');
+ const port=await new Promise((resolve,reject)=>{
+   const listener=net.createServer();
+   listener.once('error',reject);
+   listener.listen(0,'127.0.0.1',()=>{const p=listener.address().port;listener.close(()=>resolve(p));});
+ });
+ const store=new PgOtpStore({connectionString:url,ssl:false,hmacKey:key});
+ const identity=new PgIdentity(store);
+ const email='http-'+fresh()+'@students.mituniversity.edu.in',phone='9'+String(100000000+crypto.randomInt(0,899999999));
+ await store.pool.query(
+   'INSERT INTO campus_users(id,name,email,phone,dept,is_verified,verified_at) VALUES($1,$2,$3,$4,$5,true,now())',
+   [crypto.randomUUID(),'HTTP Test Student',email,phone,'Engineering']);
+ const cookieToken=await identity.sessionForEmail(email);
+ const env={...process.env,NODE_ENV:'development',APP_ENV:'local',PORT:String(port),
+   DATABASE_PATH:dbFile,ENABLE_CLUSTER:'false',CLUSTER_WORKERS:'1',
+   AUTH_OTP_BACKEND:'postgres',OTP_DATABASE_URL:url,OTP_HMAC_KEY:key,OTP_DB_SSL:'false',
+   OTP_SECRET:'ci-session-'+crypto.randomBytes(32).toString('hex'),
+   SMS_PROVIDER:'disabled',EMAIL_PROVIDER:'disabled'};
+ const child=spawn(process.execPath,['server.js'],{
+   cwd:__dirname,env,stdio:['ignore','pipe','pipe']
+ });
+ let output='';
+ try{
+   await new Promise((resolve,reject)=>{
+     const timeout=setTimeout(()=>reject(new Error('Server did not become ready: '+output.slice(-500))),12000);
+     child.stdout.on('data',d=>{
+       output+=String(d);
+       if(output.includes('active on port')){clearTimeout(timeout);resolve();}
+     });
+     child.stderr.on('data',d=>output+=String(d));
+     child.once('exit',code=>{clearTimeout(timeout);reject(new Error('Server exited early '+code+' '+output.slice(-500)));});
+   });
+   const base='http://127.0.0.1:'+port;
+   const guest=await fetch(base+'/api/auth/me');
+   assert.equal(guest.status,401);
+   const headers={Cookie:'cp_session='+cookieToken};
+   const me=await fetch(base+'/api/auth/me',{headers});
+   assert.equal(me.status,200);
+   const profile=await me.json();
+   assert.equal(profile.user.email,email);
+   assert.match(profile.csrfToken,/^[a-f0-9]{64}$/);
+   assert.equal((await fetch(base+'/api/bookings',{headers})).status,200);
+   const denied=await fetch(base+'/api/bookings?email=other@students.mituniversity.edu.in',{headers});
+   assert.equal(denied.status,403);
+   const noCsrf=await fetch(base+'/api/auth/logout',{method:'POST',headers});
+   assert.equal(noCsrf.status,403);
+   const logout=await fetch(base+'/api/auth/logout',{method:'POST',
+     headers:{...headers,'X-CSRF-Token':profile.csrfToken}});
+   assert.equal(logout.status,200);
+   assert.equal((await fetch(base+'/api/auth/me',{headers})).status,401);
+ }finally{
+   child.kill('SIGTERM');
+   await store.close();
+   fs.rmSync(dir,{recursive:true,force:true});
+ }
+});
