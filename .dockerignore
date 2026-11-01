@@ -2,6 +2,11 @@ node_modules
 npm-debug.log
 .git
 .gitignore
-.env.local
+.env
+.env.*
+*.db
+*.db-shm
+*.db-wal
+campuspool_database.json
 .DS_Store
 Thumbs.db
