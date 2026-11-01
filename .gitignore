@@ -7,6 +7,21 @@ yarn-error.log*
 .vscode/
 .idea/
 *.log
+.impeccable/
+
+# NEVER commit runtime credentials or secret files.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Never commit runtime databases / user data.
+*.db
 *.db-shm
 *.db-wal
-.impeccable/
+*.sqlite
+*.sqlite3
+campuspool_database.json
