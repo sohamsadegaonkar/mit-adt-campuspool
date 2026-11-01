@@ -7,7 +7,7 @@ services:
     name: mit-adt-campuspool-staging
     region: singapore
     plan: free
-    branch: feature/stage1-postgres-otp
+    branch: feature/supabase-staging-postgres
     autoDeployTrigger: 'off'
     buildCommand: npm ci --omit=dev
     startCommand: node server.js
@@ -32,7 +32,7 @@ services:
       - key: OTP_HMAC_KEY
         sync: false
       - key: OTP_DB_SSL
-        value: "false"
+        value: "true"
       - key: EMAIL_PROVIDER
         value: resend
       - key: RESEND_API_KEY
