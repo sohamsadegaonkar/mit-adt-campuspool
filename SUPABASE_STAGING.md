@@ -10,9 +10,9 @@
 - Plan cost quoted: **$0/month**, confirmed Free
 - Status at verification: **ACTIVE_HEALTHY**
 - Dashboard: https://supabase.com/dashboard/project/tnitksrlntrdxbvznxzf
-- Applied migrations: `campuspool_001_otp`, `campuspool_002_users_sessions`, `campuspool_003_supabase_private_tables`, `campuspool_004_audit_user_index`
+- Applied migrations: `campuspool_001_otp`, `campuspool_002_users_sessions`, `campuspool_003_supabase_private_tables`, `campuspool_004_audit_user_index`, `campuspool_005_staging_backend_role`.
 - Verified five auth tables exist, initially empty, have RLS enabled and reject `anon`/`authenticated` SELECT privileges.
-- Supabase security advisor lists five informational **RLS enabled without policy** notices. This is intentional for server-only tables; do not add public policies to silence these.
+- Supabase security advisor now shows **no findings** after the backend-only role policies were added. Never grant access to `anon` or `authenticated` for these tables.
 - Performance advisor no longer flags the audit-table foreign key as unindexed. Other newly created indexes are reported as unused because the tables are empty.
 
 **Not yet connected to Render:** Provider connection credentials are only available through the owner's private Supabase dashboard. Configure the session-pooler URL and password in the separate Render staging Environment screen; do not send them in chat. Real provider signup testing is pending.
@@ -27,6 +27,35 @@ Supabase account discovery (2026-11-01):
 - The user explicitly selected this organization and authorized Free-plan creation; the new project was created successfully.
 - No subscription upgrade or billable feature was authorized or created.
 
+## Render staging service — created but intentionally not live
+
+- Service: **mit-adt-campuspool-staging**
+- Render service ID: `srv-dbjof8fb9u1s73eks0bg`
+- Dashboard: https://dashboard.render.com/web/srv-dbjof8fb9u1s73eks0bg
+- URL (not yet operational): https://mit-adt-campuspool-staging.onrender.com
+- Branch: `feature/supabase-staging-postgres`; Singapore, Node.js, Free plan.
+- Auto-deploy: **OFF**.
+- Initial build: **successful**. Initial runtime deploy: **failed closed** due to missing `OTP_SECRET`. This is deliberate: no insecure/default secrets were provisioned.
+- Currently configured non-sensitive settings: `NODE_ENV=production`, `APP_ENV=staging`, `AUTH_OTP_BACKEND=postgres`, `OTP_DB_SSL=true`, `EMAIL_PROVIDER=disabled`, `SMS_PROVIDER=disabled`, and isolated SQLite path.
+- The Supabase connector cannot return the database password or the project-specific Session Pooler hostname. A cross-service credential-transfer attempt was **blocked by the platform's safety checks**. No password or pooler hostname was guessed or stored in Render.
+- A dedicated role `campuspool_staging_app` exists in Supabase with access to only the five auth tables, plus server-only RLS policies. Its LOGIN capability is currently **disabled** (`NOLOGIN`) until a new password can be configured privately.
+
+### Complete the private connection (account-owner UI only)
+
+1. In your password manager, generate four separate high-entropy secrets (e.g. 64+ hex characters): one for the custom database role, one for `OTP_HMAC_KEY`, one for `OTP_SECRET`, and one for `STAGING_BASIC_AUTH_PASSWORD`. Do not reuse old compromised keys.
+2. In Supabase SQL Editor on **campuspool-staging-db only**, activate the restricted database role with a password stored privately:
+
+       ALTER ROLE campuspool_staging_app WITH LOGIN PASSWORD '<GENERATED-PRIVATE-ROLE-PASSWORD>';
+
+   Do not commit this SQL with the actual password. Treat the SQL Editor's query history as sensitive. You may use a supported Supabase role-password UI instead if available.
+3. In Supabase, open **Connect → Session pooler**. Copy the actual hostname (do not assume any particular `aws-N-` prefix) and port **5432**. Change the connection username to `campuspool_staging_app.tnitksrlntrdxbvznxzf` and use your newly created restricted-role password. If it contains URL-reserved characters, percent-encode it.
+4. Open the **new staging service** Render Environment page, add `OTP_DATABASE_URL` with this private URL, and set `OTP_HMAC_KEY`, `OTP_SECRET` and `STAGING_BASIC_AUTH_PASSWORD`. Keep `OTP_DB_SSL=true`, `NODE_ENV=production` and `AUTH_OTP_BACKEND=postgres`. Do **not** modify the existing production Render service.
+5. Choose **Save and deploy**. The existing web build succeeded, so the new deploy should attempt startup with the private values. Check for `live` status and `/healthz` returning 200. If the TLS certificate chain is not trusted, install the provider's official CA instead of disabling TLS verification.
+6. Leave `EMAIL_PROVIDER=disabled`, `SMS_PROVIDER=disabled` until separate verified provider credentials are installed. Real signups intentionally fail closed while delivery is disabled.
+7. Once private configuration is complete, request a fresh staging health check and controlled user journey verification. Do not share credential values in the chat or GitHub issues.
+
+The backend's database role has no superuser or database-creation privileges; public Supabase roles remain denied. No production users or sessions were copied into the new project.
+
 ## Architecture
 
 CampusPool staging Node.js server on Render Singapore -> TLS PostgreSQL connection -> separate Supabase project in Singapore `ap-southeast-1`.
@@ -39,7 +68,7 @@ This uses PostgreSQL directly through the server's `pg` library. It does **not**
 2. **Completed:** Confirmed the new project is healthy and its ID is `tnitksrlntrdxbvznxzf`.
 3. **Completed:** Applied four `stage1-otp/migrations` to the new project only. Migration 003 enables RLS/revokes public access; 004 adds the audit-user index.
 4. **Completed:** Queried `pg_class` and verified all five tables have RLS enabled and deny anon/authenticated SELECT; reviewed both security and performance advisors.
-5. Configure the separate Render staging web service, based on `render-staging.yaml` in this branch. It has manual deployments and Basic Auth.
+5. **Created:** The separate Render staging web service is provisioned, but has not reached a live state because secrets are absent. Complete the private steps above.
 6. In Supabase Dashboard -> Project -> Connect, choose **Session pooler** for an IPv4-only Render connection. Copy the actual connection string into Render's private `OTP_DATABASE_URL` environment variable; do not paste it into chat or GitHub. The pooler username differs from direct connections.
 7. Set `OTP_DB_SSL=true` and use valid TLS certificate verification. If the connection fails certificate verification, configure the provider's documented CA certificate securely; **do not disable verification to make it work**.
 8. Configure new staging-only `OTP_HMAC_KEY` and `OTP_SECRET`, and a strong `STAGING_BASIC_AUTH_PASSWORD`. Do not reuse any committed/exposed secret.
