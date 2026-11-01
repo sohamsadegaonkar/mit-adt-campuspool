@@ -2,14 +2,30 @@
 
 ## Purpose
 
+## Provisioned staging project — 2026-11-01
+
+- Supabase project: **campuspool-staging-db** (`tnitksrlntrdxbvznxzf`)
+- Organization: `sohamsadegaonkar's Org`
+- Region: Singapore (`ap-southeast-1`)
+- Plan cost quoted: **$0/month**, confirmed Free
+- Status at verification: **ACTIVE_HEALTHY**
+- Dashboard: https://supabase.com/dashboard/project/tnitksrlntrdxbvznxzf
+- Applied migrations: `campuspool_001_otp`, `campuspool_002_users_sessions`, `campuspool_003_supabase_private_tables`, `campuspool_004_audit_user_index`
+- Verified five auth tables exist, initially empty, have RLS enabled and reject `anon`/`authenticated` SELECT privileges.
+- Supabase security advisor lists five informational **RLS enabled without policy** notices. This is intentional for server-only tables; do not add public policies to silence these.
+- Performance advisor no longer flags the audit-table foreign key as unindexed. Other newly created indexes are reported as unused because the tables are empty.
+
+**Not yet connected to Render:** Provider connection credentials are only available through the owner's private Supabase dashboard. Configure the session-pooler URL and password in the separate Render staging Environment screen; do not send them in chat. Real provider signup testing is pending.
+
+
 Replace the blocked second Render Free PostgreSQL database with a separate Supabase Free project. This project is **only for CampusPool staging**, not for ReturnDesk or CampusPool production.
 
 Supabase account discovery (2026-11-01):
 - Organization available: `sohamsadegaonkar's Org` (Free).
 - Existing projects: `alpha_testing` and `sohamsadegaonkar's Project`, both inactive. Do not restore, delete, or repurpose either.
 - Supabase currently supports two active projects on Free; inactive projects do not count toward the active project quota, subject to actual account restrictions.
-- A new project **must not be created until the user explicitly chooses the organization**. The connector requires that selection even when only one organization is listed.
-- No subscription upgrade or billable feature has been authorized.
+- The user explicitly selected this organization and authorized Free-plan creation; the new project was created successfully.
+- No subscription upgrade or billable feature was authorized or created.
 
 ## Architecture
 
@@ -19,10 +35,10 @@ This uses PostgreSQL directly through the server's `pg` library. It does **not**
 
 ## Once the organization is confirmed
 
-1. Create a new Supabase Free project named `campuspool-staging-db` in `ap-southeast-1`, provided the provider confirms no extra charges. Do not use existing Supabase projects.
-2. Wait for the new project to become active. Verify the selected project name and project ID.
-3. Apply the three `stage1-otp/migrations` to **that new project only**. The third migration enables RLS and revokes public, anon and authenticated role access to the sensitive tables.
-4. Query `pg_class` to confirm each CampusPool auth table has `relrowsecurity=true`. Run Supabase security advisors and address findings.
+1. **Completed:** Created a separate Supabase Free project named `campuspool-staging-db` in `ap-southeast-1`; existing projects were not modified.
+2. **Completed:** Confirmed the new project is healthy and its ID is `tnitksrlntrdxbvznxzf`.
+3. **Completed:** Applied four `stage1-otp/migrations` to the new project only. Migration 003 enables RLS/revokes public access; 004 adds the audit-user index.
+4. **Completed:** Queried `pg_class` and verified all five tables have RLS enabled and deny anon/authenticated SELECT; reviewed both security and performance advisors.
 5. Configure the separate Render staging web service, based on `render-staging.yaml` in this branch. It has manual deployments and Basic Auth.
 6. In Supabase Dashboard -> Project -> Connect, choose **Session pooler** for an IPv4-only Render connection. Copy the actual connection string into Render's private `OTP_DATABASE_URL` environment variable; do not paste it into chat or GitHub. The pooler username differs from direct connections.
 7. Set `OTP_DB_SSL=true` and use valid TLS certificate verification. If the connection fails certificate verification, configure the provider's documented CA certificate securely; **do not disable verification to make it work**.
