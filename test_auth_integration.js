@@ -150,3 +150,59 @@ test('Staging requires independent password, session cookie and CSRF', {timeout:
     fs.rmSync(dir,{recursive:true,force:true});
   }
 });
+
+
+test('Real local email OTP verification creates a session and rejects code replay', {timeout:45000},async()=>{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'campuspool-local-login-'));
+  const dbPath=path.join(dir,'login.db');
+  const port=await freePort();
+  const loginEmail='auth-flow-test@students.mituniversity.edu.in';
+  const database=new DB(dbPath);
+  database.createProfile({ name:'Email Flow Test',email:loginEmail,phone:'9123456789',dept:'Engineering' });
+  database.db.close();
+  const env={
+    ...process.env,
+    PORT:String(port),NODE_ENV:'development',APP_ENV:'local',ALLOW_DEV_OTP:'true',
+    OTP_SECRET:crypto.randomBytes(32).toString('hex'),ENABLE_CLUSTER:'false',CLUSTER_WORKERS:'1',
+    DATABASE_PATH:dbPath,SMS_PROVIDER:'disabled',
+    RESEND_API_KEY:'',BREVO_API_KEY:'',SMTP_HOST:'127.0.0.1',SMTP_PORT:'1',
+    SMTP_USER:'',SMTP_PASS:''
+  };
+  const child=spawn(process.execPath,['server.js'],{cwd:__dirname,env,stdio:['ignore','pipe','pipe']});
+  const base='http://127.0.0.1:'+port;
+  try {
+    await waitForServer(child);
+    const login=await fetch(base+'/api/auth/login-request',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({identifier:loginEmail})
+    });
+    assert.equal(login.status,200);
+    const payload=await login.json();
+    assert.match(payload.devOtpHint,/^[0-9]{6}$/);
+    assert.equal(payload.deliveredToInbox,false);
+    const verification=await fetch(base+'/api/auth/verify-email-otp',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email:loginEmail,otp:payload.devOtpHint})
+    });
+    assert.equal(verification.status,200);
+    const setCookie=verification.headers.get('set-cookie');
+    assert.match(setCookie,/cp_session=[A-Za-z0-9_-]{43}/);
+    assert.match(setCookie,/HttpOnly/);
+    assert.match(setCookie,/SameSite=Lax/);
+    const cookie=setCookie.split(';')[0];
+    const me=await fetch(base+'/api/auth/me',{headers:{Cookie:cookie}});
+    assert.equal(me.status,200);
+    const meData=await me.json();
+    assert.equal(meData.user.email,loginEmail);
+    assert.match(meData.csrfToken,/^[a-f0-9]{64}$/);
+    const replay=await fetch(base+'/api/auth/verify-email-otp',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email:loginEmail,otp:payload.devOtpHint})
+    });
+    assert.equal(replay.status,400);
+    assert.equal((await replay.json()).error,'OTP_ALREADY_USED');
+  } finally {
+    child.kill('SIGTERM');
+    fs.rmSync(dir,{recursive:true,force:true});
+  }
+});
