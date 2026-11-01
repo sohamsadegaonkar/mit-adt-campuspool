@@ -7,7 +7,7 @@ services:
     name: mit-adt-campuspool-staging
     region: oregon
     plan: free
-    branch: feature/auth-staging-integration
+    branch: feature/stage1-postgres-otp
     autoDeployTrigger: 'off'
     buildCommand: npm ci --omit=dev
     startCommand: node server.js
