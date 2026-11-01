@@ -15,9 +15,6 @@
   "env": {
     "SMTP_HOST": "smtp.gmail.com",
     "SMTP_PORT": "465",
-    "SMTP_SECURE": "true",
-    "SMTP_USER": "sadegaonkarsg@gmail.com",
-    "SMTP_PASS": "ngvs yldy rgpu kfpm",
-    "SMTP_FROM": "MIT ADT CampusPool <sadegaonkarsg@gmail.com>"
+    "SMTP_SECURE": "true"
   }
 }
