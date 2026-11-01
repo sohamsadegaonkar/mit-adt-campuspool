@@ -9,7 +9,8 @@
     "test:lb": "node test_load_balancer.js",
     "test:cache": "node test_caching.js",
     "test:ratelimit": "node test_rate_limiter.js",
-    "test:qa": "node test_qa_suite.js"
+    "test:qa": "node test_qa_suite.js",
+    "test:security": "node --test test_security_smoke.js"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
