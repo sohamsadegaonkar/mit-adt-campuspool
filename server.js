@@ -1367,10 +1367,11 @@ const server = http.createServer(async (req, res) => {
   }
   // Explicit public asset allowlist blocks source code, runtime databases, secrets,
   // traversal and unrecognized paths (instead of returning index.html with HTTP 200).
-  const publicAssets = new Set(['/', '/index.html', '/campuspool.css', '/campuspool-icon.svg', '/manifest.webmanifest', '/sw.js']);
+  const publicAssets = new Set(['/', '/index.html', '/campuspool.css', '/campuspool-icon.svg', '/manifest.webmanifest', '/sw.js', '/404.html', '/503.html']);
   if (!publicAssets.has(pathname)) {
-    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
-    return res.end('404 — Page not found');
+    const html = fs.readFileSync(path.join(__dirname, '404.html'));
+    res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': html.length, 'Cache-Control': 'no-store' });
+    return res.end(method === 'HEAD' ? undefined : html);
   }
   const filePath = path.join(__dirname, pathname === '/' ? 'index.html' : pathname.slice(1));
 
