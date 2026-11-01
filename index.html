@@ -2856,7 +2856,7 @@
         return;
       }
 
-            if (errEl) errEl.classList.add('hidden');
+      if (errEl) errEl.classList.add('hidden');
 
       // Proceed to Step 3 (Mobile Phone SMS OTP)
       document.getElementById('authStep2EmailOtp')?.classList.add('hidden');
@@ -2866,14 +2866,19 @@
       document.getElementById('phoneOtpTargetDisplay').textContent = appState.pendingAuth.phone;
       document.getElementById('inputPhoneOtp').value = '';
 
-      // Only claim SMS dispatch when an actual provider confirms success.
+      const phoneCompleteButton = document.getElementById('completeVerificationBtn');
+      if (phoneCompleteButton) phoneCompleteButton.disabled = true;
+      const retrySmsButton = document.getElementById('resendPhoneOtpBtn');
+      if (retrySmsButton) retrySmsButton.disabled = false;
+      // Only enable registration after the configured provider accepts the message.
       try {
         const response = await apiFetch('/api/auth/send-phone-otp', {
           method: 'POST', headers: { 'Content-Type':'application/json' },
           body: JSON.stringify({ phone: appState.pendingAuth.phone })
         });
         const data = await response.json();
-        if (!response.ok) { showToast(data.message || 'SMS verification unavailable.', '⚠️'); return; }
+        if (!response.ok) { showToast(data.message || 'SMS verification unavailable. Use Resend SMS to retry.', '⚠️'); return; }
+        if (phoneCompleteButton) phoneCompleteButton.disabled = false;
         clearInterval(phoneTimerInterval);
         phoneTimerInterval = startOtpTimer('phoneTimerText', 'resendPhoneOtpBtn');
         showToast('SMS provider has dispatched your code.', '📱');
@@ -2881,6 +2886,10 @@
     });
 
     document.getElementById('backToEmailOtpBtn')?.addEventListener('click', () => {
+      if (serverVerificationTokens.emailToken) {
+        showToast('Your email is already verified. Retry SMS or restart registration to change details.', 'ℹ️');
+        return;
+      }
       document.getElementById('authStep3PhoneOtp')?.classList.add('hidden');
       document.getElementById('authStep2EmailOtp')?.classList.remove('hidden');
       document.getElementById('stepBadge2').className = "text-brand-400 font-bold";
@@ -2888,6 +2897,7 @@
     });
 
     document.getElementById('completeVerificationBtn')?.addEventListener('click', async () => {
+      if (document.getElementById('completeVerificationBtn')?.disabled) return;
       const enteredOtp = document.getElementById('inputPhoneOtp').value.trim();
       const errEl = document.getElementById('phoneOtpError');
 
@@ -2948,7 +2958,7 @@
         return;
       }
 
-            serverVerificationTokens = { emailToken: null, phoneToken: null };
+      serverVerificationTokens = { emailToken: null, phoneToken: null };
       appState.pendingAuth = initialRealState.pendingAuth;
       renderUserHeader();
       await syncUserBookings();
@@ -3016,9 +3026,11 @@
         });
         const data = await resp.json();
         if (resp.ok) {
+          const phoneCompleteButton = document.getElementById('completeVerificationBtn');
+          if (phoneCompleteButton) phoneCompleteButton.disabled = false;
           clearInterval(phoneTimerInterval);
           phoneTimerInterval = startOtpTimer('phoneTimerText', 'resendPhoneOtpBtn');
-          showToast(`Fresh SMS code dispatched to ${appState.pendingAuth.phone}`, "📱");
+          showToast('A verification SMS was accepted by the delivery provider.', '📱');
         } else {
           showToast(data.message || "Failed to resend SMS code.", "⚠️");
         }
