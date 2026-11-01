@@ -16,6 +16,7 @@ const AUTH_OTP_BACKEND = process.env.AUTH_OTP_BACKEND || 'sqlite';
 if (!['sqlite', 'postgres'].includes(AUTH_OTP_BACKEND)) throw new Error('AUTH_OTP_BACKEND must be sqlite or postgres');
 const { PgOtpStore } = AUTH_OTP_BACKEND === 'postgres' ? require('./stage1-otp/pg-store') : { PgOtpStore: null };
 const { handlePgAuth } = AUTH_OTP_BACKEND === 'postgres' ? require('./stage1-otp/auth-routes') : { handlePgAuth: null };
+const {PgIdentity} = AUTH_OTP_BACKEND === 'postgres' ? require('./stage1-otp/identity') : {PgIdentity:null};
 
 const PORT = process.env.PORT || 3000;
 const DB_FILE = path.join(__dirname, 'campuspool_database.json');
@@ -145,6 +146,7 @@ function startWorkerServer() {
 const SQLiteCampusDatabase = require('./database');
 const db = new SQLiteCampusDatabase();
 const pgOtpStore = AUTH_OTP_BACKEND === 'postgres' ? new PgOtpStore() : null;
+const pgIdentity = pgOtpStore ? new PgIdentity(pgOtpStore) : null;
 
 // -------------------------------------------------------------------------
 // Native Multi-Channel Email Dispatcher (HTTPS REST APIs + TLS SMTP Sockets)
@@ -569,8 +571,13 @@ const server = http.createServer(async (req, res) => {
     res.setHeader('Set-Cookie', 'cp_session=' + token + '; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800' + (IS_PRODUCTION ? '; Secure' : ''));
     return true;
   }
+  function setPostgresCookie(token) {
+    if(!token)return false;
+    res.setHeader('Set-Cookie', 'cp_session='+token+'; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800'+(IS_PRODUCTION?'; Secure':''));
+    return true;
+  }
   const sessionToken = readSessionToken();
-  const authenticatedUser = db.getSessionUser(sessionToken);
+  const authenticatedUser = pgIdentity ? await pgIdentity.getSessionUser(sessionToken) : db.getSessionUser(sessionToken);
   // CSRF token is tied to a server-issued session, never persisted in a browser storage.
   function csrfForSession(token) {
     return crypto.createHmac('sha256', OTP_SECRET).update('csrf:v1:' + token).digest('hex');
@@ -598,7 +605,10 @@ const server = http.createServer(async (req, res) => {
   }
   if (method === 'POST' && pathname === '/api/auth/logout') {
     const token = readSessionToken();
-    if (token) db.revokeSession(token);
+    if (token) {
+      if(pgIdentity)await pgIdentity.revokeSession(token);
+      else db.revokeSession(token);
+    }
     res.setHeader('Set-Cookie', 'cp_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0' + (IS_PRODUCTION ? '; Secure' : ''));
     return sendJson(200, { success: true });
   }
@@ -674,7 +684,7 @@ const server = http.createServer(async (req, res) => {
   // When enabled, these six auth routes fail closed to the PG-backed service.
   if (pgOtpStore && await handlePgAuth({
     pathname, method, parseBody, sendJson, db, setSessionCookie, getClientIp,
-    store: pgOtpStore
+    store: pgOtpStore,identity:pgIdentity,setPostgresCookie
   })) return;
 
   // -----------------------------------------------------------------------
@@ -682,7 +692,7 @@ const server = http.createServer(async (req, res) => {
   // -----------------------------------------------------------------------
   if (method === 'POST' && pathname === '/api/auth/check-uniqueness') {
     const body = await parseBody();
-    const check = db.checkUniqueness(body.name, body.email, body.phone);
+    const check = pgIdentity ? await pgIdentity.checkUniqueness(body.name, body.email, body.phone) : db.checkUniqueness(body.name, body.email, body.phone);
     if (!check.unique) return sendJson(409, { success: false, error: check.error || 'NOT_UNIQUE' });
     if (check.isExistingUser) return sendJson(200, { success: true, isExistingUser: true, message: 'An account already exists. Please sign in.' });
     return sendJson(200, { success: true, message: 'Credentials are ready for verification.' });
@@ -1502,7 +1512,7 @@ const server = http.createServer(async (req, res) => {
   server.headersTimeout = 16000;
 
   const startServer = async () => {
-    if (pgOtpStore) await pgOtpStore.ready();
+    if (pgOtpStore) { await pgOtpStore.ready(); await pgIdentity.pool.query('SELECT 1 FROM campus_users LIMIT 0'); await pgIdentity.pool.query('SELECT 1 FROM campus_sessions LIMIT 0'); }
     server.listen(PORT, '0.0.0.0', () => {
     const workerLabel = cluster.isWorker ? `Worker #${cluster.worker.id} (PID: ${process.pid})` : `Standalone Server (PID: ${process.pid})`;
     console.log(`[HTTP SERVER] ${workerLabel} active on port ${PORT}`);
