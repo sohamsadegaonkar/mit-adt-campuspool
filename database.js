@@ -398,9 +398,8 @@ class SQLiteCampusDatabase {
   }
 
   createRide(ride) {
-    const count = this.db.prepare('SELECT COUNT(*) as count FROM rides').get().count;
     const newRide = {
-      id: 'ride_' + (count + 1),
+      id: 'ride_' + crypto.randomUUID(),
       driverName: ride.driverName,
       driverEmail: ride.driverEmail,
       driverPhone: ride.driverPhone,
@@ -454,7 +453,7 @@ class SQLiteCampusDatabase {
 
       this.db.prepare('UPDATE rides SET seats_left = seats_left - 1 WHERE id = ?').run(rideId);
 
-      const bookingId = 'BKG-' + Math.floor(1000 + Math.random() * 9000);
+      const bookingId = 'BKG-' + crypto.randomUUID();
       const now = new Date().toISOString();
 
       const booking = {
