@@ -35,7 +35,8 @@ function resultOrError(out,sendJson) {
   return true;
 }
 
-async function handlePgAuth({pathname,method,parseBody,sendJson,db,setSessionCookie,getClientIp,store}) {
+async function handlePgAuth({pathname,method,parseBody,sendJson,db,setSessionCookie,getClientIp,store,
+  mailProvider=emailProvider,smsDeliveryProvider=smsProvider}) {
   if(method!=='POST'||!paths.has(pathname))return false;
   try {
     if(pathname==='/api/auth/login-request') {
@@ -48,10 +49,10 @@ async function handlePgAuth({pathname,method,parseBody,sendJson,db,setSessionCoo
         sendJson(404,{success:false,error:'USER_NOT_FOUND',message:'No verified campus account found.'});
         return true;
       }
-      if(!emailProvider.configured())throw new OtpError('EMAIL_PROVIDER_NOT_CONFIGURED',503);
+      if(!mailProvider.configured())throw new OtpError('EMAIL_PROVIDER_NOT_CONFIGURED',503);
       const issued=await store.issue({
         purpose:'login',channel:'email',target:user.email,ip:getClientIp(),
-        deliver:({target,code})=>emailProvider.sendOtpEmail(target,code)
+        deliver:({target,code})=>mailProvider.sendOtpEmail(target,code)
       });
       sendJson(200,{success:true,email:user.email,expiresInSeconds:issued.expiresInSeconds,
         deliveredToInbox:true,message:'Verification code submitted to email provider.'});
@@ -66,10 +67,10 @@ async function handlePgAuth({pathname,method,parseBody,sendJson,db,setSessionCoo
         sendJson(409,{success:false,error:'NOT_UNIQUE',message:'These details could not be registered.'});
         return true;
       }
-      if(!emailProvider.configured())throw new OtpError('EMAIL_PROVIDER_NOT_CONFIGURED',503);
+      if(!mailProvider.configured())throw new OtpError('EMAIL_PROVIDER_NOT_CONFIGURED',503);
       const result=await store.issue({
         purpose:'signup_email',channel:'email',target:email,ip:getClientIp(),
-        deliver:({target,code})=>emailProvider.sendOtpEmail(target,code)
+        deliver:({target,code})=>mailProvider.sendOtpEmail(target,code)
       });
       sendJson(200,{success:true,expiresInSeconds:result.expiresInSeconds,deliveredToInbox:true,
         message:'Verification code submitted to email provider.'});
@@ -104,10 +105,10 @@ async function handlePgAuth({pathname,method,parseBody,sendJson,db,setSessionCoo
           message:'This phone number is already registered.'});
         return true;
       }
-      if(!smsProvider.isConfigured())throw new OtpError('SMS_PROVIDER_NOT_CONFIGURED',503);
+      if(!smsDeliveryProvider.isConfigured())throw new OtpError('SMS_PROVIDER_NOT_CONFIGURED',503);
       const issued=await store.issue({
         purpose:'signup_phone',channel:'sms',target:phone,ip:getClientIp(),
-        deliver:({target,code})=>smsProvider.sendOtpSms(target,code)
+        deliver:({target,code})=>smsDeliveryProvider.sendOtpSms(target,code)
       });
       sendJson(200,{success:true,expiresInSeconds:issued.expiresInSeconds,
         message:'SMS code accepted by provider for delivery.'});
