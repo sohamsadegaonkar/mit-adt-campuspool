@@ -25,19 +25,21 @@ services:
         value: /tmp/campuspool-staging.db
       - key: OTP_SECRET
         generateValue: true
+      - key: AUTH_OTP_BACKEND
+        value: postgres
+      - key: OTP_DATABASE_URL
+        sync: false
+      - key: OTP_HMAC_KEY
+        sync: false
+      - key: OTP_DB_SSL
+        value: "false"
+      - key: EMAIL_PROVIDER
+        value: resend
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
       - key: STAGING_BASIC_AUTH_PASSWORD
-        sync: false
-      - key: SMTP_HOST
-        value: smtp.gmail.com
-      - key: SMTP_PORT
-        value: "465"
-      - key: SMTP_SECURE
-        value: "true"
-      - key: SMTP_USER
-        sync: false
-      - key: SMTP_PASS
-        sync: false
-      - key: SMTP_FROM
         sync: false
       # Explicitly disabled until a staging-only approved MSG91 sender/template is configured.
       - key: SMS_PROVIDER
