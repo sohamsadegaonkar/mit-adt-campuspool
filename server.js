@@ -529,6 +529,40 @@ const server = http.createServer(async (req, res) => {
     res.end(JSON.stringify(data));
   }
 
+  function readSessionToken() {
+    const cookie = req.headers.cookie || '';
+    const match = cookie.match(/(?:^|;\s*)cp_session=([A-Za-z0-9_-]{43})(?:;|$)/);
+    return match ? match[1] : null;
+  }
+  function setSessionCookie(userEmail) {
+    const token = db.createSession(userEmail);
+    if (!token) return false;
+    res.setHeader('Set-Cookie', 'cp_session=' + token + '; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800' + (IS_PRODUCTION ? '; Secure' : ''));
+    return true;
+  }
+  const authenticatedUser = db.getSessionUser(readSessionToken());
+  const publicApiRoute = pathname.startsWith('/api/auth/') || pathname === '/api/health' || pathname === '/api/lb-status' || pathname === '/healthz';
+  if (pathname.startsWith('/api/') && !publicApiRoute && !authenticatedUser) {
+    return sendJson(401, { success: false, error: 'AUTH_REQUIRED', message: 'Sign in with your verified campus account.' });
+  }
+  if (method === 'POST' && pathname === '/api/auth/logout') {
+    const token = readSessionToken();
+    if (token) db.revokeSession(token);
+    res.setHeader('Set-Cookie', 'cp_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0' + (IS_PRODUCTION ? '; Secure' : ''));
+    return sendJson(200, { success: true });
+  }
+  function isSelf(email) {
+    return authenticatedUser && typeof email === 'string' && authenticatedUser.email.toLowerCase() === email.trim().toLowerCase();
+  }
+  function validLocation(lat, lng) {
+    return Number.isFinite(Number(lat)) && Number.isFinite(Number(lng)) &&
+      Number(lat) >= -90 && Number(lat) <= 90 && Number(lng) >= -180 && Number(lng) <= 180;
+  }
+  function validText(value, max) {
+    return typeof value === 'string' && value.trim().length > 0 && value.length <= max &&
+      !/[<>\u0000-\u001f]/.test(value);
+  }
+
   // -----------------------------------------------------------------------
   // REST API: /api/health & /api/lb-status (Cluster Load Balancer Telemetry)
   // -----------------------------------------------------------------------
@@ -589,10 +623,9 @@ const server = http.createServer(async (req, res) => {
   if (method === 'POST' && pathname === '/api/auth/check-uniqueness') {
     const body = await parseBody();
     const check = db.checkUniqueness(body.name, body.email, body.phone);
-    if (!check.unique) {
-      return sendJson(409, { success: false, ...check });
-    }
-    return sendJson(200, { success: true, message: "Credentials are unique and ready for verification." });
+    if (!check.unique) return sendJson(409, { success: false, error: check.error || 'NOT_UNIQUE' });
+    if (check.isExistingUser) return sendJson(200, { success: true, isExistingUser: true, message: 'An account already exists. Please sign in.' });
+    return sendJson(200, { success: true, message: 'Credentials are ready for verification.' });
   }
 
   // -----------------------------------------------------------------------
@@ -867,6 +900,9 @@ const server = http.createServer(async (req, res) => {
       db.saveOtp(record);
 
       const existingUser = db.getProfileByEmail(email);
+      if (existingUser && !setSessionCookie(existingUser.email)) {
+        return sendJson(500, { success: false, error: 'SESSION_FAILED' });
+      }
 
       return sendJson(200, {
         success: true,
@@ -1009,6 +1045,9 @@ const server = http.createServer(async (req, res) => {
     try {
       const profile = db.createProfile({ name, email, phone, dept });
       db.consumeVerificationTokens(emailToken, phoneToken);
+      if (!setSessionCookie(profile.email)) {
+        return sendJson(500, { success: false, error: 'SESSION_FAILED' });
+      }
       return sendJson(201, {
         success: true,
         message: `Welcome ${profile.name}! Your student account is registered in the campus database.`,
@@ -1098,7 +1137,27 @@ const server = http.createServer(async (req, res) => {
         });
       }
     }
-    const newRide = db.createRide(body);
+    if (body.driverEmail && !isSelf(body.driverEmail)) {
+      return sendJson(403, { success: false, error: 'NOT_RIDE_OWNER' });
+    }
+    if (!['Car', 'Bike'].includes(body.vehicle) || !validText(body.vehicleModel, 80) ||
+        !validText(body.pickup, 120) || !validText(body.destination, 120) ||
+        !validText(body.departureTime, 120) ||
+        (body.note && !validText(body.note, 500)) ||
+        !Number.isInteger(Number(body.seatsTotal)) || Number(body.seatsTotal) < 1 || Number(body.seatsTotal) > 4 ||
+        ![body.uberBenchmark,body.studentFare,body.driverPayout].every(v => Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) <= 10000)) {
+      return sendJson(400, { success: false, error: 'INVALID_RIDE', message: 'Ride details must be valid, reasonably sized and contain no markup.' });
+    }
+    const cleanRide = {
+      ...body,
+      driverName: authenticatedUser.name, driverEmail: authenticatedUser.email,
+      driverPhone: authenticatedUser.phone, dept: authenticatedUser.dept,
+      seatsTotal: Number(body.seatsTotal),
+      uberBenchmark: Number(body.uberBenchmark), studentFare: Number(body.studentFare),
+      driverPayout: Number(body.driverPayout),
+      note: body.note || ''
+    };
+    const newRide = db.createRide(cleanRide);
     invalidateRidesCache();
     return sendJson(201, { success: true, ride: newRide });
   }
@@ -1109,9 +1168,12 @@ const server = http.createServer(async (req, res) => {
   // -----------------------------------------------------------------------
   if (method === 'POST' && pathname === '/api/rides/location') {
     const body = await parseBody();
-    const { rideId, lat, lng, speed, heading, accuracy, driverEmail } = body;
-    if (!rideId || lat === undefined || lng === undefined) {
-      return sendJson(400, { success: false, message: 'rideId, lat, and lng are required.' });
+    const { rideId, lat, lng, speed, heading, accuracy } = body;
+    if (!rideId || !validLocation(lat,lng)) {
+      return sendJson(400, { success: false, message: 'Valid rideId, latitude and longitude are required.' });
+    }
+    if (!db.isRideDriver(rideId, authenticatedUser.email)) {
+      return sendJson(403, { success: false, error: 'NOT_RIDE_OWNER' });
     }
     const loc = {
       rideId,
@@ -1120,7 +1182,7 @@ const server = http.createServer(async (req, res) => {
       speed: Number(speed || 0),
       heading: Number(heading || 0),
       accuracy: Number(accuracy || 10),
-      driverEmail: driverEmail || '',
+      driverEmail: authenticatedUser.email,
       updatedAt: Date.now()
     };
     liveRideLocations.set(rideId, loc);
@@ -1133,6 +1195,9 @@ const server = http.createServer(async (req, res) => {
     if (!rideId) {
       return sendJson(400, { success: false, message: 'rideId query param is required.' });
     }
+    if (!db.isRideParticipant(rideId, authenticatedUser.email)) {
+      return sendJson(403, { success: false, error: 'NOT_RIDE_PARTICIPANT' });
+    }
     let loc = liveRideLocations.get(rideId);
     if (!loc) {
       try { loc = db.getLiveLocation(rideId); } catch (e) {}
@@ -1142,16 +1207,19 @@ const server = http.createServer(async (req, res) => {
 
   if (method === 'POST' && pathname === '/api/bookings/passenger-location') {
     const body = await parseBody();
-    const { bookingId, lat, lng, accuracy, passengerEmail } = body;
-    if (!bookingId || lat === undefined || lng === undefined) {
-      return sendJson(400, { success: false, message: 'bookingId, lat, and lng are required.' });
+    const { bookingId, lat, lng, accuracy } = body;
+    if (!bookingId || !validLocation(lat,lng)) {
+      return sendJson(400, { success: false, message: 'Valid bookingId, latitude and longitude are required.' });
+    }
+    if (!db.isBookingPassenger(bookingId, authenticatedUser.email)) {
+      return sendJson(403, { success: false, error: 'NOT_BOOKING_PASSENGER' });
     }
     const loc = {
       bookingId,
       lat: Number(lat),
       lng: Number(lng),
       accuracy: Number(accuracy || 10),
-      passengerEmail: passengerEmail || '',
+      passengerEmail: authenticatedUser.email,
       updatedAt: Date.now()
     };
     livePassengerLocations.set(bookingId, loc);
@@ -1163,6 +1231,9 @@ const server = http.createServer(async (req, res) => {
     const bookingId = parsedUrl.query?.bookingId;
     if (!bookingId) {
       return sendJson(400, { success: false, message: 'bookingId query param is required.' });
+    }
+    if (!db.isBookingParticipant(bookingId, authenticatedUser.email)) {
+      return sendJson(403, { success: false, error: 'NOT_BOOKING_PARTICIPANT' });
     }
     let loc = livePassengerLocations.get(bookingId);
     if (!loc) {
@@ -1176,26 +1247,24 @@ const server = http.createServer(async (req, res) => {
   // -----------------------------------------------------------------------
   if (method === 'GET' && pathname === '/api/bookings') {
     const userEmail = parsedUrl.query?.email;
-    if (userEmail) {
-      const bookings = db.getBookingsByUser(userEmail);
-      return sendJson(200, { success: true, bookings });
-    }
-    return sendJson(200, { success: true, bookings: db.getBookings() });
+    if (userEmail && !isSelf(userEmail)) return sendJson(403, { success: false, error: 'NOT_ALLOWED' });
+    return sendJson(200, { success: true, bookings: db.getBookingsByUser(authenticatedUser.email) });
   }
 
   if (method === 'GET' && pathname === '/api/my-rides') {
     const userEmail = parsedUrl.query?.email;
-    if (!userEmail) {
-      return sendJson(400, { success: false, message: 'Email query parameter is required.' });
-    }
-    const rides = db.getRidesByDriver(userEmail);
+    if (userEmail && !isSelf(userEmail)) return sendJson(403, { success: false, error: 'NOT_ALLOWED' });
+    const rides = db.getRidesByDriver(authenticatedUser.email);
     return sendJson(200, { success: true, rides });
   }
 
   if (method === 'POST' && pathname === '/api/bookings') {
     const body = await parseBody();
-    if (body.passengerEmail) {
-      const settlementCheck = db.checkUserSettlementBlock(body.passengerEmail);
+    if (body.passengerEmail && !isSelf(body.passengerEmail)) {
+      return sendJson(403, { success: false, error: 'NOT_ALLOWED' });
+    }
+    {
+      const settlementCheck = db.checkUserSettlementBlock(authenticatedUser.email);
       if (settlementCheck.isBlocked) {
         const errorMsg = settlementCheck.hasUnsettledCommission
           ? `Settlement Required: You have ₹${settlementCheck.commissionDue} in pending platform commission from a previous ride. Please settle via UPI to unlock bookings.`
@@ -1213,8 +1282,8 @@ const server = http.createServer(async (req, res) => {
     try {
       const booking = db.bookRide({
         rideId: body.rideId,
-        passengerEmail: body.passengerEmail,
-        passengerName: body.passengerName
+        passengerEmail: authenticatedUser.email,
+        passengerName: authenticatedUser.name
       });
       invalidateRidesCache();
       return sendJson(201, { success: true, booking });
@@ -1229,10 +1298,8 @@ const server = http.createServer(async (req, res) => {
   // -----------------------------------------------------------------------
   if (method === 'GET' && pathname === '/api/user/settlement-status') {
     const email = parsedUrl.query?.email;
-    if (!email) {
-      return sendJson(400, { success: false, message: 'Email query parameter is required.' });
-    }
-    const status = db.checkUserSettlementBlock(email);
+    if (email && !isSelf(email)) return sendJson(403, { success: false, error: 'NOT_ALLOWED' });
+    const status = db.checkUserSettlementBlock(authenticatedUser.email);
     return sendJson(200, { success: true, ...status });
   }
 
@@ -1240,25 +1307,17 @@ const server = http.createServer(async (req, res) => {
   // REST API: /api/driver/settle-commission (ACID Settle 10% Platform Commission)
   // -----------------------------------------------------------------------
   if (method === 'POST' && pathname === '/api/driver/settle-commission') {
-    const body = await parseBody();
-    const { driverEmail, amount } = body;
-    if (!driverEmail || !amount) {
-      return sendJson(400, { success: false, message: 'Driver email and amount are required.' });
-    }
-    const result = db.recordDriverSettlement(driverEmail, Number(amount));
-    return sendJson(200, { success: true, message: 'Commission settled successfully in database.', ...result });
+    // A user click or client-provided UPI reference is not bank/payment-provider proof.
+    return sendJson(501, { success: false, error: 'PAYMENT_VERIFICATION_REQUIRED',
+      message: 'Settlement recording is disabled until a verified payment-provider callback is integrated.' });
   }
 
   // -----------------------------------------------------------------------
   // REST API: /api/bookings/payment-status (Update UPI payment status)
   // -----------------------------------------------------------------------
   if (method === 'POST' && pathname === '/api/bookings/payment-status') {
-    const body = await parseBody();
-    if (!body.bookingId) {
-      return sendJson(400, { success: false, message: 'Booking ID required.' });
-    }
-    const updated = db.updatePaymentStatus(body.bookingId, body.paymentStatus || 'Paid');
-    return sendJson(200, { success: updated, message: 'Payment status updated in database.' });
+    return sendJson(501, { success: false, error: 'PAYMENT_VERIFICATION_REQUIRED',
+      message: 'Payment confirmation requires a verified payment-provider callback.' });
   }
 
   // -----------------------------------------------------------------------
@@ -1270,7 +1329,7 @@ const server = http.createServer(async (req, res) => {
       return sendJson(400, { success: false, message: 'Booking ID required.' });
     }
     try {
-      const result = db.cancelBooking(body.bookingId, body.passengerEmail);
+      const result = db.cancelBooking(body.bookingId, authenticatedUser.email);
       invalidateRidesCache();
       return sendJson(200, { success: true, message: 'Booking canceled and seat restored.', ...result });
     } catch (err) {
@@ -1287,7 +1346,7 @@ const server = http.createServer(async (req, res) => {
       return sendJson(400, { success: false, message: 'Ride ID required.' });
     }
     try {
-      const result = db.cancelRide(body.rideId, body.driverEmail);
+      const result = db.cancelRide(body.rideId, authenticatedUser.email);
       invalidateRidesCache();
       return sendJson(200, { success: true, message: 'Offered ride canceled.', ...result });
     } catch (err) {
