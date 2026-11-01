@@ -1378,7 +1378,8 @@
     // -------------------------------------------------------------
     // REAL APPLICATION DATA & LOCAL PERSISTENCE
     // -------------------------------------------------------------
-    const STORAGE_KEY = 'mit_adt_campuspool_live_db_v4';
+    const LEGACY_STORAGE_KEY = 'mit_adt_campuspool_live_db_v4';
+    const STORAGE_KEY = 'mit_adt_campuspool_preferences_v1';
     const ONBOARDING_POP_SEEN_KEY = 'mit_adt_campuspool_onboarding_seen';
     const ADMIN_COMMISSION_VPA = "campuspool.mitadt@okaxis";
 
@@ -1411,25 +1412,59 @@
 
     let appState = JSON.parse(JSON.stringify(initialRealState));
 
+    // Only UI filters persist. Student identity comes from the server cookie session.
+    let csrfToken = null;
     function loadState() {
       try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed && parsed.rides) {
-            appState = parsed;
-          }
-        }
-      } catch (e) {
-        console.warn("Storage load fallback", e);
-      }
+        localStorage.removeItem(LEGACY_STORAGE_KEY);
+        const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+        if (typeof parsed.activeDestFilter === 'string') appState.activeDestFilter = parsed.activeDestFilter;
+        if (['all','Car','Bike','car','bike'].includes(parsed.activeVehicleFilter)) appState.activeVehicleFilter = parsed.activeVehicleFilter;
+      } catch (_) { console.warn('Preference loading unavailable'); }
     }
-
     function saveState() {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
-      } catch (e) {
-        console.warn("Storage save fallback", e);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          activeDestFilter: appState.activeDestFilter,
+          activeVehicleFilter: appState.activeVehicleFilter
+        }));
+      } catch (_) { console.warn('Preference saving unavailable'); }
+    }
+    async function apiFetch(input, options = {}) {
+      const urlString = typeof input === 'string' ? input : input.url;
+      const sameOriginApi = urlString.startsWith('/api/');
+      const method = (options.method || 'GET').toUpperCase();
+      const headers = new Headers(options.headers || {});
+      if (sameOriginApi && ['POST','PUT','PATCH','DELETE'].includes(method) && csrfToken) {
+        headers.set('X-CSRF-Token', csrfToken);
+      }
+      const response = await fetch(input, { ...options, headers, credentials: 'same-origin' });
+      if (sameOriginApi && response.status === 401 && !urlString.startsWith('/api/auth/')) {
+        csrfToken = null;
+        appState.currentUser = null;
+        appState.myBookings = [];
+        appState.myOfferedRides = [];
+        renderUserHeader();
+      }
+      return response;
+    }
+    async function refreshSession() {
+      try {
+        const response = await apiFetch('/api/auth/me', { cache: 'no-store' });
+        if (!response.ok) throw Error('No verified server session');
+        const data = await response.json();
+        if (!data.user || !data.user.isVerified || !/^[a-f0-9]{64}$/.test(data.csrfToken || '')) {
+          throw Error('Invalid session data');
+        }
+        appState.currentUser = data.user;
+        csrfToken = data.csrfToken;
+        return true;
+      } catch (_) {
+        csrfToken = null;
+        appState.currentUser = null;
+        appState.myBookings = [];
+        appState.myOfferedRides = [];
+        return false;
       }
     }
 
@@ -1457,6 +1492,13 @@
     let lastRidesEtag = null;
 
     async function syncLiveRides() {
+      if (!appState.currentUser || !csrfToken) {
+        appState.rides = [];
+        rideFeedState = 'unauthenticated';
+        renderRidesGrid();
+        updateRideFeedStatus();
+        return;
+      }
       if (rideFeedInFlight) return;
       const refreshOrigin = document.activeElement?.matches('[data-refresh-rides]')
         ? document.activeElement : null;
@@ -1465,7 +1507,7 @@
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10000);
       try {
-        const fetchHeaders = {}; if (lastRidesEtag) fetchHeaders["If-None-Match"] = lastRidesEtag; const resp = await fetch('/api/rides', { headers: fetchHeaders, signal: controller.signal }); if (resp.status === 304) { rideFeedState = "ready"; return; } const etag = resp.headers.get("ETag"); if (etag) lastRidesEtag = etag;
+        const fetchHeaders = {}; if (lastRidesEtag) fetchHeaders["If-None-Match"] = lastRidesEtag; const resp = await apiFetch('/api/rides', { headers: fetchHeaders, signal: controller.signal }); if (resp.status === 304) { rideFeedState = "ready"; return; } const etag = resp.headers.get("ETag"); if (etag) lastRidesEtag = etag;
         if (!resp.ok) throw new Error('Ride feed request failed');
         const data = await resp.json();
         if (!Array.isArray(data.rides)) throw new Error('Invalid ride feed response');
@@ -1496,24 +1538,24 @@
     }
 
     async function syncUserBookings() {
-      if (!appState.currentUser || !appState.currentUser.email) return;
+      if (!appState.currentUser || !csrfToken || !appState.currentUser.email) return;
       const email = appState.currentUser.email;
       try {
-        const bResp = await fetch(`/api/bookings?email=${encodeURIComponent(email)}`);
+        const bResp = await apiFetch(`/api/bookings?email=${encodeURIComponent(email)}`);
         if (bResp.ok) {
           const bData = await bResp.json();
           if (Array.isArray(bData.bookings)) {
             appState.myBookings = bData.bookings.filter(b => b.passengerEmail && b.passengerEmail.toLowerCase() === email.toLowerCase());
           }
         }
-        const rResp = await fetch(`/api/my-rides?email=${encodeURIComponent(email)}`);
+        const rResp = await apiFetch(`/api/my-rides?email=${encodeURIComponent(email)}`);
         if (rResp.ok) {
           const rData = await rResp.json();
           if (Array.isArray(rData.rides)) {
             appState.myOfferedRides = rData.rides;
           }
         }
-        const sResp = await fetch(`/api/user/settlement-status?email=${encodeURIComponent(email)}`);
+        const sResp = await apiFetch(`/api/user/settlement-status?email=${encodeURIComponent(email)}`);
         if (sResp.ok) {
           const sData = await sResp.json();
           if (sData.driverCommission && typeof sData.driverCommission.settled === 'number') {
@@ -1551,9 +1593,7 @@
       return clean.length === 10 && /^[6-9]\d{9}$/.test(clean);
     }
 
-    function generateSixDigitOtp() {
-      return Math.floor(100000 + Math.random() * 900000).toString();
-    }
+    // Verification codes are issued only by the server or configured provider.
 
     const modalFocusOrigins = new Map();
     const modalFocusableSelector = [
@@ -1676,13 +1716,14 @@
         if (banner) banner.classList.add('hidden');
         document.getElementById('headerLogoutBtn')?.addEventListener('click', async () => {
           try {
-            const response = await fetch('/api/auth/logout', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
+            const response = await apiFetch('/api/auth/logout', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
             if (!response.ok) throw new Error('Logout failed');
           } catch (e) {
             showToast('Could not revoke your session. Try again online.', '⚠️');
             return;
           }
           appState.currentUser = null;
+          csrfToken = null;
           appState.myBookings = [];
           appState.myOfferedRides = [];
           appState.settledCommissionAmount = 0;
@@ -1978,7 +2019,7 @@
               const bId = e.currentTarget.getAttribute('data-booking-id');
               if (!confirm("Are you sure you want to cancel this booking?")) return;
               try {
-                const resp = await fetch('/api/bookings/cancel', {
+                const resp = await apiFetch('/api/bookings/cancel', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ bookingId: bId, passengerEmail: appState.currentUser?.email })
@@ -2031,7 +2072,7 @@
               const rId = e.currentTarget.getAttribute('data-ride-id');
               if (!confirm("Are you sure you want to cancel this offered ride?")) return;
               try {
-                const resp = await fetch('/api/rides/cancel', {
+                const resp = await apiFetch('/api/rides/cancel', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ rideId: rId, driverEmail: appState.currentUser?.email })
@@ -2570,7 +2611,7 @@
       }
 
       try {
-        const resp = await fetch('/api/auth/login-request', {
+        const resp = await apiFetch('/api/auth/login-request', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ identifier })
@@ -2738,7 +2779,7 @@
 
       try {
         // Call Real Backend Server API
-        const resp = await fetch('/api/auth/send-email-otp', {
+        const resp = await apiFetch('/api/auth/send-email-otp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name, email, phone })
@@ -2882,7 +2923,7 @@
       }
 
       try {
-        const resp = await fetch('/api/auth/verify-email-otp', {
+        const resp = await apiFetch('/api/auth/verify-email-otp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: appState.pendingAuth.email, otp: enteredOtp })
@@ -2963,7 +3004,7 @@
 
       // Only claim SMS dispatch when an actual provider confirms success.
       try {
-        const response = await fetch('/api/auth/send-phone-otp', {
+        const response = await apiFetch('/api/auth/send-phone-otp', {
           method: 'POST', headers: { 'Content-Type':'application/json' },
           body: JSON.stringify({ phone: appState.pendingAuth.phone })
         });
@@ -2996,7 +3037,7 @@
 
       let phoneToken = null;
       try {
-        const resp = await fetch('/api/auth/verify-phone-otp', {
+        const resp = await apiFetch('/api/auth/verify-phone-otp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ phone: appState.pendingAuth.phone, otp: enteredOtp })
@@ -3016,7 +3057,7 @@
 
       // Complete Registration in Database
       try {
-        const regResp = await fetch('/api/auth/register', {
+        const regResp = await apiFetch('/api/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -3075,13 +3116,13 @@
       try {
         let resp, data;
         if (appState.pendingAuth.isLoginFlow) {
-          resp = await fetch('/api/auth/login-request', {
+          resp = await apiFetch('/api/auth/login-request', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ identifier: appState.pendingAuth.email })
           });
         } else {
-          resp = await fetch('/api/auth/send-email-otp', {
+          resp = await apiFetch('/api/auth/send-email-otp', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -3107,7 +3148,7 @@
     document.getElementById('resendPhoneOtpBtn')?.addEventListener('click', async () => {
       if (!appState.pendingAuth?.phone) return;
       try {
-        const resp = await fetch('/api/auth/send-phone-otp', {
+        const resp = await apiFetch('/api/auth/send-phone-otp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ phone: appState.pendingAuth.phone })
@@ -3209,7 +3250,7 @@
       }
 
       try {
-        const resp = await fetch('/api/bookings', {
+        const resp = await apiFetch('/api/bookings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -3672,7 +3713,7 @@
       };
 
       try {
-        const resp = await fetch('/api/rides', {
+        const resp = await apiFetch('/api/rides', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(ridePayload)
@@ -4070,7 +4111,7 @@
     async function fetchLiveGpsUpdate() {
       if (!currentTrackingContext.rideId) return;
       try {
-        const res = await fetch(`/api/rides/location?rideId=${encodeURIComponent(currentTrackingContext.rideId)}`);
+        const res = await apiFetch(`/api/rides/location?rideId=${encodeURIComponent(currentTrackingContext.rideId)}`);
         if (res.ok) {
           const data = await res.json();
           if (data && data.location) {
@@ -4121,7 +4162,7 @@
 
           // Sync with backend
           try {
-            await fetch('/api/rides/location', {
+            await apiFetch('/api/rides/location', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -4159,7 +4200,7 @@
 
           if (currentTrackingContext.bookingId) {
             try {
-              await fetch('/api/bookings/passenger-location', {
+              await apiFetch('/api/bookings/passenger-location', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -4223,7 +4264,7 @@
         updateTrackerView();
 
         // Also post to backend to verify end-to-end sync
-        fetch('/api/rides/location', {
+        apiFetch('/api/rides/location', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -4295,10 +4336,11 @@
     });
 
     // Initial Load & Real-Time SQLite Sync
-    window.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('toastNotification')?.classList.add('hidden');
       switchMainTab('tabFindRides', 'viewFindRides');
       loadState();
+      await refreshSession();
       // CP-005: Ensure filter select reflects persisted activeVehicleFilter
       if (appState.activeVehicleFilter) {
         const vSel = document.getElementById('filterVehicleSelect');
