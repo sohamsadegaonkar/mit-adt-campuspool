@@ -8,6 +8,7 @@ on:
     paths:
       - 'stage1-otp/**'
       - 'test_stage1_otp.js'
+      - 'test_pg_identity.js'
       - 'server.js'
       - 'package.json'
       - 'package-lock.json'
@@ -55,5 +56,9 @@ jobs:
           node --check stage1-otp/email-provider.js
           node --check stage1-otp/migrate.js
           node --check test_stage1_otp.js
+          node --check stage1-otp/identity.js
+          node --check test_pg_identity.js
       - name: Run isolated PostgreSQL integration tests
-        run: npm run test:stage1
+        run: |
+          npm run test:stage1
+          npm run test:identity
