@@ -123,6 +123,13 @@ class SQLiteCampusDatabase {
         reset_at INTEGER NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS sessions (
+        session_hash TEXT PRIMARY KEY,
+        user_email TEXT NOT NULL COLLATE NOCASE,
+        expires_at INTEGER NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+
       CREATE INDEX IF NOT EXISTS idx_profiles_email ON profiles(email);
       CREATE INDEX IF NOT EXISTS idx_profiles_phone ON profiles(phone);
       CREATE INDEX IF NOT EXISTS idx_rides_dest ON rides(destination);
@@ -136,6 +143,8 @@ class SQLiteCampusDatabase {
       CREATE INDEX IF NOT EXISTS idx_bookings_driver_created ON bookings(driver_email, created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_otp_expiry ON otp_verifications(expires_at);
       CREATE INDEX IF NOT EXISTS idx_live_locations_updated ON live_locations(updated_at);
+      CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions(expires_at);
+      CREATE INDEX IF NOT EXISTS idx_sessions_email ON sessions(user_email);
     `);
   }
 
@@ -800,6 +809,50 @@ class SQLiteCampusDatabase {
   // Verification tokens are single-use. After account registration, invalidate both.
   consumeVerificationTokens(emailToken, phoneToken) {
     this.db.prepare('UPDATE otp_verifications SET token = NULL WHERE token IN (?, ?)').run(emailToken, phoneToken);
+  }
+
+  // Opaque, server-side authenticated sessions. Only SHA-256 hashes are stored.
+  createSession(email) {
+    const user = this.getProfileByEmail(email);
+    if (!user || !user.isVerified) return null;
+    const token = crypto.randomBytes(32).toString('base64url');
+    const hash = crypto.createHash('sha256').update(token).digest('hex');
+    const now = Date.now();
+    this.db.prepare('INSERT INTO sessions (session_hash, user_email, expires_at, created_at) VALUES (?, ?, ?, ?)')
+      .run(hash, user.email, now + 7 * 24 * 60 * 60 * 1000, now);
+    return token;
+  }
+
+  getSessionUser(token) {
+    if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
+    const hash = crypto.createHash('sha256').update(token).digest('hex');
+    const row = this.db.prepare('SELECT user_email FROM sessions WHERE session_hash = ? AND expires_at > ?')
+      .get(hash, Date.now());
+    return row ? this.getProfileByEmail(row.user_email) : null;
+  }
+
+  revokeSession(token) {
+    if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return;
+    const hash = crypto.createHash('sha256').update(token).digest('hex');
+    this.db.prepare('DELETE FROM sessions WHERE session_hash = ?').run(hash);
+  }
+
+  // Ownership checks run against canonical records, never a body-supplied email.
+  isRideDriver(rideId, email) {
+    return !!this.db.prepare('SELECT 1 FROM rides WHERE id = ? AND driver_email = ? COLLATE NOCASE')
+      .get(rideId, email);
+  }
+  isRideParticipant(rideId, email) {
+    return this.isRideDriver(rideId, email) || !!this.db.prepare('SELECT 1 FROM bookings WHERE ride_id = ? AND passenger_email = ? COLLATE NOCASE')
+      .get(rideId, email);
+  }
+  isBookingPassenger(bookingId, email) {
+    return !!this.db.prepare('SELECT 1 FROM bookings WHERE booking_id = ? AND passenger_email = ? COLLATE NOCASE')
+      .get(bookingId, email);
+  }
+  isBookingParticipant(bookingId, email) {
+    return !!this.db.prepare('SELECT 1 FROM bookings WHERE booking_id = ? AND (passenger_email = ? COLLATE NOCASE OR driver_email = ? COLLATE NOCASE)')
+      .get(bookingId, email, email);
   }
 
   // -----------------------------------------------------------------------
