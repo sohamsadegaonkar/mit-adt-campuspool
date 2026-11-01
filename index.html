@@ -1674,7 +1674,14 @@
           </button>
         `;
         if (banner) banner.classList.add('hidden');
-        document.getElementById('headerLogoutBtn')?.addEventListener('click', () => {
+        document.getElementById('headerLogoutBtn')?.addEventListener('click', async () => {
+          try {
+            const response = await fetch('/api/auth/logout', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
+            if (!response.ok) throw new Error('Logout failed');
+          } catch (e) {
+            showToast('Could not revoke your session. Try again online.', '⚠️');
+            return;
+          }
           appState.currentUser = null;
           appState.myBookings = [];
           appState.myOfferedRides = [];
@@ -2256,65 +2263,8 @@
       openSettlementLockModal();
     });
 
-    document.getElementById('confirmSettleDoneBtn')?.addEventListener('click', async () => {
-      const restriction = checkUserSettlementRestriction();
-      if (!restriction.isBlocked) {
-        hideModal('settlementLockModal');
-        return;
-      }
-
-      const confirmBtn = document.getElementById('confirmSettleDoneBtn');
-      if (confirmBtn) {
-        confirmBtn.disabled = true;
-        confirmBtn.innerHTML = `<span>⏳</span> Confirming Settlement...`;
-      }
-
-      try {
-        if (restriction.hasUnsettledCommission) {
-          const amount = restriction.commissionDue;
-          appState.settledCommissionAmount = (appState.settledCommissionAmount || 0) + amount;
-          saveState();
-          updateDriverCommissionBanner();
-          updateSettlementWarningBanner();
-
-          // Sync with SQLite backend
-          await fetch('/api/driver/settle-commission', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              driverEmail: appState.currentUser?.email,
-              amount: amount
-            })
-          }).catch(() => {});
-
-          hideModal('settlementLockModal');
-          showToast("Platform commission settled! All booking & inquiry locks removed.", "✅");
-        } else if (restriction.hasUnpaidBooking) {
-          const b = restriction.unpaidBooking;
-          b.paymentStatus = 'Paid';
-          saveState();
-          renderMyRidesViews();
-          updateSettlementWarningBanner();
-
-          // Sync with SQLite backend
-          await fetch('/api/bookings/payment-status', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              bookingId: b.bookingId,
-              paymentStatus: 'Paid'
-            })
-          }).catch(() => {});
-
-          hideModal('settlementLockModal');
-          showToast("Ride payment confirmed! All booking & inquiry locks removed.", "✅");
-        }
-      } finally {
-        if (confirmBtn) {
-          confirmBtn.disabled = false;
-          confirmBtn.innerHTML = `<span><svg class="cp-icon" aria-hidden="true"><use href="#cp-check"></use></svg></span> I Have Settled Dues (Unlock Account)`;
-        }
-      }
+    document.getElementById('confirmSettleDoneBtn')?.addEventListener('click', () => {
+      showToast('Commission payment must be verified by the payment provider.', '⚠️');
     });
 
     function renderLeaderboard() {
@@ -3011,16 +2961,18 @@
       document.getElementById('phoneOtpTargetDisplay').textContent = appState.pendingAuth.phone;
       document.getElementById('inputPhoneOtp').value = '';
 
-      // Trigger phone OTP dispatch
-      fetch('/api/auth/send-phone-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: appState.pendingAuth.phone })
-      }).catch(() => {});
-
-      clearInterval(phoneTimerInterval);
-      phoneTimerInterval = startOtpTimer('phoneTimerText', 'resendPhoneOtpBtn');
-      showToast(`Email verified! SMS code dispatched to ${appState.pendingAuth.phone}`, "📱");
+      // Only claim SMS dispatch when an actual provider confirms success.
+      try {
+        const response = await fetch('/api/auth/send-phone-otp', {
+          method: 'POST', headers: { 'Content-Type':'application/json' },
+          body: JSON.stringify({ phone: appState.pendingAuth.phone })
+        });
+        const data = await response.json();
+        if (!response.ok) { showToast(data.message || 'SMS verification unavailable.', '⚠️'); return; }
+        clearInterval(phoneTimerInterval);
+        phoneTimerInterval = startOtpTimer('phoneTimerText', 'resendPhoneOtpBtn');
+        showToast('SMS provider has dispatched your code.', '📱');
+      } catch (e) { showToast('SMS verification unavailable.', '⚠️'); }
     });
 
     document.getElementById('backToEmailOtpBtn')?.addEventListener('click', () => {
@@ -3350,26 +3302,8 @@
       hideModal('paymentModal');
     });
 
-    document.getElementById('markPaymentDoneBtn')?.addEventListener('click', async () => {
-      const b = appState.selectedBookingForPayment;
-      if (!b) return;
-
-      b.paymentStatus = 'Paid';
-      saveState();
-      renderMyRidesViews();
-      hideModal('paymentModal');
-      showToast(`Payment marked as complete! Receipt updated.`, "✅");
-
-      // Update in SQLite Backend
-      try {
-        await fetch('/api/bookings/payment-status', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ bookingId: b.bookingId, paymentStatus: 'Paid' })
-        });
-      } catch (err) {
-        console.warn("Payment status update backend error:", err);
-      }
+    document.getElementById('markPaymentDoneBtn')?.addEventListener('click', () => {
+      showToast('Payment cannot be marked paid until provider verification succeeds.', '⚠️');
     });
 
     // Driver Weekly Commission Settlement Modal
@@ -3391,12 +3325,7 @@
     });
 
     document.getElementById('markCommissionPaidBtn')?.addEventListener('click', () => {
-      const comm = calculateWeeklyCommission();
-      appState.settledCommissionAmount = (appState.settledCommissionAmount || 0) + comm.netDue;
-      saveState();
-      updateDriverCommissionBanner();
-      hideModal('driverSettlementModal');
-      showToast("Weekly commission settled! Thank you for supporting CampusPool.", "✅");
+      showToast('Commission payment cannot be self-confirmed.', '⚠️');
     });
 
     // -------------------------------------------------------------
@@ -4400,4 +4329,26 @@
     });
   </script>
 
+
+<script>
+  // SECURITY REVIEW BUILD: Block real outgoing UPI intents while confirmation is unverified.
+  document.addEventListener('click', function(event) {
+    const link = event.target.closest('a[href^="upi:"]');
+    if (!link) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    alert('Payments are disabled pending payment-provider verification.');
+  }, true);
+  document.addEventListener('DOMContentLoaded', function () {
+    const note = document.createElement('div');
+    note.setAttribute('role','status');
+    note.style.cssText = 'padding:10px 16px;background:#fff4c0;color:#4a3900;text-align:center;font:600 12px Arial,sans-serif;border-bottom:1px solid #e8d888';
+    note.textContent = 'Security review build: payments are disabled until verified provider integration.';
+    document.body.insertBefore(note,document.body.firstChild);
+  });
+</script>
+<style>
+  #paymentModal img[src*="qrserver"], #driverSettlementModal img[src*="qrserver"],
+  #settlementLockModal img[src*="qrserver"], #settleQrCodeImg { display:none !important; }
+</style>
 </body></html>
