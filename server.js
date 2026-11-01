@@ -12,6 +12,10 @@ const path = require('path');
 const crypto = require('crypto');
 const url = require('url');
 const smsProvider = require('./sms-provider');
+const AUTH_OTP_BACKEND = process.env.AUTH_OTP_BACKEND || 'sqlite';
+if (!['sqlite', 'postgres'].includes(AUTH_OTP_BACKEND)) throw new Error('AUTH_OTP_BACKEND must be sqlite or postgres');
+const { PgOtpStore } = AUTH_OTP_BACKEND === 'postgres' ? require('./stage1-otp/pg-store') : { PgOtpStore: null };
+const { handlePgAuth } = AUTH_OTP_BACKEND === 'postgres' ? require('./stage1-otp/auth-routes') : { handlePgAuth: null };
 
 const PORT = process.env.PORT || 3000;
 const DB_FILE = path.join(__dirname, 'campuspool_database.json');
@@ -140,6 +144,7 @@ function startWorkerServer() {
 // -------------------------------------------------------------------------
 const SQLiteCampusDatabase = require('./database');
 const db = new SQLiteCampusDatabase();
+const pgOtpStore = AUTH_OTP_BACKEND === 'postgres' ? new PgOtpStore() : null;
 
 // -------------------------------------------------------------------------
 // Native Multi-Channel Email Dispatcher (HTTPS REST APIs + TLS SMTP Sockets)
@@ -663,6 +668,14 @@ const server = http.createServer(async (req, res) => {
       }
     });
   }
+
+  // Stage 1 PostgreSQL OTP is opt-in. Legacy SQLite rides and profiles are
+  // preserved until their independent, tested migration is approved.
+  // When enabled, these six auth routes fail closed to the PG-backed service.
+  if (pgOtpStore && await handlePgAuth({
+    pathname, method, parseBody, sendJson, db, setSessionCookie, getClientIp,
+    store: pgOtpStore
+  })) return;
 
   // -----------------------------------------------------------------------
   // REST API: /api/auth/check-uniqueness
@@ -1488,8 +1501,16 @@ const server = http.createServer(async (req, res) => {
   server.requestTimeout = 15000;
   server.headersTimeout = 16000;
 
-  server.listen(PORT, '0.0.0.0', () => {
+  const startServer = async () => {
+    if (pgOtpStore) await pgOtpStore.ready();
+    server.listen(PORT, '0.0.0.0', () => {
     const workerLabel = cluster.isWorker ? `Worker #${cluster.worker.id} (PID: ${process.pid})` : `Standalone Server (PID: ${process.pid})`;
     console.log(`[HTTP SERVER] ${workerLabel} active on port ${PORT}`);
+  });
+  };
+  startServer().catch(error => {
+    console.error('[OTP] PostgreSQL auth backend could not initialize:', error.code || 'DATABASE_ERROR');
+    process.exitCode = 1;
+    void pgOtpStore?.close().finally(() => process.exit(1));
   });
 }
