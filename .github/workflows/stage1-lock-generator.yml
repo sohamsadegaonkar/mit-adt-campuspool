@@ -5,6 +5,7 @@ on:
       - feature/stage1-postgres-otp
     paths:
       - package.json
+      - .github/workflows/stage1-lock-generator.yml
   workflow_dispatch:
 permissions:
   contents: read
