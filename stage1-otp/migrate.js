@@ -12,7 +12,9 @@ async function migrate({
   try{
     const sql=fs.readFileSync(path.join(__dirname,'migrations','001_otp.sql'),'utf8');
     await pool.query(sql);
-    console.log('[OTP MIGRATION] Applied Stage 1 OTP schema');
+    const identitySql=fs.readFileSync(path.join(__dirname,'migrations','002_users_sessions.sql'),'utf8');
+    await pool.query(identitySql);
+    console.log('[OTP MIGRATION] Applied Stage 1 OTP + identity schemas');
   } finally {
     await pool.end();
   }
