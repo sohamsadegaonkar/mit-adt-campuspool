@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/stage1-postgres-otp
+      - feature/postgres-users-sessions-staging
   pull_request:
     paths:
       - 'stage1-otp/**'
