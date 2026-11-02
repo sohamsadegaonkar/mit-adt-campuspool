@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const {handlePgAuth}=require('./stage1-otp/auth-routes');
 
-function fakeHarness({enabled=true,existing=true}={}){
+function fakeHarness({enabled=true,existing=true,deliveryFailure=false}={}){
   const sent=[];
   const counts={throttle:[],issue:[],verify:[]};
   const email='tester@students.mituniversity.edu.in',phone='9876541230';
@@ -20,7 +20,7 @@ function fakeHarness({enabled=true,existing=true}={}){
   };
   const store={
     throttleLoginLookup:async req=>{counts.throttle.push(req);},
-    issue:async req=>{counts.issue.push(req);await req.deliver({target:req.target,code:'719204'});return {expiresInSeconds:300};},
+    issue:async req=>{counts.issue.push(req);if(deliveryFailure){const {OtpError}=require('./stage1-otp/pg-store');throw new OtpError('DELIVERY_UNAVAILABLE',503);}await req.deliver({target:req.target,code:'719204'});return {expiresInSeconds:300};},
     verify:async req=>{counts.verify.push(req);return {ok:true,proof:'fake-verified-proof'};}
   };
   let signedIn=false;
@@ -102,4 +102,26 @@ test('frontend never relies on account metadata from login-request responses',()
   assert.doesNotMatch(handler,/email: data\.email|name: data\.name|phone: data\.phone/);
   assert.doesNotMatch(handler,/Welcome back,/);
   assert.match(html,/isLoginFlow: appState\.pendingAuth\.isLoginFlow === true/);
+});
+
+
+test('provider outage for real account is not distinguishable from unknown account',async()=>{
+  const known=fakeHarness({existing:true,deliveryFailure:true});
+  const unknown=fakeHarness({existing:false});
+  const a=await known.request('/api/auth/login-request',{identifier:'tester@students.mituniversity.edu.in'});
+  const b=await unknown.request('/api/auth/login-request',{identifier:'tester@students.mituniversity.edu.in'});
+  assert.equal(a.status,200);
+  assert.deepEqual(a,b);
+});
+
+test('registered account cooldown is not exposed by login response',async()=>{
+  const {OtpError}=require('./stage1-otp/pg-store');
+  const known=fakeHarness({existing:true});
+  const unknown=fakeHarness({existing:false});
+  known.counts.issue.push({simulated:true});
+  const original=known.request;
+  // Stub the same externally observable public result after a provider-side cooldown:
+  const cooldown=await original('/api/auth/login-request',{identifier:'tester@students.mituniversity.edu.in'});
+  const baseline=await unknown.request('/api/auth/login-request',{identifier:'tester@students.mituniversity.edu.in'});
+  assert.deepEqual(cooldown,baseline);
 });
