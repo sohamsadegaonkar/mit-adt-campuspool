@@ -102,7 +102,12 @@ test('HTTP rides and bookings switch to verified PostgreSQL user identities',
       driverEmail:emails[1],driverName:'Spoofed',note:'HTTP CI only'};
     const noCsrf=await request('/api/rides',{method:'POST',user:0,body:rideInput});
     assert.equal(noCsrf.status,403);
-    const created=await request('/api/rides',{method:'POST',user:0,body:rideInput,csrf:csrfDriver});
+    const spoof=await request('/api/rides',{method:'POST',user:0,body:rideInput,csrf:csrfDriver});
+    assert.equal(spoof.status,403,'The HTTP boundary rejects spoofed driver emails');
+    const cleanInput={...rideInput};
+    delete cleanInput.driverEmail;
+    delete cleanInput.driverName;
+    const created=await request('/api/rides',{method:'POST',user:0,body:cleanInput,csrf:csrfDriver});
     assert.equal(created.status,201,JSON.stringify(created.body));
     rideId=created.body.ride.id;
     assert.equal(created.body.ride.driverEmail,emails[0]);
