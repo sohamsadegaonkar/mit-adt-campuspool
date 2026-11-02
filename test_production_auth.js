@@ -11,7 +11,8 @@ function fakeHarness({enabled=true,existing=true}={}){
   const user={id:'fake',email,phone,name:'Private Student',isVerified:true};
   const identity={
     getProfileByIdentifier:async id=>existing && (id===email || id.replace(/\D/g,'').slice(-10)===phone)?user:null,
-    checkUniqueness:async()=>({unique:true})
+    checkUniqueness:async()=>({unique:true}),
+    sessionForEmail:async()=> 'test-session-token'
   };
   const mailProvider={
     configured:()=>enabled,
