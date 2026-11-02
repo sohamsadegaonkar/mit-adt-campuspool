@@ -22,7 +22,9 @@ async function migrate({
     await pool.query(roleSql);
     const ridesSql=fs.readFileSync(path.join(__dirname,'migrations','006_durable_rides_bookings.sql'),'utf8');
     await pool.query(ridesSql);
-    console.log('[OTP MIGRATION] Applied OTP, identity, private-table security and durable Rides schema migrations');
+    const mobilitySql=fs.readFileSync(path.join(__dirname,'migrations','007_spatiotemporal_matching.sql'),'utf8');
+    await pool.query(mobilitySql);
+    console.log('[OTP MIGRATION] Applied OTP, identity, rides and PostGIS mobility schema migrations');
   } finally {
     await pool.end();
   }
