@@ -30,6 +30,9 @@ services:
       # Explicit staging-only switch after the additive PostgreSQL rides migration.
       - key: RIDES_BACKEND
         value: postgres
+      # Opt-in after campuspool_007_spatiotemporal_matching and RLS checks.
+      - key: MOBILITY_MATCHING_ENABLED
+        value: "true"
       - key: OTP_DATABASE_URL
         sync: false
       - key: OTP_HMAC_KEY
