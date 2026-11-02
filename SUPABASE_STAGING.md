@@ -56,6 +56,32 @@ Supabase account discovery (2026-11-01):
 
 The backend's database role has no superuser or database-creation privileges; public Supabase roles remain denied. No production users or sessions were copied into the new project.
 
+## Verified staging crash diagnosis — 2026-11-02
+
+The initial staging runtime exited with **status 139 / SIGSEGV** using Node **22.12.0** and `better-sqlite3@13.0.3`. Changing ONLY the staging Render `NODE_VERSION` environment variable to **22.23.2** fixed the native SQLite crash. The version is now pinned in `render-staging.yaml`; a CI test opens a real in-memory SQLite database to catch similar regressions.
+
+The next deployment reached the PostgreSQL initialization step and failed with:
+
+    [OTP] PostgreSQL auth backend could not initialize: ENETUNREACH
+    (endpoint type: supabase-direct-ipv6)
+
+This confirms that **Render's `OTP_DATABASE_URL` currently points at the IPv6-only Supabase direct host** (`db.<project-ref>.supabase.co`), which Render cannot reach. The startup diagnostic logs **only the endpoint type**; it never logs database credentials or the URI.
+
+### Required private configuration change
+
+1. Open Supabase project `tnitksrlntrdxbvznxzf` → **Connect** → **Session pooler** (shared pooler, port **5432**). Copy the actual provider-specific hostname. Do **not** reconstruct or guess its `aws-[INDEX]` prefix.
+2. Keep the same restricted custom role's private password. Use the username `campuspool_staging_app.tnitksrlntrdxbvznxzf`, not the default `postgres` administration role. The format is:
+  
+       postgresql://campuspool_staging_app.tnitksrlntrdxbvznxzf:<PRIVATE_PASSWORD>@<ACTUAL_SESSION_POOLER_HOST>:5432/postgres
+
+   URL-encode reserved characters in the password.
+3. In Render → **mit-adt-campuspool-staging** → Environment, **replace only `OTP_DATABASE_URL`** with this Session Pooler URI, keep `OTP_DB_SSL=true` and the existing staging Basic Auth and HMAC secrets, then select **Save and deploy**.
+4. Verify Render deploy status becomes **live** and check `/healthz`. A subsequent `28P01` or similar credential error would indicate invalid pooler role/password; any TLS verification error must be handled by configuring trusted provider certificate material, never by disabling TLS validation.
+
+Additional fix: staging now explicitly refuses to import the tracked legacy `campuspool_database.json`; the latest deployment logs confirm a clean SQLite schema with **0 demo profiles and 0 demo rides**. The Supabase auth tables remain separate.
+
+**Status:** staging still **not live** pending the private connection URL replacement. Do not enable Resend/MSG91 or admit students before controlled end-to-end signup/login testing.
+
 ## Architecture
 
 CampusPool staging Node.js server on Render Singapore -> TLS PostgreSQL connection -> separate Supabase project in Singapore `ap-southeast-1`.
