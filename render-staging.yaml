@@ -33,6 +33,11 @@ services:
         sync: false
       - key: OTP_DB_SSL
         value: "true"
+      # Trust the Supabase CA downloaded from the project's Database -> SSL Configuration.
+      # The certificate is uploaded privately as a Render Secret File under this filename.
+      # Do not disable TLS verification or commit a certificate from an unverified source.
+      - key: NODE_EXTRA_CA_CERTS
+        value: /etc/secrets/campuspool-supabase-ca.crt
       - key: EMAIL_PROVIDER
         value: resend
       - key: RESEND_API_KEY
