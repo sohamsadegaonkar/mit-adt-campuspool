@@ -21,7 +21,8 @@
     "test:production-auth": "node --test test_production_auth.js",
     "check:release-ci": "node scripts/check-release-gates.js --ci",
     "check:release-production": "node scripts/check-release-gates.js --production",
-    "test:release": "node --test test_release_gates.js"
+    "test:release": "node --test test_release_gates.js",
+    "test:secrets": "node --test test_secret_hygiene.js"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
