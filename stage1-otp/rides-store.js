@@ -187,6 +187,71 @@ class PgRidesStore {
       return {success:true,rideId:booking.ride_id};
     });
   }
+  async isRideDriver(rideId,userId){
+    if(!rideId||!userId)return false;
+    const r=await this.pool.query(
+      "SELECT 1 FROM public.campus_rides WHERE id=$1 AND driver_user_id=$2 AND status='active' LIMIT 1",
+      [rideId,userId]);
+    return r.rows.length>0;
+  }
+  async isRideParticipant(rideId,userId){
+    if(!rideId||!userId)return false;
+    const r=await this.pool.query([
+      'SELECT 1 FROM public.campus_rides r WHERE r.id=$1 AND r.status=\'active\'',
+      "AND (r.driver_user_id=$2 OR EXISTS (SELECT 1 FROM public.campus_bookings b",
+      "WHERE b.ride_id=r.id AND b.passenger_user_id=$2 AND b.status='active')) LIMIT 1"
+    ].join(' '),[rideId,userId]);
+    return r.rows.length>0;
+  }
+  async isBookingPassenger(bookingId,userId){
+    if(!bookingId||!userId)return false;
+    const r=await this.pool.query(
+      "SELECT 1 FROM public.campus_bookings WHERE booking_id=$1 AND passenger_user_id=$2 AND status='active' LIMIT 1",
+      [bookingId,userId]);
+    return r.rows.length>0;
+  }
+  async isBookingParticipant(bookingId,userId){
+    if(!bookingId||!userId)return false;
+    const r=await this.pool.query([
+      'SELECT 1 FROM public.campus_bookings b',
+      'JOIN public.campus_rides r ON r.id=b.ride_id',
+      "WHERE b.booking_id=$1 AND b.status='active' AND r.status='active'",
+      'AND (b.passenger_user_id=$2 OR r.driver_user_id=$2) LIMIT 1'
+    ].join(' '),[bookingId,userId]);
+    return r.rows.length>0;
+  }
+  async checkUserSettlementBlock(userId){
+    if(!userId)return {isBlocked:false,reason:'NONE'};
+    // Payment settlement is intentionally disabled. Existing 'Pending'
+    // bookings and unpaid driver commission continue to block new actions.
+    const [commission,pending]=await Promise.all([
+      this.pool.query([
+        'SELECT COALESCE(SUM(seats_total-seats_left),0)::int AS seats_sold,',
+        'COALESCE(SUM((seats_total-seats_left)*student_fare),0) AS gross',
+        'FROM public.campus_rides WHERE driver_user_id=$1'
+      ].join(' '),[userId]),
+      this.pool.query([
+        'SELECT b.* FROM public.campus_bookings b',
+        "WHERE b.passenger_user_id=$1 AND b.status='active' AND b.payment_status='Pending'",
+        'ORDER BY b.created_at DESC'
+      ].join(' '),[userId])
+    ]);
+    const totalRides=Number(commission.rows[0].seats_sold);
+    const grossFare=Number(commission.rows[0].gross);
+    const totalCommission=Math.round(grossFare*0.1);
+    const commissionDue=totalCommission;
+    const pendingBookings=pending.rows.map(bookingPublic);
+    const hasUnsettledCommission=commissionDue>0;
+    const hasUnpaidBooking=pendingBookings.length>0;
+    return {
+      isBlocked:hasUnsettledCommission||hasUnpaidBooking,
+      hasUnsettledCommission,hasUnpaidBooking,commissionDue,
+      driverCommission:{totalRides,grossFare,totalCommission,settled:0,netDue:commissionDue},
+      pendingBookings,
+      reason:hasUnsettledCommission?'COMMISSION_DUE':hasUnpaidBooking?'UNPAID_BOOKING':'NONE'
+    };
+  }
+
   async cancelRide({rideId,driverUserId}={}){
     if(typeof driverUserId!=='string')throw new RidesError('AUTH_REQUIRED',401);
     if(typeof rideId!=='string'||rideId.length>64)throw new RidesError('INVALID_RIDE');
