@@ -51,9 +51,11 @@ const SMTP_FROM = envConfig.SMTP_FROM || process.env.SMTP_FROM || 'MIT ADT Campu
 const OTP_SECRET = process.env.OTP_SECRET || envConfig.OTP_SECRET || '';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const ALLOW_DEV_OTP = !IS_PRODUCTION && process.env.ALLOW_DEV_OTP === 'true';
-// A previously committed signing key must never authenticate production users.
-if (IS_PRODUCTION && (!OTP_SECRET || OTP_SECRET.length < 32 ||
-    OTP_SECRET === 'mit_adt_campuspool_jwt_hmac_secret_2026')) {
+// The fingerprint rejects a known historical compromised key without repeating
+// that plaintext secret in new commits. Owners must rotate the actual key.
+const LEAKED_OTP_SECRET_SHA256 = '5fb097213f66224b532793a99a1b6d30d5a7af86d8ba8a9874b661a2484c8382';
+const otpIsLeaked = OTP_SECRET && crypto.createHash('sha256').update(OTP_SECRET).digest('hex') === LEAKED_OTP_SECRET_SHA256;
+if (IS_PRODUCTION && (!OTP_SECRET || OTP_SECRET.length < 32 || otpIsLeaked)) {
   throw new Error('OTP_SECRET must be configured as a strong private environment variable');
 }
 const ALLOWED_CORS_ORIGINS = new Set((process.env.CORS_ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean));
