@@ -62,11 +62,21 @@ async function handlePgAuth({pathname,method,parseBody,sendJson,db,setSessionCoo
         sendJson(200,publicResponse);
         return true;
       }
-      const issued=await store.issue({
-        purpose:'login',channel:'email',target:user.email,ip:getClientIp(),
-        deliver:({target,code})=>mailProvider.sendOtpEmail(target,code)
-      });
-      sendJson(200,{...publicResponse,expiresInSeconds:issued.expiresInSeconds});
+      try {
+        await store.issue({
+          purpose:'login',channel:'email',target:user.email,ip:getClientIp(),
+          deliver:({target,code})=>mailProvider.sendOtpEmail(target,code)
+        });
+      } catch(error) {
+        // Provider outage, cooldown, or already-active challenges must not
+        // reveal that a registered account exists. The lookup-level buckets
+        // still enforce shared IP and identifier rate limiting.
+        if(!(error instanceof OtpError) ||
+           !['RESEND_COOLDOWN','RATE_LIMITED','DELIVERY_UNAVAILABLE','DELIVERY_EXPIRED'].includes(error.code)){
+          throw error;
+        }
+      }
+      sendJson(200,publicResponse);
       return true;
     }
     if(pathname==='/api/auth/send-email-otp') {
