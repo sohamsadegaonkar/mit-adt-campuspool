@@ -1,0 +1,45 @@
+name: CampusPool security smoke tests
+
+on:
+  pull_request:
+    paths:
+      - 'server.js'
+      - 'index.html'
+      - 'sms-provider.js'
+      - 'render-staging.yaml'
+      - 'test_auth_integration.js'
+      - 'database.js'
+      - 'render.yaml'
+      - 'package.json'
+      - 'test_security_smoke.js'
+      - '.github/workflows/security-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Verify server and database syntax
+        run: |
+          node --check server.js
+          node --check database.js
+          node --check test_security_smoke.js
+          node --check test_auth_integration.js
+          node --check sms-provider.js
+      - name: Run isolated security tests
+        run: |
+          npm run test:security
+          npm run test:auth

@@ -9,15 +9,29 @@
     "test:lb": "node test_load_balancer.js",
     "test:cache": "node test_caching.js",
     "test:ratelimit": "node test_rate_limiter.js",
-    "test:qa": "node test_qa_suite.js"
+    "test:qa": "node test_qa_suite.js",
+    "test:security": "node --test test_security_smoke.js",
+    "test:auth": "node --test test_auth_integration.js",
+    "migrate:otp": "node stage1-otp/migrate.js",
+    "test:stage1": "node --test test_stage1_otp.js",
+    "prune:otp": "node stage1-otp/prune.js",
+    "test:identity": "node --test test_pg_identity.js",
+    "test:staging": "node --test test_staging_isolation.js",
+    "test:native": "node -e \"const Sqlite=require('better-sqlite3');const db=new Sqlite(':memory:');if(db.prepare('SELECT 1 AS ok').get().ok!==1)process.exit(1);db.close();console.log('SQLite native startup verified');\"",
+    "test:production-auth": "node --test test_production_auth.js",
+    "check:release-ci": "node scripts/check-release-gates.js --ci",
+    "check:release-production": "node scripts/check-release-gates.js --production",
+    "test:release": "node --test test_release_gates.js",
+    "test:secrets": "node --test test_secret_hygiene.js"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
     "compression": "^1.7.4",
-    "express": "^4.18.2"
+    "express": "^4.18.2",
+    "pg": "^8.23.1"
   },
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=22.14.0"
   },
   "license": "MIT"
 }

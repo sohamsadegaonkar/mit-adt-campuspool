@@ -11,6 +11,12 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const url = require('url');
+const smsProvider = require('./sms-provider');
+const AUTH_OTP_BACKEND = process.env.AUTH_OTP_BACKEND || 'sqlite';
+if (!['sqlite', 'postgres'].includes(AUTH_OTP_BACKEND)) throw new Error('AUTH_OTP_BACKEND must be sqlite or postgres');
+const { PgOtpStore } = AUTH_OTP_BACKEND === 'postgres' ? require('./stage1-otp/pg-store') : { PgOtpStore: null };
+const { handlePgAuth } = AUTH_OTP_BACKEND === 'postgres' ? require('./stage1-otp/auth-routes') : { handlePgAuth: null };
+const {PgIdentity} = AUTH_OTP_BACKEND === 'postgres' ? require('./stage1-otp/identity') : {PgIdentity:null};
 
 const PORT = process.env.PORT || 3000;
 const DB_FILE = path.join(__dirname, 'campuspool_database.json');
@@ -42,7 +48,34 @@ const SMTP_SECURE = (envConfig.SMTP_SECURE || process.env.SMTP_SECURE || 'true')
 const SMTP_USER = envConfig.SMTP_USER || process.env.SMTP_USER || '';
 const SMTP_PASS = envConfig.SMTP_PASS || process.env.SMTP_PASS || '';
 const SMTP_FROM = envConfig.SMTP_FROM || process.env.SMTP_FROM || 'MIT ADT CampusPool <no-reply@students.mituniversity.edu.in>';
-const OTP_SECRET = envConfig.OTP_SECRET || process.env.OTP_SECRET || 'mit_adt_campuspool_jwt_hmac_secret_2026';
+const OTP_SECRET = process.env.OTP_SECRET || envConfig.OTP_SECRET || '';
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const ALLOW_DEV_OTP = !IS_PRODUCTION && process.env.ALLOW_DEV_OTP === 'true';
+// The fingerprint rejects a known historical compromised key without repeating
+// that plaintext secret in new commits. Owners must rotate the actual key.
+const LEAKED_OTP_SECRET_SHA256 = '5fb097213f66224b532793a99a1b6d30d5a7af86d8ba8a9874b661a2484c8382';
+const otpIsLeaked = OTP_SECRET && crypto.createHash('sha256').update(OTP_SECRET).digest('hex') === LEAKED_OTP_SECRET_SHA256;
+if (IS_PRODUCTION && (!OTP_SECRET || OTP_SECRET.length < 32 || otpIsLeaked)) {
+  throw new Error('OTP_SECRET must be configured as a strong private environment variable');
+}
+const ALLOWED_CORS_ORIGINS = new Set((process.env.CORS_ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean));
+const TRUSTED_PROXY_ADDRESSES = new Set((process.env.TRUSTED_PROXY_ADDRESSES || '').split(',').map(s => s.trim()).filter(Boolean));
+const STAGING_ONLY = process.env.APP_ENV === 'staging';
+const STAGING_BASIC_AUTH_PASSWORD = process.env.STAGING_BASIC_AUTH_PASSWORD || '';
+if (STAGING_ONLY && STAGING_BASIC_AUTH_PASSWORD.length < 20) {
+  throw new Error('Staging requires a strong STAGING_BASIC_AUTH_PASSWORD (at least 20 characters)');
+}
+function constantTimeMatch(a, b) {
+  const left = crypto.createHash('sha256').update(String(a)).digest();
+  const right = crypto.createHash('sha256').update(String(b)).digest();
+  return crypto.timingSafeEqual(left, right);
+}
+function validStagingBasicAuth(header) {
+  if (!header || !header.startsWith('Basic ') || header.length > 512) return false;
+  let plain;
+  try { plain = Buffer.from(header.slice(6), 'base64').toString('utf8'); } catch { return false; }
+  return constantTimeMatch(plain, 'staging:' + STAGING_BASIC_AUTH_PASSWORD);
+}
 
 // -------------------------------------------------------------------------
 // Built-in Multi-Worker Cluster Load Balancer Configuration
@@ -116,6 +149,8 @@ function startWorkerServer() {
 // -------------------------------------------------------------------------
 const SQLiteCampusDatabase = require('./database');
 const db = new SQLiteCampusDatabase();
+const pgOtpStore = AUTH_OTP_BACKEND === 'postgres' ? new PgOtpStore() : null;
+const pgIdentity = pgOtpStore ? new PgIdentity(pgOtpStore) : null;
 
 // -------------------------------------------------------------------------
 // Native Multi-Channel Email Dispatcher (HTTPS REST APIs + TLS SMTP Sockets)
@@ -348,16 +383,45 @@ function invalidateRidesCache() {
 // HTTP Server & Router
 // -------------------------------------------------------------------------
 const server = http.createServer(async (req, res) => {
+  const startedAt = Date.now();
+  try {
   const parsedUrl = url.parse(req.url, true);
-  const pathname = parsedUrl.pathname;
+  const pathname = parsedUrl.pathname || '/';
   const method = req.method.toUpperCase();
+  if (STAGING_ONLY && pathname !== '/healthz' && !validStagingBasicAuth(req.headers.authorization)) {
+    res.writeHead(401, {
+      'WWW-Authenticate': 'Basic realm="CampusPool staging", charset="UTF-8"',
+      'Cache-Control': 'no-store', 'Content-Type': 'text/plain; charset=utf-8'
+    });
+    return res.end('Staging access restricted');
+  }
+  res.on('finish', () => {
+    // Structured operational logging: path only, no query parameters or credentials.
+    const durationMs = Date.now() - startedAt;
+    console.log(JSON.stringify({ event: 'http_request', method, path: pathname, status: res.statusCode, durationMs }));
+    if (res.statusCode >= 500) console.warn(JSON.stringify({ event: 'server_error_alert', path: pathname, status: res.statusCode }));
+  });
 
-  // CORS Headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // Same-origin by default. Cross-origin requests need an explicit allowlist.
+  // Do not trust X-Forwarded-Host or accept arbitrary CORS origins.
+  const origin = req.headers.origin;
+  let sameOrigin = false;
+  if (origin) {
+    try {
+      const incoming = new URL(origin);
+      sameOrigin = incoming.protocol === (IS_PRODUCTION ? 'https:' : 'http:') && incoming.host === req.headers.host;
+    } catch { sameOrigin = false; }
+  }
+  const allowedOrigin = origin && (sameOrigin || ALLOWED_CORS_ORIGINS.has(origin));
+  res.setHeader('Vary', 'Origin');
+  if (allowedOrigin) res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Forwarded-For');
-  res.setHeader('Access-Control-Expose-Headers', 'RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset, Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-RateLimit-Tier, X-Load-Balancer, X-Worker-Pid, X-Worker-Id, X-Cache');
-
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-CSRF-Token');
+  res.setHeader('Access-Control-Expose-Headers', 'RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset, Retry-After');
+  if (origin && !allowedOrigin) {
+    res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+    return res.end(JSON.stringify({ success: false, error: 'CORS_ORIGIN_DENIED' }));
+  }
   if (method === 'OPTIONS') {
     res.writeHead(204);
     return res.end();
@@ -376,19 +440,14 @@ const server = http.createServer(async (req, res) => {
 
   // Client IP Detection Helper (Supports Proxies & Normalization)
   function getClientIp() {
-    const forwarded = req.headers['x-forwarded-for'];
-    if (forwarded) {
-      const firstIp = forwarded.split(',')[0].trim();
-      if (firstIp) return firstIp;
+    const remote = req.socket?.remoteAddress || 'unknown';
+    // Forwarded IP headers are untrusted unless the TCP peer is a configured reverse proxy.
+    if (TRUSTED_PROXY_ADDRESSES.has(remote)) {
+      const forwarded = req.headers['x-forwarded-for'];
+      const candidate = forwarded && forwarded.split(',')[0].trim();
+      if (candidate && require('net').isIP(candidate)) return candidate;
     }
-    const realIp = req.headers['x-real-ip'];
-    if (realIp && realIp.trim()) return realIp.trim();
-    const remote = req.socket?.remoteAddress;
-    if (remote) {
-      if (remote === '::1' || remote === '::ffff:127.0.0.1') return '127.0.0.1';
-      return remote;
-    }
-    return '127.0.0.1';
+    return remote === '::1' || remote === '::ffff:127.0.0.1' ? '127.0.0.1' : remote;
   }
 
   // Tiered Rate Limiting Policy Resolver
@@ -472,22 +531,102 @@ const server = http.createServer(async (req, res) => {
 
   // Parse JSON Body Helper
   async function parseBody() {
-    return new Promise((resolve) => {
-      let body = '';
-      req.on('data', chunk => { body += chunk; });
-      req.on('end', () => {
-        try {
-          resolve(body ? JSON.parse(body) : {});
-        } catch {
-          resolve({});
-        }
-      });
-    });
+    const limitBytes = 64 * 1024;
+    let bytes = 0;
+    const chunks = [];
+    for await (const chunk of req) {
+      bytes += chunk.length;
+      if (bytes > limitBytes) {
+        const err = new Error('JSON body exceeds 64 KB');
+        err.httpStatus = 413;
+        throw err;
+      }
+      chunks.push(chunk);
+    }
+    const raw = Buffer.concat(chunks).toString('utf8');
+    if (!raw.trim()) return {};
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch {
+      const err = new Error('Malformed JSON body');
+      err.httpStatus = 400;
+      throw err;
+    }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      const err = new Error('JSON object required');
+      err.httpStatus = 400;
+      throw err;
+    }
+    return parsed;
   }
 
   function sendJson(statusCode, data) {
-    res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+    res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
     res.end(JSON.stringify(data));
+  }
+
+  function readSessionToken() {
+    const cookie = req.headers.cookie || '';
+    const match = cookie.match(/(?:^|;\s*)cp_session=([A-Za-z0-9_-]{43})(?:;|$)/);
+    return match ? match[1] : null;
+  }
+  function setSessionCookie(userEmail) {
+    const token = db.createSession(userEmail);
+    if (!token) return false;
+    res.setHeader('Set-Cookie', 'cp_session=' + token + '; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800' + (IS_PRODUCTION ? '; Secure' : ''));
+    return true;
+  }
+  function setPostgresCookie(token) {
+    if(!token)return false;
+    res.setHeader('Set-Cookie', 'cp_session='+token+'; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800'+(IS_PRODUCTION?'; Secure':''));
+    return true;
+  }
+  const sessionToken = readSessionToken();
+  const authenticatedUser = pgIdentity ? await pgIdentity.getSessionUser(sessionToken) : db.getSessionUser(sessionToken);
+  // CSRF token is tied to a server-issued session, never persisted in a browser storage.
+  function csrfForSession(token) {
+    return crypto.createHmac('sha256', OTP_SECRET).update('csrf:v1:' + token).digest('hex');
+  }
+  function authenticatedMutationAllowed() {
+    if (!sessionToken || !authenticatedUser) return false;
+    const provided = req.headers['x-csrf-token'];
+    return typeof provided === 'string' && /^[a-f0-9]{64}$/.test(provided)
+      && constantTimeMatch(provided, csrfForSession(sessionToken));
+  }
+  const publicApiRoute = pathname.startsWith('/api/auth/') || pathname === '/api/health' || pathname === '/api/lb-status' || pathname === '/healthz';
+  if (pathname.startsWith('/api/') && !publicApiRoute && !authenticatedUser) {
+    return sendJson(401, { success: false, error: 'AUTH_REQUIRED', message: 'Sign in with your verified campus account.' });
+  }
+  if (method === 'GET' && pathname === '/api/auth/me') {
+    if (!authenticatedUser) {
+      return sendJson(401, { success: false, error: 'AUTH_REQUIRED' });
+    }
+    return sendJson(200, { success: true, user: authenticatedUser, csrfToken: csrfForSession(sessionToken) });
+  }
+  if (pathname.startsWith('/api/') && (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE')
+    && authenticatedUser && (!pathname.startsWith('/api/auth/') || pathname === '/api/auth/logout')
+    && !authenticatedMutationAllowed()) {
+    return sendJson(403, { success: false, error: 'CSRF_REQUIRED', message: 'Refresh your session and try again.' });
+  }
+  if (method === 'POST' && pathname === '/api/auth/logout') {
+    const token = readSessionToken();
+    if (token) {
+      if(pgIdentity)await pgIdentity.revokeSession(token);
+      else db.revokeSession(token);
+    }
+    res.setHeader('Set-Cookie', 'cp_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0' + (IS_PRODUCTION ? '; Secure' : ''));
+    return sendJson(200, { success: true });
+  }
+  function isSelf(email) {
+    return authenticatedUser && typeof email === 'string' && authenticatedUser.email.toLowerCase() === email.trim().toLowerCase();
+  }
+  function validLocation(lat, lng) {
+    return lat !== null && lng !== null && lat !== '' && lng !== '' &&
+      Number.isFinite(Number(lat)) && Number.isFinite(Number(lng)) &&
+      Number(lat) >= -90 && Number(lat) <= 90 && Number(lng) >= -180 && Number(lng) <= 180;
+  }
+  function validText(value, max) {
+    return typeof value === 'string' && value.trim().length > 0 && value.length <= max &&
+      !/[<>\u0000-\u001f]/.test(value);
   }
 
   // -----------------------------------------------------------------------
@@ -544,16 +683,23 @@ const server = http.createServer(async (req, res) => {
     });
   }
 
+  // Stage 1 PostgreSQL OTP is opt-in. Legacy SQLite rides and profiles are
+  // preserved until their independent, tested migration is approved.
+  // When enabled, these six auth routes fail closed to the PG-backed service.
+  if (pgOtpStore && await handlePgAuth({
+    pathname, method, parseBody, sendJson, db, setSessionCookie, getClientIp,
+    store: pgOtpStore,identity:pgIdentity,setPostgresCookie
+  })) return;
+
   // -----------------------------------------------------------------------
   // REST API: /api/auth/check-uniqueness
   // -----------------------------------------------------------------------
   if (method === 'POST' && pathname === '/api/auth/check-uniqueness') {
     const body = await parseBody();
-    const check = db.checkUniqueness(body.name, body.email, body.phone);
-    if (!check.unique) {
-      return sendJson(409, { success: false, ...check });
-    }
-    return sendJson(200, { success: true, message: "Credentials are unique and ready for verification." });
+    const check = pgIdentity ? await pgIdentity.checkUniqueness(body.name, body.email, body.phone) : db.checkUniqueness(body.name, body.email, body.phone);
+    if (!check.unique) return sendJson(409, { success: false, error: check.error || 'NOT_UNIQUE' });
+    if (check.isExistingUser) return sendJson(200, { success: true, isExistingUser: true, message: 'An account already exists. Please sign in.' });
+    return sendJson(200, { success: true, message: 'Credentials are ready for verification.' });
   }
 
   // -----------------------------------------------------------------------
@@ -630,7 +776,7 @@ const server = http.createServer(async (req, res) => {
       </div>
     `;
 
-    console.log(`[SIGN-IN-OTP] Dispatched Sign-In code (${otp}) to ${user.email} for ${user.name}`);
+    console.log('[SIGN-IN-OTP] One-time code generated for email sign-in (redacted)');
 
     let emailStatus = { delivered: false };
     try {
@@ -648,6 +794,9 @@ const server = http.createServer(async (req, res) => {
     }
 
     const isRealDelivery = emailStatus.delivered === true;
+    if (IS_PRODUCTION && !isRealDelivery) {
+      return sendJson(503, { success: false, error: 'EMAIL_DELIVERY_UNAVAILABLE', message: 'Email verification is temporarily unavailable. Please try later.' });
+    }
 
     return sendJson(200, {
       success: true,
@@ -656,7 +805,7 @@ const server = http.createServer(async (req, res) => {
       name: user.name,
       phone: user.phone,
       deliveredToInbox: isRealDelivery,
-      devOtpHint: !isRealDelivery ? otp : undefined
+      devOtpHint: ALLOW_DEV_OTP && !isRealDelivery ? otp : undefined
     });
   }
 
@@ -762,20 +911,13 @@ const server = http.createServer(async (req, res) => {
       emailStatus.error = err.message;
     }
 
-    // Prominent console output for terminal developer convenience
-    console.log(`\n==================================================================`);
-    console.log(` 📨 MIT ADT CampusPool - Real-Time OTP Verification Dispatch`);
-    console.log(` Recipient: ${email}`);
-    console.log(` Verification Code: ${otp}`);
-    if (emailStatus.delivered) {
-      console.log(` Delivery Status: DELIVERED (via ${emailStatus.provider || 'SMTP'})`);
-    } else {
-      console.log(` Delivery Status: LOCAL CONSOLE MODE`);
-      console.log(` Notice: Cloud host firewall (e.g. Render Free Tier) may block port 465.`);
-    }
-    console.log(`==================================================================\n`);
+    // Avoid emitting OTP values or personal identifiers in application logs.
+    console.log('[AUTH-EMAIL] Verification delivery attempt complete; delivered=' + Boolean(emailStatus.delivered));
 
     const isRealDelivery = emailStatus.delivered === true;
+    if (IS_PRODUCTION && !isRealDelivery) {
+      return sendJson(503, { success: false, error: 'EMAIL_DELIVERY_UNAVAILABLE', message: 'Email verification is temporarily unavailable. Please try later.' });
+    }
 
     return sendJson(200, {
       success: true,
@@ -784,7 +926,7 @@ const server = http.createServer(async (req, res) => {
       deliveredToInbox: isRealDelivery,
       message: 'A 6-digit verification code has been sent to your university inbox.',
       expiresInSeconds: 600,
-      devOtpHint: !isRealDelivery ? otp : undefined
+      devOtpHint: ALLOW_DEV_OTP && !isRealDelivery ? otp : undefined
     });
   }
 
@@ -813,6 +955,10 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
+    if (record.isVerified) {
+      return sendJson(400, { success: false, error: 'OTP_ALREADY_USED', message: 'This code has already been verified. Request a new code.' });
+    }
+
     if (record.attemptsLeft <= 0) {
       return sendJson(403, {
         success: false,
@@ -828,6 +974,9 @@ const server = http.createServer(async (req, res) => {
       db.saveOtp(record);
 
       const existingUser = db.getProfileByEmail(email);
+      if (existingUser && !setSessionCookie(existingUser.email)) {
+        return sendJson(500, { success: false, error: 'SESSION_FAILED' });
+      }
 
       return sendJson(200, {
         success: true,
@@ -851,57 +1000,51 @@ const server = http.createServer(async (req, res) => {
   // REST API: /api/auth/send-phone-otp
   // -----------------------------------------------------------------------
   if (method === 'POST' && pathname === '/api/auth/send-phone-otp') {
+    if (!smsProvider.isConfigured()) {
+      return sendJson(503, { success: false, error: 'SMS_PROVIDER_NOT_CONFIGURED',
+        message: 'SMS verification is temporarily unavailable.' });
+    }
     const body = await parseBody();
-    const phone = (body.phone || '').trim();
-    const cleanDigits = phone.replace(/[^0-9]/g, '').slice(-10);
-
-    if (cleanDigits.length !== 10 || !/^[6-9]\d{9}$/.test(cleanDigits)) {
-      return sendJson(400, {
-        success: false,
-        error: 'INVALID_PHONE',
-        message: 'Must be a valid 10-digit Indian mobile number.'
-      });
+    const digits = typeof body.phone === 'string' ? body.phone.replace(/[^0-9]/g, '').slice(-10) : '';
+    if (!/^[6-9][0-9]{9}$/.test(digits)) {
+      return sendJson(400, { success: false, error: 'INVALID_PHONE', message: 'Enter a valid Indian mobile number.' });
     }
-
-    // Check database uniqueness for phone
-    const profiles = db.getProfiles();
-    for (const p of profiles) {
-      if (p.phone.replace(/[^0-9]/g, '').slice(-10) === cleanDigits) {
-        return sendJson(409, {
-          success: false,
-          field: 'phone',
-          error: 'DUPLICATE_PHONE',
-          message: `This mobile number (+91 ${cleanDigits}) is already registered.`
-        });
-      }
+    const uniqueProfile = db.getProfiles().some(profile =>
+      (profile.phone || '').replace(/[^0-9]/g, '').slice(-10) === digits
+    );
+    if (uniqueProfile) {
+      return sendJson(409, { success: false, error: 'PHONE_ALREADY_REGISTERED',
+        message: 'This mobile number is already registered.' });
     }
-
+    const previous = db.findOtp(digits, 'PHONE');
+    if (previous && previous.resendCooldownUntil > Date.now()) {
+      return sendJson(429, { success: false, error: 'OTP_RESEND_COOLDOWN',
+        retryAfter: Math.ceil((previous.resendCooldownUntil - Date.now()) / 1000) });
+    }
     const otp = generateOtpCode();
-    const hashed = hashOtp(cleanDigits, otp);
-    const expiresAt = Date.now() + 10 * 60 * 1000;
-
-    db.cleanExpiredOtps(cleanDigits);
-
+    try {
+      await smsProvider.sendOtpSms(digits, otp);
+    } catch (error) {
+      console.warn('[SMS] Provider rejected or could not accept OTP delivery');
+      return sendJson(503, { success: false, error: 'SMS_DELIVERY_UNAVAILABLE',
+        message: 'SMS delivery failed. Please try again later.' });
+    }
+    db.cleanExpiredOtps(digits);
     db.saveOtp({
       id: crypto.randomUUID(),
-      identifier: cleanDigits,
+      identifier: digits,
       type: 'PHONE',
-      hashedOtp: hashed,
+      hashedOtp: hashOtp(digits, otp),
       attemptsLeft: 5,
-      expiresAt: expiresAt,
+      expiresAt: Date.now() + 10 * 60 * 1000,
       resendCooldownUntil: Date.now() + 45 * 1000,
       isVerified: false,
       token: null,
       createdAt: Date.now()
     });
-
-    console.log(`[SMS-GATEWAY-DISPATCH] Dispatched SMS OTP (${otp}) to +91 ${cleanDigits} (Gateway: MSG91 / Fast2SMS DLT template)`);
-
-    return sendJson(200, {
-      success: true,
-      message: `SMS verification code dispatched to +91 ${cleanDigits}.`,
-      expiresInSeconds: 600
-    });
+    return sendJson(200, { success: true,
+      message: 'SMS verification code submitted for delivery.',
+      expiresInSeconds: 600 });
   }
 
   // -----------------------------------------------------------------------
@@ -910,7 +1053,10 @@ const server = http.createServer(async (req, res) => {
   if (method === 'POST' && pathname === '/api/auth/verify-phone-otp') {
     const body = await parseBody();
     const cleanDigits = (body.phone || '').replace(/[^0-9]/g, '').slice(-10);
-    const enteredOtp = (body.otp || '').trim();
+    const enteredOtp = typeof body.otp === 'string' ? body.otp.trim() : '';
+    if (!/^[0-9]{6}$/.test(enteredOtp)) {
+      return sendJson(400, { success: false, error: 'INVALID_OTP_FORMAT' });
+    }
 
     const record = db.findOtp(cleanDigits, 'PHONE');
     if (!record) {
@@ -919,6 +1065,9 @@ const server = http.createServer(async (req, res) => {
 
     if (Date.now() > record.expiresAt) {
       return sendJson(400, { success: false, error: 'OTP_EXPIRED', message: 'SMS code expired. Request a new code.' });
+    }
+    if (record.isVerified || record.attemptsLeft <= 0) {
+      return sendJson(403, { success: false, error: 'OTP_UNAVAILABLE', message: 'This verification code can no longer be used.' });
     }
 
     const expectedHash = hashOtp(cleanDigits, enteredOtp);
@@ -961,6 +1110,10 @@ const server = http.createServer(async (req, res) => {
 
     try {
       const profile = db.createProfile({ name, email, phone, dept });
+      db.consumeVerificationTokens(emailToken, phoneToken);
+      if (!setSessionCookie(profile.email)) {
+        return sendJson(500, { success: false, error: 'SESSION_FAILED' });
+      }
       return sendJson(201, {
         success: true,
         message: `Welcome ${profile.name}! Your student account is registered in the campus database.`,
@@ -1050,7 +1203,27 @@ const server = http.createServer(async (req, res) => {
         });
       }
     }
-    const newRide = db.createRide(body);
+    if (body.driverEmail && !isSelf(body.driverEmail)) {
+      return sendJson(403, { success: false, error: 'NOT_RIDE_OWNER' });
+    }
+    if (!['Car', 'Bike'].includes(body.vehicle) || !validText(body.vehicleModel, 80) ||
+        !validText(body.pickup, 120) || !validText(body.destination, 120) ||
+        !validText(body.departureTime, 120) ||
+        (body.note && !validText(body.note, 500)) ||
+        !Number.isInteger(Number(body.seatsTotal)) || Number(body.seatsTotal) < 1 || Number(body.seatsTotal) > 4 ||
+        ![body.uberBenchmark,body.studentFare,body.driverPayout].every(v => Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) <= 10000)) {
+      return sendJson(400, { success: false, error: 'INVALID_RIDE', message: 'Ride details must be valid, reasonably sized and contain no markup.' });
+    }
+    const cleanRide = {
+      ...body,
+      driverName: authenticatedUser.name, driverEmail: authenticatedUser.email,
+      driverPhone: authenticatedUser.phone, dept: authenticatedUser.dept,
+      seatsTotal: Number(body.seatsTotal),
+      uberBenchmark: Number(body.uberBenchmark), studentFare: Number(body.studentFare),
+      driverPayout: Number(body.driverPayout),
+      note: body.note || ''
+    };
+    const newRide = db.createRide(cleanRide);
     invalidateRidesCache();
     return sendJson(201, { success: true, ride: newRide });
   }
@@ -1061,9 +1234,12 @@ const server = http.createServer(async (req, res) => {
   // -----------------------------------------------------------------------
   if (method === 'POST' && pathname === '/api/rides/location') {
     const body = await parseBody();
-    const { rideId, lat, lng, speed, heading, accuracy, driverEmail } = body;
-    if (!rideId || lat === undefined || lng === undefined) {
-      return sendJson(400, { success: false, message: 'rideId, lat, and lng are required.' });
+    const { rideId, lat, lng, speed, heading, accuracy } = body;
+    if (!rideId || !validLocation(lat,lng)) {
+      return sendJson(400, { success: false, message: 'Valid rideId, latitude and longitude are required.' });
+    }
+    if (!db.isRideDriver(rideId, authenticatedUser.email)) {
+      return sendJson(403, { success: false, error: 'NOT_RIDE_OWNER' });
     }
     const loc = {
       rideId,
@@ -1072,7 +1248,7 @@ const server = http.createServer(async (req, res) => {
       speed: Number(speed || 0),
       heading: Number(heading || 0),
       accuracy: Number(accuracy || 10),
-      driverEmail: driverEmail || '',
+      driverEmail: authenticatedUser.email,
       updatedAt: Date.now()
     };
     liveRideLocations.set(rideId, loc);
@@ -1085,6 +1261,9 @@ const server = http.createServer(async (req, res) => {
     if (!rideId) {
       return sendJson(400, { success: false, message: 'rideId query param is required.' });
     }
+    if (!db.isRideParticipant(rideId, authenticatedUser.email)) {
+      return sendJson(403, { success: false, error: 'NOT_RIDE_PARTICIPANT' });
+    }
     let loc = liveRideLocations.get(rideId);
     if (!loc) {
       try { loc = db.getLiveLocation(rideId); } catch (e) {}
@@ -1094,16 +1273,19 @@ const server = http.createServer(async (req, res) => {
 
   if (method === 'POST' && pathname === '/api/bookings/passenger-location') {
     const body = await parseBody();
-    const { bookingId, lat, lng, accuracy, passengerEmail } = body;
-    if (!bookingId || lat === undefined || lng === undefined) {
-      return sendJson(400, { success: false, message: 'bookingId, lat, and lng are required.' });
+    const { bookingId, lat, lng, accuracy } = body;
+    if (!bookingId || !validLocation(lat,lng)) {
+      return sendJson(400, { success: false, message: 'Valid bookingId, latitude and longitude are required.' });
+    }
+    if (!db.isBookingPassenger(bookingId, authenticatedUser.email)) {
+      return sendJson(403, { success: false, error: 'NOT_BOOKING_PASSENGER' });
     }
     const loc = {
       bookingId,
       lat: Number(lat),
       lng: Number(lng),
       accuracy: Number(accuracy || 10),
-      passengerEmail: passengerEmail || '',
+      passengerEmail: authenticatedUser.email,
       updatedAt: Date.now()
     };
     livePassengerLocations.set(bookingId, loc);
@@ -1115,6 +1297,9 @@ const server = http.createServer(async (req, res) => {
     const bookingId = parsedUrl.query?.bookingId;
     if (!bookingId) {
       return sendJson(400, { success: false, message: 'bookingId query param is required.' });
+    }
+    if (!db.isBookingParticipant(bookingId, authenticatedUser.email)) {
+      return sendJson(403, { success: false, error: 'NOT_BOOKING_PARTICIPANT' });
     }
     let loc = livePassengerLocations.get(bookingId);
     if (!loc) {
@@ -1128,26 +1313,24 @@ const server = http.createServer(async (req, res) => {
   // -----------------------------------------------------------------------
   if (method === 'GET' && pathname === '/api/bookings') {
     const userEmail = parsedUrl.query?.email;
-    if (userEmail) {
-      const bookings = db.getBookingsByUser(userEmail);
-      return sendJson(200, { success: true, bookings });
-    }
-    return sendJson(200, { success: true, bookings: db.getBookings() });
+    if (userEmail && !isSelf(userEmail)) return sendJson(403, { success: false, error: 'NOT_ALLOWED' });
+    return sendJson(200, { success: true, bookings: db.getBookingsByUser(authenticatedUser.email) });
   }
 
   if (method === 'GET' && pathname === '/api/my-rides') {
     const userEmail = parsedUrl.query?.email;
-    if (!userEmail) {
-      return sendJson(400, { success: false, message: 'Email query parameter is required.' });
-    }
-    const rides = db.getRidesByDriver(userEmail);
+    if (userEmail && !isSelf(userEmail)) return sendJson(403, { success: false, error: 'NOT_ALLOWED' });
+    const rides = db.getRidesByDriver(authenticatedUser.email);
     return sendJson(200, { success: true, rides });
   }
 
   if (method === 'POST' && pathname === '/api/bookings') {
     const body = await parseBody();
-    if (body.passengerEmail) {
-      const settlementCheck = db.checkUserSettlementBlock(body.passengerEmail);
+    if (body.passengerEmail && !isSelf(body.passengerEmail)) {
+      return sendJson(403, { success: false, error: 'NOT_ALLOWED' });
+    }
+    {
+      const settlementCheck = db.checkUserSettlementBlock(authenticatedUser.email);
       if (settlementCheck.isBlocked) {
         const errorMsg = settlementCheck.hasUnsettledCommission
           ? `Settlement Required: You have ₹${settlementCheck.commissionDue} in pending platform commission from a previous ride. Please settle via UPI to unlock bookings.`
@@ -1165,8 +1348,8 @@ const server = http.createServer(async (req, res) => {
     try {
       const booking = db.bookRide({
         rideId: body.rideId,
-        passengerEmail: body.passengerEmail,
-        passengerName: body.passengerName
+        passengerEmail: authenticatedUser.email,
+        passengerName: authenticatedUser.name
       });
       invalidateRidesCache();
       return sendJson(201, { success: true, booking });
@@ -1181,10 +1364,8 @@ const server = http.createServer(async (req, res) => {
   // -----------------------------------------------------------------------
   if (method === 'GET' && pathname === '/api/user/settlement-status') {
     const email = parsedUrl.query?.email;
-    if (!email) {
-      return sendJson(400, { success: false, message: 'Email query parameter is required.' });
-    }
-    const status = db.checkUserSettlementBlock(email);
+    if (email && !isSelf(email)) return sendJson(403, { success: false, error: 'NOT_ALLOWED' });
+    const status = db.checkUserSettlementBlock(authenticatedUser.email);
     return sendJson(200, { success: true, ...status });
   }
 
@@ -1192,25 +1373,17 @@ const server = http.createServer(async (req, res) => {
   // REST API: /api/driver/settle-commission (ACID Settle 10% Platform Commission)
   // -----------------------------------------------------------------------
   if (method === 'POST' && pathname === '/api/driver/settle-commission') {
-    const body = await parseBody();
-    const { driverEmail, amount } = body;
-    if (!driverEmail || !amount) {
-      return sendJson(400, { success: false, message: 'Driver email and amount are required.' });
-    }
-    const result = db.recordDriverSettlement(driverEmail, Number(amount));
-    return sendJson(200, { success: true, message: 'Commission settled successfully in database.', ...result });
+    // A user click or client-provided UPI reference is not bank/payment-provider proof.
+    return sendJson(501, { success: false, error: 'PAYMENT_VERIFICATION_REQUIRED',
+      message: 'Settlement recording is disabled until a verified payment-provider callback is integrated.' });
   }
 
   // -----------------------------------------------------------------------
   // REST API: /api/bookings/payment-status (Update UPI payment status)
   // -----------------------------------------------------------------------
   if (method === 'POST' && pathname === '/api/bookings/payment-status') {
-    const body = await parseBody();
-    if (!body.bookingId) {
-      return sendJson(400, { success: false, message: 'Booking ID required.' });
-    }
-    const updated = db.updatePaymentStatus(body.bookingId, body.paymentStatus || 'Paid');
-    return sendJson(200, { success: updated, message: 'Payment status updated in database.' });
+    return sendJson(501, { success: false, error: 'PAYMENT_VERIFICATION_REQUIRED',
+      message: 'Payment confirmation requires a verified payment-provider callback.' });
   }
 
   // -----------------------------------------------------------------------
@@ -1222,7 +1395,7 @@ const server = http.createServer(async (req, res) => {
       return sendJson(400, { success: false, message: 'Booking ID required.' });
     }
     try {
-      const result = db.cancelBooking(body.bookingId, body.passengerEmail);
+      const result = db.cancelBooking(body.bookingId, authenticatedUser.email);
       invalidateRidesCache();
       return sendJson(200, { success: true, message: 'Booking canceled and seat restored.', ...result });
     } catch (err) {
@@ -1239,7 +1412,7 @@ const server = http.createServer(async (req, res) => {
       return sendJson(400, { success: false, message: 'Ride ID required.' });
     }
     try {
-      const result = db.cancelRide(body.rideId, body.driverEmail);
+      const result = db.cancelRide(body.rideId, authenticatedUser.email);
       invalidateRidesCache();
       return sendJson(200, { success: true, message: 'Offered ride canceled.', ...result });
     } catch (err) {
@@ -1250,17 +1423,22 @@ const server = http.createServer(async (req, res) => {
   // -----------------------------------------------------------------------
   // Static File Serving (Security Hardened & In-Memory Cached with ETags)
   // -----------------------------------------------------------------------
-  const blockedFiles = ['/server.js', '/database.js', '/schema.sql', '/firestore.rules', '/package.json', '/package-lock.json', '/.env', '/.env.production', '/campuspool_database.json', '/campuspool.db', '/campuspool.db-wal', '/campuspool.db-shm'];
-  if (blockedFiles.includes(pathname) || pathname.startsWith('/.') || pathname.endsWith('.sql') || pathname.endsWith('.rules') || pathname.endsWith('.db') || pathname.endsWith('.db-wal') || pathname.endsWith('.db-shm')) {
-    res.writeHead(403, { 'Content-Type': 'text/plain' });
-    return res.end('Access Denied: Protected System File');
+  if (pathname.startsWith('/api/') || pathname === '/api') {
+    return sendJson(404, { success: false, error: 'NOT_FOUND', message: 'Unknown API endpoint' });
   }
-
-  let filePath = path.join(__dirname, pathname === '/' ? 'index.html' : pathname);
-
-  if (!fs.existsSync(filePath)) {
-    filePath = path.join(__dirname, 'index.html');
+  if (method !== 'GET' && method !== 'HEAD') {
+    res.writeHead(405, { 'Content-Type': 'text/plain', 'Allow': 'GET, HEAD' });
+    return res.end('Method Not Allowed');
   }
+  // Explicit public asset allowlist blocks source code, runtime databases, secrets,
+  // traversal and unrecognized paths (instead of returning index.html with HTTP 200).
+  const publicAssets = new Set(['/', '/index.html', '/campuspool.css', '/campuspool-icon.svg', '/manifest.webmanifest', '/sw.js', '/404.html', '/503.html']);
+  if (!publicAssets.has(pathname)) {
+    const html = fs.readFileSync(path.join(__dirname, '404.html'));
+    res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': html.length, 'Cache-Control': 'no-store' });
+    return res.end(method === 'HEAD' ? undefined : html);
+  }
+  const filePath = path.join(__dirname, pathname === '/' ? 'index.html' : pathname.slice(1));
 
   const ext = path.extname(filePath).toLowerCase();
   const mimeTypes = {
@@ -1321,11 +1499,45 @@ const server = http.createServer(async (req, res) => {
     'Cache-Control': cached.cacheControl,
     'X-Cache': 'HIT'
   });
+  if (method === 'HEAD') return res.end();
   res.end(cached.content);
+  } catch (err) {
+    const status = err && [400, 413].includes(err.httpStatus) ? err.httpStatus : 500;
+    console.error(JSON.stringify({ event: 'request_failed', status, reason: status === 500 ? 'INTERNAL_ERROR' : err.message }));
+    if (!res.headersSent) {
+      res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify({ success: false, error: status === 413 ? 'PAYLOAD_TOO_LARGE' : status === 400 ? 'BAD_REQUEST' : 'INTERNAL_ERROR', message: status === 500 ? 'An internal error occurred' : err.message }));
+    } else {
+      res.end();
+    }
+  }
 });
+  server.requestTimeout = 15000;
+  server.headersTimeout = 16000;
 
-  server.listen(PORT, '0.0.0.0', () => {
+  const startServer = async () => {
+    if (pgOtpStore) { await pgOtpStore.ready(); await pgIdentity.pool.query('SELECT 1 FROM campus_users LIMIT 0'); await pgIdentity.pool.query('SELECT 1 FROM campus_sessions LIMIT 0'); }
+    server.listen(PORT, '0.0.0.0', () => {
     const workerLabel = cluster.isWorker ? `Worker #${cluster.worker.id} (PID: ${process.pid})` : `Standalone Server (PID: ${process.pid})`;
     console.log(`[HTTP SERVER] ${workerLabel} active on port ${PORT}`);
+  });
+  };
+  startServer().catch(error => {
+    // Never log connection strings, credentials, or full error objects.
+    const endpointKind = (() => {
+      try {
+        const host = new URL(process.env.OTP_DATABASE_URL || '').hostname;
+        if (/^db\.[a-z0-9]+\.supabase\.co$/i.test(host)) return 'supabase-direct-ipv6';
+        if (/\.pooler\.supabase\.com$/i.test(host)) return 'supabase-session-pooler';
+        return 'other';
+      } catch { return 'unset-or-invalid'; }
+    })();
+    console.error('[OTP] PostgreSQL auth backend could not initialize:', error.code || 'DATABASE_ERROR',
+      '(endpoint type:', endpointKind + ')');
+    if (error.code === 'ENETUNREACH' && endpointKind === 'supabase-direct-ipv6') {
+      console.error('[OTP] Render requires the Supabase IPv4 Session Pooler URL, not the direct IPv6 database endpoint.');
+    }
+    process.exitCode = 1;
+    void pgOtpStore?.close().finally(() => process.exit(1));
   });
 }

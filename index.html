@@ -1378,7 +1378,8 @@
     // -------------------------------------------------------------
     // REAL APPLICATION DATA & LOCAL PERSISTENCE
     // -------------------------------------------------------------
-    const STORAGE_KEY = 'mit_adt_campuspool_live_db_v4';
+    const LEGACY_STORAGE_KEY = 'mit_adt_campuspool_live_db_v4';
+    const STORAGE_KEY = 'mit_adt_campuspool_preferences_v1';
     const ONBOARDING_POP_SEEN_KEY = 'mit_adt_campuspool_onboarding_seen';
     const ADMIN_COMMISSION_VPA = "campuspool.mitadt@okaxis";
 
@@ -1411,25 +1412,59 @@
 
     let appState = JSON.parse(JSON.stringify(initialRealState));
 
+    // Only UI filters persist. Student identity comes from the server cookie session.
+    let csrfToken = null;
     function loadState() {
       try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed && parsed.rides) {
-            appState = parsed;
-          }
-        }
-      } catch (e) {
-        console.warn("Storage load fallback", e);
-      }
+        localStorage.removeItem(LEGACY_STORAGE_KEY);
+        const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+        if (typeof parsed.activeDestFilter === 'string') appState.activeDestFilter = parsed.activeDestFilter;
+        if (['all','Car','Bike','car','bike'].includes(parsed.activeVehicleFilter)) appState.activeVehicleFilter = parsed.activeVehicleFilter;
+      } catch (_) { console.warn('Preference loading unavailable'); }
     }
-
     function saveState() {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
-      } catch (e) {
-        console.warn("Storage save fallback", e);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          activeDestFilter: appState.activeDestFilter,
+          activeVehicleFilter: appState.activeVehicleFilter
+        }));
+      } catch (_) { console.warn('Preference saving unavailable'); }
+    }
+    async function apiFetch(input, options = {}) {
+      const urlString = typeof input === 'string' ? input : input.url;
+      const sameOriginApi = urlString.startsWith('/api/');
+      const method = (options.method || 'GET').toUpperCase();
+      const headers = new Headers(options.headers || {});
+      if (sameOriginApi && ['POST','PUT','PATCH','DELETE'].includes(method) && csrfToken) {
+        headers.set('X-CSRF-Token', csrfToken);
+      }
+      const response = await fetch(input, { ...options, headers, credentials: 'same-origin' });
+      if (sameOriginApi && response.status === 401 && !urlString.startsWith('/api/auth/')) {
+        csrfToken = null;
+        appState.currentUser = null;
+        appState.myBookings = [];
+        appState.myOfferedRides = [];
+        renderUserHeader();
+      }
+      return response;
+    }
+    async function refreshSession() {
+      try {
+        const response = await apiFetch('/api/auth/me', { cache: 'no-store' });
+        if (!response.ok) throw Error('No verified server session');
+        const data = await response.json();
+        if (!data.user || !data.user.isVerified || !/^[a-f0-9]{64}$/.test(data.csrfToken || '')) {
+          throw Error('Invalid session data');
+        }
+        appState.currentUser = data.user;
+        csrfToken = data.csrfToken;
+        return true;
+      } catch (_) {
+        csrfToken = null;
+        appState.currentUser = null;
+        appState.myBookings = [];
+        appState.myOfferedRides = [];
+        return false;
       }
     }
 
@@ -1440,8 +1475,9 @@
       const status = document.getElementById('rideFeedStatus');
       const count = Number(document.getElementById('countAvailableRides')?.textContent || 0);
       if (status) {
-        const message = rideFeedState === 'loading'
-          ? (appState.rides.length ? 'Updating saved rides…' : 'Loading rides…')
+        const message = rideFeedState === 'unauthenticated' ? 'Sign in to view current campus rides'
+          : rideFeedState === 'loading'
+          ? (appState.rides.length ? 'Updating rides…' : 'Loading rides…')
           : rideFeedState === 'error'
             ? (appState.rides.length ? 'Showing saved rides · Refresh unavailable' : 'Couldn’t load rides · Try refreshing')
             : `${count} ${count === 1 ? 'ride' : 'rides'} ${appState.activeDestFilter === 'all' && appState.activeVehicleFilter === 'all' ? 'available' : 'matching your filters'}`;
@@ -1457,6 +1493,13 @@
     let lastRidesEtag = null;
 
     async function syncLiveRides() {
+      if (!appState.currentUser || !csrfToken) {
+        appState.rides = [];
+        rideFeedState = 'unauthenticated';
+        renderRidesGrid();
+        updateRideFeedStatus();
+        return;
+      }
       if (rideFeedInFlight) return;
       const refreshOrigin = document.activeElement?.matches('[data-refresh-rides]')
         ? document.activeElement : null;
@@ -1465,7 +1508,7 @@
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10000);
       try {
-        const fetchHeaders = {}; if (lastRidesEtag) fetchHeaders["If-None-Match"] = lastRidesEtag; const resp = await fetch('/api/rides', { headers: fetchHeaders, signal: controller.signal }); if (resp.status === 304) { rideFeedState = "ready"; return; } const etag = resp.headers.get("ETag"); if (etag) lastRidesEtag = etag;
+        const fetchHeaders = {}; if (lastRidesEtag) fetchHeaders["If-None-Match"] = lastRidesEtag; const resp = await apiFetch('/api/rides', { headers: fetchHeaders, signal: controller.signal }); if (resp.status === 304) { rideFeedState = "ready"; return; } const etag = resp.headers.get("ETag"); if (etag) lastRidesEtag = etag;
         if (!resp.ok) throw new Error('Ride feed request failed');
         const data = await resp.json();
         if (!Array.isArray(data.rides)) throw new Error('Invalid ride feed response');
@@ -1496,24 +1539,24 @@
     }
 
     async function syncUserBookings() {
-      if (!appState.currentUser || !appState.currentUser.email) return;
+      if (!appState.currentUser || !csrfToken || !appState.currentUser.email) return;
       const email = appState.currentUser.email;
       try {
-        const bResp = await fetch(`/api/bookings?email=${encodeURIComponent(email)}`);
+        const bResp = await apiFetch(`/api/bookings?email=${encodeURIComponent(email)}`);
         if (bResp.ok) {
           const bData = await bResp.json();
           if (Array.isArray(bData.bookings)) {
             appState.myBookings = bData.bookings.filter(b => b.passengerEmail && b.passengerEmail.toLowerCase() === email.toLowerCase());
           }
         }
-        const rResp = await fetch(`/api/my-rides?email=${encodeURIComponent(email)}`);
+        const rResp = await apiFetch(`/api/my-rides?email=${encodeURIComponent(email)}`);
         if (rResp.ok) {
           const rData = await rResp.json();
           if (Array.isArray(rData.rides)) {
             appState.myOfferedRides = rData.rides;
           }
         }
-        const sResp = await fetch(`/api/user/settlement-status?email=${encodeURIComponent(email)}`);
+        const sResp = await apiFetch(`/api/user/settlement-status?email=${encodeURIComponent(email)}`);
         if (sResp.ok) {
           const sData = await sResp.json();
           if (sData.driverCommission && typeof sData.driverCommission.settled === 'number') {
@@ -1551,9 +1594,7 @@
       return clean.length === 10 && /^[6-9]\d{9}$/.test(clean);
     }
 
-    function generateSixDigitOtp() {
-      return Math.floor(100000 + Math.random() * 900000).toString();
-    }
+    // Verification codes are issued only by the server or configured provider.
 
     const modalFocusOrigins = new Map();
     const modalFocusableSelector = [
@@ -1674,8 +1715,16 @@
           </button>
         `;
         if (banner) banner.classList.add('hidden');
-        document.getElementById('headerLogoutBtn')?.addEventListener('click', () => {
+        document.getElementById('headerLogoutBtn')?.addEventListener('click', async () => {
+          try {
+            const response = await apiFetch('/api/auth/logout', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
+            if (!response.ok) throw new Error('Logout failed');
+          } catch (e) {
+            showToast('Could not revoke your session. Try again online.', '⚠️');
+            return;
+          }
           appState.currentUser = null;
+          csrfToken = null;
           appState.myBookings = [];
           appState.myOfferedRides = [];
           appState.settledCommissionAmount = 0;
@@ -1717,11 +1766,14 @@
     function rideFeedStateMarkup() {
       const loading = rideFeedState === 'loading' && appState.rides.length === 0;
       const failed = rideFeedState === 'error' && appState.rides.length === 0;
+      const guest = rideFeedState === 'unauthenticated';
       const filtered = appState.activeDestFilter !== 'all' || appState.activeVehicleFilter !== 'all';
-      const title = loading ? 'Loading available rides'
+      const title = guest ? 'Sign in to browse rides'
+        : loading ? 'Loading available rides'
         : failed ? 'Rides couldn’t load'
         : filtered ? 'No rides match your filters' : 'No rides available yet';
-      const description = loading ? 'Checking the latest rides from campus. This should only take a moment.'
+      const description = guest ? 'Verify your MIT-ADT account to view live offers and reserve seats securely.'
+        : loading ? 'Checking the latest rides from campus. This should only take a moment.'
         : failed ? 'We couldn’t reach the ride feed. Check your connection, then try again.'
         : filtered ? 'Try another destination or vehicle, or clear your filters to see all rides.'
         : 'There are no rides to show right now. Offer a seat to a campus peer or check back soon.';
@@ -1729,7 +1781,7 @@
         <div class="ride-feed-state">
           <svg class="cp-icon" aria-hidden="true"><use href="#cp-${failed ? 'alert' : 'search'}"></use></svg>
           <h3>${title}</h3><p>${description}</p>
-          ${loading ? '' : `<div class="ride-feed-actions">
+          ${guest ? `<div class="ride-feed-actions"><button type="button" class="cp-button cp-button-primary" onclick="openAuthModal('signin')">Sign in to CampusPool</button></div>` : loading ? '' : `<div class="ride-feed-actions">
             ${filtered && !failed
               ? `<button type="button" class="cp-button cp-button-primary" onclick="resetRideFilters()">Clear filters</button>`
               : `<button type="button" class="cp-button cp-button-primary" onclick="openCommuteView('tabOfferRide', 'viewOfferRide')"><svg class="cp-icon" aria-hidden="true"><use href="#cp-plus"></use></svg>Offer a Ride</button>`}
@@ -1971,7 +2023,7 @@
               const bId = e.currentTarget.getAttribute('data-booking-id');
               if (!confirm("Are you sure you want to cancel this booking?")) return;
               try {
-                const resp = await fetch('/api/bookings/cancel', {
+                const resp = await apiFetch('/api/bookings/cancel', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ bookingId: bId, passengerEmail: appState.currentUser?.email })
@@ -2024,7 +2076,7 @@
               const rId = e.currentTarget.getAttribute('data-ride-id');
               if (!confirm("Are you sure you want to cancel this offered ride?")) return;
               try {
-                const resp = await fetch('/api/rides/cancel', {
+                const resp = await apiFetch('/api/rides/cancel', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ rideId: rId, driverEmail: appState.currentUser?.email })
@@ -2256,65 +2308,8 @@
       openSettlementLockModal();
     });
 
-    document.getElementById('confirmSettleDoneBtn')?.addEventListener('click', async () => {
-      const restriction = checkUserSettlementRestriction();
-      if (!restriction.isBlocked) {
-        hideModal('settlementLockModal');
-        return;
-      }
-
-      const confirmBtn = document.getElementById('confirmSettleDoneBtn');
-      if (confirmBtn) {
-        confirmBtn.disabled = true;
-        confirmBtn.innerHTML = `<span>⏳</span> Confirming Settlement...`;
-      }
-
-      try {
-        if (restriction.hasUnsettledCommission) {
-          const amount = restriction.commissionDue;
-          appState.settledCommissionAmount = (appState.settledCommissionAmount || 0) + amount;
-          saveState();
-          updateDriverCommissionBanner();
-          updateSettlementWarningBanner();
-
-          // Sync with SQLite backend
-          await fetch('/api/driver/settle-commission', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              driverEmail: appState.currentUser?.email,
-              amount: amount
-            })
-          }).catch(() => {});
-
-          hideModal('settlementLockModal');
-          showToast("Platform commission settled! All booking & inquiry locks removed.", "✅");
-        } else if (restriction.hasUnpaidBooking) {
-          const b = restriction.unpaidBooking;
-          b.paymentStatus = 'Paid';
-          saveState();
-          renderMyRidesViews();
-          updateSettlementWarningBanner();
-
-          // Sync with SQLite backend
-          await fetch('/api/bookings/payment-status', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              bookingId: b.bookingId,
-              paymentStatus: 'Paid'
-            })
-          }).catch(() => {});
-
-          hideModal('settlementLockModal');
-          showToast("Ride payment confirmed! All booking & inquiry locks removed.", "✅");
-        }
-      } finally {
-        if (confirmBtn) {
-          confirmBtn.disabled = false;
-          confirmBtn.innerHTML = `<span><svg class="cp-icon" aria-hidden="true"><use href="#cp-check"></use></svg></span> I Have Settled Dues (Unlock Account)`;
-        }
-      }
+    document.getElementById('confirmSettleDoneBtn')?.addEventListener('click', () => {
+      showToast('Commission payment must be verified by the payment provider.', '⚠️');
     });
 
     function renderLeaderboard() {
@@ -2441,7 +2436,7 @@
 
     document.getElementById('welcomeExploreGuestBtn')?.addEventListener('click', () => {
       closeWelcomePopScreen();
-      showToast("Browsing as guest. Verify your ID whenever you are ready to ride!", "👋");
+      showToast("You can explore campus information as a guest. Sign in to view live rides.", "ℹ️");
     });
 
     document.getElementById('welcomeRegisterBtn')?.addEventListener('click', () => {
@@ -2494,6 +2489,10 @@
     }
 
     function resetAuthStepsUI(mode = 'signin') {
+      serverVerificationTokens = { emailToken: null, phoneToken: null };
+      appState.pendingAuth = { ...initialRealState.pendingAuth };
+      const phoneComplete = document.getElementById('completeVerificationBtn');
+      if (phoneComplete) phoneComplete.disabled = true;
       document.getElementById('authModeSwitcher')?.classList.remove('hidden');
       document.getElementById('authStep2EmailOtp')?.classList.add('hidden');
       document.getElementById('authStep3PhoneOtp')?.classList.add('hidden');
@@ -2571,26 +2570,6 @@
     // -------------------------------------------------------------
     let serverVerificationTokens = { emailToken: null, phoneToken: null };
 
-    // Check unique constraints on existing registered users
-    function checkClientDbUniqueness(name, email, phone) {
-      const cleanEmail = (email || '').trim().toLowerCase();
-      const cleanPhone = (phone || '').replace(/[^0-9]/g, '').slice(-10);
-
-      // Check current appState profiles/users
-      const existingUsers = appState.profiles || [];
-
-      for (const u of existingUsers) {
-        if (u.email && u.email.toLowerCase() === cleanEmail) {
-          return { unique: true, isLogin: true, user: u };
-        }
-        if (cleanPhone && u.phone && u.phone.replace(/[^0-9]/g, '').slice(-10) === cleanPhone) {
-          return { unique: false, field: 'phone', message: "This mobile number is already registered to another account." };
-        }
-      }
-      return { unique: true, isLogin: false };
-    }
-
-    // -------------------------------------------------------------
     // SIGN IN VIEW: Dedicated Instant OTP for Existing Accounts
     // -------------------------------------------------------------
     document.getElementById('inputLoginIdentifier')?.addEventListener('keydown', (e) => {
@@ -2620,7 +2599,7 @@
       }
 
       try {
-        const resp = await fetch('/api/auth/login-request', {
+        const resp = await apiFetch('/api/auth/login-request', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ identifier })
@@ -2638,9 +2617,11 @@
 
         appState.pendingAuth = {
           isLoginFlow: true,
-          email: data.email,
-          name: data.name,
-          phone: data.phone
+          // Never rely on returned account details: they would reveal whether
+          // an account exists. The server resolves the identifier on verification.
+          email: identifier,
+          name: '',
+          phone: ''
         };
 
         // Transition to Step 2 Email OTP
@@ -2650,7 +2631,7 @@
         document.getElementById('authStepIndicator')?.classList.add('hidden');
         document.getElementById('authStep2EmailOtp')?.classList.remove('hidden');
 
-        document.getElementById('emailOtpTargetDisplay').textContent = data.email;
+        document.getElementById('emailOtpTargetDisplay').textContent = identifier;
         document.getElementById('inputEmailOtp').value = '';
 
         const banner = document.getElementById('emailOtpInboxBanner');
@@ -2661,66 +2642,26 @@
             <div class="space-y-1.5 flex-1">
               <span class="font-bold text-white block">Sign-In Verification Code Dispatched</span>
               <p class="text-[11px] text-slate-300 leading-snug">
-                Welcome back, <strong class="text-white">${sanitize(data.name)}</strong>! A 6-digit sign-in code has been sent to <strong class="text-white">${data.email}</strong>. Please check your inbox (including Spam/Junk folder).
+                If this identifier belongs to a verified student, a 6-digit sign-in code will be sent to the registered campus email. Check that inbox, including Spam/Junk.
               </p>
-              ${data.devOtpHint ? `
-                <div class="mt-2 p-2.5 bg-amber-950/80 border border-amber-500/50 rounded-xl text-amber-200 text-xs">
-                  <div class="flex items-center justify-between gap-2">
-                    <span class="font-bold text-amber-300 flex items-center gap-1">⚡ Cloud Host Bypass Code:</span>
-                    <button type="button" class="underline text-[11px] font-bold text-amber-300 hover:text-white cursor-pointer" onclick="document.getElementById('inputEmailOtp').value='${data.devOtpHint}'; document.getElementById('verifyEmailOtpBtn').click();">Auto-Fill & Verify</button>
-                  </div>
-                  <div class="mt-1.5 flex items-center gap-2">
-                    <span class="font-mono text-base tracking-widest font-black text-white bg-slate-900 border border-amber-500/40 px-3 py-1 rounded-lg inline-block">
-                      ${data.devOtpHint}
-                    </span>
-                    <span class="text-[10px] text-amber-400/90 leading-tight">Render Free Tier firewall blocks outbound port 465. Code provided here so sign-in is instant.</span>
-                  </div>
-                </div>
-              ` : ''}
+
             </div>
           `;
         }
 
         clearInterval(emailTimerInterval);
         emailTimerInterval = startOtpTimer('emailTimerText', 'resendEmailOtpBtn');
-        showToast(data.message || `Sign-in code sent to ${data.email}`, "✉️");
+        showToast(data.message || "If your account exists, check its registered email.", "✉️");
 
         setTimeout(() => {
           document.getElementById('inputEmailOtp')?.focus();
         }, 50);
       } catch (err) {
-        console.warn("Sign-in request error:", err);
-        // Fallback: search in local profiles
-        const cleanId = identifier.toLowerCase().replace(/[^0-9a-z@._-]/g, '');
-        const localUser = (appState.profiles || []).find(p => 
-          (p.email && p.email.toLowerCase() === cleanId) || 
-          (p.phone && p.phone.replace(/[^0-9]/g, '').slice(-10) === cleanId.slice(-10))
-        );
-
-        if (localUser) {
-          appState.pendingAuth = {
-            isLoginFlow: true,
-            email: localUser.email,
-            name: localUser.name,
-            phone: localUser.phone,
-            clientFallbackOtp: generateSixDigitOtp()
-          };
-          document.getElementById('authModeSwitcher')?.classList.add('hidden');
-          document.getElementById('authSignInView')?.classList.add('hidden');
-          document.getElementById('authRegisterView')?.classList.add('hidden');
-          document.getElementById('authStep2EmailOtp')?.classList.remove('hidden');
-          document.getElementById('emailOtpTargetDisplay').textContent = localUser.email;
-          document.getElementById('inputEmailOtp').value = '';
-          clearInterval(emailTimerInterval);
-          emailTimerInterval = startOtpTimer('emailTimerText', 'resendEmailOtpBtn');
-          showToast(`Sign-in verification code dispatched to ${localUser.email}`, "✉️");
-        } else {
-          if (errEl) {
-            errEl.textContent = "No registered account found. Please click New Account to register.";
-            errEl.classList.remove('hidden');
-          }
-          showToast("Account not found. Please register.", "⚠️");
+        if (errEl) {
+          errEl.textContent = 'CampusPool could not reach the verification server. Try again when connected.';
+          errEl.classList.remove('hidden');
         }
+        showToast('Sign-in requires a connection to the campus server.', '⚠️');
       } finally {
         if (proceedBtn) {
           proceedBtn.disabled = false;
@@ -2769,16 +2710,7 @@
         return;
       }
 
-      // Check client DB constraints
-      const localCheck = checkClientDbUniqueness(name, email, phone);
-      if (!localCheck.unique) {
-        if (localCheck.field === 'phone' && phoneErr) {
-          phoneErr.textContent = `${localCheck.message}`;
-          phoneErr.classList.remove('hidden');
-        }
-        showToast(localCheck.message, "⚠️");
-        return;
-      }
+      // The backend verifies uniqueness; browser-local identity data is never authoritative.
 
       const proceedBtn = document.getElementById('proceedToEmailOtpBtn');
       if (proceedBtn) {
@@ -2788,7 +2720,7 @@
 
       try {
         // Call Real Backend Server API
-        const resp = await fetch('/api/auth/send-email-otp', {
+        const resp = await apiFetch('/api/auth/send-email-otp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name, email, phone })
@@ -2819,8 +2751,7 @@
           name: name,
           email: email,
           phone: "+91 " + phone.replace(/[^0-9]/g, '').slice(-10),
-          dept: dept,
-          devOtpHint: data.devOtpHint
+          dept: dept
         };
 
         document.getElementById('authModeSwitcher')?.classList.add('hidden');
@@ -2843,20 +2774,7 @@
               <p class="text-[11px] text-slate-300 leading-snug">
                 A 6-digit verification code has been dispatched to <strong class="text-white">${email}</strong>. Please check your inbox (including Spam/Junk folder).
               </p>
-              ${data.devOtpHint ? `
-                <div class="mt-2 p-2.5 bg-amber-950/80 border border-amber-500/50 rounded-xl text-amber-200 text-xs">
-                  <div class="flex items-center justify-between gap-2">
-                    <span class="font-bold text-amber-300 flex items-center gap-1">⚡ Cloud Host Bypass Code:</span>
-                    <button type="button" class="underline text-[11px] font-bold text-amber-300 hover:text-white cursor-pointer" onclick="document.getElementById('inputEmailOtp').value='${data.devOtpHint}'; document.getElementById('verifyEmailOtpBtn').click();">Auto-Fill & Verify</button>
-                  </div>
-                  <div class="mt-1.5 flex items-center gap-2">
-                    <span class="font-mono text-base tracking-widest font-black text-white bg-slate-900 border border-amber-500/40 px-3 py-1 rounded-lg inline-block">
-                      ${data.devOtpHint}
-                    </span>
-                    <span class="text-[10px] text-amber-400/90 leading-tight">Render Free Tier firewall blocks outbound port 465. Code provided here so registration is instant.</span>
-                  </div>
-                </div>
-              ` : ''}
+
             </div>
           `;
         }
@@ -2869,27 +2787,7 @@
           document.getElementById('inputEmailOtp')?.focus();
         }, 50);
       } catch (err) {
-        console.warn("Backend API unavailable, using local secure verification:", err.message);
-        appState.pendingAuth = {
-          isLoginFlow: false,
-          name: name,
-          email: email,
-          phone: "+91 " + phone.replace(/[^0-9]/g, '').slice(-10),
-          dept: dept,
-          clientFallbackOtp: generateSixDigitOtp()
-        };
-        document.getElementById('authModeSwitcher')?.classList.add('hidden');
-        document.getElementById('authRegisterView')?.classList.add('hidden');
-        document.getElementById('authSignInView')?.classList.add('hidden');
-        document.getElementById('authStepIndicator')?.classList.remove('hidden');
-        document.getElementById('authStep2EmailOtp')?.classList.remove('hidden');
-        document.getElementById('stepBadge1').className = "text-emerald-400 font-bold";
-        document.getElementById('stepBadge2').className = "text-brand-400 font-bold";
-        document.getElementById('emailOtpTargetDisplay').textContent = email;
-        document.getElementById('inputEmailOtp').value = '';
-        clearInterval(emailTimerInterval);
-        emailTimerInterval = startOtpTimer('emailTimerText', 'resendEmailOtpBtn');
-        showToast(`Verification code dispatched to ${email}`, "✉️");
+        showToast('Verification server unavailable. Registration requires an online connection.', '⚠️');
       } finally {
         if (proceedBtn) {
           proceedBtn.disabled = false;
@@ -2932,10 +2830,10 @@
       }
 
       try {
-        const resp = await fetch('/api/auth/verify-email-otp', {
+        const resp = await apiFetch('/api/auth/verify-email-otp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: appState.pendingAuth.email, otp: enteredOtp })
+          body: JSON.stringify({ email: appState.pendingAuth.email, otp: enteredOtp, isLoginFlow: appState.pendingAuth.isLoginFlow === true })
         });
         const data = await resp.json();
 
@@ -2947,58 +2845,25 @@
           return;
         }
 
-        // Returning user logging in: Log in instantly!
-        if ((data.isLogin && data.user) || appState.pendingAuth?.isLoginFlow) {
-          const user = data.user || (appState.profiles || []).find(p => p.email.toLowerCase() === appState.pendingAuth.email.toLowerCase()) || {
-            name: appState.pendingAuth.name,
-            email: appState.pendingAuth.email,
-            phone: appState.pendingAuth.phone,
-            dept: "MIT School of Computing",
-            isVerified: true
-          };
-          appState.currentUser = user;
-          if (!appState.profiles) appState.profiles = [];
-          if (!appState.profiles.some(p => p.email.toLowerCase() === user.email.toLowerCase())) {
-            appState.profiles.push(user);
-          }
-          saveState();
+        // Successful verification is not enough by itself: require the server-issued
+        // HttpOnly cookie and /api/auth/me identity to be valid.
+        if (data.isLogin) {
+          if (!(await refreshSession())) throw new Error('Login succeeded but session verification failed');
           renderUserHeader();
-          syncUserBookings();
-          syncLiveRides();
+          await syncUserBookings();
+          await syncLiveRides();
           closeAuthModal();
-          showToast(`Welcome back, ${user.name}! Signed in successfully.`, "🎉");
+          showToast('Signed in with your verified campus account.', '✅');
           return;
         }
-
+        if (appState.pendingAuth?.isLoginFlow) throw new Error('Sign-in account not found');
         serverVerificationTokens.emailToken = data.emailToken;
       } catch (e) {
-        // Fallback if offline
-        if (appState.pendingAuth?.isLoginFlow) {
-          const user = (appState.profiles || []).find(p => p.email.toLowerCase() === appState.pendingAuth.email.toLowerCase()) || {
-            name: appState.pendingAuth.name,
-            email: appState.pendingAuth.email,
-            phone: appState.pendingAuth.phone,
-            dept: "MIT School of Computing",
-            isVerified: true
-          };
-          appState.currentUser = user;
-          saveState();
-          renderUserHeader();
-          syncUserBookings();
-          syncLiveRides();
-          closeAuthModal();
-          showToast(`Welcome back, ${user.name}!`, "🎉");
-          return;
+        if (errEl) {
+          errEl.textContent = 'Verification failed or the server connection was lost. Please retry.';
+          errEl.classList.remove('hidden');
         }
-
-        if (appState.pendingAuth.clientFallbackOtp && enteredOtp !== appState.pendingAuth.clientFallbackOtp) {
-          if (errEl) {
-            errEl.textContent = "Incorrect verification code.";
-            errEl.classList.remove('hidden');
-          }
-          return;
-        }
-        serverVerificationTokens.emailToken = "token_offline_verified";
+        return;
       }
 
       if (errEl) errEl.classList.add('hidden');
@@ -3011,19 +2876,30 @@
       document.getElementById('phoneOtpTargetDisplay').textContent = appState.pendingAuth.phone;
       document.getElementById('inputPhoneOtp').value = '';
 
-      // Trigger phone OTP dispatch
-      fetch('/api/auth/send-phone-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: appState.pendingAuth.phone })
-      }).catch(() => {});
-
-      clearInterval(phoneTimerInterval);
-      phoneTimerInterval = startOtpTimer('phoneTimerText', 'resendPhoneOtpBtn');
-      showToast(`Email verified! SMS code dispatched to ${appState.pendingAuth.phone}`, "📱");
+      const phoneCompleteButton = document.getElementById('completeVerificationBtn');
+      if (phoneCompleteButton) phoneCompleteButton.disabled = true;
+      const retrySmsButton = document.getElementById('resendPhoneOtpBtn');
+      if (retrySmsButton) retrySmsButton.disabled = false;
+      // Only enable registration after the configured provider accepts the message.
+      try {
+        const response = await apiFetch('/api/auth/send-phone-otp', {
+          method: 'POST', headers: { 'Content-Type':'application/json' },
+          body: JSON.stringify({ phone: appState.pendingAuth.phone })
+        });
+        const data = await response.json();
+        if (!response.ok) { showToast(data.message || 'SMS verification unavailable. Use Resend SMS to retry.', '⚠️'); return; }
+        if (phoneCompleteButton) phoneCompleteButton.disabled = false;
+        clearInterval(phoneTimerInterval);
+        phoneTimerInterval = startOtpTimer('phoneTimerText', 'resendPhoneOtpBtn');
+        showToast('SMS provider has dispatched your code.', '📱');
+      } catch (e) { showToast('SMS verification unavailable.', '⚠️'); }
     });
 
     document.getElementById('backToEmailOtpBtn')?.addEventListener('click', () => {
+      if (serverVerificationTokens.emailToken) {
+        showToast('Your email is already verified. Retry SMS or restart registration to change details.', 'ℹ️');
+        return;
+      }
       document.getElementById('authStep3PhoneOtp')?.classList.add('hidden');
       document.getElementById('authStep2EmailOtp')?.classList.remove('hidden');
       document.getElementById('stepBadge2').className = "text-brand-400 font-bold";
@@ -3031,6 +2907,7 @@
     });
 
     document.getElementById('completeVerificationBtn')?.addEventListener('click', async () => {
+      if (document.getElementById('completeVerificationBtn')?.disabled) return;
       const enteredOtp = document.getElementById('inputPhoneOtp').value.trim();
       const errEl = document.getElementById('phoneOtpError');
 
@@ -3044,7 +2921,7 @@
 
       let phoneToken = null;
       try {
-        const resp = await fetch('/api/auth/verify-phone-otp', {
+        const resp = await apiFetch('/api/auth/verify-phone-otp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ phone: appState.pendingAuth.phone, otp: enteredOtp })
@@ -3059,12 +2936,16 @@
         }
         phoneToken = data.phoneToken;
       } catch (e) {
-        phoneToken = "token_phone_offline_verified";
+        if (errEl) {
+          errEl.textContent = 'Could not verify your phone. Reconnect and try again.';
+          errEl.classList.remove('hidden');
+        }
+        return;
       }
 
       // Complete Registration in Database
       try {
-        const regResp = await fetch('/api/auth/register', {
+        const regResp = await apiFetch('/api/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -3081,26 +2962,19 @@
           showToast(regData.message || "Registration failed.", "⚠️");
           return;
         }
-        appState.currentUser = regData.user;
+        if (!(await refreshSession())) throw new Error('Registration session could not be verified');
       } catch (e) {
-        appState.currentUser = {
-          name: appState.pendingAuth.name,
-          email: appState.pendingAuth.email,
-          phone: appState.pendingAuth.phone,
-          dept: appState.pendingAuth.dept,
-          isVerified: true,
-          verifiedAt: new Date().toISOString()
-        };
+        showToast('Registration could not be confirmed by the server. Please try again.', '⚠️');
+        return;
       }
 
-      if (!appState.profiles) appState.profiles = [];
-      appState.profiles.push(appState.currentUser);
-
-      saveState();
+      serverVerificationTokens = { emailToken: null, phoneToken: null };
+      appState.pendingAuth = initialRealState.pendingAuth;
       renderUserHeader();
-      syncUserBookings();
+      await syncUserBookings();
+      await syncLiveRides();
       closeAuthModal();
-      showToast(`Welcome ${appState.currentUser.name}! Registered in MIT ADT database.`, "🎉");
+      showToast('Campus account verified and registered successfully.', '✅');
     });
 
     // Enter key listeners for OTP inputs
@@ -3123,13 +2997,13 @@
       try {
         let resp, data;
         if (appState.pendingAuth.isLoginFlow) {
-          resp = await fetch('/api/auth/login-request', {
+          resp = await apiFetch('/api/auth/login-request', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ identifier: appState.pendingAuth.email })
           });
         } else {
-          resp = await fetch('/api/auth/send-email-otp', {
+          resp = await apiFetch('/api/auth/send-email-otp', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -3143,7 +3017,7 @@
         if (resp.ok) {
           clearInterval(emailTimerInterval);
           emailTimerInterval = startOtpTimer('emailTimerText', 'resendEmailOtpBtn');
-          showToast(`Fresh verification code sent to ${appState.pendingAuth.email}`, "✉️");
+          showToast(appState.pendingAuth.isLoginFlow ? "If your account exists, check its registered email." : "New verification code requested.", "✉️");
         } else {
           showToast(data.message || "Failed to resend code.", "⚠️");
         }
@@ -3155,16 +3029,18 @@
     document.getElementById('resendPhoneOtpBtn')?.addEventListener('click', async () => {
       if (!appState.pendingAuth?.phone) return;
       try {
-        const resp = await fetch('/api/auth/send-phone-otp', {
+        const resp = await apiFetch('/api/auth/send-phone-otp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ phone: appState.pendingAuth.phone })
         });
         const data = await resp.json();
         if (resp.ok) {
+          const phoneCompleteButton = document.getElementById('completeVerificationBtn');
+          if (phoneCompleteButton) phoneCompleteButton.disabled = false;
           clearInterval(phoneTimerInterval);
           phoneTimerInterval = startOtpTimer('phoneTimerText', 'resendPhoneOtpBtn');
-          showToast(`Fresh SMS code dispatched to ${appState.pendingAuth.phone}`, "📱");
+          showToast('A verification SMS was accepted by the delivery provider.', '📱');
         } else {
           showToast(data.message || "Failed to resend SMS code.", "⚠️");
         }
@@ -3257,7 +3133,7 @@
       }
 
       try {
-        const resp = await fetch('/api/bookings', {
+        const resp = await apiFetch('/api/bookings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -3350,26 +3226,8 @@
       hideModal('paymentModal');
     });
 
-    document.getElementById('markPaymentDoneBtn')?.addEventListener('click', async () => {
-      const b = appState.selectedBookingForPayment;
-      if (!b) return;
-
-      b.paymentStatus = 'Paid';
-      saveState();
-      renderMyRidesViews();
-      hideModal('paymentModal');
-      showToast(`Payment marked as complete! Receipt updated.`, "✅");
-
-      // Update in SQLite Backend
-      try {
-        await fetch('/api/bookings/payment-status', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ bookingId: b.bookingId, paymentStatus: 'Paid' })
-        });
-      } catch (err) {
-        console.warn("Payment status update backend error:", err);
-      }
+    document.getElementById('markPaymentDoneBtn')?.addEventListener('click', () => {
+      showToast('Payment cannot be marked paid until provider verification succeeds.', '⚠️');
     });
 
     // Driver Weekly Commission Settlement Modal
@@ -3391,12 +3249,7 @@
     });
 
     document.getElementById('markCommissionPaidBtn')?.addEventListener('click', () => {
-      const comm = calculateWeeklyCommission();
-      appState.settledCommissionAmount = (appState.settledCommissionAmount || 0) + comm.netDue;
-      saveState();
-      updateDriverCommissionBanner();
-      hideModal('driverSettlementModal');
-      showToast("Weekly commission settled! Thank you for supporting CampusPool.", "✅");
+      showToast('Commission payment cannot be self-confirmed.', '⚠️');
     });
 
     // -------------------------------------------------------------
@@ -3743,7 +3596,7 @@
       };
 
       try {
-        const resp = await fetch('/api/rides', {
+        const resp = await apiFetch('/api/rides', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(ridePayload)
@@ -4141,7 +3994,7 @@
     async function fetchLiveGpsUpdate() {
       if (!currentTrackingContext.rideId) return;
       try {
-        const res = await fetch(`/api/rides/location?rideId=${encodeURIComponent(currentTrackingContext.rideId)}`);
+        const res = await apiFetch(`/api/rides/location?rideId=${encodeURIComponent(currentTrackingContext.rideId)}`);
         if (res.ok) {
           const data = await res.json();
           if (data && data.location) {
@@ -4192,7 +4045,7 @@
 
           // Sync with backend
           try {
-            await fetch('/api/rides/location', {
+            await apiFetch('/api/rides/location', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -4230,7 +4083,7 @@
 
           if (currentTrackingContext.bookingId) {
             try {
-              await fetch('/api/bookings/passenger-location', {
+              await apiFetch('/api/bookings/passenger-location', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -4294,7 +4147,7 @@
         updateTrackerView();
 
         // Also post to backend to verify end-to-end sync
-        fetch('/api/rides/location', {
+        apiFetch('/api/rides/location', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -4366,10 +4219,11 @@
     });
 
     // Initial Load & Real-Time SQLite Sync
-    window.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('toastNotification')?.classList.add('hidden');
       switchMainTab('tabFindRides', 'viewFindRides');
       loadState();
+      await refreshSession();
       // CP-005: Ensure filter select reflects persisted activeVehicleFilter
       if (appState.activeVehicleFilter) {
         const vSel = document.getElementById('filterVehicleSelect');
@@ -4400,4 +4254,26 @@
     });
   </script>
 
+
+<script>
+  // SECURITY REVIEW BUILD: Block real outgoing UPI intents while confirmation is unverified.
+  document.addEventListener('click', function(event) {
+    const link = event.target.closest('a[href^="upi:"]');
+    if (!link) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    alert('Payments are disabled pending payment-provider verification.');
+  }, true);
+  document.addEventListener('DOMContentLoaded', function () {
+    const note = document.createElement('div');
+    note.setAttribute('role','status');
+    note.style.cssText = 'padding:10px 16px;background:#fff4c0;color:#4a3900;text-align:center;font:600 12px Arial,sans-serif;border-bottom:1px solid #e8d888';
+    note.textContent = 'Security review build: payments are disabled until verified provider integration.';
+    document.body.insertBefore(note,document.body.firstChild);
+  });
+</script>
+<style>
+  #paymentModal img[src*="qrserver"], #driverSettlementModal img[src*="qrserver"],
+  #settlementLockModal img[src*="qrserver"], #settleQrCodeImg { display:none !important; }
+</style>
 </body></html>
