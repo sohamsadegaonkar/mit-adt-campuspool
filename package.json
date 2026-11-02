@@ -18,7 +18,10 @@
     "test:identity": "node --test test_pg_identity.js",
     "test:staging": "node --test test_staging_isolation.js",
     "test:native": "node -e \"const Sqlite=require('better-sqlite3');const db=new Sqlite(':memory:');if(db.prepare('SELECT 1 AS ok').get().ok!==1)process.exit(1);db.close();console.log('SQLite native startup verified');\"",
-    "test:production-auth": "node --test test_production_auth.js"
+    "test:production-auth": "node --test test_production_auth.js",
+    "check:release-ci": "node scripts/check-release-gates.js --ci",
+    "check:release-production": "node scripts/check-release-gates.js --production",
+    "test:release": "node --test test_release_gates.js"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
