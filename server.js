@@ -14,9 +14,17 @@ const url = require('url');
 const smsProvider = require('./sms-provider');
 const AUTH_OTP_BACKEND = process.env.AUTH_OTP_BACKEND || 'sqlite';
 if (!['sqlite', 'postgres'].includes(AUTH_OTP_BACKEND)) throw new Error('AUTH_OTP_BACKEND must be sqlite or postgres');
+// Opt-in only. Production/staging stay on the legacy Rides backend unless
+// their separate environments explicitly enable PostgreSQL for Rides.
+const RIDES_BACKEND = process.env.RIDES_BACKEND || 'sqlite';
+if (!['sqlite', 'postgres'].includes(RIDES_BACKEND)) throw new Error('RIDES_BACKEND must be sqlite or postgres');
+if (RIDES_BACKEND === 'postgres' && AUTH_OTP_BACKEND !== 'postgres')
+  throw new Error('PostgreSQL Rides requires PostgreSQL identity backend');
 const { PgOtpStore } = AUTH_OTP_BACKEND === 'postgres' ? require('./stage1-otp/pg-store') : { PgOtpStore: null };
 const { handlePgAuth } = AUTH_OTP_BACKEND === 'postgres' ? require('./stage1-otp/auth-routes') : { handlePgAuth: null };
 const {PgIdentity} = AUTH_OTP_BACKEND === 'postgres' ? require('./stage1-otp/identity') : {PgIdentity:null};
+const {PgRidesStore,RidesError} = RIDES_BACKEND === 'postgres'
+  ? require('./stage1-otp/rides-store') : {PgRidesStore:null,RidesError:null};
 
 const PORT = process.env.PORT || 3000;
 const DB_FILE = path.join(__dirname, 'campuspool_database.json');
@@ -151,6 +159,8 @@ const SQLiteCampusDatabase = require('./database');
 const db = new SQLiteCampusDatabase();
 const pgOtpStore = AUTH_OTP_BACKEND === 'postgres' ? new PgOtpStore() : null;
 const pgIdentity = pgOtpStore ? new PgIdentity(pgOtpStore) : null;
+const pgRidesStore = RIDES_BACKEND === 'postgres'
+  ? new PgRidesStore({pool:pgOtpStore.pool}) : null;
 
 // -------------------------------------------------------------------------
 // Native Multi-Channel Email Dispatcher (HTTPS REST APIs + TLS SMTP Sockets)
@@ -1132,6 +1142,20 @@ const server = http.createServer(async (req, res) => {
   // REST API: /api/rides (List & Post) with 5s Micro-Caching & Conditional 304
   // -----------------------------------------------------------------------
   if (method === 'GET' && pathname === '/api/rides') {
+    if (pgRidesStore) {
+      // PostgreSQL is the sole source in this mode; no SQLite-backed cache or
+      // cluster-local version value can incorrectly serve old seat counts.
+      const freshRides=await pgRidesStore.getRides();
+      const payload=JSON.stringify({success:true,rides:freshRides});
+      const etag='W/"pg-'+crypto.createHash('sha256').update(payload).digest('hex').slice(0,20)+'"';
+      if(req.headers['if-none-match']===etag){
+        res.writeHead(304,{'ETag':etag,'Cache-Control':'no-store'});
+        return res.end();
+      }
+      res.writeHead(200,{'Content-Type':'application/json; charset=utf-8',
+        'ETag':etag,'Cache-Control':'no-store'});
+      return res.end(payload);
+    }
     const now = Date.now();
     const ifNoneMatch = req.headers['if-none-match'];
     let currentVersion = 1;
@@ -1192,8 +1216,10 @@ const server = http.createServer(async (req, res) => {
 
   if (method === 'POST' && pathname === '/api/rides') {
     const body = await parseBody();
-    if (body.driverEmail) {
-      const settlementCheck = db.checkUserSettlementBlock(body.driverEmail);
+    {
+      const settlementCheck = pgRidesStore
+        ? await pgRidesStore.checkUserSettlementBlock(authenticatedUser.id)
+        : db.checkUserSettlementBlock(authenticatedUser.email);
       if (settlementCheck.hasUnsettledCommission) {
         return sendJson(403, {
           success: false,
@@ -1223,7 +1249,9 @@ const server = http.createServer(async (req, res) => {
       driverPayout: Number(body.driverPayout),
       note: body.note || ''
     };
-    const newRide = db.createRide(cleanRide);
+    const newRide = pgRidesStore
+      ? await pgRidesStore.createRide({driverUserId:authenticatedUser.id,ride:cleanRide})
+      : db.createRide(cleanRide);
     invalidateRidesCache();
     return sendJson(201, { success: true, ride: newRide });
   }
@@ -1238,7 +1266,7 @@ const server = http.createServer(async (req, res) => {
     if (!rideId || !validLocation(lat,lng)) {
       return sendJson(400, { success: false, message: 'Valid rideId, latitude and longitude are required.' });
     }
-    if (!db.isRideDriver(rideId, authenticatedUser.email)) {
+    if (!(pgRidesStore ? await pgRidesStore.isRideDriver(rideId,authenticatedUser.id) : db.isRideDriver(rideId,authenticatedUser.email))) {
       return sendJson(403, { success: false, error: 'NOT_RIDE_OWNER' });
     }
     const loc = {
@@ -1261,7 +1289,7 @@ const server = http.createServer(async (req, res) => {
     if (!rideId) {
       return sendJson(400, { success: false, message: 'rideId query param is required.' });
     }
-    if (!db.isRideParticipant(rideId, authenticatedUser.email)) {
+    if (!(pgRidesStore ? await pgRidesStore.isRideParticipant(rideId,authenticatedUser.id) : db.isRideParticipant(rideId,authenticatedUser.email))) {
       return sendJson(403, { success: false, error: 'NOT_RIDE_PARTICIPANT' });
     }
     let loc = liveRideLocations.get(rideId);
@@ -1277,7 +1305,7 @@ const server = http.createServer(async (req, res) => {
     if (!bookingId || !validLocation(lat,lng)) {
       return sendJson(400, { success: false, message: 'Valid bookingId, latitude and longitude are required.' });
     }
-    if (!db.isBookingPassenger(bookingId, authenticatedUser.email)) {
+    if (!(pgRidesStore ? await pgRidesStore.isBookingPassenger(bookingId,authenticatedUser.id) : db.isBookingPassenger(bookingId,authenticatedUser.email))) {
       return sendJson(403, { success: false, error: 'NOT_BOOKING_PASSENGER' });
     }
     const loc = {
@@ -1298,7 +1326,7 @@ const server = http.createServer(async (req, res) => {
     if (!bookingId) {
       return sendJson(400, { success: false, message: 'bookingId query param is required.' });
     }
-    if (!db.isBookingParticipant(bookingId, authenticatedUser.email)) {
+    if (!(pgRidesStore ? await pgRidesStore.isBookingParticipant(bookingId,authenticatedUser.id) : db.isBookingParticipant(bookingId,authenticatedUser.email))) {
       return sendJson(403, { success: false, error: 'NOT_BOOKING_PARTICIPANT' });
     }
     let loc = livePassengerLocations.get(bookingId);
@@ -1314,13 +1342,18 @@ const server = http.createServer(async (req, res) => {
   if (method === 'GET' && pathname === '/api/bookings') {
     const userEmail = parsedUrl.query?.email;
     if (userEmail && !isSelf(userEmail)) return sendJson(403, { success: false, error: 'NOT_ALLOWED' });
-    return sendJson(200, { success: true, bookings: db.getBookingsByUser(authenticatedUser.email) });
+    const bookings=pgRidesStore
+      ? await pgRidesStore.getBookingsByUser(authenticatedUser.id)
+      : db.getBookingsByUser(authenticatedUser.email);
+    return sendJson(200, { success: true, bookings });
   }
 
   if (method === 'GET' && pathname === '/api/my-rides') {
     const userEmail = parsedUrl.query?.email;
     if (userEmail && !isSelf(userEmail)) return sendJson(403, { success: false, error: 'NOT_ALLOWED' });
-    const rides = db.getRidesByDriver(authenticatedUser.email);
+    const rides = pgRidesStore
+      ? await pgRidesStore.getRidesByDriver(authenticatedUser.id)
+      : db.getRidesByDriver(authenticatedUser.email);
     return sendJson(200, { success: true, rides });
   }
 
@@ -1330,7 +1363,9 @@ const server = http.createServer(async (req, res) => {
       return sendJson(403, { success: false, error: 'NOT_ALLOWED' });
     }
     {
-      const settlementCheck = db.checkUserSettlementBlock(authenticatedUser.email);
+      const settlementCheck = pgRidesStore
+        ? await pgRidesStore.checkUserSettlementBlock(authenticatedUser.id)
+        : db.checkUserSettlementBlock(authenticatedUser.email);
       if (settlementCheck.isBlocked) {
         const errorMsg = settlementCheck.hasUnsettledCommission
           ? `Settlement Required: You have ₹${settlementCheck.commissionDue} in pending platform commission from a previous ride. Please settle via UPI to unlock bookings.`
@@ -1346,14 +1381,22 @@ const server = http.createServer(async (req, res) => {
     }
 
     try {
-      const booking = db.bookRide({
-        rideId: body.rideId,
-        passengerEmail: authenticatedUser.email,
-        passengerName: authenticatedUser.name
-      });
+      const booking = pgRidesStore
+        ? await pgRidesStore.bookRide({rideId:body.rideId,passengerUserId:authenticatedUser.id})
+        : db.bookRide({
+          rideId: body.rideId,
+          passengerEmail: authenticatedUser.email,
+          passengerName: authenticatedUser.name
+        });
       invalidateRidesCache();
       return sendJson(201, { success: true, booking });
     } catch (err) {
+      if(pgRidesStore){
+        const known=err instanceof RidesError;
+        return sendJson(known?err.status:500,{success:false,
+          error:known?err.code:'DATABASE_ERROR',
+          message:known?err.code:'Booking could not be completed.'});
+      }
       const statusCode = err.message.includes('not found') ? 404 : 400;
       return sendJson(statusCode, { success: false, message: err.message });
     }
@@ -1365,7 +1408,9 @@ const server = http.createServer(async (req, res) => {
   if (method === 'GET' && pathname === '/api/user/settlement-status') {
     const email = parsedUrl.query?.email;
     if (email && !isSelf(email)) return sendJson(403, { success: false, error: 'NOT_ALLOWED' });
-    const status = db.checkUserSettlementBlock(authenticatedUser.email);
+    const status = pgRidesStore
+      ? await pgRidesStore.checkUserSettlementBlock(authenticatedUser.id)
+      : db.checkUserSettlementBlock(authenticatedUser.email);
     return sendJson(200, { success: true, ...status });
   }
 
@@ -1395,10 +1440,18 @@ const server = http.createServer(async (req, res) => {
       return sendJson(400, { success: false, message: 'Booking ID required.' });
     }
     try {
-      const result = db.cancelBooking(body.bookingId, authenticatedUser.email);
+      const result = pgRidesStore
+        ? await pgRidesStore.cancelBooking({bookingId:body.bookingId,passengerUserId:authenticatedUser.id})
+        : db.cancelBooking(body.bookingId, authenticatedUser.email);
       invalidateRidesCache();
       return sendJson(200, { success: true, message: 'Booking canceled and seat restored.', ...result });
     } catch (err) {
+      if(pgRidesStore){
+        const known=err instanceof RidesError;
+        return sendJson(known?err.status:500,{success:false,
+          error:known?err.code:'DATABASE_ERROR',
+          message:known?err.code:'Cancellation could not be completed.'});
+      }
       return sendJson(400, { success: false, message: err.message });
     }
   }
@@ -1412,10 +1465,18 @@ const server = http.createServer(async (req, res) => {
       return sendJson(400, { success: false, message: 'Ride ID required.' });
     }
     try {
-      const result = db.cancelRide(body.rideId, authenticatedUser.email);
+      const result = pgRidesStore
+        ? await pgRidesStore.cancelRide({rideId:body.rideId,driverUserId:authenticatedUser.id})
+        : db.cancelRide(body.rideId, authenticatedUser.email);
       invalidateRidesCache();
       return sendJson(200, { success: true, message: 'Offered ride canceled.', ...result });
     } catch (err) {
+      if(pgRidesStore){
+        const known=err instanceof RidesError;
+        return sendJson(known?err.status:500,{success:false,
+          error:known?err.code:'DATABASE_ERROR',
+          message:known?err.code:'Cancellation could not be completed.'});
+      }
       return sendJson(400, { success: false, message: err.message });
     }
   }
@@ -1517,6 +1578,7 @@ const server = http.createServer(async (req, res) => {
 
   const startServer = async () => {
     if (pgOtpStore) { await pgOtpStore.ready(); await pgIdentity.pool.query('SELECT 1 FROM campus_users LIMIT 0'); await pgIdentity.pool.query('SELECT 1 FROM campus_sessions LIMIT 0'); }
+    if (pgRidesStore) await pgRidesStore.ready();
     server.listen(PORT, '0.0.0.0', () => {
     const workerLabel = cluster.isWorker ? `Worker #${cluster.worker.id} (PID: ${process.pid})` : `Standalone Server (PID: ${process.pid})`;
     console.log(`[HTTP SERVER] ${workerLabel} active on port ${PORT}`);
