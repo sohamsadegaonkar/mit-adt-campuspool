@@ -1151,6 +1151,16 @@ const server = http.createServer(async (req, res) => {
   if (pathname.startsWith('/api/mobility/')) {
     if (!pgMobilityStore) return sendJson(404,{success:false,error:'FEATURE_NOT_ENABLED'});
     try {
+      // Shared PostgreSQL rate buckets apply across all future API replicas.
+      // Expensive matching reads and repeated create/cancel cycles are bounded.
+      if ((method==='POST' && pathname==='/api/mobility/intents') ||
+          (method==='GET' && pathname==='/api/mobility/matches')) {
+        const isWrite=method==='POST';
+        await pgOtpStore.tx(client=>pgOtpStore.rate(
+          client,isWrite?'mobility-intent-create':'mobility-match-search',
+          authenticatedUser.id,isWrite?8:30,3600
+        ));
+      }
       if (method==='POST' && pathname==='/api/mobility/intents') {
         const body=await parseBody();
         const intent=await pgMobilityStore.createIntent({
@@ -1183,6 +1193,9 @@ const server = http.createServer(async (req, res) => {
       }
       return sendJson(404,{success:false,error:'NOT_FOUND'});
     } catch(error){
+      if(error?.code==='RATE_LIMITED'){
+        return sendJson(429,{success:false,error:'RATE_LIMITED'});
+      }
       const known=error instanceof MobilityError;
       if(!known)console.warn(JSON.stringify({event:'mobility_api_error',code:error.code||'DATABASE_ERROR'}));
       return sendJson(known?error.status:500,{success:false,
