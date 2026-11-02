@@ -3,10 +3,7 @@ name: Stage 1 PostgreSQL OTP tests
 on:
   push:
     branches:
-      - feature/stage1-postgres-otp
-      - feature/postgres-users-sessions-staging
-      - feature/supabase-staging-postgres
-      - feature/production-auth-release-gates
+      - main
   pull_request:
     paths:
       - 'stage1-otp/**'
