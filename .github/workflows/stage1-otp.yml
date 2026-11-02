@@ -46,7 +46,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '22.23.2'
           cache: npm
       - name: Install locked dependencies
         run: npm ci
@@ -60,7 +60,10 @@ jobs:
           node --check test_stage1_otp.js
           node --check stage1-otp/identity.js
           node --check test_pg_identity.js
+          node --check test_staging_isolation.js
       - name: Run isolated PostgreSQL integration tests
         run: |
           npm run test:stage1
           npm run test:identity
+          npm run test:native
+          npm run test:staging
