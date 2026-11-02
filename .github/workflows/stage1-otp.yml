@@ -30,7 +30,7 @@ jobs:
     timeout-minutes: 15
     services:
       postgres:
-        image: postgres:16
+        image: postgis/postgis:16-3.4
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: stage1-ci-only
@@ -55,6 +55,9 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci
+      - name: Prepare disposable PostGIS schema
+        run: |
+          node -e "const {Client}=require('pg');(async()=>{const c=new Client({connectionString:process.env.OTP_DATABASE_URL});await c.connect();try{await c.query('DROP EXTENSION IF EXISTS postgis CASCADE; CREATE SCHEMA IF NOT EXISTS extensions;')}finally{await c.end();}})().catch(e=>{console.error(e.message);process.exit(1)})"
       - name: Verify source syntax
         run: |
           node --check server.js
@@ -66,6 +69,10 @@ jobs:
           node --check stage1-otp/identity.js
           node --check test_pg_identity.js
           node --check stage1-otp/rides-store.js
+          node --check stage1-otp/mobility-geo.js
+          node --check stage1-otp/mobility-store.js
+          node --check test_pg_mobility.js
+          node --check test_mobility_geo.js
           node --check test_pg_rides.js
           node --check test_pg_rides_http.js
           node --check test_production_auth.js
@@ -78,6 +85,8 @@ jobs:
           npm run test:identity
           npm run test:rides
           npm run test:rides-http
+          npm run test:mobility-geo
+          npm run test:mobility
           npm run test:native
           npm run test:staging
           npm run test:production-auth
