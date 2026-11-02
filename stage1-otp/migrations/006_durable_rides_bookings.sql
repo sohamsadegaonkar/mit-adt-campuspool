@@ -81,9 +81,21 @@ $restrict_clients$;
 -- Backend is a non-bypassrls role; all authorization still happens in the server.
 GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE public.campus_rides,public.campus_bookings
   TO campuspool_staging_app;
-CREATE POLICY campuspool_backend_access ON public.campus_rides FOR ALL
-  TO campuspool_staging_app USING (true) WITH CHECK (true);
-CREATE POLICY campuspool_backend_access ON public.campus_bookings FOR ALL
-  TO campuspool_staging_app USING (true) WITH CHECK (true);
+DO $backend_policies$
+DECLARE t TEXT;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['campus_rides','campus_bookings'] LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_policies
+      WHERE schemaname='public' AND tablename=t AND policyname='campuspool_backend_access'
+    ) THEN
+      EXECUTE format(
+        'CREATE POLICY campuspool_backend_access ON public.%I FOR ALL TO campuspool_staging_app USING (true) WITH CHECK (true)',
+        t
+      );
+    END IF;
+  END LOOP;
+END
+$backend_policies$;
 
 COMMIT;
