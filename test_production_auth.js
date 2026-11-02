@@ -10,7 +10,7 @@ function fakeHarness({enabled=true,existing=true}={}){
   const email='tester@students.mituniversity.edu.in',phone='9876541230';
   const user={id:'fake',email,phone,name:'Private Student',isVerified:true};
   const identity={
-    getProfileByIdentifier:async id=>existing && [email,phone,'+91'+phone].includes(id)?user:null,
+    getProfileByIdentifier:async id=>existing && (id===email || id.replace(/\D/g,'').slice(-10)===phone)?user:null,
     checkUniqueness:async()=>({unique:true})
   };
   const mailProvider={
@@ -56,6 +56,8 @@ test('phone sign-in never reveals stored campus email in request response',async
   const start=await h.request('/api/auth/login-request',{identifier:'+91 98765 41230'});
   assert.equal(start.status,200);
   assert.equal(start.email,undefined);
+  assert.equal(h.sent.length,1);
+  assert.equal(h.sent[0].to,h.user.email);
   // The canonical stored email is used for OTP challenge verification.
   const done=await h.request('/api/auth/verify-email-otp',{
     email:'+919876541230',otp:'719204',isLoginFlow:true
