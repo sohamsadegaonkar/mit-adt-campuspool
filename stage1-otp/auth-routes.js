@@ -47,7 +47,7 @@ async function handlePgAuth({pathname,method,parseBody,sendJson,db,setSessionCoo
       const identifier=body.identifier.trim().toLowerCase();
       const validIdentifier=identifier.includes('@')
         ? (()=>{try{return !!normalize('email',identifier);}catch{return false;}})()
-        : /^(?:\\+?91)?[6-9][0-9]{9}$/.test(identifier.replace(/[\\s-]/g,''));
+        : /^(?:\+?91)?[6-9][0-9]{9}$/.test(identifier.replace(/[\s-]/g,''));
       if(!validIdentifier)throw new OtpError('INVALID_IDENTIFIER');
       // Check service readiness before lookup. A missing provider must not
       // reveal whether the submitted account exists.
