@@ -9,6 +9,7 @@ on:
       - 'stage1-otp/**'
       - 'test_stage1_otp.js'
       - 'test_pg_identity.js'
+      - 'test_pg_rides.js'
       - 'test_production_auth.js'
       - 'test_release_gates.js'
       - 'scripts/**'
@@ -63,6 +64,8 @@ jobs:
           node --check test_stage1_otp.js
           node --check stage1-otp/identity.js
           node --check test_pg_identity.js
+          node --check stage1-otp/rides-store.js
+          node --check test_pg_rides.js
           node --check test_production_auth.js
           node --check scripts/check-release-gates.js
           node --check test_release_gates.js
@@ -71,6 +74,7 @@ jobs:
         run: |
           npm run test:stage1
           npm run test:identity
+          npm run test:rides
           npm run test:native
           npm run test:staging
           npm run test:production-auth
