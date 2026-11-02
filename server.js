@@ -1519,7 +1519,20 @@ const server = http.createServer(async (req, res) => {
   });
   };
   startServer().catch(error => {
-    console.error('[OTP] PostgreSQL auth backend could not initialize:', error.code || 'DATABASE_ERROR');
+    // Never log connection strings, credentials, or full error objects.
+    const endpointKind = (() => {
+      try {
+        const host = new URL(process.env.OTP_DATABASE_URL || '').hostname;
+        if (/^db\.[a-z0-9]+\.supabase\.co$/i.test(host)) return 'supabase-direct-ipv6';
+        if (/\.pooler\.supabase\.com$/i.test(host)) return 'supabase-session-pooler';
+        return 'other';
+      } catch { return 'unset-or-invalid'; }
+    })();
+    console.error('[OTP] PostgreSQL auth backend could not initialize:', error.code || 'DATABASE_ERROR',
+      '(endpoint type:', endpointKind + ')');
+    if (error.code === 'ENETUNREACH' && endpointKind === 'supabase-direct-ipv6') {
+      console.error('[OTP] Render requires the Supabase IPv4 Session Pooler URL, not the direct IPv6 database endpoint.');
+    }
     process.exitCode = 1;
     void pgOtpStore?.close().finally(() => process.exit(1));
   });
