@@ -38,7 +38,8 @@ test('PostgreSQL rides: permissions, atomic seats, cancellation and durable read
       await t.test('new tables have RLS enabled and no anon/authenticated permissions',async()=>{
         const info=await pool.query([
           "SELECT c.relname,c.relrowsecurity,",
-          "has_table_privilege('public',c.oid,'SELECT') AS public_read",
+          "EXISTS (SELECT 1 FROM aclexplode(COALESCE(c.relacl,acldefault('r',c.relowner))) acl",
+          " WHERE acl.grantee=0 AND acl.privilege_type='SELECT') AS public_read",
           'FROM pg_class c JOIN pg_namespace n ON c.relnamespace=n.oid',
           "WHERE n.nspname='public' AND c.relname IN ('campus_rides','campus_bookings')"
         ].join(' '));
