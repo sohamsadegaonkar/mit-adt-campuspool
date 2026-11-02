@@ -73,6 +73,17 @@ class PgOtpStore {
     const r=await client.query(sql,[bucket,windowSeconds]);
     if(r.rows[0].attempts>limit) throw new OtpError('RATE_LIMITED',429,retrySeconds(r.rows[0].expires_at));
   }
+  // Public login requests consume shared rate buckets whether or not an
+  // account exists. This prevents unknown identifiers bypassing throttling.
+  async throttleLoginLookup({identifier,ip}) {
+    const value = String(identifier || '').trim().toLowerCase();
+    if (value.length < 3 || value.length > 254) throw new OtpError('INVALID_IDENTIFIER');
+    await this.tx(async client => {
+      await this.rate(client, 'login-lookup-ip', ip || 'unknown', 12, 600);
+      await this.rate(client, 'login-lookup-target', this.digest('login-target',value), 5, 600);
+    });
+  }
+
   async issue({purpose,channel,target,ip,deliver}) {
     checkPurpose(purpose,channel);
     const normalized=normalize(channel,target);
