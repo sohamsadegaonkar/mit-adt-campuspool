@@ -20,7 +20,9 @@ async function migrate({
     await pool.query(indexSql);
     const roleSql=fs.readFileSync(path.join(__dirname,'migrations','005_staging_backend_role.sql'),'utf8');
     await pool.query(roleSql);
-    console.log('[OTP MIGRATION] Applied OTP, identity, and private-table security migrations');
+    const ridesSql=fs.readFileSync(path.join(__dirname,'migrations','006_durable_rides_bookings.sql'),'utf8');
+    await pool.query(ridesSql);
+    console.log('[OTP MIGRATION] Applied OTP, identity, private-table security and durable Rides schema migrations');
   } finally {
     await pool.end();
   }
