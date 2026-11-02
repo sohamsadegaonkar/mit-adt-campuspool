@@ -122,15 +122,6 @@ test('Mobility API: verified intent, CSRF, private matches and cancellation',
       for(const privateKey of ['driverEmail','driverPhone','driverName','lat','lon','pickupCoordinates']){
         assert.equal(matches.data.candidates[0][privateKey],undefined);
       }
-      // Shared DB throttle should prevent expensive repeated matching queries.
-      // The first owned search above already consumed one of 30 hourly slots.
-      for(let i=1;i<30;i++){
-        const allowed=await request('/api/mobility/matches?intentId='+intentId,{user:1});
-        assert.equal(allowed.status,200);
-      }
-      const throttled=await request('/api/mobility/matches?intentId='+intentId,{user:1});
-      assert.equal(throttled.status,429);
-      assert.equal(throttled.data.error,'RATE_LIMITED');
       const otherCancel=await request('/api/mobility/intents/cancel',{method:'POST',
         user:2,csrf:me[2].data.csrfToken,body:{intentId}});
       assert.equal(otherCancel.status,404);
@@ -139,6 +130,15 @@ test('Mobility API: verified intent, CSRF, private matches and cancellation',
       assert.equal(cancel.status,200);
       assert.equal((await request('/api/mobility/intent',{user:1})).data.intent,null);
       assert.equal((await request('/api/mobility/matches?intentId='+intentId,{user:1})).status,404);
+      // Search throttling is separate from cancellation correctness. One
+      // successful search and the post-cancel 404 above consumed two slots.
+      for(let i=2;i<30;i++){
+        const absent=await request('/api/mobility/matches?intentId='+intentId,{user:1});
+        assert.equal(absent.status,404);
+      }
+      const throttled=await request('/api/mobility/matches?intentId='+intentId,{user:1});
+      assert.equal(throttled.status,429);
+      assert.equal(throttled.data.error,'RATE_LIMITED');
     }finally{
       if(child){
         child.kill('SIGTERM');
