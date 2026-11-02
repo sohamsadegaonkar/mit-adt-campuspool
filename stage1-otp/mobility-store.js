@@ -57,6 +57,9 @@ class PgMobilityStore {
   }
   async getActiveIntent({studentUserId,intentId}={}){
     if(!studentUserId)throw new MobilityError('AUTH_REQUIRED',401);
+    if(intentId!==undefined && (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(intentId)))){
+      throw new MobilityError('INVALID_INTENT',400);
+    }
     const r=await this.pool.query([
       'SELECT id,pickup_cell,dropoff_cell,earliest_departure,latest_departure',
       'FROM public.campus_trip_intents WHERE student_user_id=$1',
@@ -74,7 +77,7 @@ class PgMobilityStore {
   }
   async cancelIntent({studentUserId,intentId}={}){
     if(!studentUserId)throw new MobilityError('AUTH_REQUIRED',401);
-    if(typeof intentId!=='string'||!/^[0-9a-f-]{36}$/i.test(intentId)){
+    if(typeof intentId!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(intentId)){
       throw new MobilityError('INVALID_INTENT',400);
     }
     const r=await this.pool.query([
@@ -87,7 +90,7 @@ class PgMobilityStore {
   }
   async findCandidates({studentUserId,intentId,limit=10}={}){
     if(!studentUserId)throw new MobilityError('AUTH_REQUIRED',401);
-    if(typeof intentId!=='string'||!/^[0-9a-f-]{36}$/i.test(intentId)){
+    if(typeof intentId!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(intentId)){
       throw new MobilityError('INVALID_INTENT',400);
     }
     const own=await this.getActiveIntent({studentUserId,intentId});
