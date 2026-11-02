@@ -13,6 +13,9 @@ on:
       - 'test_stage1_otp.js'
       - 'test_pg_identity.js'
       - 'test_production_auth.js'
+      - 'test_release_gates.js'
+      - 'scripts/**'
+      - 'render.yaml'
       - 'index.html'
       - 'server.js'
       - 'package.json'
@@ -64,6 +67,8 @@ jobs:
           node --check stage1-otp/identity.js
           node --check test_pg_identity.js
           node --check test_production_auth.js
+          node --check scripts/check-release-gates.js
+          node --check test_release_gates.js
           node --check test_staging_isolation.js
       - name: Run isolated PostgreSQL integration tests
         run: |
@@ -72,3 +77,5 @@ jobs:
           npm run test:native
           npm run test:staging
           npm run test:production-auth
+          npm run test:release
+          npm run check:release-ci
