@@ -80,7 +80,9 @@ class PgOtpStore {
     if (value.length < 3 || value.length > 254) throw new OtpError('INVALID_IDENTIFIER');
     await this.tx(async client => {
       await this.rate(client, 'login-lookup-ip', ip || 'unknown', 12, 600);
-      await this.rate(client, 'login-lookup-target', this.digest('login-target',value), 5, 600);
+      await this.rate(client, 'login-lookup-target', this.digest('login-target',value), 4, 600);
+      // Identical cooldown for registered and unregistered identifiers.
+      await this.rate(client, 'login-lookup-cooldown', this.digest('login-target',value), 1, 60);
     });
   }
 
