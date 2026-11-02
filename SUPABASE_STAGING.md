@@ -82,6 +82,31 @@ Additional fix: staging now explicitly refuses to import the tracked legacy `cam
 
 **Status:** staging still **not live** pending the private connection URL replacement. Do not enable Resend/MSG91 or admit students before controlled end-to-end signup/login testing.
 
+## Trusted Supabase TLS certificate — 2026-11-02
+
+The staging service now reaches the Supabase Session Pooler over IPv4, but Node/pg refuses the received certificate with `SELF_SIGNED_CERT_IN_CHAIN`. **The correct next fix is to add the authentic Supabase CA certificate to Node's trust store, not to set `rejectUnauthorized: false` or `NODE_TLS_REJECT_UNAUTHORIZED=0`.**
+
+According to Supabase's official SSL documentation, obtain the certificate from the **same staging project** under **Project Settings → Database → SSL Configuration → Download certificate** (some dashboard versions show **Database Settings → SSL Configuration**). The certificate is a public CA trust anchor, not a database password. Verify it was downloaded from the actual Supabase dashboard for project `tnitksrlntrdxbvznxzf`.
+
+1. In **Render → mit-adt-campuspool-staging → Environment → Secret Files**, choose **Add Secret File**.
+2. Filename exactly `campuspool-supabase-ca.crt`. Paste the complete downloaded PEM certificate, including `-----BEGIN CERTIFICATE-----` and `-----END CERTIFICATE-----` lines.
+3. Add or verify this *non-sensitive* environment variable on the staging service:
+
+       NODE_EXTRA_CA_CERTS=/etc/secrets/campuspool-supabase-ca.crt
+
+4. Keep `OTP_DB_SSL=true`, `AUTH_OTP_BACKEND=postgres`, the Session Pooler URL in `OTP_DATABASE_URL`, and existing secret values unchanged.
+5. **Save and deploy**. Node reads `NODE_EXTRA_CA_CERTS` **only at startup**, so a new process is required. The current PostgreSQL driver uses `ssl: { rejectUnauthorized: true }`, which honors additional Node-trusted CAs when the driver doesn't explicitly override its CA list.
+6. Confirm staging's deployment becomes **live**. If the next error is `ERR_TLS_CERT_ALTNAME_INVALID`, the pooler hostname does not match the certificate; compare the exact host from Supabase's Connect panel. If it is `28P01`, investigate the restricted role's password. Never log raw connection strings.
+7. Check that the downloaded file is a legitimate CA certificate. Avoid third-party/self-signed substitute files. Node can warn and silently ignore a missing or malformed extra-CA file; a valid CA chain must actually be verified by a successful connection.
+
+**Safety:** Render secret files are mounted at `/etc/secrets/<filename>`; no PEM/credential belongs in GitHub or the chat. Staging is intentionally not live until proper TLS verification succeeds. The certificate's public nature does not make an untrusted replacement safe.
+
+Official references:
+- https://supabase.com/docs/guides/database/psql
+- https://supabase.com/docs/guides/platform/ssl-enforcement
+- https://render.com/docs/configure-environment-variables
+- https://nodejs.org/api/cli.html#node_extra_ca_certsfile
+
 ## Architecture
 
 CampusPool staging Node.js server on Render Singapore -> TLS PostgreSQL connection -> separate Supabase project in Singapore `ap-southeast-1`.
