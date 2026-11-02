@@ -6,11 +6,14 @@ on:
       - feature/stage1-postgres-otp
       - feature/postgres-users-sessions-staging
       - feature/supabase-staging-postgres
+      - feature/production-auth-release-gates
   pull_request:
     paths:
       - 'stage1-otp/**'
       - 'test_stage1_otp.js'
       - 'test_pg_identity.js'
+      - 'test_production_auth.js'
+      - 'index.html'
       - 'server.js'
       - 'package.json'
       - 'package-lock.json'
@@ -60,6 +63,7 @@ jobs:
           node --check test_stage1_otp.js
           node --check stage1-otp/identity.js
           node --check test_pg_identity.js
+          node --check test_production_auth.js
           node --check test_staging_isolation.js
       - name: Run isolated PostgreSQL integration tests
         run: |
@@ -67,3 +71,4 @@ jobs:
           npm run test:identity
           npm run test:native
           npm run test:staging
+          npm run test:production-auth
