@@ -4,6 +4,7 @@
 // The caller supplies the authenticated campus_user UUID; never accept owner
 // identity from request JSON. This store shares the existing private PG pool.
 const crypto=require('node:crypto');
+const {rideRouteInput}=require('./mobility-geo');
 
 class RidesError extends Error {
   constructor(code,status=400){super(code);this.code=code;this.status=status;}
@@ -88,23 +89,37 @@ class PgRidesStore {
   async createRide({driverUserId,ride}={}){
     if(typeof driverUserId!=='string')throw new RidesError('AUTH_REQUIRED',401);
     const r=checkRideInput(ride);
+    const geo=rideRouteInput(ride);
     const id='ride_'+crypto.randomUUID();
-    // No driver details come from the browser. This SELECT ... INSERT makes
-    // membership/verification checks transactional with the creation.
-    const sql=[
-      'INSERT INTO public.campus_rides',
-      '(id,driver_user_id,driver_name,driver_email,driver_phone,dept,vehicle,vehicle_model,',
-      'pickup,destination,departure_time,seats_total,seats_left,uber_benchmark,',
-      'student_fare,driver_payout,note,upi_id)',
-      'SELECT $1,u.id,u.name,u.email,u.phone,u.dept,$2,$3,$4,$5,$6,$7,$7,$8,$9,$10,$11,$12',
-      'FROM public.campus_users u WHERE u.id=$13::uuid AND u.is_verified=true',
-      'RETURNING *'
-    ].join(' ');
-    const params=[id,r.vehicle,r.vehicleModel,r.pickup,r.destination,r.departureTime,
-      r.seats,r.uberBenchmark,r.studentFare,r.driverPayout,r.note,r.upiId,driverUserId];
-    const result=await this.pool.query(sql,params);
-    if(result.rows.length!==1)throw new RidesError('AUTH_REQUIRED',401);
-    return ridePublic(result.rows[0]);
+    // The ride and its optional geo points are created atomically.
+    // Without coordinates, legacy ride listings still work unchanged.
+    return this.tx(async client=>{
+      const sql=[
+        'INSERT INTO public.campus_rides',
+        '(id,driver_user_id,driver_name,driver_email,driver_phone,dept,vehicle,vehicle_model,',
+        'pickup,destination,departure_time,seats_total,seats_left,uber_benchmark,',
+        'student_fare,driver_payout,note,upi_id)',
+        'SELECT $1,u.id,u.name,u.email,u.phone,u.dept,$2,$3,$4,$5,$6,$7,$7,$8,$9,$10,$11,$12',
+        'FROM public.campus_users u WHERE u.id=$13::uuid AND u.is_verified=true',
+        'RETURNING *'
+      ].join(' ');
+      const params=[id,r.vehicle,r.vehicleModel,r.pickup,r.destination,r.departureTime,
+        r.seats,r.uberBenchmark,r.studentFare,r.driverPayout,r.note,r.upiId,driverUserId];
+      const result=await client.query(sql,params);
+      if(result.rows.length!==1)throw new RidesError('AUTH_REQUIRED',401);
+      if(geo){
+        await client.query([
+          'INSERT INTO public.campus_ride_geo',
+          '(ride_id,pickup_geo,dropoff_geo,departure_at,pickup_cell,dropoff_cell,departure_bucket)',
+          'VALUES ($1,',
+          'extensions.ST_SetSRID(extensions.ST_MakePoint($2,$3),4326)::extensions.geography,',
+          'extensions.ST_SetSRID(extensions.ST_MakePoint($4,$5),4326)::extensions.geography,',
+          '$6,$7,$8,$9)'
+        ].join(' '),[id,geo.pickup.lon,geo.pickup.lat,geo.dropoff.lon,geo.dropoff.lat,
+          geo.departure,geo.pickupCell,geo.dropoffCell,geo.departureBucket]);
+      }
+      return ridePublic(result.rows[0]);
+    });
   }
   async getRides(){
     const r=await this.pool.query(
