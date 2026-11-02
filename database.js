@@ -149,6 +149,14 @@ class SQLiteCampusDatabase {
   }
 
   migrateOrSeed() {
+    // Staging must never import bundled legacy student or ride records.
+    // The fixture may contain historical data and is not an acceptable source
+    // of identity or ride data for an isolated staging environment.
+    if (process.env.APP_ENV === 'staging') {
+      console.log('[STAGING] Legacy JSON user/ride import disabled; isolated database only');
+      this.seedDefaults();
+      return;
+    }
     const profileCount = this.db.prepare('SELECT COUNT(*) as count FROM profiles').get().count;
     if (profileCount > 0) {
       console.log(`[SQLITE] Connected to campuspool.db (${profileCount} verified profiles loaded)`);
