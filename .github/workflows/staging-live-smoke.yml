@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - feature/supabase-staging-postgres
+      - main
     paths:
       - .github/workflows/staging-live-smoke.yml
 
