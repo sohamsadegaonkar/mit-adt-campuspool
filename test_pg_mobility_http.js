@@ -122,6 +122,15 @@ test('Mobility API: verified intent, CSRF, private matches and cancellation',
       for(const privateKey of ['driverEmail','driverPhone','driverName','lat','lon','pickupCoordinates']){
         assert.equal(matches.data.candidates[0][privateKey],undefined);
       }
+      // Shared DB throttle should prevent expensive repeated matching queries.
+      // The first owned search above already consumed one of 30 hourly slots.
+      for(let i=1;i<30;i++){
+        const allowed=await request('/api/mobility/matches?intentId='+intentId,{user:1});
+        assert.equal(allowed.status,200);
+      }
+      const throttled=await request('/api/mobility/matches?intentId='+intentId,{user:1});
+      assert.equal(throttled.status,429);
+      assert.equal(throttled.data.error,'RATE_LIMITED');
       const otherCancel=await request('/api/mobility/intents/cancel',{method:'POST',
         user:2,csrf:me[2].data.csrfToken,body:{intentId}});
       assert.equal(otherCancel.status,404);
