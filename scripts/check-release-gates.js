@@ -17,10 +17,7 @@ function inspect({mode='ci',env=process.env,root=path.resolve(__dirname,'..')}={
   const server=read('server.js');
   const sqlite=read('database.js');
   const auth=read('stage1-otp/auth-routes.js');
-  const paymentsDisabled=server.includes('PAYMENT_PROVIDER_NOT_CONFIGURED')||
-    server.includes('PAYMENTS_NOT_SUPPORTED')||
-    server.includes('PAYMENTS_DISABLED')||
-    server.includes('PAYMENT_NOT_IMPLEMENTED');
+  const paymentFailClosed=(server.match(/return sendJson\(501, \{ success: false, error: 'PAYMENT_VERIFICATION_REQUIRED'/g)||[]).length>=2;
   check(pkg.engines?.node==='>=22.14.0','Node runtime excludes affected early Node 22 patch releases');
   check(/- key: NODE_VERSION\s*\n\s*value: ['"]?22\.23\.2/.test(render),
     'Production Blueprint pins tested Node 22.23.2 runtime');
@@ -32,6 +29,7 @@ function inspect({mode='ci',env=process.env,root=path.resolve(__dirname,'..')}={
     'Public login does not reveal registered accounts or unissued challenges');
   check(server.includes('status:') || server.includes('health'),
     'Server includes health monitoring');
+  check(paymentFailClosed,'Unverified payment status cannot be marked paid from client requests');
   let tracked=[];
   try{tracked=cp.execFileSync('git',['ls-files'],{cwd:root,encoding:'utf8'}).split(/\r?\n/)}catch(_){}
   check(!tracked.some(f=>/(^|\/)\.env\.production$/.test(f)), 'No production .env credentials in current Git tree');
