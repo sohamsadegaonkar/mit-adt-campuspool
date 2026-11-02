@@ -20,11 +20,16 @@ const RIDES_BACKEND = process.env.RIDES_BACKEND || 'sqlite';
 if (!['sqlite', 'postgres'].includes(RIDES_BACKEND)) throw new Error('RIDES_BACKEND must be sqlite or postgres');
 if (RIDES_BACKEND === 'postgres' && AUTH_OTP_BACKEND !== 'postgres')
   throw new Error('PostgreSQL Rides requires PostgreSQL identity backend');
+const MOBILITY_MATCHING_ENABLED = process.env.MOBILITY_MATCHING_ENABLED === 'true';
+if (MOBILITY_MATCHING_ENABLED && RIDES_BACKEND !== 'postgres')
+  throw new Error('Mobility matching requires PostgreSQL Rides and identity');
 const { PgOtpStore } = AUTH_OTP_BACKEND === 'postgres' ? require('./stage1-otp/pg-store') : { PgOtpStore: null };
 const { handlePgAuth } = AUTH_OTP_BACKEND === 'postgres' ? require('./stage1-otp/auth-routes') : { handlePgAuth: null };
 const {PgIdentity} = AUTH_OTP_BACKEND === 'postgres' ? require('./stage1-otp/identity') : {PgIdentity:null};
 const {PgRidesStore,RidesError} = RIDES_BACKEND === 'postgres'
   ? require('./stage1-otp/rides-store') : {PgRidesStore:null,RidesError:null};
+const {PgMobilityStore,MobilityError} = MOBILITY_MATCHING_ENABLED
+  ? require('./stage1-otp/mobility-store') : {PgMobilityStore:null,MobilityError:null};
 
 const PORT = process.env.PORT || 3000;
 const DB_FILE = path.join(__dirname, 'campuspool_database.json');
@@ -161,6 +166,8 @@ const pgOtpStore = AUTH_OTP_BACKEND === 'postgres' ? new PgOtpStore() : null;
 const pgIdentity = pgOtpStore ? new PgIdentity(pgOtpStore) : null;
 const pgRidesStore = RIDES_BACKEND === 'postgres'
   ? new PgRidesStore({pool:pgOtpStore.pool}) : null;
+const pgMobilityStore = MOBILITY_MATCHING_ENABLED
+  ? new PgMobilityStore({pool:pgOtpStore.pool}) : null;
 
 // -------------------------------------------------------------------------
 // Native Multi-Channel Email Dispatcher (HTTPS REST APIs + TLS SMTP Sockets)
@@ -1139,6 +1146,50 @@ const server = http.createServer(async (req, res) => {
   }
 
   // -----------------------------------------------------------------------
+  // Demand-first mobility API is enabled only after schema verification.
+  // It inherits both session authorization and CSRF checks from the router.
+  if (pathname.startsWith('/api/mobility/')) {
+    if (!pgMobilityStore) return sendJson(404,{success:false,error:'FEATURE_NOT_ENABLED'});
+    try {
+      if (method==='POST' && pathname==='/api/mobility/intents') {
+        const body=await parseBody();
+        const intent=await pgMobilityStore.createIntent({
+          studentUserId:authenticatedUser.id,pickup:body.pickup,dropoff:body.dropoff,
+          earliestDeparture:body.earliestDeparture,latestDeparture:body.latestDeparture
+        });
+        res.setHeader('Cache-Control','no-store');
+        return sendJson(201,{success:true,intent});
+      }
+      if (method==='GET' && pathname==='/api/mobility/intent') {
+        const intent=await pgMobilityStore.getActiveIntent({studentUserId:authenticatedUser.id});
+        res.setHeader('Cache-Control','no-store');
+        return sendJson(200,{success:true,intent});
+      }
+      if (method==='GET' && pathname==='/api/mobility/matches') {
+        const intentId=parsedUrl.query?.intentId;
+        const matches=await pgMobilityStore.findCandidates({
+          studentUserId:authenticatedUser.id,intentId,limit:10
+        });
+        res.setHeader('Cache-Control','no-store');
+        return sendJson(200,{success:true,...matches});
+      }
+      if (method==='POST' && pathname==='/api/mobility/intents/cancel') {
+        const body=await parseBody();
+        const result=await pgMobilityStore.cancelIntent({
+          studentUserId:authenticatedUser.id,intentId:body.intentId
+        });
+        res.setHeader('Cache-Control','no-store');
+        return sendJson(200,result);
+      }
+      return sendJson(404,{success:false,error:'NOT_FOUND'});
+    } catch(error){
+      const known=error instanceof MobilityError;
+      if(!known)console.warn(JSON.stringify({event:'mobility_api_error',code:error.code||'DATABASE_ERROR'}));
+      return sendJson(known?error.status:500,{success:false,
+        error:known?error.code:'DATABASE_ERROR'});
+    }
+  }
+
   // REST API: /api/rides (List & Post) with 5s Micro-Caching & Conditional 304
   // -----------------------------------------------------------------------
   if (method === 'GET' && pathname === '/api/rides') {
@@ -1239,6 +1290,10 @@ const server = http.createServer(async (req, res) => {
         !Number.isInteger(Number(body.seatsTotal)) || Number(body.seatsTotal) < 1 || Number(body.seatsTotal) > 4 ||
         ![body.uberBenchmark,body.studentFare,body.driverPayout].every(v => Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) <= 10000)) {
       return sendJson(400, { success: false, error: 'INVALID_RIDE', message: 'Ride details must be valid, reasonably sized and contain no markup.' });
+    }
+    if (pgRidesStore && !pgMobilityStore &&
+      ['pickupCoordinates','destinationCoordinates','departureAt'].some(k=>body[k]!==undefined)){
+      return sendJson(400,{success:false,error:'FEATURE_NOT_ENABLED'});
     }
     const cleanRide = {
       ...body,
@@ -1579,6 +1634,7 @@ const server = http.createServer(async (req, res) => {
   const startServer = async () => {
     if (pgOtpStore) { await pgOtpStore.ready(); await pgIdentity.pool.query('SELECT 1 FROM campus_users LIMIT 0'); await pgIdentity.pool.query('SELECT 1 FROM campus_sessions LIMIT 0'); }
     if (pgRidesStore) await pgRidesStore.ready();
+    if (pgMobilityStore) await pgMobilityStore.ready();
     server.listen(PORT, '0.0.0.0', () => {
     const workerLabel = cluster.isWorker ? `Worker #${cluster.worker.id} (PID: ${process.pid})` : `Standalone Server (PID: ${process.pid})`;
     console.log(`[HTTP SERVER] ${workerLabel} active on port ${PORT}`);
