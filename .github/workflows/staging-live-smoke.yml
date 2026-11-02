@@ -6,7 +6,11 @@ on:
     branches:
       - main
     paths:
-      - .github/workflows/staging-live-smoke.yml
+      - '.github/workflows/staging-live-smoke.yml'
+      - 'server.js'
+      - 'stage1-otp/rides-store.js'
+      - 'stage1-otp/migrations/006_durable_rides_bookings.sql'
+      - 'render-staging.yaml'
 
 permissions:
   contents: read
@@ -35,4 +39,7 @@ jobs:
           auth=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --max-time 25 "$base/api/auth/me")
           echo "GET /api/auth/me status: $auth"
           test "$auth" = "401"
+          rides=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --max-time 25 "$base/api/rides")
+          echo "GET /api/rides (without staging password): $rides"
+          test "$rides" = "401"
           echo "Staging live health and Basic Auth protection verified"
