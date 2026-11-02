@@ -75,6 +75,10 @@ async function handlePgAuth({pathname,method,parseBody,sendJson,db,setSessionCoo
            !['RESEND_COOLDOWN','RATE_LIMITED','DELIVERY_UNAVAILABLE','DELIVERY_EXPIRED'].includes(error.code)){
           throw error;
         }
+        if(error.code==='DELIVERY_UNAVAILABLE'||error.code==='DELIVERY_EXPIRED'){
+          // Operational signal only. Never log a user's identifier, code or key.
+          console.warn(JSON.stringify({event:'otp_delivery_unavailable',channel:'email'}));
+        }
       }
       sendJson(200,publicResponse);
       return true;
