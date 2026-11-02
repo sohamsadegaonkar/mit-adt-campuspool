@@ -42,4 +42,7 @@ jobs:
           rides=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --max-time 25 "$base/api/rides")
           echo "GET /api/rides (without staging password): $rides"
           test "$rides" = "401"
+          mobility=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --max-time 25 "$base/api/mobility/intent")
+          echo "GET /api/mobility/intent (without staging password): $mobility"
+          test "$mobility" = "401"
           echo "Staging live health and Basic Auth protection verified"
