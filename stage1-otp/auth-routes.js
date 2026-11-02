@@ -44,18 +44,29 @@ async function handlePgAuth({pathname,method,parseBody,sendJson,db,setSessionCoo
       if(typeof body.identifier!=='string'||body.identifier.trim().length>254) {
         throw new OtpError('INVALID_IDENTIFIER');
       }
-      const user=identity?await identity.getProfileByIdentifier(body.identifier.trim()):db.getProfileByIdentifier(body.identifier.trim());
-      if(!user||!user.isVerified) {
-        sendJson(404,{success:false,error:'USER_NOT_FOUND',message:'No verified campus account found.'});
+      const identifier=body.identifier.trim().toLowerCase();
+      const validIdentifier=identifier.includes('@')
+        ? (()=>{try{return !!normalize('email',identifier);}catch{return false;}})()
+        : /^(?:\\+?91)?[6-9][0-9]{9}$/.test(identifier.replace(/[\\s-]/g,''));
+      if(!validIdentifier)throw new OtpError('INVALID_IDENTIFIER');
+      // Check service readiness before lookup. A missing provider must not
+      // reveal whether the submitted account exists.
+      if(!mailProvider.configured())throw new OtpError('EMAIL_PROVIDER_NOT_CONFIGURED',503);
+      await store.throttleLoginLookup({identifier,ip:getClientIp()});
+      const user=identity?await identity.getProfileByIdentifier(identifier):db.getProfileByIdentifier(identifier);
+      const publicResponse={
+        success:true,expiresInSeconds:300,
+        message:'If a verified CampusPool account exists, a code will be sent to its registered email.'
+      };
+      if(!user||!user.isVerified){
+        sendJson(200,publicResponse);
         return true;
       }
-      if(!mailProvider.configured())throw new OtpError('EMAIL_PROVIDER_NOT_CONFIGURED',503);
       const issued=await store.issue({
         purpose:'login',channel:'email',target:user.email,ip:getClientIp(),
         deliver:({target,code})=>mailProvider.sendOtpEmail(target,code)
       });
-      sendJson(200,{success:true,email:user.email,expiresInSeconds:issued.expiresInSeconds,
-        deliveredToInbox:true,message:'Verification code submitted to email provider.'});
+      sendJson(200,{...publicResponse,expiresInSeconds:issued.expiresInSeconds});
       return true;
     }
     if(pathname==='/api/auth/send-email-otp') {
@@ -77,8 +88,16 @@ async function handlePgAuth({pathname,method,parseBody,sendJson,db,setSessionCoo
       return true;
     }
     if(pathname==='/api/auth/verify-email-otp') {
-      const body=await parseBody(),email=normalize('email',body.email);
-      const user=identity?await identity.getProfileByEmail(email):db.getProfileByEmail(email);
+      const body=await parseBody();
+      const isLoginFlow=body.isLoginFlow===true;
+      const identifier=typeof body.email==='string'?body.email.trim().toLowerCase():'';
+      // A user may sign in using their verified phone, but the OTP is always
+      // delivered to and verified against their registered campus email.
+      const user=identity?await identity.getProfileByIdentifier(identifier):db.getProfileByIdentifier(identifier);
+      if(isLoginFlow && !user) {
+        throw new OtpError('INVALID_OR_EXPIRED_OTP',400);
+      }
+      const email=user?user.email:normalize('email',identifier);
       const out=await store.verify({
         purpose:user?'login':'signup_email',channel:'email',
         target:email,code:body.otp,ip:getClientIp()
@@ -162,6 +181,14 @@ async function handlePgAuth({pathname,method,parseBody,sendJson,db,setSessionCoo
     return false;
   } catch(error) {
     if(error instanceof OtpError) {
+      // Do not reveal whether an identifier had a challenge, or whether it
+      // has expired, already been consumed or been locked.
+      if(pathname==='/api/auth/verify-email-otp' &&
+          ['NO_OTP_REQUESTED','OTP_ALREADY_USED','OTP_LOCKED','OTP_EXPIRED','OTP_UNAVAILABLE','INVALID_OR_EXPIRED_OTP'].includes(error.code)){
+        sendJson(400,{success:false,error:'INVALID_OR_EXPIRED_OTP',
+          message:'The code is invalid or expired. Request a new code.'});
+        return true;
+      }
       sendJson(error.status,errorPayload(error));
       return true;
     }
