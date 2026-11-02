@@ -74,6 +74,7 @@ BEGIN
   END LOOP;
 END $restrict$;
 
+GRANT USAGE ON SCHEMA extensions TO campuspool_staging_app;
 GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE
   public.campus_ride_geo,public.campus_trip_intents TO campuspool_staging_app;
 DO $policies$
