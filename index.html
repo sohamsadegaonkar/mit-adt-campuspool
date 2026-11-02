@@ -2617,9 +2617,11 @@
 
         appState.pendingAuth = {
           isLoginFlow: true,
-          email: data.email,
-          name: data.name,
-          phone: data.phone
+          // Never rely on returned account details: they would reveal whether
+          // an account exists. The server resolves the identifier on verification.
+          email: identifier,
+          name: '',
+          phone: ''
         };
 
         // Transition to Step 2 Email OTP
@@ -2629,7 +2631,7 @@
         document.getElementById('authStepIndicator')?.classList.add('hidden');
         document.getElementById('authStep2EmailOtp')?.classList.remove('hidden');
 
-        document.getElementById('emailOtpTargetDisplay').textContent = data.email;
+        document.getElementById('emailOtpTargetDisplay').textContent = identifier;
         document.getElementById('inputEmailOtp').value = '';
 
         const banner = document.getElementById('emailOtpInboxBanner');
@@ -2640,7 +2642,7 @@
             <div class="space-y-1.5 flex-1">
               <span class="font-bold text-white block">Sign-In Verification Code Dispatched</span>
               <p class="text-[11px] text-slate-300 leading-snug">
-                Welcome back, <strong class="text-white">${sanitize(data.name)}</strong>! A 6-digit sign-in code has been sent to <strong class="text-white">${data.email}</strong>. Please check your inbox (including Spam/Junk folder).
+                If this identifier belongs to a verified student, a 6-digit sign-in code will be sent to the registered campus email. Check that inbox, including Spam/Junk.
               </p>
 
             </div>
@@ -2649,7 +2651,7 @@
 
         clearInterval(emailTimerInterval);
         emailTimerInterval = startOtpTimer('emailTimerText', 'resendEmailOtpBtn');
-        showToast(data.message || `Sign-in code sent to ${data.email}`, "✉️");
+        showToast(data.message || "If your account exists, check its registered email.", "✉️");
 
         setTimeout(() => {
           document.getElementById('inputEmailOtp')?.focus();
@@ -2831,7 +2833,7 @@
         const resp = await apiFetch('/api/auth/verify-email-otp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: appState.pendingAuth.email, otp: enteredOtp })
+          body: JSON.stringify({ email: appState.pendingAuth.email, otp: enteredOtp, isLoginFlow: appState.pendingAuth.isLoginFlow === true })
         });
         const data = await resp.json();
 
@@ -3015,7 +3017,7 @@
         if (resp.ok) {
           clearInterval(emailTimerInterval);
           emailTimerInterval = startOtpTimer('emailTimerText', 'resendEmailOtpBtn');
-          showToast(`Fresh verification code sent to ${appState.pendingAuth.email}`, "✉️");
+          showToast(appState.pendingAuth.isLoginFlow ? "If your account exists, check its registered email." : "New verification code requested.", "✉️");
         } else {
           showToast(data.message || "Failed to resend code.", "⚠️");
         }
