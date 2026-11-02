@@ -11,6 +11,9 @@ on:
       - 'test_pg_identity.js'
       - 'test_pg_rides.js'
       - 'test_pg_rides_http.js'
+      - 'test_pg_mobility.js'
+      - 'test_pg_mobility_http.js'
+      - 'test_mobility_geo.js'
       - 'test_production_auth.js'
       - 'test_release_gates.js'
       - 'scripts/**'
@@ -73,6 +76,7 @@ jobs:
           node --check stage1-otp/mobility-store.js
           node --check test_pg_mobility.js
           node --check test_mobility_geo.js
+          node --check test_pg_mobility_http.js
           node --check test_pg_rides.js
           node --check test_pg_rides_http.js
           node --check test_production_auth.js
@@ -87,6 +91,7 @@ jobs:
           npm run test:rides-http
           npm run test:mobility-geo
           npm run test:mobility
+          npm run test:mobility-http
           npm run test:native
           npm run test:staging
           npm run test:production-auth
