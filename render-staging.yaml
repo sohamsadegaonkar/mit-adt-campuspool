@@ -1,5 +1,5 @@
 # Optional, manually created staging Blueprint. NOT linked to production.
-# In Render > New > Blueprint, explicitly select THIS file and the feature branch.
+# In Render > New > Blueprint, explicitly select THIS file and main.
 # Creating the file does not create/deploy a service.
 services:
   - type: web
@@ -7,7 +7,7 @@ services:
     name: mit-adt-campuspool-staging
     region: singapore
     plan: free
-    branch: feature/supabase-staging-postgres
+    branch: main
     autoDeployTrigger: 'off'
     buildCommand: npm ci --omit=dev
     startCommand: node server.js
