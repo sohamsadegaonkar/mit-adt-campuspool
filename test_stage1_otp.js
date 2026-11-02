@@ -134,9 +134,9 @@ test('Stage 1 PostgreSQL OTP lifecycle', {skip:!connectionString?'OTP_DATABASE_U
   await t.test('unknown account lookups are IP and identifier limited in shared PostgreSQL',async()=>{
     const identifier=unique('unknown-login');
     const ip='192.0.2.211';
-    for(let i=0;i<5;i++){
-      await store.throttleLoginLookup({identifier,ip});
-    }
+    await store.throttleLoginLookup({identifier,ip});
+    // The second request within 60s is blocked equally for existing and
+    // nonexistent identifiers without checking account existence.
     await assert.rejects(
       store.throttleLoginLookup({identifier,ip}),
       e=>e.code==='RATE_LIMITED' && e.status===429
