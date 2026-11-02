@@ -1,57 +1,54 @@
-> [!CAUTION]
-> **Predeployment security work is in progress. Do not deploy this branch or accept real payments yet.** See [SECURITY_DEPLOYMENT.md](SECURITY_DEPLOYMENT.md) for the current no-go findings, rotation steps, authentication changes, SMS delivery blocker, testing and rollback plan.
->
-> Credentials previously committed to this public repository must be revoked/rotated. Never commit `.env.production`, app passwords, OTP secrets or live databases. Configure SMTP details in Render's secret environment variables instead. Historical Git commits are not sanitized by deleting the file in a new branch.
+# MIT-ADT CampusPool
 
-# MIT ADT CampusPool • Production Deployment & Real Email Setup Guide
+Student ridesharing and bike-pooling application for MIT Art, Design and Technology University, Pune.
 
-Exclusive student ride-sharing & bikepooling application for MIT Art, Design and Technology University, Loni Kalbhor, Pune.
+## Status
 
----
+**Security and release hardening consolidated (2026-11-02).** Repository cleanup is not a production launch approval. Live user signup, payment settlement and verified provider delivery must not be represented as complete without end-to-end confirmation.
 
-## ⚡ How to Receive Real OTP Emails in Your Actual Inbox (60-Second Setup)
+The app uses a Node.js HTTP server with a server-rendered/static single-page UI. Authentication can use PostgreSQL with \`AUTH_OTP_BACKEND=postgres\`; legacy Rides and bookings are still managed by SQLite. **Local SQLite on Render Free is not durable production storage.**
 
-By default, `.env.production` comes with placeholder credentials (`SMTP_PASS=your_16_character_app_password`). When running with placeholders, the server prints the code to your server terminal.
+The separate CampusPool 2 rides/errands UI prototype is preserved under [\`prototypes/campuspool-2/\`](prototypes/campuspool-2/README.md). It is not the live backend.
 
-To have the server dispatch real emails straight into your `@students.mituniversity.edu.in` or personal inbox:
+## Start locally
 
-### Step 1: Generate a Free Google App Password
-1. Open [myaccount.google.com/security](https://myaccount.google.com/security) in your Google account.
-2. Turn on **2-Step Verification** (if not already enabled).
-3. Search or navigate to **App passwords** ([myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)).
-4. Enter an app name like `CampusPool` and click **Create**.
-5. Google will display a **16-character password** (e.g., `abcd efgh ijkl mnop`).
+1. Use Node.js **22.23.2** (compatible with the installed native SQLite package).
+2. Run \`npm ci\`.
+3. For development, provide appropriate private environment variables; never commit \`.env\` files.
+4. Run \`npm start\`. For the PostgreSQL auth feature, apply \`npm run migrate:otp\` to a **separate test database** before setting \`AUTH_OTP_BACKEND=postgres\`.
 
-### Step 2: Paste into `.env.production`
-Open `.env.production` in your project folder and update the SMTP lines:
-```ini
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=465
-SMTP_SECURE=true
-SMTP_USER=your_personal_email@gmail.com
-SMTP_PASS=abcdefghijklmnop
-SMTP_FROM="MIT ADT CampusPool <your_personal_email@gmail.com>"
-```
+## Verify
 
-### Step 3: Start the Server
-```bash
-node server.js
-```
-Now, whenever any student enters their email (university or personal Gmail) on the verification screen, a real email containing the 6-digit verification code will land directly in their inbox automatically!
+\`\`\`bash
+npm run test:secrets
+npm run test:security
+npm run test:auth
+npm run test:native
+npm run test:production-auth
+npm run test:release
+npm run check:release-ci
+# The following integration tests require an ISOLATED test PostgreSQL database:
+npm run test:stage1
+npm run test:identity
+\`\`\`
 
-> **Note:** You only configure `.env.production` **ONCE** with your sender credentials. You **NEVER** need to manually add new students' emails into `.env.production` or Google Cloud! The server automatically sends the OTP to whatever email the new student types on the screen.
+**Never run data-changing integration tests against the live Supabase staging/production databases.**
 
----
+## Deployment and credentials
 
-## Alternative: Free Brevo / SendGrid / Resend SMTP
-If you prefer not using a personal Gmail account, you can use any free SMTP provider:
-- **Brevo (Sendinblue)**: Free 300 emails/day (`smtp-relay.brevo.com`, port 587)
-- **SendGrid**: Free tier (`smtp.sendgrid.net`, port 465, user `apikey`)
-- **University SMTP Relay**: If MIT ADT provides an internal SMTP relay (`mail.mituniversity.ac.in`, port 25/587), simply set `SMTP_HOST=mail.mituniversity.ac.in`.
+- Live Render service: \`mit-adt-campuspool\`, on \`main\`.
+- Separate Render staging service: \`mit-adt-campuspool-staging\` (currently configured with an old feature branch; **repoint it to \`main\` in Render before its next deployment**).
+- Staging authentication database: separate Supabase project \`campuspool-staging-db\`, accessible only through the server with a restricted PostgreSQL role and certificate-verified TLS.
+- Set \`OTP_SECRET\` to a fresh cryptographically secure value in the **Render private environment**. Production startup fails closed without it.
+- OTP email uses a private Resend API key and a verified sender domain; SMS requires MSG91 and approved India DLT details. Missing provider settings fail closed.
+- Client-reported payment success is disabled until an authenticated payment-provider callback is implemented.
 
----
+See [\`SECURITY_CREDENTIAL_ROTATION.md\`](SECURITY_CREDENTIAL_ROTATION.md), [\`SECURITY_DEPLOYMENT.md\`](SECURITY_DEPLOYMENT.md), [\`SUPABASE_STAGING.md\`](SUPABASE_STAGING.md) and [\`PRODUCTION_RELEASE_GATE.md\`](PRODUCTION_RELEASE_GATE.md).
 
-## Database Features
-- **ACID Persistent JSON Engine**: Auto-syncs to `campuspool_database.json`.
-- **Zero Repetition Guarantee**: Rejects duplicate student names, mobile numbers, and emails with HTTP 409 before issuing OTPs.
-- **PostgreSQL / Supabase Schema**: Production DDL in `schema.sql` with unique indexes on `LOWER(TRIM(email))`, `LOWER(TRIM(full_name))`, and `phone`.
+## Security incident
+
+Previously committed credentials and runtime files were removed from the active working tree. **This does not erase them from public Git history.** The owning Google account's leaked App Password must be revoked and any exposed signing secrets rotated. Review old commits and any cloned/cached copies. Never paste real secrets in code, GitHub issues or chats.
+
+## Development branches
+
+This repository is being consolidated onto **\`main\` as the only long-lived Git branch**. Preserve unfinished changes in documented paths and GitHub history, not extra unreviewed deployment branches. Staging and production use separate environment settings and resources, even when they deploy the same commit.
