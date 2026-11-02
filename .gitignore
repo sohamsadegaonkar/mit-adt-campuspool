@@ -8,12 +8,20 @@ yarn-error.log*
 .idea/
 *.log
 .impeccable/
-# Local secrets — provide values via hosting provider at deployment.
+
+# NEVER commit runtime credentials or secret files.
 .env
 .env.*
 !.env.example
-# Runtime state and local database files must never be committed.
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Never commit runtime databases / user data.
 *.db
 *.db-shm
 *.db-wal
+*.sqlite
+*.sqlite3
 campuspool_database.json
