@@ -23,7 +23,8 @@
     "check:release-production": "node scripts/check-release-gates.js --production",
     "test:release": "node --test test_release_gates.js",
     "test:secrets": "node --test test_secret_hygiene.js",
-    "test:rides": "node --test test_pg_rides.js"
+    "test:rides": "node --test test_pg_rides.js",
+    "test:rides-http": "node --test test_pg_rides_http.js"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
