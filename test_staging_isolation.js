@@ -32,6 +32,16 @@ test('staging never imports legacy student identities or ride records',()=>{
   }
 });
 
+test('staging TLS uses a specific Supabase CA without bypassing verification',()=>{
+  const config=fs.readFileSync(path.join(__dirname,'render-staging.yaml'),'utf8');
+  const pool=fs.readFileSync(path.join(__dirname,'stage1-otp','pg-store.js'),'utf8');
+  assert.match(config,/key: OTP_DB_SSL\s*\n\s*value: ["']true["']/);
+  assert.match(config,/key: NODE_EXTRA_CA_CERTS\s*\n\s*value: \/etc\/secrets\/campuspool-supabase-ca\.crt/);
+  assert.match(pool,/rejectUnauthorized:\s*true/);
+  assert.doesNotMatch(pool,/rejectUnauthorized:\s*false/);
+  assert.doesNotMatch(config,/NODE_TLS_REJECT_UNAUTHORIZED/);
+});
+
 test('staging docs never pin the known broken Node 22.12.0 runtime',()=>{
   const config=fs.readFileSync(path.join(__dirname,'render-staging.yaml'),'utf8');
   assert.match(config,/key: NODE_VERSION\s*\n\s*value: ["']22\.23\.2["']/);
