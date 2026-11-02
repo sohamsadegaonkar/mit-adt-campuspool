@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const {handlePgAuth}=require('./stage1-otp/auth-routes');
 
-function fakeHarness({enabled=true,existing=true,issueFailure=null}={}){
+function fakeHarness({enabled=true,existing=true,issueFailure=null,verifyFailure=false}={}){
   const sent=[];
   const counts={throttle:[],issue:[],verify:[]};
   const email='tester@students.mituniversity.edu.in',phone='9876541230';
@@ -21,7 +21,7 @@ function fakeHarness({enabled=true,existing=true,issueFailure=null}={}){
   const store={
     throttleLoginLookup:async req=>{counts.throttle.push(req);},
     issue:async req=>{counts.issue.push(req);if(issueFailure){const {OtpError}=require('./stage1-otp/pg-store');throw new OtpError(issueFailure,503);}await req.deliver({target:req.target,code:'719204'});return {expiresInSeconds:300};},
-    verify:async req=>{counts.verify.push(req);return {ok:true,proof:'fake-verified-proof'};}
+    verify:async req=>{counts.verify.push(req);return verifyFailure?{ok:false,error:'INVALID_OTP',attemptsRemaining:4}:{ok:true,proof:'fake-verified-proof'};}
   };
   let signedIn=false;
   async function request(pathname,body){
@@ -121,4 +121,19 @@ test('registered account cooldown is not exposed by login response',async()=>{
   const baseline=await unknown.request('/api/auth/login-request',{identifier:'tester@students.mituniversity.edu.in'});
   assert.equal(result.status,200);
   assert.deepEqual(result,baseline);
+});
+
+
+test('incorrect OTP cannot disclose account existence or attempts remaining',async()=>{
+  const known=fakeHarness({existing:true,verifyFailure:true});
+  const unknown=fakeHarness({existing:false});
+  const knownResponse=await known.request('/api/auth/verify-email-otp',{
+    email:'tester@students.mituniversity.edu.in',otp:'111111',isLoginFlow:true
+  });
+  const unknownResponse=await unknown.request('/api/auth/verify-email-otp',{
+    email:'tester@students.mituniversity.edu.in',otp:'111111',isLoginFlow:true
+  });
+  assert.deepEqual(knownResponse,unknownResponse);
+  assert.equal(knownResponse.status,400);
+  assert.equal(knownResponse.attemptsRemaining,undefined);
 });
