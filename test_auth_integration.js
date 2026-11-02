@@ -84,7 +84,7 @@ test('Frontend does not permit a client-generated verified identity or cache PII
 test('Separate staging configuration is manual and contains no credential values', () => {
   const config=fs.readFileSync(path.join(__dirname,'render-staging.yaml'),'utf8');
   assert.match(config,/name: mit-adt-campuspool-staging/);
-  assert.match(config,/branch: feature\/(auth-staging-integration|stage1-postgres-otp|supabase-staging-postgres)/);
+  assert.match(config,/branch: main/);
   assert.match(config,/autoDeployTrigger: 'off'/);
   assert.match(config,/key: APP_ENV\s+value: staging/);
   assert.match(config,/key: STAGING_BASIC_AUTH_PASSWORD\s+sync: false/);
