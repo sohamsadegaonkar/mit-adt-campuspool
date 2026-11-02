@@ -15,7 +15,7 @@ function inspect({mode='ci',env=process.env,root=path.resolve(__dirname,'..')}={
   const render=read('render.yaml');
   const staging=read('render-staging.yaml');
   const server=read('server.js');
-  const sqlite=read('database.js');
+  const ridesStore=read('stage1-otp/rides-store.js');
   const auth=read('stage1-otp/auth-routes.js');
   const paymentFailClosed=(server.match(/return sendJson\(501, \{ success: false, error: 'PAYMENT_VERIFICATION_REQUIRED'/g)||[]).length>=2;
   check(pkg.engines?.node==='>=22.14.0','Node runtime excludes affected early Node 22 patch releases');
@@ -30,6 +30,10 @@ function inspect({mode='ci',env=process.env,root=path.resolve(__dirname,'..')}={
   check(server.includes('status:') || server.includes('health'),
     'Server includes health monitoring');
   check(paymentFailClosed,'Unverified payment status cannot be marked paid from client requests');
+  check(server.includes("RIDES_BACKEND = process.env.RIDES_BACKEND || 'sqlite'") &&
+    server.includes('pgRidesStore.ready()') && ridesStore.includes('FOR UPDATE') &&
+    ridesStore.includes('checkUserSettlementBlock'),
+    'Opt-in PostgreSQL Rides API verifies schema readiness and serializes reservations');
   let tracked=[];
   try{tracked=cp.execFileSync('git',['ls-files'],{cwd:root,encoding:'utf8'}).split(/\r?\n/)}catch(_){}
   check(!tracked.some(f=>/(^|\/)\.env\.production$/.test(f)), 'No production .env credentials in current Git tree');
@@ -58,9 +62,10 @@ function inspect({mode='ci',env=process.env,root=path.resolve(__dirname,'..')}={
       'Verified transactional email settings present');
     check(env.SMS_PROVIDER==='msg91'&&!!env.MSG91_AUTHKEY&&!!env.MSG91_FLOW_TEMPLATE_ID,
       'Approved transactional SMS configuration present');
-    // A real production launch cannot rely on an ephemeral SQLite file.
-    check(!/require\(['"]better-sqlite3['"]\)/.test(sqlite),
-      'Rides and bookings use durable shared PostgreSQL (not local SQLite)');
+    // The feature exists but must be explicitly activated and data migrated
+    // before production; the mere presence of a PostgreSQL adapter is insufficient.
+    check(env.RIDES_BACKEND==='postgres',
+      'Rides and bookings use durable shared PostgreSQL (RIDES_BACKEND=postgres)');
     manual.push('Google App Password revoked and historical secret exposure investigated');
     manual.push('Resend domain verified and real inbox receipt tested');
     manual.push('MSG91 DLT sender/template approved and real handset receipt tested');
