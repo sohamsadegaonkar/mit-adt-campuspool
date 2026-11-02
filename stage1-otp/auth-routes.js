@@ -112,7 +112,11 @@ async function handlePgAuth({pathname,method,parseBody,sendJson,db,setSessionCoo
         purpose:user?'login':'signup_email',channel:'email',
         target:email,code:body.otp,ip:getClientIp()
       });
-      if(resultOrError(out,sendJson))return true;
+      if(!out.ok){
+        sendJson(400,{success:false,error:'INVALID_OR_EXPIRED_OTP',
+          message:'The code is invalid or expired. Request a new code.'});
+        return true;
+      }
       if(user) {
         if(identity){
           const session=await identity.sessionForEmail(user.email);
