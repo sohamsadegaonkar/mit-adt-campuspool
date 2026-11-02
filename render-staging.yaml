@@ -27,6 +27,9 @@ services:
         generateValue: true
       - key: AUTH_OTP_BACKEND
         value: postgres
+      # Explicit staging-only switch after the additive PostgreSQL rides migration.
+      - key: RIDES_BACKEND
+        value: postgres
       - key: OTP_DATABASE_URL
         sync: false
       - key: OTP_HMAC_KEY
