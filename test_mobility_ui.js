@@ -101,7 +101,7 @@ test('HTML is feature gated, keyboard accessible, and statically served by allow
   assert.match(html,/campuspool:session-changed/);
   assert.match(html,/CampusPoolMobilityBookCandidate/);
   assert.match(html,/CampusPoolMobilityBuildRoute/);
-  assert.match(html,/Object.assign(ridePayload,window.CampusPoolMobilityBuildRoute/);
+  assert.ok(html.includes('Object.assign(ridePayload,window.CampusPoolMobilityBuildRoute'));
   assert.match(html,/id="offerMobilityGeoSection" hidden class="hidden /);
   for(const id of ['offerMobilityOptIn','offerMobilityFields','offerMobilityPickupLat',
     'offerMobilityPickupLon','offerMobilityDropoffLat','offerMobilityDropoffLon',
