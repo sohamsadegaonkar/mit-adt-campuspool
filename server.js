@@ -1309,48 +1309,53 @@ const server = http.createServer(async (req, res) => {
 
   if (method === 'POST' && pathname === '/api/rides') {
     const body = await parseBody();
-    {
-      const settlementCheck = pgRidesStore
-        ? await pgRidesStore.checkUserSettlementBlock(authenticatedUser.id)
-        : db.checkUserSettlementBlock(authenticatedUser.email);
-      if (settlementCheck.hasUnsettledCommission) {
-        return sendJson(403, {
-          success: false,
-          error: 'COMMISSION_SETTLEMENT_REQUIRED',
-          message: `Commission Settlement Required: You have ₹${settlementCheck.commissionDue} in pending platform commission from a previous commute. Please settle your commission via UPI before offering new rides.`,
-          ...settlementCheck
-        });
+    // Validation and settlement eligibility execute only for the *first*
+    // successful key. A retry returns the original ride, even if state changes.
+    return executeIdempotentMutation(pathname,body,client=>{
+      if (body.driverEmail && !isSelf(body.driverEmail)) {
+        rejectMutation(403,{success:false,error:'NOT_RIDE_OWNER'});
       }
-    }
-    if (body.driverEmail && !isSelf(body.driverEmail)) {
-      return sendJson(403, { success: false, error: 'NOT_RIDE_OWNER' });
-    }
-    if (!['Car', 'Bike'].includes(body.vehicle) || !validText(body.vehicleModel, 80) ||
-        !validText(body.pickup, 120) || !validText(body.destination, 120) ||
-        !validText(body.departureTime, 120) ||
-        (body.note && !validText(body.note, 500)) ||
-        !Number.isInteger(Number(body.seatsTotal)) || Number(body.seatsTotal) < 1 || Number(body.seatsTotal) > 4 ||
-        ![body.uberBenchmark,body.studentFare,body.driverPayout].every(v => Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) <= 10000)) {
-      return sendJson(400, { success: false, error: 'INVALID_RIDE', message: 'Ride details must be valid, reasonably sized and contain no markup.' });
-    }
-    if (pgRidesStore && !pgMobilityStore &&
-      ['pickupCoordinates','destinationCoordinates','departureAt'].some(k=>body[k]!==undefined)){
-      return sendJson(400,{success:false,error:'FEATURE_NOT_ENABLED'});
-    }
-    const cleanRide = {
-      ...body,
-      driverName: authenticatedUser.name, driverEmail: authenticatedUser.email,
-      driverPhone: authenticatedUser.phone, dept: authenticatedUser.dept,
-      seatsTotal: Number(body.seatsTotal),
-      uberBenchmark: Number(body.uberBenchmark), studentFare: Number(body.studentFare),
-      driverPayout: Number(body.driverPayout),
-      note: body.note || ''
-    };
-    const newRide = pgRidesStore
-      ? await pgRidesStore.createRide({driverUserId:authenticatedUser.id,ride:cleanRide})
-      : db.createRide(cleanRide);
-    invalidateRidesCache();
-    return sendJson(201, { success: true, ride: newRide });
+      if (!['Car', 'Bike'].includes(body.vehicle) || !validText(body.vehicleModel, 80) ||
+          !validText(body.pickup, 120) || !validText(body.destination, 120) ||
+          !validText(body.departureTime, 120) ||
+          (body.note && !validText(body.note, 500)) ||
+          !Number.isInteger(Number(body.seatsTotal)) || Number(body.seatsTotal) < 1 || Number(body.seatsTotal) > 4 ||
+          ![body.uberBenchmark,body.studentFare,body.driverPayout].every(v =>
+            Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) <= 10000)) {
+        rejectMutation(400,{success:false,error:'INVALID_RIDE',
+          message:'Ride details must be valid, reasonably sized and contain no markup.'});
+      }
+      if (pgRidesStore && !pgMobilityStore &&
+          ['pickupCoordinates','destinationCoordinates','departureAt'].some(k=>body[k]!==undefined)){
+        rejectMutation(400,{success:false,error:'FEATURE_NOT_ENABLED'});
+      }
+      const finish = settlementCheck => {
+        if (settlementCheck.hasUnsettledCommission) {
+          rejectMutation(403, {
+            success:false,error:'COMMISSION_SETTLEMENT_REQUIRED',
+            message:`Commission Settlement Required: You have ₹${settlementCheck.commissionDue} in pending platform commission from a previous commute. Please settle your commission via UPI before offering new rides.`,
+            ...settlementCheck
+          });
+        }
+        const cleanRide = {
+          ...body,driverName:authenticatedUser.name,driverEmail:authenticatedUser.email,
+          driverPhone:authenticatedUser.phone,dept:authenticatedUser.dept,
+          seatsTotal:Number(body.seatsTotal),
+          uberBenchmark:Number(body.uberBenchmark),studentFare:Number(body.studentFare),
+          driverPayout:Number(body.driverPayout),note:body.note||''
+        };
+        if(pgRidesStore){
+          return pgRidesStore.createRide({driverUserId:authenticatedUser.id,ride:cleanRide,client})
+            .then(ride=>({status:201,body:{success:true,ride}}));
+        }
+        const ride=db.createRide(cleanRide);
+        invalidateRidesCache();
+        return {status:201,body:{success:true,ride}};
+      };
+      return pgRidesStore
+        ? pgRidesStore.checkUserSettlementBlock(authenticatedUser.id).then(finish)
+        : finish(db.checkUserSettlementBlock(authenticatedUser.email));
+    });
   }
 
   // -----------------------------------------------------------------------
