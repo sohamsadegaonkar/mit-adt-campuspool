@@ -236,8 +236,36 @@ test('CampusPool pre-deploy security smoke tests (isolated local database)', { t
       assert.equal(blocked,true);
     });
 
+    await t.test('Session logout revokes the cookie server-side', async () => {
+      const logout=await fetch(base+'/api/auth/logout',{method:'POST',headers:authenticatedHeaders});
+      assert.equal(logout.status,200);
+      assert.equal(localDB.getSessionUser(session),null);
+      assert.equal((await fetch(base+'/api/rides',{headers:cookie})).status,401);
+    });
+
+    await t.test('Expected DB indexes exist', () => {
+      const rows=localDB.db.prepare("SELECT name FROM sqlite_master WHERE type='index'").all().map(r=>r.name);
+      for(const idx of ['idx_sessions_expiry','idx_bookings_passenger_created','idx_rides_driver_created','idx_rate_limits_reset']){
+        assert.ok(rows.includes(idx),idx);
+      }
+    });
+
+    await t.test('No committed environment file remains and Render uses secret inputs', () => {
+      assert.equal(fs.existsSync(path.join(__dirname,'.env.production')),false);
+      const yaml=fs.readFileSync(path.join(__dirname,'render.yaml'),'utf8');
+      assert.match(yaml,/key: SMTP_PASS\s+sync: false/);
+    });
     await t.test('Throttled mutations can only read a bounded completed-key receipt', async () => {
-      const headers={...authenticatedHeaders,'Content-Type':'application/json'};
+      // Logout is verified first. A new valid session for the same actor must
+      // still replay the original receipt, which is actor- not cookie-scoped.
+      const freshSession=localDB.createSession(person.email);
+      const newIdentity=await fetch(base+'/api/auth/me',{
+        headers:{Cookie:'cp_session='+freshSession}
+      });
+      assert.equal(newIdentity.status,200);
+      const freshCsrf=(await newIdentity.json()).csrfToken;
+      const headers={Cookie:'cp_session='+freshSession,
+        'X-CSRF-Token':freshCsrf,'Content-Type':'application/json'};
       let exceeded=false;
       for(let i=0;i<75;i++){
         const res=await fetch(base+'/api/bookings/payment-status',{
@@ -270,29 +298,19 @@ test('CampusPool pre-deploy security smoke tests (isolated local database)', { t
         body:JSON.stringify(original.body)
       });
       assert.equal(invalidCsrf.status,403);
+      let replayBudgetExhausted=false;
+      for(let i=0;i<16;i++){
+        const probe=await fetch(base+'/api/rides',{
+          method:'POST',headers:replayHeaders,body:JSON.stringify(original.body)
+        });
+        if(probe.status===429){replayBudgetExhausted=true;break;}
+        assert.equal(probe.status,201);
+      }
+      assert.equal(replayBudgetExhausted,true,'Replay probes stay bounded under attack');
       const count=localDB.getRides().filter(x=>x.id===original.id).length;
       assert.equal(count,1,'Rate-limited path cannot re-execute the business write');
     });
 
-    await t.test('Session logout revokes the cookie server-side', async () => {
-      const logout=await fetch(base+'/api/auth/logout',{method:'POST',headers:authenticatedHeaders});
-      assert.equal(logout.status,200);
-      assert.equal(localDB.getSessionUser(session),null);
-      assert.equal((await fetch(base+'/api/rides',{headers:cookie})).status,401);
-    });
-
-    await t.test('Expected DB indexes exist', () => {
-      const rows=localDB.db.prepare("SELECT name FROM sqlite_master WHERE type='index'").all().map(r=>r.name);
-      for(const idx of ['idx_sessions_expiry','idx_bookings_passenger_created','idx_rides_driver_created','idx_rate_limits_reset']){
-        assert.ok(rows.includes(idx),idx);
-      }
-    });
-
-    await t.test('No committed environment file remains and Render uses secret inputs', () => {
-      assert.equal(fs.existsSync(path.join(__dirname,'.env.production')),false);
-      const yaml=fs.readFileSync(path.join(__dirname,'render.yaml'),'utf8');
-      assert.match(yaml,/key: SMTP_PASS\s+sync: false/);
-    });
   } finally {
     try { localDB?.db.close(); } catch {}
     if(child && !child.killed) child.kill('SIGTERM');
