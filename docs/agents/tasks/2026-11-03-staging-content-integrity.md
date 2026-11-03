@@ -65,3 +65,10 @@ The prior comparator verifies table definitions, permissions and row counts, but
 - Branch: security/staging-restore-content-digests-2026-11-03 (child of draft PR #12, which is child of PR #11)
 - Paths: scripts/staging-restore-compare.js, test_staging_restore_compare.js, docs/agents/tasks/2026-11-03-staging-content-integrity.md, docs/agents/{STATUS,NEXT_STEPS}.md, STAGING_IDEMPOTENCY_RELEASE_RUNBOOK.md
 - Last known staging live SHA (historical): cceadbf6251f; NOT revalidated or redeployed for this task
+
+## Independent review checkpoint — 2026-11-03 UTC
+
+- Reviewed draft PR #13 against its parent PR #12; identified a fail-open case: equal snapshots missing the same required section could compare as matching. A missing migration history on both source and restore was likewise treated as equal, even though recovery evidence was incomplete.
+- Hardened the comparison so all required sections must be present, counts and SHA-256 digests must be well-formed, and table/count/digest coverage must agree. Missing or empty migration ledger is a comparison **NO-GO** even when both sides are missing it. Raw digests and private contents still never enter the output.
+- Added tests for missing digest fields on both sides, absent migration history, corrupted count/hash, table coverage and null snapshots. The PostgreSQL integration fixture now creates a synthetic migration ledger only on its disposable localhost CI instance; no staging database was contacted.
+- Follow-up CI run on these review fixes: **pending**. Do not treat the earlier green PR #13 commit as verification of the new commits.
