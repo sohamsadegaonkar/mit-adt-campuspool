@@ -236,17 +236,17 @@ class PgRidesStore {
     ].join(' '),[bookingId,userId]);
     return r.rows.length>0;
   }
-  async checkUserSettlementBlock(userId){
+  async checkUserSettlementBlock(userId,client){
     if(!userId)return {isBlocked:false,reason:'NONE'};
     // Payment settlement is intentionally disabled. Existing 'Pending'
     // bookings and unpaid driver commission continue to block new actions.
     const [commission,pending]=await Promise.all([
-      this.pool.query([
+      (client||this.pool).query([
         'SELECT COALESCE(SUM(seats_total-seats_left),0)::int AS seats_sold,',
         'COALESCE(SUM((seats_total-seats_left)*student_fare),0) AS gross',
         'FROM public.campus_rides WHERE driver_user_id=$1'
       ].join(' '),[userId]),
-      this.pool.query([
+      (client||this.pool).query([
         'SELECT b.* FROM public.campus_bookings b',
         "WHERE b.passenger_user_id=$1 AND b.status='active' AND b.payment_status='Pending'",
         'ORDER BY b.created_at DESC'
