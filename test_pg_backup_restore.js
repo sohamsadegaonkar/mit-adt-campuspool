@@ -22,7 +22,9 @@ function clientEnv(uri, dbname){
     PGDATABASE:dbname,PGSSLMODE:'disable'};
 }
 function run(cmd,args,env){
-  try{return execFileSync(cmd,args,{env,stdio:['ignore','pipe','pipe'],timeout:60000});}
+  const executable=process.env.PG_BIN_DIR
+    ? path.join(process.env.PG_BIN_DIR,cmd):cmd;
+  try{return execFileSync(executable,args,{env,stdio:['ignore','pipe','pipe'],timeout:60000});}
   catch{throw Error('Disposable PostgreSQL archive/restore command failed: '+cmd);}
 }
 async function snapshot(connectionString){

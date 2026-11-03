@@ -58,6 +58,7 @@ jobs:
       OTP_DB_SSL: "false"
       AUTH_OTP_BACKEND: postgres
       OTP_HMAC_KEY: stage1-ci-only-randomized-in-real-environments-0000000000
+      PG_BIN_DIR: /usr/lib/postgresql/16/bin
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -69,6 +70,12 @@ jobs:
       - name: Prepare disposable PostGIS schema
         run: |
           node -e "const {Client}=require('pg');(async()=>{const c=new Client({connectionString:process.env.OTP_DATABASE_URL});await c.connect();try{await c.query('DROP EXTENSION IF EXISTS postgis CASCADE; CREATE SCHEMA IF NOT EXISTS extensions;')}finally{await c.end();}})().catch(e=>{console.error(e.message);process.exit(1)})"
+      - name: Pin PostgreSQL 16 client tools for disposable PostGIS 16 restore
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-16
+          /usr/lib/postgresql/16/bin/pg_dump --version
+          /usr/lib/postgresql/16/bin/pg_restore --version
       - name: Verify source syntax
         run: |
           node --check server.js
