@@ -2,6 +2,12 @@
 
 Student ridesharing and bike-pooling application for MIT Art, Design and Technology University, Pune.
 
+## Multi-agent development
+
+**All development agents must read [AGENTS.md](AGENTS.md) before making changes.** Every implementation task needs an auditable Markdown record of the current state, plan, progress, test evidence, blockers and the exact next action. See the [agent documentation index](docs/agents/README.md), [current status](docs/agents/STATUS.md), [prioritized next steps](docs/agents/NEXT_STEPS.md), [architecture map](docs/agents/ARCHITECTURE_MAP.md) and [task template](docs/agents/tasks/TEMPLATE.md).
+
+Implementation pull requests are automatically checked for the task record and corresponding STATUS/NEXT_STEPS updates. Agents must keep these notes in Git; a chat summary alone does not constitute a handoff.
+
 ## Status
 
 **Security and release hardening consolidated (2026-11-02).** Repository cleanup is not a production launch approval. Live user signup, payment settlement and verified provider delivery must not be represented as complete without end-to-end confirmation.
