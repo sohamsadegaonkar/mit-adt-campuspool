@@ -51,16 +51,18 @@ test('Mobility API: verified intent, CSRF, private matches and cancellation',
     const port=await freePort();
     const base='http://127.0.0.1:'+port;
     let child,rideId;
-    async function request(route,{method='GET',user=0,body,csrf,anonymous=false}={}){
+    async function request(route,{method='GET',user=0,body,csrf,anonymous=false,idempotencyKey}={}){
       const headers={Authorization:basic};
       if(!anonymous)headers.Cookie='cp_session='+tokens[user];
       if(csrf)headers['x-csrf-token']=csrf;
       if(body!==undefined)headers['Content-Type']='application/json';
+      if(method==='POST' && ['/api/rides','/api/bookings','/api/rides/cancel','/api/bookings/cancel','/api/mobility/intents','/api/mobility/intents/cancel'].includes(route))
+        headers['Idempotency-Key']=idempotencyKey||crypto.randomUUID();
       const res=await fetch(base+route,{method,headers,
         body:body===undefined?undefined:JSON.stringify(body)});
       let data=null;
       try{data=await res.json()}catch{}
-      return {status:res.status,data};
+      return {status:res.status,data,replayed:res.headers.get('Idempotency-Replayed')};
     }
     try{
       const values=users.flatMap((u,i)=>[u,'Mobility Student '+i,emails[i],
@@ -105,10 +107,20 @@ test('Mobility API: verified intent, CSRF, private matches and cancellation',
         earliestDeparture:future(23*3600000),latestDeparture:future(25*3600000)};
       const blocked=await request('/api/mobility/intents',{method:'POST',user:1,body:intentBody});
       assert.equal(blocked.status,403);
+      const intentKey=crypto.randomUUID();
       const created=await request('/api/mobility/intents',{method:'POST',user:1,
-        csrf:csrfRider,body:intentBody});
+        csrf:csrfRider,body:intentBody,idempotencyKey:intentKey});
       assert.equal(created.status,201,JSON.stringify(created.data));
       const intentId=created.data.intent.intentId;
+      const replay=await request('/api/mobility/intents',{method:'POST',user:1,
+        csrf:csrfRider,body:intentBody,idempotencyKey:intentKey});
+      assert.equal(replay.status,201);
+      assert.equal(replay.data.intent.intentId,intentId);
+      assert.equal(replay.replayed,'true');
+      const collision=await request('/api/mobility/intents',{method:'POST',user:1,
+        csrf:csrfRider,body:{...intentBody,pickup:{lat:18.513,lon:73.925}},idempotencyKey:intentKey});
+      assert.equal(collision.status,409);
+      assert.equal(collision.data.error,'IDEMPOTENCY_KEY_REUSED');
       const duplicate=await request('/api/mobility/intents',{method:'POST',user:1,
         csrf:csrfRider,body:intentBody});
       assert.equal(duplicate.status,409);
@@ -125,9 +137,14 @@ test('Mobility API: verified intent, CSRF, private matches and cancellation',
       const otherCancel=await request('/api/mobility/intents/cancel',{method:'POST',
         user:2,csrf:me[2].data.csrfToken,body:{intentId}});
       assert.equal(otherCancel.status,404);
+      const cancelKey=crypto.randomUUID();
       const cancel=await request('/api/mobility/intents/cancel',{method:'POST',
-        user:1,csrf:csrfRider,body:{intentId}});
+        user:1,csrf:csrfRider,body:{intentId},idempotencyKey:cancelKey});
       assert.equal(cancel.status,200);
+      const cancelReplay=await request('/api/mobility/intents/cancel',{method:'POST',
+        user:1,csrf:csrfRider,body:{intentId},idempotencyKey:cancelKey});
+      assert.equal(cancelReplay.status,200);
+      assert.equal(cancelReplay.replayed,'true');
       assert.equal((await request('/api/mobility/intent',{user:1})).data.intent,null);
       assert.equal((await request('/api/mobility/matches?intentId='+intentId,{user:1})).status,404);
       // Search throttling is separate from cancellation correctness. One
@@ -155,6 +172,8 @@ test('Mobility API: verified intent, CSRF, private matches and cancellation',
       }
       await pool.query('DELETE FROM public.campus_sessions WHERE user_id=ANY($1::uuid[])',[users]);
       await pool.query('DELETE FROM public.campus_users WHERE id=ANY($1::uuid[])',[users]);
+      await pool.query('DELETE FROM public.campus_idempotency_keys WHERE actor_hash=ANY($1::text[])',
+        [users.map(id=>crypto.createHash('sha256').update('campus-user:'+id.toLowerCase()).digest('hex'))]);
       await pool.end();
       fs.rmSync(temp,{recursive:true,force:true});
     }
