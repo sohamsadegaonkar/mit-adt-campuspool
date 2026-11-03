@@ -1,7 +1,7 @@
 # Task: Detect equal-count data corruption in staging restore checks
 
 - **Task ID / file:** 2026-11-03-staging-content-integrity
-- **Status:** in review — isolated GitHub CI passed; real staging restore still blocked
+- **Status:** ready for independent human review — engineering COMMENT review submitted on PR #13; not merged; actual staging restore still blocked
 - **Agent / owner:** ChatGPT engineering agent (code and isolated tests); authorized account operator (actual restoration)
 - **Last updated:** 2026-11-03 UTC
 - **Baseline:** main@3ee1f4a; idempotency PR #11 at a1a06b7; comparison PR #12 at e45e1db
