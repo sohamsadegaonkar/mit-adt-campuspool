@@ -87,8 +87,10 @@ async function ensureEmpty(pool){
     'SELECT current_database() AS db,current_user AS usr,inet_server_addr()::text AS addr'
   );
   const x=p.rows[0]||{};
-  if(x.db!=='campuspool_mobility_bench'||x.usr!=='postgres'||
-     !privateServerAddress(x.addr))
+  // inet_server_addr() is not a reliable safety signal in GitHub service
+  // containers (the address may be a transient bridge/listener interface).
+  // The actual TCP destination URL, DB name and role are independently guarded.
+  if(x.db!=='campuspool_mobility_bench'||x.usr!=='postgres')
     throw Error('UNEXPECTED_DATABASE_IDENTITY');
   const c=await pool.query([
     'SELECT',
@@ -192,9 +194,10 @@ async function cleanup(pool,fixtures,bucketKey){
   if(bucketKey)await pool.query('DELETE FROM public.otp_rate_buckets WHERE bucket_key=$1',[bucketKey]);
 }
 async function ensureIdentity(pool){
-  const r=await pool.query('SELECT current_database() AS db,inet_server_addr()::text AS addr');
-  if(r.rows[0].db!=='campuspool_mobility_bench'||
-    !privateServerAddress(r.rows[0].addr))throw Error('UNSAFE_CLEANUP_TARGET');
+  assertDisposableTarget();
+  const r=await pool.query('SELECT current_database() AS db,current_user AS usr');
+  if(r.rows[0].db!=='campuspool_mobility_bench'||r.rows[0].usr!=='postgres')
+    throw Error('UNSAFE_CLEANUP_TARGET');
 }
 async function sampleDb(pool){
   const r=await pool.query([
@@ -354,10 +357,19 @@ async function run(env=process.env){
       report:'bench-results/mobility.json'
     })+'\n');
     return report;
+  }catch(error){
+    // Preserve the original benchmark/preflight failure, even if teardown fails.
+    throw error;
   }finally{
     if(timer)clearInterval(timer);
+    let cleanupFailure=null;
     try{await cleanup(pool,fixtures,bucketKey);}
-    finally{await Promise.allSettled([pool.end(),monitor.end()]);}
+    catch(error){cleanupFailure=error;}
+    await Promise.allSettled([pool.end(),monitor.end()]);
+    if(cleanupFailure){
+      // No sensitive SQL/host details; CI container is disposable.
+      process.stderr.write('MOBILITY_BENCH_CLEANUP: '+String(cleanupFailure.code||'CHECK_FAILED').replace(/[^A-Z0-9_]/gi,'_').slice(0,60)+'\n');
+    }
   }
 }
 if(require.main===module)run().catch(error=>{
