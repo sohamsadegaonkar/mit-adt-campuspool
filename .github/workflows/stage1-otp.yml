@@ -7,6 +7,9 @@ on:
   pull_request:
     paths:
       - 'stage1-otp/**'
+      - 'idempotency.js'
+      - 'database.js'
+      - 'test_idempotency.js'
       - 'test_stage1_otp.js'
       - 'test_pg_identity.js'
       - 'test_pg_rides.js'
@@ -64,6 +67,8 @@ jobs:
       - name: Verify source syntax
         run: |
           node --check server.js
+          node --check idempotency.js
+          node --check test_idempotency.js
           node --check stage1-otp/pg-store.js
           node --check stage1-otp/auth-routes.js
           node --check stage1-otp/email-provider.js
@@ -85,6 +90,7 @@ jobs:
           node --check test_staging_isolation.js
       - name: Run isolated PostgreSQL integration tests
         run: |
+          npm run test:idempotency
           npm run test:stage1
           npm run test:identity
           npm run test:rides
