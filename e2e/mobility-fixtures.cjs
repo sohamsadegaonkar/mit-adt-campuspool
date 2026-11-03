@@ -2,6 +2,7 @@
 // Browser QA fixtures use only synthetic records and a disposable localhost PostGIS.
 const crypto=require('node:crypto');
 const {Pool}=require('pg');
+const Sqlite=require('better-sqlite3');
 
 const db=process.env.OTP_DATABASE_URL;
 if(process.env.QA_DISPOSABLE_POSTGIS!=='YES' || !db ||
@@ -43,6 +44,16 @@ async function clear(fixture){
   await pool.query('DELETE FROM public.campus_rides WHERE driver_user_id=ANY($1::uuid[])',[ids]);
   await pool.query('DELETE FROM public.campus_sessions WHERE user_id=ANY($1::uuid[])',[ids]);
   await pool.query('DELETE FROM public.campus_users WHERE id=ANY($1::uuid[])',[ids]);
+  // Real app's global API_READ limiter uses SQLite by loopback IP. Across
+  // serial synthetic browser scenarios this can trip 120/min and conceal UX.
+  // Clear ONLY rate buckets in this dedicated ephemeral QA SQLite file;
+  // application auth and throttle behavior remain untouched. Never on Render.
+  const sqlite=new Sqlite('/tmp/campuspool-e2e-mobility-synthetic.sqlite',
+    {fileMustExist:true});
+  try {
+    sqlite.pragma('busy_timeout = 5000');
+    sqlite.prepare("DELETE FROM rate_limits WHERE key LIKE 'rl:%'").run();
+  } finally {sqlite.close();}
 }
 async function openAs(page,context,person){
   // Firefox may not preemptively reuse the browser's Basic Auth challenge
