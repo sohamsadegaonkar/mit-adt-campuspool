@@ -1,6 +1,6 @@
 # CampusPool — architecture map for incoming agents
 
-**Reviewed:** 2026-11-03 UTC; source `main@0345b6aeff86`. This is a navigation/ownership map, not a release claim. Verify code and live configuration before acting.
+**Reviewed:** 2026-11-03 UTC; source `main@3ee1f4a12e98` plus a separate **unmerged** idempotency branch. This is a navigation/ownership map, not a release claim. Verify code and live configuration before acting.
 
 ## Runtime shape (today)
 
@@ -26,6 +26,8 @@ Node.js HTTP API (server.js; Dockerfile, Render)
 ```
 
 No independently deployed microservices, Redis, H3 or Kafka are part of the current source-of-truth architecture.
+
+**Pending branch addition (NOT DEPLOYED):** `idempotency.js` coordinates response receipts with SQLite domain writes or the shared PostgreSQL connection/transaction. New `stage1-otp/migrations/008_transactional_idempotency.sql` adds a server-only, RLS-protected table, required before booting PostgreSQL Rides with the reviewed idempotency branch. See `IDEMPOTENCY_CONTRACT.md` for route coverage, key and replay semantics; do not mistake this for generic exactly-once OTP/provider/payment delivery.
 
 ## Feature flags and source of truth
 
