@@ -1505,6 +1505,7 @@
         appState.myBookings = [];
         appState.myOfferedRides = [];
         renderUserHeader();
+        window.dispatchEvent(new Event('campuspool:session-changed'));
       }
       return response;
     }
@@ -1790,6 +1791,7 @@
           appState.myBookings = [];
           appState.myOfferedRides = [];
           appState.settledCommissionAmount = 0;
+          window.dispatchEvent(new Event('campuspool:session-changed'));
           saveState();
           renderUserHeader();
           renderMyRidesViews();
