@@ -3,7 +3,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {spawnSync}=require('node:child_process');
 const {STAGING_REF}=require('./scripts/staging-backup-guard');
-const {validatePlan,connectionConfig,snapshot,compare,digestSql,MAX_DIGEST_ROWS}=require('./scripts/staging-restore-compare');
+const {validatePlan,connectionConfig,snapshot,compare,invalidSections,QUERIES,digestSql,MAX_DIGEST_ROWS}=require('./scripts/staging-restore-compare');
 const OTHER='bbbbbbbbbbbbbbbbbbbb';
 const url=ref=>'postgresql://postgres.'+ref+':TEST_ONLY@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require';
 const config={APP_ENV:'staging',RESTORE_TARGET_CONFIRMED:'YES',RESTORE_PROJECT_REF:OTHER,STAGING_DB_URL:url(STAGING_REF),RESTORE_DB_URL:url(OTHER)};
@@ -25,7 +25,7 @@ test('guard requires exact separate Supabase project, signed-off target and TLS'
 });
 
 test('comparison detects metadata, RLS grants and row-count divergence without approving release',()=>{
-  const a={tables:[{name:'campus_users',rls:true}],policies:[{name:'p'}],grants:[{can_select:false}],counts:[{name:'campus_users',count:'0'}],rowDigests:[{name:'campus_users',digest:'a'.repeat(64)}],migrationHistoryPresent:true,migrationVersions:['001']};
+  const a={...Object.fromEntries(Object.keys(QUERIES).map(k=>[k,[]])),tables:[{name:'campus_users',rls:true}],policies:[{name:'p'}],grants:[{can_select:false}],counts:[{name:'campus_users',count:'0'}],rowDigests:[{name:'campus_users',digest:'a'.repeat(64)}],migrationHistoryPresent:true,migrationVersions:['001']};
   assert.equal(compare(a,structuredClone(a)).matches,true);
   const b=structuredClone(a);b.tables[0].rls=false;b.counts[0].count='1';
   const out=compare(a,b);
@@ -35,6 +35,35 @@ test('comparison detects metadata, RLS grants and row-count divergence without a
   assert.doesNotMatch(JSON.stringify(compare(a,c)), /a{64}|b{64}/);
   assert.equal(out.releaseReady,false);
   assert.doesNotMatch(JSON.stringify(out),/TEST_ONLY/);
+});
+
+test('fail closed when both recovery snapshots omit evidence or migration history',()=>{
+  const valid={...Object.fromEntries(Object.keys(QUERIES).map(k=>[k,[]])),
+    tables:[{name:'campus_users'}],counts:[{name:'campus_users',count:'0'}],
+    rowDigests:[{name:'campus_users',digest:'a'.repeat(64)}],
+    migrationHistoryPresent:true,migrationVersions:['001']};
+  assert.deepEqual(invalidSections(valid),[]);
+  assert.equal(compare(valid,structuredClone(valid)).matches,true);
+  const missing=structuredClone(valid);
+  delete missing.rowDigests;
+  assert.equal(compare(missing,structuredClone(missing)).matches,false);
+  assert.deepEqual(compare(missing,structuredClone(missing)).mismatches,['rowDigests']);
+  const ledgerless=structuredClone(valid);
+  ledgerless.migrationHistoryPresent=false; ledgerless.migrationVersions=[];
+  const r=compare(ledgerless,structuredClone(ledgerless));
+  assert.equal(r.matches,false);
+  assert.deepEqual(r.mismatches,['migrationHistoryPresent','migrationVersions']);
+  const invalidCount=structuredClone(valid);
+  invalidCount.counts[0].count='unknown';
+  assert.deepEqual(compare(invalidCount,invalidCount).mismatches,['counts']);
+  const invalidDigest=structuredClone(valid);
+  invalidDigest.rowDigests[0].digest='not-a-hash';
+  assert.deepEqual(compare(invalidDigest,invalidDigest).mismatches,['rowDigests']);
+  const invalidCoverage=structuredClone(valid);
+  invalidCoverage.rowDigests[0].name='campus_other';
+  assert.deepEqual(compare(invalidCoverage,invalidCoverage).mismatches,['rowDigests']);
+  assert.equal(compare(null,null).matches,false);
+  assert.equal(compare(valid,valid).releaseReady,false);
 });
 
 test('snapshot uses read-only transaction, compares all campus tables and rolls back failures',async()=>{
@@ -98,6 +127,11 @@ test('disposable PostGIS runs real read-only recovery catalog SQL',
     const client=new Client({connectionString:process.env.OTP_DATABASE_URL,ssl:false});
     try{
       await client.connect();
+      // Disposable local PG CI only. A missing Supabase migration history on
+      // the REAL operator comparison must never be reported as a match.
+      await client.query('CREATE SCHEMA IF NOT EXISTS supabase_migrations');
+      await client.query('CREATE TABLE IF NOT EXISTS supabase_migrations.schema_migrations (version text PRIMARY KEY)');
+      await client.query("INSERT INTO supabase_migrations.schema_migrations (version) VALUES ('ci_001') ON CONFLICT DO NOTHING");
       const data=await snapshot(client);
       assert.ok(data.tables.some(t=>t.name==='campus_rides'));
       assert.equal(compare(data,structuredClone(data)).matches,true);
