@@ -1430,6 +1430,20 @@
         }));
       } catch (_) { console.warn('Preference saving unavailable'); }
     }
+    // Reuse the same request key for network retries / repeated clicks.
+    // In-memory only: no student payloads or identities written to localStorage.
+    const idempotentDomainRoutes = new Set([
+      '/api/rides', '/api/bookings', '/api/rides/cancel',
+      '/api/bookings/cancel', '/api/mobility/intents',
+      '/api/mobility/intents/cancel'
+    ]);
+    const pendingDomainMutations = new Map();
+    function secureRequestId() {
+      if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+      const bytes = new Uint8Array(16);
+      crypto.getRandomValues(bytes);
+      return Array.from(bytes, x => x.toString(16).padStart(2, '0')).join('');
+    }
     async function apiFetch(input, options = {}) {
       const urlString = typeof input === 'string' ? input : input.url;
       const sameOriginApi = urlString.startsWith('/api/');
@@ -1438,7 +1452,27 @@
       if (sameOriginApi && ['POST','PUT','PATCH','DELETE'].includes(method) && csrfToken) {
         headers.set('X-CSRF-Token', csrfToken);
       }
+      let mutationSlot = null;
+      const pathname = urlString.split('?')[0];
+      if (sameOriginApi && method === 'POST' && idempotentDomainRoutes.has(pathname)) {
+        mutationSlot = method + ':' + pathname + ':' + String(options.body || '');
+        let pending = pendingDomainMutations.get(mutationSlot);
+        if (!pending || pending.expiresAt <= Date.now()) {
+          pending = { key: secureRequestId(), expiresAt: Date.now() + 24 * 60 * 60 * 1000 };
+          pendingDomainMutations.set(mutationSlot, pending);
+        }
+        if (!headers.has('Idempotency-Key')) headers.set('Idempotency-Key', pending.key);
+      }
       const response = await fetch(input, { ...options, headers, credentials: 'same-origin' });
+      if (mutationSlot) {
+        if (response.ok) {
+          // Short grace period also deduplicates double-clicks after success.
+          const pending = pendingDomainMutations.get(mutationSlot);
+          if (pending) pending.expiresAt = Date.now() + 60000;
+        } else if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+          pendingDomainMutations.delete(mutationSlot);
+        }
+      }
       if (sameOriginApi && response.status === 401 && !urlString.startsWith('/api/auth/')) {
         csrfToken = null;
         appState.currentUser = null;
