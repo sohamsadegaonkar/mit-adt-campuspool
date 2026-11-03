@@ -182,15 +182,30 @@ test('CampusPool pre-deploy security smoke tests (isolated local database)', { t
         departureTime:'2026-11-05 17:30',seatsTotal:2,uberBenchmark:100,studentFare:60,driverPayout:54
       };
       const blocked=await fetch(base+'/api/rides',{
-        method:'POST',headers:{...authenticatedHeaders,'Content-Type':'application/json'},body:JSON.stringify(rideFields)
+        method:'POST',headers:{...authenticatedHeaders,'Idempotency-Key':crypto.randomUUID(),
+          'Content-Type':'application/json'},body:JSON.stringify(rideFields)
       });
       assert.equal(blocked.status,403);
       rideFields.driverEmail=person.email;
+      const missingKey=await fetch(base+'/api/rides',{
+        method:'POST',headers:{...authenticatedHeaders,'Content-Type':'application/json'},
+        body:JSON.stringify(rideFields)
+      });
+      assert.equal(missingKey.status,428);
+      assert.equal((await missingKey.json()).error,'IDEMPOTENCY_KEY_REQUIRED');
+      const rideKey=crypto.randomUUID();
+      const headers={...authenticatedHeaders,'Idempotency-Key':rideKey,'Content-Type':'application/json'};
       const created=await fetch(base+'/api/rides',{
-        method:'POST',headers:{...authenticatedHeaders,'Content-Type':'application/json'},body:JSON.stringify(rideFields)
+        method:'POST',headers,body:JSON.stringify(rideFields)
       });
       assert.equal(created.status,201);
       const record=(await created.json()).ride;
+      const retry=await fetch(base+'/api/rides',{
+        method:'POST',headers,body:JSON.stringify(rideFields)
+      });
+      assert.equal(retry.status,201);
+      assert.equal(retry.headers.get('Idempotency-Replayed'),'true');
+      assert.equal((await retry.json()).ride.id,record.id);
       assert.equal(record.driverName,person.name);
       const wrongLocation=await fetch(base+'/api/rides/location',{
         method:'POST',headers:{...authenticatedHeaders,'Content-Type':'application/json'},
