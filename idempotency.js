@@ -51,7 +51,7 @@ function replay(row, requestHash) {
   return { status: Number(row.response_status), body: JSON.parse(row.response_json), replayed: true };
 }
 class PgIdempotencyStore {
-  constructor(pool) { if (!pool || typeof pool.connect !== 'function') throw Error('PG pool required'); this.pool = pool; }
+  constructor(pool) { if (!pool || typeof pool.connect !== 'function') throw Error('PG pool required'); this.pool = pool; this.lastPrunedAt = 0; }
   async ready() {
     await this.pool.query('SELECT 1 FROM public.campus_idempotency_keys LIMIT 0');
   }
@@ -61,6 +61,18 @@ class PgIdempotencyStore {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
+      // Bounded opportunistic cleanup, with SKIP LOCKED to avoid waiting on
+      // concurrent active mutations. Separate daily prune remains supported.
+      if (Date.now() - this.lastPrunedAt >= 3600000) {
+        await client.query([
+          'WITH expired AS (SELECT actor_hash,route,request_key',
+          'FROM public.campus_idempotency_keys WHERE expires_at<=now()',
+          'ORDER BY expires_at LIMIT 200 FOR UPDATE SKIP LOCKED)',
+          'DELETE FROM public.campus_idempotency_keys t USING expired e',
+          'WHERE t.actor_hash=e.actor_hash AND t.route=e.route AND t.request_key=e.request_key'
+        ].join(' '));
+        this.lastPrunedAt = Date.now();
+      }
       const args = [id.actorHash, id.route, id.key, id.requestHash];
       // Expired keys can be reused. Delete only the same key, not other actors' records.
       await client.query([
@@ -104,12 +116,17 @@ class SqliteIdempotencyStore {
   constructor(db) {
     if (!db || typeof db.transaction !== 'function') throw Error('SQLite connection required');
     this.db = db;
+    this.lastPrunedAt = 0;
   }
   run({ actor, route, key, body, execute }) {
     const id = identity({ actor, route, key, body });
     if (typeof execute !== 'function') throw Error('Execute callback required');
     const tx = this.db.transaction(() => {
       const now = Date.now();
+      if (now - this.lastPrunedAt >= 3600000) {
+        this.db.prepare('DELETE FROM idempotency_keys WHERE expires_at<=?').run(now);
+        this.lastPrunedAt = now;
+      }
       this.db.prepare([
         'DELETE FROM idempotency_keys WHERE actor_hash=? AND route=? AND request_key=?',
         'AND expires_at<=?'
