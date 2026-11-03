@@ -1179,24 +1179,24 @@ const server = http.createServer(async (req, res) => {
   if (pathname.startsWith('/api/mobility/')) {
     if (!pgMobilityStore) return sendJson(404,{success:false,error:'FEATURE_NOT_ENABLED'});
     try {
-      // Shared PostgreSQL rate buckets apply across all future API replicas.
-      // Expensive matching reads and repeated create/cancel cycles are bounded.
-      if ((method==='POST' && pathname==='/api/mobility/intents') ||
-          (method==='GET' && pathname==='/api/mobility/matches')) {
-        const isWrite=method==='POST';
+      // Expensive match search has a persistent shared PostgreSQL rate bucket.
+      // Intent creation is throttled in the *same* transaction as its receipt:
+      // replaying a committed key does not consume the student's quota.
+      if (method==='GET' && pathname==='/api/mobility/matches') {
         await pgOtpStore.tx(client=>pgOtpStore.rate(
-          client,isWrite?'mobility-intent-create':'mobility-match-search',
-          authenticatedUser.id,isWrite?8:30,3600
+          client,'mobility-match-search',authenticatedUser.id,30,3600
         ));
       }
       if (method==='POST' && pathname==='/api/mobility/intents') {
         const body=await parseBody();
-        const intent=await pgMobilityStore.createIntent({
-          studentUserId:authenticatedUser.id,pickup:body.pickup,dropoff:body.dropoff,
-          earliestDeparture:body.earliestDeparture,latestDeparture:body.latestDeparture
+        return executeIdempotentMutation(pathname,body,async client=>{
+          await pgOtpStore.rate(client,'mobility-intent-create',authenticatedUser.id,8,3600);
+          const intent=await pgMobilityStore.createIntent({
+            studentUserId:authenticatedUser.id,pickup:body.pickup,dropoff:body.dropoff,
+            earliestDeparture:body.earliestDeparture,latestDeparture:body.latestDeparture,client
+          });
+          return {status:201,body:{success:true,intent}};
         });
-        res.setHeader('Cache-Control','no-store');
-        return sendJson(201,{success:true,intent});
       }
       if (method==='GET' && pathname==='/api/mobility/intent') {
         const intent=await pgMobilityStore.getActiveIntent({studentUserId:authenticatedUser.id});
@@ -1213,11 +1213,12 @@ const server = http.createServer(async (req, res) => {
       }
       if (method==='POST' && pathname==='/api/mobility/intents/cancel') {
         const body=await parseBody();
-        const result=await pgMobilityStore.cancelIntent({
-          studentUserId:authenticatedUser.id,intentId:body.intentId
+        return executeIdempotentMutation(pathname,body,async client=>{
+          const result=await pgMobilityStore.cancelIntent({
+            studentUserId:authenticatedUser.id,intentId:body.intentId,client
+          });
+          return {status:200,body:result};
         });
-        res.setHeader('Cache-Control','no-store');
-        return sendJson(200,result);
       }
       return sendJson(404,{success:false,error:'NOT_FOUND'});
     } catch(error){
