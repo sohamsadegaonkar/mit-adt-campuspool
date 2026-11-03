@@ -32,7 +32,7 @@ Carry forward staged release only after an encrypted **actual staging** export i
 - 2026-11-03 UTC — Rechecked Supabase staging metadata, exact counts, role/grants and security advisor with read-only SQL and connected project tools. No 008.
 - 2026-11-03 UTC — Render list_workspaces returns `My Workspace` as sole candidate; selected workspace not established, so no service history/rollback SHA is verified.
 - 2026-11-03 UTC — Supabase 2026 backup docs confirm Free-tier manual export needed; recommended `supabase db dump` roles/schema/data and note that a normal schema-only dump excludes data and roles.
-- 2026-11-03 UTC — Added synthetic-only `test_pg_backup_restore.js` in the disposable PostGIS CI job to rehearse encrypted archive/checksum and a freshly created logical DB restore. First CI rehearsal failed due to PostgreSQL client/server major-version mismatch (runner pg_restore 17 vs disposable PostGIS PG16). Corrected CI to pin PostgreSQL 16 client binaries; revalidation pending. Does not create any real backup, off-site artifact, staging restore, or approved deploy.
+- 2026-11-03 UTC — Added synthetic-only `test_pg_backup_restore.js` in the disposable PostGIS CI job to rehearse encrypted archive/checksum and a freshly created logical DB restore. First CI rehearsal failed due to PostgreSQL client/server major-version mismatch (runner pg_restore 17 vs disposable PostGIS PG16). PostgreSQL 16 client tools were unavailable through the runner's apt sources; revised the drill to use matching PostgreSQL 16 pg_dump/pg_restore binaries inside the disposable PostGIS service container, without a runner-level install. Revalidation pending. Does not create any real backup, off-site artifact, staging restore, or approved deploy.
 
 ## Verification
 
