@@ -50,7 +50,7 @@ jobs:
       - name: Install locked app dependencies
         run: npm ci
       - name: Install isolated pinned Playwright test runner (not shipped)
-        run: npm install --no-save --package-lock=false @playwright/test@1.56.1
+        run: npm install --no-save --package-lock=false @playwright/test@1.56.1 leaflet@1.9.4
       - name: Install Chromium, Firefox, WebKit and system libraries
         run: npx playwright install --with-deps chromium firefox webkit
       - name: Validate browser QA code
