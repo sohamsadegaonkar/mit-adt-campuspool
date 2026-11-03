@@ -13,6 +13,20 @@ if(connectionString && !['127.0.0.1','localhost','[::1]'].includes(new URL(conne
 
 test('PostgreSQL serializes concurrent identical keys and rolls back effect + receipt',
   {skip:!connectionString?'requires disposable local PostgreSQL':false},async()=>{
+    // Local PostGIS CI does not ship Supabase's no-login API roles.
+    // Simulate those roles BEFORE migration 008 so REVOKE+RLS is exercised.
+    const fixturePool=new Pool({connectionString,ssl:false,max:1});
+    try {
+      await fixturePool.query(`
+        DO $roles$ BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN
+            CREATE ROLE anon NOLOGIN;
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN
+            CREATE ROLE authenticated NOLOGIN;
+          END IF;
+        END $roles$;`);
+    } finally { await fixturePool.end(); }
     await migrate({connectionString,ssl:false});
     const pool=new Pool({connectionString,ssl:false,max:4,connectionTimeoutMillis:5000});
     const storeA=new PgIdempotencyStore(pool),storeB=new PgIdempotencyStore(pool);
