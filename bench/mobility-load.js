@@ -172,7 +172,7 @@ async function seed(pool,students,rides,onFixture){
       'VALUES ($1,$2,',
       'extensions.ST_SetSRID(extensions.ST_MakePoint($3,$4),4326)::extensions.geography,',
       'extensions.ST_SetSRID(extensions.ST_MakePoint($5,$6),4326)::extensions.geography,',
-      '$7,$8,$9,$10)'
+      '$7,$8,$9,$10,$11)'
     ].join(' '),[intentIds[i],passengers[i],a.lon,a.lat,b.lon,b.lat,
       cell(a),cell(b),bucket(earliest),earliest,latest]);
   }
@@ -274,10 +274,13 @@ async function run(env=process.env){
   const monitor=new Pool({connectionString:env.OTP_DATABASE_URL,ssl:false,max:2,
     connectionTimeoutMillis:8000});
   let fixtures=null,bucketKey=null,timer=null,monitoring=false;
+  let phase='PREFLIGHT',primaryError=null;
   try{
     await ensureEmpty(pool);
+    phase='SEED';
     fixtures=await seed(pool,students,rides,owned=>{fixtures=owned;});
     const startCpu=process.cpuUsage();
+    phase='MATCH';
     const statsBefore=await sampleDb(monitor);
     const mobility=new PgMobilityStore({pool});
     let maxWaiting=0,maxPoolTotal=0,maxLockWaiters=0,maxPgActive=0,samples=0;
@@ -313,10 +316,12 @@ async function run(env=process.env){
     const data=outcomes.map(x=>x.value),values=data.map(x=>x.ms);
     const matched=data.filter(x=>x.hits>0).length;
     if(matched===0)throw Error('SYNTHETIC_WORKLOAD_NO_MATCHES');
+    phase='EXPLAIN';
     const plan=await planSummary(pool,fixtures.passengers[0],fixtures.intentIds[0]);
     // Know the exact synthetic bucket even when the contention assertion fails.
     bucketKey=new PgOtpStore({pool,hmacKey:'ci-only-postgis-benchmark-hmac-not-a-live-secret'})
       .digest('rate:mobility-match-search',fixtures.passengers[0]);
+    phase='RATE';
     const rate=await exerciseRateLimit(pool,fixtures.passengers[0]);
     const statsAfter=await sampleDb(monitor);
     const cpu=process.cpuUsage(startCpu);
@@ -347,6 +352,7 @@ async function run(env=process.env){
       privacy:'only anonymous aggregate metrics; no user UUIDs, contact fields, credentials, or raw coordinates',
       releaseDecision:'No change: additional infrastructure deferred; independently review against real traffic and staging hardware'
     };
+    phase='REPORT';
     fs.mkdirSync(path.join(process.cwd(),'bench-results'),{recursive:true});
     fs.writeFileSync(path.join(process.cwd(),'bench-results','mobility.json'),
       JSON.stringify(report,null,2)+'\n',{mode:0o600});
@@ -359,6 +365,7 @@ async function run(env=process.env){
     return report;
   }catch(error){
     // Preserve the original benchmark/preflight failure, even if teardown fails.
+    primaryError=error;error.benchPhase=phase;
     throw error;
   }finally{
     if(timer)clearInterval(timer);
@@ -367,8 +374,9 @@ async function run(env=process.env){
     catch(error){cleanupFailure=error;}
     await Promise.allSettled([pool.end(),monitor.end()]);
     if(cleanupFailure){
-      // No sensitive SQL/host details; CI container is disposable.
-      process.stderr.write('MOBILITY_BENCH_CLEANUP: '+String(cleanupFailure.code||'CHECK_FAILED').replace(/[^A-Z0-9_]/gi,'_').slice(0,60)+'\n');
+      // Never mask the original diagnostic; a failed cleanup still fails a successful run.
+      if(!primaryError)throw cleanupFailure;
+      process.stderr.write('MOBILITY_BENCH_CLEANUP: CHECK_FAILED\n');
     }
   }
 }
@@ -377,8 +385,9 @@ if(require.main===module)run().catch(error=>{
   // Print only predetermined uppercase error identifiers; never DB URLs,
   // SQL fragments, user IDs, hostnames or raw PostgreSQL exception text.
   const category=String(error?.code||error?.message||'UNCLASSIFIED_FAILURE');
-  const safe=/^[A-Z][A-Z0-9_]{2,79}$/.test(category)?category:'UNCLASSIFIED_FAILURE';
-  process.stderr.write('MOBILITY_BENCH_FAILED: '+safe+'\n');
+  const safe=/^(?:[A-Z][A-Z0-9_]{2,79}|[0-9][0-9A-Z]{4})$/.test(category)?category:'UNCLASSIFIED_FAILURE';
+  const stage=/^[A-Z_]{3,20}$/.test(error?.benchPhase||'')?error.benchPhase:'UNKNOWN';
+  process.stderr.write('MOBILITY_BENCH_FAILED: '+stage+' / '+safe+'\n');
   process.exitCode=1;
 });
 module.exports={assertDisposableTarget,privateServerAddress,size,percentile,validateCandidate,random,run};
