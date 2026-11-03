@@ -1353,7 +1353,7 @@ const server = http.createServer(async (req, res) => {
         return {status:201,body:{success:true,ride}};
       };
       return pgRidesStore
-        ? pgRidesStore.checkUserSettlementBlock(authenticatedUser.id).then(finish)
+        ? pgRidesStore.checkUserSettlementBlock(authenticatedUser.id,client).then(finish)
         : finish(db.checkUserSettlementBlock(authenticatedUser.email));
     });
   }
@@ -1488,7 +1488,9 @@ const server = http.createServer(async (req, res) => {
           return {status:201,body:{success:true,booking}};
         };
         return pgRidesStore
-          ? pgRidesStore.checkUserSettlementBlock(authenticatedUser.id).then(finish)
+          ? client.query('SELECT id FROM public.campus_users WHERE id=$1::uuid FOR UPDATE',
+              [authenticatedUser.id]).then(() =>
+              pgRidesStore.checkUserSettlementBlock(authenticatedUser.id,client).then(finish))
           : finish(db.checkUserSettlementBlock(authenticatedUser.email));
       });
     }catch(err){
