@@ -36,7 +36,9 @@
     "check:staging-migration": "node scripts/staging-migration-preflight.js",
     "check:staging-backup": "bash scripts/staging-secure-backup.sh --preflight",
     "backup:staging-operator": "bash scripts/staging-secure-backup.sh --execute",
-    "test:staging-backup": "node --test test_staging_secure_backup.js"
+    "test:staging-backup": "node --test test_staging_secure_backup.js",
+    "test:staging-restore-compare": "node --test test_staging_restore_compare.js",
+    "check:staging-restore": "node scripts/staging-restore-compare.js"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
