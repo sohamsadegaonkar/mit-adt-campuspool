@@ -97,7 +97,7 @@ async function ensureEmpty(pool){
   if(idx.rowCount!==2)throw Error('POSTGIS_INDEXES_NOT_READY');
 }
 
-async function seed(pool,students,rides){
+async function seed(pool,students,rides,onFixture){
   const nonce=crypto.randomBytes(5).toString('hex');
   const rand=random(4096);
   const driverCount=24;
@@ -112,6 +112,8 @@ async function seed(pool,students,rides){
   const latest=nowIso(base,25*3600000);
   const origin=point(18.5103,73.9232),dest=point(18.4652,74.0181);
   const fixtures={users,allRideIds,intentIds,passengers};
+  // Publish owned IDs before any INSERT so failures can still clean up.
+  onFixture(fixtures);
   // No truncate, schema writes or real identity reuse. All IDs belong to this run.
   for(let i=0;i<users.length;i++){
     await pool.query([
@@ -261,7 +263,7 @@ async function run(env=process.env){
   try{
     await ensureEmpty(pool);
     const startCpu=process.cpuUsage();
-    fixtures=await seed(pool,students,rides);
+    fixtures=await seed(pool,students,rides,owned=>{fixtures=owned;});
     const statsBefore=await sampleDb(monitor);
     const mobility=new PgMobilityStore({pool});
     let maxWaiting=0,maxPoolTotal=0,maxLockWaiters=0,maxPgActive=0,samples=0;
@@ -298,8 +300,10 @@ async function run(env=process.env){
     const matched=data.filter(x=>x.hits>0).length;
     if(matched===0)throw Error('SYNTHETIC_WORKLOAD_NO_MATCHES');
     const plan=await planSummary(pool,fixtures.passengers[0],fixtures.intentIds[0]);
+    // Know the exact synthetic bucket even when the contention assertion fails.
+    bucketKey=new PgOtpStore({pool,hmacKey:'ci-only-postgis-benchmark-hmac-not-a-live-secret'})
+      .digest('rate:mobility-match-search',fixtures.passengers[0]);
     const rate=await exerciseRateLimit(pool,fixtures.passengers[0]);
-    bucketKey=rate.bucketKey;
     const statsAfter=await sampleDb(monitor);
     const cpu=process.cpuUsage(startCpu);
     const report={
@@ -347,7 +351,7 @@ async function run(env=process.env){
 }
 if(require.main===module)run().catch(error=>{
   // Never print a connection string, UUID, student record, SQL or credentials.
-  process.stderr.write('MOBILITY_BENCH_FAILED: '+String(error?.code||error?.message||'ERROR').replace(/[^A-Z0-9_]/gi,'_').slice(0,90)+'\n');
+  process.stderr.write('MOBILITY_BENCH_FAILED: '+String(error?.code||'CHECK_REPORT_OR_FIXTURE_LOGS').replace(/[^A-Z0-9_]/gi,'_').slice(0,90)+'\n');
   process.exitCode=1;
 });
 module.exports={assertDisposableTarget,size,percentile,validateCandidate,random,run};
