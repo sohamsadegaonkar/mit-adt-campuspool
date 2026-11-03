@@ -126,15 +126,12 @@
       button.addEventListener('click',async()=>{
         // Only navigate through the existing booking flow and its restrictions.
         // Never reserve a seat directly from a candidate result.
-        if(typeof root.syncLiveRides==='function')await root.syncLiveRides();
-        if(typeof root.appState==='object'&&
-           root.appState?.rides?.some(r=>r.id===match.rideId&&r.seatsLeft>0)&&
-           typeof root.handleBookSeatClick==='function'){
-          root.handleBookSeatClick(match.rideId);
-        }else {
-          message('This candidate is not in the current ride feed. Browse available rides and refresh.');
-          byId('ridesGridContainer')?.scrollIntoView({behavior:'smooth',block:'start'});
-        }
+        try {
+          if(typeof root.CampusPoolMobilityBookCandidate==='function' &&
+             await root.CampusPoolMobilityBookCandidate(match.rideId))return;
+        } catch (_) {}
+        message('This candidate is not in the current ride feed. Browse available rides and refresh.');
+        byId('ridesGridContainer')?.scrollIntoView({behavior:'smooth',block:'start'});
       });
       card.append(headline,info,warning,button);
       container.append(card);
