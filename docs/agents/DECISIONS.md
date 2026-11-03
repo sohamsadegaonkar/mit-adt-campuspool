@@ -13,6 +13,7 @@
 | A-007 | Deferred, not rejected forever | Do not add Redis now | PostgreSQL currently handles shared limits; no measured bottleneck | Sustained DB hotspots, cache churn or global throttling need proven |
 | A-008 | Deferred, not rejected forever | Do not add Kafka/microservices now | Single-campus product and one Node backend; unnecessary distributed ops | High sustained asynchronous event volume, independent scaling/isolation |
 | A-009 | Proposed (not implemented) | Prefer PostgreSQL transactional outbox + worker as first reliable async step | Atomic event recording with core DB, fewer moving parts | Measured notification/retry need and benchmark/cost review |
+| A-010 | Proposed implementation in unmerged branch | Require per-operation client idempotency keys with durable SQL receipts on business mutations | Duplicate booking/cancel responses and ride creation lack exact retry guarantees; store response in same DB transaction | After CI, staging migration and browser/device tests. Do NOT apply the generic replay model to OTP proof/session or external payment/webhook calls |
 
 ## Decision rule for adding infrastructure
 
