@@ -6,6 +6,7 @@
  */
 (function (root) {
   const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const RIDE_ID=/^ride_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const HOUR=3600000, DAY=24*HOUR;
   function buildIntentPayload(values, now=Date.now()){
     function location(prefix){
@@ -36,7 +37,7 @@
       departureAt:intent.earliestDeparture};
   }
   function candidateView(item){
-    if(!item || !UUID.test(String(item.rideId||'')) ||
+    if(!item || !RIDE_ID.test(String(item.rideId||'')) ||
        item.candidateOnly!==true || item.roadRouteVerificationRequired!==true)
       return null;
     const fare=Number(item.studentFare),seats=Number(item.seatsLeft);
