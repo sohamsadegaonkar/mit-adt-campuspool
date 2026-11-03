@@ -45,3 +45,10 @@
 ## How to update this file
 
 For every implementation PR: replace outdated evidence, record new commit SHA and CI, distinguish code vs staging vs production, add/remove blockers based on actual verification and link the relevant `tasks/` record. Do not copy optimistic claims from feature PRs into production columns.
+
+## Independent P1 synthetic PostGIS load development — 2026-11-04 UTC
+
+- **BRANCH ONLY / NOT DEPLOYED:** `perf/mobility-load-baseline-2026-11-04` (from `main@3ee1f4a`) implements a new, isolated benchmark for 128 concurrent student matching requests against 512 deterministic synthetic rides and the existing PostGIS matching store. This is independent of draft UI PR #14 and security PRs #11–13.
+- Guardrails: requires `BENCH_DISPOSABLE_DB=YES`, localhost PostgreSQL URL, exact dedicated `campuspool_mobility_bench` DB and private database server address, empty benchmark tables, intact spatial indexes; deletes only uniquely owned synthetic fixtures. No real student data, external network, Render/Supabase writes, production migration, or service changes.
+- New CI workflow and benchmark unit tests **await measured results**. Goals: p50/p95/p99, burst throughput, PG connection queue and lock contention, SQL plan, shared Postgres rate limit 30 allowed/5 denied from 35 simultaneous same-account attempts. Results are synthetic DB-layer measurements, not production capacity promises.
+- **Release status:** NO-GO unchanged. [Task](tasks/2026-11-04-mobility-load-benchmark.md).
