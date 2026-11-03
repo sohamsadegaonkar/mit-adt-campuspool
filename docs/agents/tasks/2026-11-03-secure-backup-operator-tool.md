@@ -1,6 +1,6 @@
 # Task — Secure staging backup operator command
 
-- **Status:** implementation committed on unmerged draft PR #11; independent CI pending; actual staging export **BLOCKED**
+- **Status:** implementation and isolated CI passed on unmerged draft PR #11; actual staging export **BLOCKED**
 - **Date / owner:** 2026-11-03 UTC / ChatGPT engineering agent (code); authorized account operator (private export)
 - **Baseline:** main `3ee1f4a12e984cb6aecbf8ea09150d1e79556c87`; PR #11 parent `58a584942773107afb689797ea3ddecfd7d3379b`
 - **Dependencies:** [actual-backup gate](2026-11-03-staging-backup-restore-gates.md), [full runbook](../../../STAGING_IDEMPOTENCY_RELEASE_RUNBOOK.md), Render staging current live `cceadbf6251f`
@@ -29,7 +29,7 @@ Reduce error-prone manual backup steps. The tool must refuse a different Supabas
 - 2026-11-03 UTC — Verified PR #11 baseline and mandatory agent handoff contract.
 - 2026-11-03 UTC — Implemented guard and explicit preflight/execute backup scripts; restricted plaintext temp directory, age encryption, SHA-256 mounted copy check, no confidential source in Git.
 - 2026-11-03 UTC — Ran local Node 22.16.0 tests (4/4 pass), Node syntax and Bash syntax checks.
-- 2026-11-03 UTC — Initial GitHub documentation contract failed solely because task section labels did not match required headings; corrected template naming. New-head CI pending.
+- 2026-11-03 UTC — Initial GitHub documentation contract failed solely because task section labels did not match required headings; corrected template naming. All four exact implementation-head CI workflows passed at `3f723d1`; private staging export was not performed.
 
 ## Changes
 
@@ -41,7 +41,7 @@ Reduce error-prone manual backup steps. The tool must refuse a different Supabas
 ## Verification
 
 - Local Node 22.16.0 `node --test test_staging_secure_backup.js`: 4 passed; `bash -n` and `node --check` passed before commit.
-- Exact-head CI GitHub workflows: **pending**, record after completion.
+- GitHub CI on implementation/documentation commit `3f723d1acca92c96c796c6ce81a842ceba26d63f`: **all four workflows PASS** — PostgreSQL/PostGIS #41602596062, security smoke #41602595899, agent documentation #41602596010 and secret hygiene #41602596048.
 - Actual stage export, ciphertext off-site copy, remote independently downloaded SHA-256, scratch restore and policy comparison: **NOT PERFORMED**.
 - Render retained-build rollback eligibility: still unconfirmed; staging and production remain unchanged.
 - Local operator must personally confirm remote mount and encrypted scratch volume; code cannot prove a path is remote or encrypted. `AGE_RECIPIENT` is a public encryption recipient; the private identity is never provided to this script. `STAGING_DB_URL` stays in a private operator environment (may be visible to privileged processes on that machine while CLI runs).
