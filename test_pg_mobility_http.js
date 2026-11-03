@@ -50,7 +50,7 @@ test('Mobility API: verified intent, CSRF, private matches and cancellation',
     const basic='Basic '+Buffer.from('staging:'+pass).toString('base64');
     const port=await freePort();
     const base='http://127.0.0.1:'+port;
-    let child,rideId;
+    let child,rideId,serverErrors='';
     async function request(route,{method='GET',user=0,body,csrf,anonymous=false,idempotencyKey}={}){
       const headers={Authorization:basic};
       if(!anonymous)headers.Cookie='cp_session='+tokens[user];
@@ -58,8 +58,16 @@ test('Mobility API: verified intent, CSRF, private matches and cancellation',
       if(body!==undefined)headers['Content-Type']='application/json';
       if(method==='POST' && ['/api/rides','/api/bookings','/api/rides/cancel','/api/bookings/cancel','/api/mobility/intents','/api/mobility/intents/cancel'].includes(route))
         headers['Idempotency-Key']=idempotencyKey||crypto.randomUUID();
-      const res=await fetch(base+route,{method,headers,
-        body:body===undefined?undefined:JSON.stringify(body)});
+      let res;
+      try{
+        res=await fetch(base+route,{method,headers,
+          body:body===undefined?undefined:JSON.stringify(body)});
+      }catch(error){
+        throw new Error('HTTP request failed on '+method+' '+route+
+          ' (childExit='+String(child?.exitCode)+',signal='+String(child?.signalCode)+
+          ',cause='+String(error.cause?.code||error.code||'UNKNOWN')+
+          ',serverStderr='+serverErrors.slice(-500)+')');
+      }
       let data=null;
       try{data=await res.json()}catch{}
       return {status:res.status,data,replayed:res.headers.get('Idempotency-Replayed')};
@@ -84,6 +92,7 @@ test('Mobility API: verified intent, CSRF, private matches and cancellation',
           OTP_SECRET:crypto.randomBytes(32).toString('hex'),ENABLE_CLUSTER:'false',
           DATABASE_PATH:path.join(temp,'test.db'),EMAIL_PROVIDER:'disabled',SMS_PROVIDER:'disabled'
         },stdio:['ignore','pipe','pipe']});
+      child.stderr.on('data',chunk=>{serverErrors=(serverErrors+String(chunk)).slice(-1200);});
       await waitReady(child);
       assert.equal((await fetch(base+'/api/mobility/intent')).status,401);
       const me=await Promise.all(users.map((_,i)=>request('/api/auth/me',{user:i})));
