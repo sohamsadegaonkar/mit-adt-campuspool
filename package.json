@@ -28,7 +28,8 @@
     "test:mobility": "node --test test_pg_mobility.js",
     "test:mobility-geo": "node --test test_mobility_geo.js",
     "test:mobility-http": "node --test test_pg_mobility_http.js",
-    "test:mobility-ui": "node --test test_mobility_ui.js"
+    "test:mobility-ui": "node --test test_mobility_ui.js",
+    "test:e2e:mobility": "playwright test --config=playwright.mobility.config.cjs"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
