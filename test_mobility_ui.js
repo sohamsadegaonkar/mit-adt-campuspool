@@ -54,7 +54,7 @@ test('driver opt-in adds exactly three private geo fields only with a valid rout
 
 test('candidate cards only accept safe server candidate data, never copy private fields',()=>{
   const data={
-    rideId:'d4fa22bc-9b63-4ee5-a772-5a3cf4d1bd32',
+    rideId:'ride_d4fa22bc-9b63-4ee5-a772-5a3cf4d1bd32',
     vehicle:'Car',studentFare:40,seatsLeft:2,
     pickupDistanceMeters:101,dropoffDistanceMeters:225,
     departureAt:iso(NOW+24*3600000),
@@ -72,7 +72,7 @@ test('candidate cards only accept safe server candidate data, never copy private
   assert.doesNotMatch(JSON.stringify(result),/DO_NOT_RENDER/);
   for(const change of [
     {candidateOnly:false},{roadRouteVerificationRequired:false},
-    {rideId:'invalid-id'},{seatsLeft:0},{studentFare:-1},
+    {rideId:'invalid-id'},{rideId:'d4fa22bc-9b63-4ee5-a772-5a3cf4d1bd32'},{seatsLeft:0},{studentFare:-1},
     {pickupDistanceMeters:1501},{dropoffDistanceMeters:-1},
     {vehicle:'<script>'},{departureAt:'invalid'}
   ])assert.equal(candidateView({...data,...change}),null);
