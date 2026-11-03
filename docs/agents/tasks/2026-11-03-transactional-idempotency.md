@@ -1,7 +1,7 @@
 # Task: Transactional request idempotency across Rides and mobility
 
 - **Task ID / file:** `2026-11-03-transactional-idempotency`
-- **Status:** in progress — branch changes pending independent GitHub CI and reviewer approval
+- **Status:** in review — latest branch CI required before merge or any staging release
 - **Agent / owner:** ChatGPT engineering agent
 - **Last updated:** 2026-11-03 UTC
 - **Baseline:** `main@3ee1f4a12e984cb6aecbf8ea09150d1e79556c87`
@@ -36,18 +36,21 @@ Criteria: same-key replay returns identical successful resource/status, differen
 - 2026-11-03 UTC — Integrated keyed receipts into six authenticated write endpoints; PG passenger row lock added to serialize same-user booking eligibility checks. Disabled payment routes remain untouched.
 - 2026-11-03 UTC — Updated browser `apiFetch` with operation-key reuse, added SQLite unit and PG/SQLite HTTP replay/rollback tests, wired test scripts and workflow jobs.
 - 2026-11-03 UTC — Auth/OTP delivery, GPS update reordering and future payment webhooks explicitly excluded from global replay guarantees; documented in `IDEMPOTENCY_CONTRACT.md`.
-- 2026-11-03 UTC — GitHub CI and independent staging verification: **pending**. No database migration applied to live Supabase, no Render service modified.
+- 2026-11-03 UTC — Opened draft [PR #11](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/11). Initial idempotency, SQLite security, secrets and documentation checks passed; an existing mobility duplicate-conflict test exposed a crash caused by returning a rejected Promise without awaiting inside the HTTP handler.
+- 2026-11-03 UTC — Corrected three unawaited mutation-return paths in `server.js`; subsequent full PostgreSQL/PostGIS and other CI checks passed at commit `026607d734f8`.
+- 2026-11-03 UTC — Strengthened the design with a separate concurrent PG transaction test and bounded PG/SQLite receipt pruning; extended `prune:otp` for full PG expired receipt cleanup. **Latest CI revalidation is still pending** after these edits.
+- 2026-11-03 UTC — No database migration applied to live Supabase, no Render service modified.
 
 ## Verification
 
 | Test/check | Environment and command/evidence | Result / limitations |
 |---|---|---|
-| JavaScript syntax | GitHub source syntax checks and parser on changed snippets | Partial parse checks, full CI pending |
+| JavaScript syntax | GitHub source syntax checks and parser on changed snippets | PASS on prior head; recheck latest head |
 | SQLite transaction tests | `npm run test:idempotency` (isolated tempfile) | Pending GitHub CI |
 | Legacy auth + SQLite API | `npm run test:security` | Pending GitHub CI |
 | PostgreSQL booking+ride replay | `npm run test:rides-http` (disposable PostGIS) | Pending GitHub CI |
 | Mobility retry and rate limiting | `npm run test:mobility-http` (disposable PostGIS) | Pending GitHub CI |
-| Live staging | No staging migration/deploy allowed by this task | Not performed |
+| PostgreSQL two-client concurrency | \`npm run test:idempotency-pg\` (disposable PostGIS) | New test, CI pending |\n| Live staging | No staging migration/deploy allowed by this task | Not performed |
 | Live production | No production migration/deploy allowed by this task | Not performed |
 
 ## Risks and decisions
