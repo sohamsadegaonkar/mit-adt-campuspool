@@ -1,7 +1,7 @@
 # Task: Transactional request idempotency across Rides and mobility
 
 - **Task ID / file:** `2026-11-03-transactional-idempotency`
-- **Status:** in review — latest-head GitHub CI passed; code review and staging rollout gate still open
+- **Status:** in review — bounded throttled-replay implementation passed isolated CI at `3c050be`; independent review and staging rollout gate remain open
 - **Agent / owner:** ChatGPT engineering agent
 - **Last updated:** 2026-11-03 UTC
 - **Baseline:** `main@3ee1f4a12e984cb6aecbf8ea09150d1e79556c87`
@@ -41,7 +41,7 @@ Criteria: same-key replay returns identical successful resource/status, differen
 - 2026-11-03 UTC — Strengthened the design with a separate concurrent PG transaction test and bounded PG/SQLite receipt pruning; extended `prune:otp` for full PG expired receipt cleanup. **Latest CI revalidation passed** on `a2e231b96d30dad33c7b1e6a9ce1d6d5dec262e6`.
 - 2026-11-03 UTC — Rechecked exact PR #11 head `a2e231b96d30` and four GitHub Actions workflows: PostgreSQL/PostGIS OTP integration (#41582822457), security smoke (#41582822448), secret hygiene (#41582822449), agent-doc contract (#41582822439) all succeeded. This verifies CI, not staging or production.
 - 2026-11-03 UTC — Static review found that the shared IP rate limiter executes **before** authenticated idempotency receipt lookup in `server.js`; a completed-key retry can receive transient HTTP 429 under throttling. Exactly-once-per-key *SQL business effects* still hold, but unconditional HTTP replay under rate limiting is not guaranteed. Follow-up design/test needed before advertising stronger semantics.
-- 2026-11-03 UTC — Implemented a bounded, read-only completed-receipt recovery path when the shared HTTP mutation limit returns 429: 12 replay probes/IP/minute, same session/CSRF/actor/key/payload scope, no new writes; added SQLite and PG HTTP regression tests. **Initial GitHub run:** PostgreSQL/PostGIS, credential hygiene and docs passed; security smoke detected a test-ordering failure because the throttle test exhausted the mutation budget before logout. The test has been moved after logout with a fresh same-actor session and an explicit cap-exhaustion assertion; new CI is pending.
+- 2026-11-03 UTC — Implemented a bounded, read-only completed-receipt recovery path when the shared HTTP mutation limit returns 429: 12 replay probes/IP/minute, same session/CSRF/actor/key/payload scope, no new writes; added SQLite and PG HTTP regression tests. **Initial GitHub run:** PostgreSQL/PostGIS, credential hygiene and docs passed; security smoke found a test-ordering failure when the throttle test ran before logout. The throttle test now runs after logout with a fresh same-actor session and cap-exhaustion assertion. **Revalidated successfully** on `3c050be1984dbf2bdada8b9d5fc2bb76f98787fc`: PG/PostGIS workflow #41588934566, security smoke #41588934664, secret hygiene #41588934558, agent-doc contract #41588934552.
 - 2026-11-03 UTC — No database migration applied to live Supabase, no Render service modified.
 
 ## Verification
@@ -53,7 +53,8 @@ Criteria: same-key replay returns identical successful resource/status, differen
 | Legacy auth + SQLite API | `npm run test:security` | PASS on exact PR head `a2e231b` in isolated GitHub CI |
 | PostgreSQL booking+ride replay | `npm run test:rides-http` (disposable PostGIS) | PASS on exact PR head `a2e231b` in isolated GitHub CI |
 | Mobility retry and rate limiting | `npm run test:mobility-http` (disposable PostGIS) | PASS on exact PR head `a2e231b` in isolated GitHub CI |
-| PostgreSQL two-client concurrency | \`npm run test:idempotency-pg\` (disposable PostGIS) | PASS on exact PR head `a2e231b` in isolated GitHub CI |\n| Live staging | No staging migration/deploy allowed by this task | Not performed |
+| PostgreSQL two-client concurrency | \`npm run test:idempotency-pg\` (disposable PostGIS) | PASS on exact PR head `a2e231b` in isolated GitHub CI |\n| Bounded throttled recovery | `test_security_smoke.js`, `test_pg_rides_http.js`; PG/PostGIS and security CI | PASS at `3c050be` (isolated GitHub CI) |
+| Live staging | No staging migration/deploy allowed by this task | Not performed |
 | Live production | No production migration/deploy allowed by this task | Not performed |
 
 ## Risks and decisions
@@ -69,10 +70,10 @@ Criteria: same-key replay returns identical successful resource/status, differen
 
 ## Next steps — exact handoff
 
-1. **Next action:** Verify new code head CI, review read-only throttled replay query/budget, and check session/CSRF/cross-user behavior under load. Then independently review PostgreSQL migration permissions and browser retry lifecycle before declaring review complete.
+1. **Next action:** Independently review read-only throttled replay scope and 12/IP/minute budget under concurrent traffic, PostgreSQL role/RLS permissions, and browser retry-key lifecycle. Then plan a controlled **staging-only** migration 008 with backup and rollback approval; no live deployment is authorized.
 2. **Who may do it:** engineering reviewer or next agent; staging migration/deploy requires separate explicit permission.
 3. **Prerequisites and blockers:** no live data mutation; use disposable PG/PostGIS and temporary SQLite only. If a workflow is red, copy *sanitized* failure cause into this record.
-4. **Evidence now available:** exact-head successful CI run IDs 41582822457 (PostGIS), 41582822448 (security), 41582822449 (secrets), 41582822439 (agent docs). **Still required:** independent code review, controlled staging-only migration approval/backups, browser/restart/concurrency QA. No tests were executed locally in this handoff environment.
+4. **Evidence now available:** isolated GitHub CI succeeded at new implementation commit `3c050be` (PostGIS #41588934566, security #41588934664, secrets #41588934558, docs #41588934552). Added completed-key replay under throttle in both PG/SQLite HTTP suites and a 12-probe-limit assertion in SQLite. **Still required:** independent code review, authorized staging backup/migration, real browser/restart and sustained concurrency QA. No tests were executed against live services.
 5. **Production impact:** none; new code and migration are branch-local until independently approved and deployed.
 
 ## Links and files changed

@@ -4,7 +4,7 @@
 
 | Priority | Work item | Current state | Next concrete action | Acceptance / evidence | Owner |
 |---|---|---|---|---|---|
-| P0 | Verify transactional request idempotency | Exact-head GitHub CI passed, draft PR #11 still unmerged and not staged | Verify CI for newly implemented capped read-only rate-limit replay, review PG role/RLS permissions and browser key lifecycle; only after independent approval plan staging migration 008 | Green CI runs 41582822457/22448/22449/22439; reviewed SQL replay/rollback, documented rate-limit behavior; controlled staging E2E proof | ChatGPT engineering agent (branch only) |
+| P0 | Verify transactional request idempotency | New bounded replay code passed isolated CI at `3c050be`; PR #11 still unmerged/not staged | Independently review read-only replay under load, PG role/RLS permissions and browser key lifecycle; only after approval plan staging migration 008 | Green CI runs 41588934566/34664/34558/34552; independent review, controlled staging E2E and rollback still required | ChatGPT engineering agent (branch only) |
 | P0 | Close historical credential incident | Unverified account-side revocation | Account owner confirms revoked Gmail App Password, regenerated OTP secret and private Render replacement; review access logs | Dated verification, no raw secrets in Git/logs, controlled provider test | Account owner |
 | P0 | Genuine provider OTP verification in staging | Adapter and CI mock tests exist | Configure verified Resend sender/domain and approved MSG91/DLT Flow in isolated staging, then test controlled end-to-end signup/login | Actual inbox/handset receipt, expiry/replay/resend and provider failure checks | Unassigned |
 | P0 | Durable production Rides plan | PostgreSQL Rides implementation exists behind flag; production on SQLite | Inventory existing data; design consistent backup/export, UUID reconciliation, staging import and cold restore | Recorded counts/hashes, ownership continuity, proven forward+rollback | Unassigned |
@@ -32,7 +32,7 @@
 
 ## Active agent handoff
 
-- [Transactional request idempotency](tasks/2026-11-03-transactional-idempotency.md): draft PR #11 has green GitHub CI at `a2e231b`; revalidate bounded throttled replay changes in CI, review migration/rollout, then complete separately authorized staging QA before treating as deployed. No live migration authorized.
+- [Transactional request idempotency](tasks/2026-11-03-transactional-idempotency.md): draft PR #11 has green GitHub CI at `a2e231b`; bounded throttled replay passed CI at `3c050be`; next independently review permissions/browser retry lifecycle and migration/rollout, then complete separately authorized staging QA before treating as deployed. No live migration authorized.
 
 ## Latest completed documentation task
 
