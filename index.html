@@ -401,6 +401,66 @@
           <button type="button" class="feed-refresh-button" data-refresh-rides onclick="syncLiveRides()" aria-label="Refresh available rides" title="Refresh available rides"><svg class="cp-icon" aria-hidden="true"><use href="#cp-refresh"></use></svg></button>
         </div>
       </div>
+      <!-- Server-flagged private PostGIS matching: intentionally hidden until authenticated 200 response. -->
+      <section id="mobilityIntentPanel" hidden class="hidden rounded-2xl border border-slate-700 bg-slate-900 p-4 sm:p-5 space-y-3" aria-labelledby="mobilityTitle">
+        <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+          <div>
+            <h3 id="mobilityTitle" class="text-white font-bold text-base">Find matching rides</h3>
+            <p class="text-xs text-slate-300 mt-1">Set a private travel request. Nearby results are approximate candidates, not verified road routes or reserved seats.</p>
+          </div>
+          <button id="mobilityRefresh" type="button" class="rounded-lg border border-slate-600 text-slate-200 font-semibold px-3 py-2 text-xs hover:bg-slate-800">Refresh request</button>
+        </div>
+        <p id="mobilityStatus" role="status" aria-live="polite" class="text-xs text-amber-200"></p>
+        <form id="mobilityIntentForm" class="space-y-3">
+          <p class="text-xs text-slate-400">Choose pickup and drop-off on the map, or enter decimal coordinates. Exact points are sent privately to the server only when you submit.</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <fieldset class="space-y-2">
+              <legend class="text-sm font-semibold text-white">Pickup</legend>
+              <button id="mobilityPickPickup" type="button" class="text-xs rounded-lg bg-slate-800 border border-slate-600 px-3 py-2 text-white">Select pickup on map</button>
+              <div class="grid grid-cols-2 gap-2">
+                <label class="text-xs text-slate-300">Latitude
+                  <input id="mobilityPickupLat" aria-label="Pickup latitude" type="number" required min="6" max="37" step="any" autocomplete="off" class="mt-1 block w-full rounded-lg bg-slate-950 text-white border border-slate-600 p-2" placeholder="18.5103">
+                </label>
+                <label class="text-xs text-slate-300">Longitude
+                  <input id="mobilityPickupLon" aria-label="Pickup longitude" type="number" required min="68" max="98" step="any" autocomplete="off" class="mt-1 block w-full rounded-lg bg-slate-950 text-white border border-slate-600 p-2" placeholder="73.9232">
+                </label>
+              </div>
+            </fieldset>
+            <fieldset class="space-y-2">
+              <legend class="text-sm font-semibold text-white">Destination</legend>
+              <button id="mobilityPickDropoff" type="button" class="text-xs rounded-lg bg-slate-800 border border-slate-600 px-3 py-2 text-white">Select destination on map</button>
+              <div class="grid grid-cols-2 gap-2">
+                <label class="text-xs text-slate-300">Latitude
+                  <input id="mobilityDropoffLat" aria-label="Destination latitude" type="number" required min="6" max="37" step="any" autocomplete="off" class="mt-1 block w-full rounded-lg bg-slate-950 text-white border border-slate-600 p-2" placeholder="18.4652">
+                </label>
+                <label class="text-xs text-slate-300">Longitude
+                  <input id="mobilityDropoffLon" aria-label="Destination longitude" type="number" required min="68" max="98" step="any" autocomplete="off" class="mt-1 block w-full rounded-lg bg-slate-950 text-white border border-slate-600 p-2" placeholder="74.0181">
+                </label>
+              </div>
+            </fieldset>
+          </div>
+          <div id="mobilityMap" hidden class="w-full rounded-xl border border-slate-700" style="height:260px" aria-label="Choose a pickup or destination by clicking the map"></div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label class="text-xs text-slate-300">Earliest departure
+              <input id="mobilityEarliest" type="datetime-local" required class="mt-1 block w-full rounded-lg bg-slate-950 text-white border border-slate-600 p-2" />
+            </label>
+            <label class="text-xs text-slate-300">Latest departure (within 3 hours)
+              <input id="mobilityLatest" type="datetime-local" required class="mt-1 block w-full rounded-lg bg-slate-950 text-white border border-slate-600 p-2" />
+            </label>
+          </div>
+          <button id="mobilityCreate" type="submit" class="rounded-xl bg-brand-600 hover:bg-brand-500 font-semibold text-white text-sm px-5 py-2.5">Save private travel request</button>
+        </form>
+        <div id="mobilityActive" hidden class="space-y-3">
+          <p class="text-sm text-white font-semibold">Your active travel request</p>
+          <p id="mobilityWindow" class="text-xs text-slate-300"></p>
+          <div class="flex flex-wrap gap-2">
+            <button id="mobilitySearch" type="button" class="rounded-lg bg-brand-600 text-white text-xs font-semibold px-4 py-2">Find candidate rides</button>
+            <button id="mobilityCancel" type="button" class="rounded-lg border border-rose-700 text-rose-200 text-xs font-semibold px-4 py-2">Cancel request</button>
+          </div>
+        </div>
+        <div id="mobilityMatches" class="grid grid-cols-1 sm:grid-cols-2 gap-3" aria-live="polite"></div>
+        <p class="text-xs text-slate-400">Coordinates are not saved in this browser's storage. Only your server-side intent is persisted. Always confirm the real route and pickup location before booking.</p>
+      </section>
       <div class="ride-workspace">
       <!-- Search & Filters Strip -->
       <div class="ride-filters">
@@ -1458,12 +1518,14 @@
         }
         appState.currentUser = data.user;
         csrfToken = data.csrfToken;
+        window.dispatchEvent(new Event('campuspool:session-changed'));
         return true;
       } catch (_) {
         csrfToken = null;
         appState.currentUser = null;
         appState.myBookings = [];
         appState.myOfferedRides = [];
+        window.dispatchEvent(new Event('campuspool:session-changed'));
         return false;
       }
     }
@@ -4218,6 +4280,15 @@
       }
     });
 
+    window.CampusPoolMobilityBookCandidate = async function(rideId) {
+      if (typeof rideId !== 'string' || !/^[0-9a-f-]{36}$/i.test(rideId)) return false;
+      await syncLiveRides();
+      const ride = appState.rides.find(r => r.id === rideId && r.seatsLeft > 0);
+      if (!ride) return false;
+      handleBookSeatClick(rideId);
+      return true;
+    };
+
     // Initial Load & Real-Time SQLite Sync
     window.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('toastNotification')?.classList.add('hidden');
@@ -4255,6 +4326,7 @@
   </script>
 
 
+<script src="/mobility-ui.js" defer></script>
 <script>
   // SECURITY REVIEW BUILD: Block real outgoing UPI intents while confirmation is unverified.
   document.addEventListener('click', function(event) {
