@@ -32,3 +32,8 @@
 ## Latest completed documentation task
 
 See [2026-11-03-agent-workflow.md](tasks/2026-11-03-agent-workflow.md) for the multi-agent continuity-policy bootstrap and its verification/handoff.
+
+## Independent P1 development handoff — authenticated mobility UI (2026-11-03 UTC)
+
+- [Feature-gated mobility intent panel](tasks/2026-11-03-mobility-intent-ui.md): new unmerged `feature/mobility-intent-ui-2026-11-03` branch off `main`, separate from nested security PRs #11–13. Implements the previously missing student-facing request, cancellation, private geometric candidate cards and existing booking handoff without revealing raw GPS or contact data. Staging-only backend flag remains OFF by default; this is **not a deployed feature**.
+- **Next engineering action:** confirm isolated CI, audit accessibility/mobile UX, session hide/reveal and map privacy, then run verified-student browser E2E against a separately authorized staging build. Do not enable public matching, migrate 008 or bypass the owner-operated backup/restore and rollback gates. Future route-aware matching and load benchmarking remain open; do not adopt Redis/H3 until measured evidence warrants it.
