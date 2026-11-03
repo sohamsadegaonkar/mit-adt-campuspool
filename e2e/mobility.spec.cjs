@@ -191,3 +191,107 @@ test('matching panel fits viewport without causing horizontal overflow',async({p
   await expect(page.locator('#mobilityPickupLat')).toBeVisible();
   await expect(page.locator('#mobilityDropoffLat')).toBeVisible();
 });
+
+test('session logout discards a late successful private candidate response',async({page,context})=>{
+  const rideId=await seedRide(fixture.driver);
+  await openAs(page,context,fixture.passenger);
+  await expect(page.locator('#mobilityIntentPanel')).toBeVisible();
+  await createIntent(page);
+  let releaseResponse;
+  const gate=new Promise(resolve=>{releaseResponse=resolve;});
+  let confirmPending;
+  const pending=new Promise(resolve=>{confirmPending=resolve;});
+  const candidate={
+    rideId,vehicle:'Car',studentFare:40,seatsLeft:2,
+    pickupDistanceMeters:100,dropoffDistanceMeters:120,
+    candidateOnly:true,roadRouteVerificationRequired:true,
+    departureAt:future(24).toISOString()
+  };
+  await page.route('**/api/mobility/matches?*',async route=>{
+    confirmPending();
+    await gate;
+    await route.fulfill({status:200,contentType:'application/json',
+      body:JSON.stringify({routeVerificationRequired:true,candidates:[candidate]})});
+  });
+  await page.locator('#mobilitySearch').click();
+  await pending;
+  await page.locator('#headerLogoutBtn').click();
+  await expect(page.locator('#mobilityIntentPanel')).toBeHidden();
+  const delivered=page.waitForResponse(res=>res.url().includes('/api/mobility/matches?')&&res.status()===200);
+  releaseResponse();
+  await delivered;
+  // Let the already-pending browser fetch promise settle after the logout event.
+  await page.waitForTimeout(200);
+  await expect(page.locator('#mobilityMatches article')).toHaveCount(0);
+  await expect(page.locator('#mobilityStatus')).toHaveText('');
+  await expect(page.locator('#mobilityActive')).toBeHidden();
+});
+
+test('explicit opt-in map clicks select coordinates without saving them to browser storage',async({page,context})=>{
+  const assetHeaders={'access-control-allow-origin':'*','cache-control':'no-store'};
+  // Use genuine pinned Leaflet assets from the isolated CI install; do not
+  // contact a third-party CDN or real tile provider with synthetic QA coordinates.
+  await page.route('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
+    route=>route.fulfill({path:require.resolve('leaflet/dist/leaflet.js'),
+      contentType:'text/javascript',headers:assetHeaders}));
+  await page.route('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
+    route=>route.fulfill({path:require.resolve('leaflet/dist/leaflet.css'),
+      contentType:'text/css',headers:assetHeaders}));
+  let tileRequests=0;
+  page.on('request',req=>{
+    if(req.url().includes('.tile.openstreetmap.org/'))tileRequests++;
+  });
+  await page.route(/https:\/\/[a-z]\.tile\.openstreetmap\.org\/.*/,
+    route=>route.fulfill({status:204,body:''}));
+  await openAs(page,context,fixture.passenger);
+  await expect(page.locator('#mobilityIntentPanel')).toBeVisible();
+  await page.waitForFunction(()=>typeof window.L?.map==='function');
+  expect(tileRequests).toBe(0);
+  await page.locator('#mobilityPickPickup').click();
+  await expect(page.locator('#mobilityMap')).toBeVisible();
+  await page.locator('#mobilityMap').click({position:{x:95,y:110}});
+  const pickupLat=await page.locator('#mobilityPickupLat').inputValue();
+  const pickupLon=await page.locator('#mobilityPickupLon').inputValue();
+  expect(Number(pickupLat)).toBeGreaterThan(6);
+  expect(Number(pickupLon)).toBeGreaterThan(68);
+  await page.locator('#mobilityPickDropoff').click();
+  await page.locator('#mobilityMap').click({position:{x:160,y:160}});
+  expect(Number(await page.locator('#mobilityDropoffLat').inputValue())).toBeGreaterThan(6);
+  expect(Number(await page.locator('#mobilityDropoffLon').inputValue())).toBeGreaterThan(68);
+  await expect.poll(()=>tileRequests).toBeGreaterThan(0);
+  const privacy=await page.evaluate(()=>({
+    storage:JSON.stringify({localStorage:{...localStorage},sessionStorage:{...sessionStorage}}),
+    query:location.search
+  }));
+  expect(privacy.storage).not.toContain(pickupLat);
+  expect(privacy.storage).not.toContain(pickupLon);
+  expect(privacy.query).not.toContain(pickupLat);
+  expect(privacy.query).not.toContain(pickupLon);
+  await page.locator('#headerLogoutBtn').click();
+  await expect(page.locator('#mobilityIntentPanel')).toBeHidden();
+  await expect(page.locator('#mobilityMap')).toBeHidden();
+  await expect(page.locator('#mobilityPickupLat')).toHaveValue('');
+  await expect(page.locator('#mobilityPickupLon')).toHaveValue('');
+});
+
+test('mobility create and cancel can be activated from keyboard with announced status',async({page,context})=>{
+  await openAs(page,context,fixture.passenger);
+  await expect(page.locator('#mobilityIntentPanel')).toBeVisible();
+  await expect(page.locator('#mobilityStatus')).toHaveAttribute('role','status');
+  await expect(page.locator('#mobilityStatus')).toHaveAttribute('aria-live','polite');
+  await expect(page.getByRole('spinbutton',{name:'Pickup latitude',exact:true})).toBeVisible();
+  await fillIntent(page);
+  await page.locator('#mobilityCreate').focus();
+  await expect(page.locator('#mobilityCreate')).toBeFocused();
+  const created=page.waitForResponse(r=>r.url().endsWith('/api/mobility/intents')&&r.request().method()==='POST');
+  await page.keyboard.press('Enter');
+  expect((await created).status()).toBe(201);
+  await expect(page.locator('#mobilityActive')).toBeVisible();
+  await expect(page.locator('#mobilityStatus')).toContainText('Travel request saved privately');
+  await page.locator('#mobilityCancel').focus();
+  await expect(page.locator('#mobilityCancel')).toBeFocused();
+  const cancelled=page.waitForResponse(r=>r.url().endsWith('/api/mobility/intents/cancel')&&r.request().method()==='POST');
+  await page.keyboard.press('Enter');
+  expect((await cancelled).status()).toBe(200);
+  await expect(page.locator('#mobilityIntentForm')).toBeVisible();
+});
