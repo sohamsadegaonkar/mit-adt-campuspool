@@ -7,7 +7,7 @@
 - **Baseline:** `cb3d7d0541b74c6dfabf43447f3ddae00565e674`, PR #14 draft, targets `main`
 - **Scope:** `mobility-ui.js`, synthetic-only browser QA and GitHub workflow, agent handoff. No modifications to SQL, Render, Supabase, identity providers, payments, deployment configuration or production.
 
-## Goal
+## Goal and acceptance criteria
 
 Close the remaining isolated browser QA gaps before independent review: prevent a late create/search/cancel response from mutating private browser state after the current session is invalidated, verify map opt-in is interactive and keeps coordinates out of storage/URLs, and prove core controls work through keyboard activation. Cover the desktop/mobile browser matrix.
 
