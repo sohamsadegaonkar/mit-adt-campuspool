@@ -45,9 +45,17 @@ async function clear(fixture){
   await pool.query('DELETE FROM public.campus_users WHERE id=ANY($1::uuid[])',[ids]);
 }
 async function openAs(page,context,person){
+  // Firefox may not preemptively reuse the browser's Basic Auth challenge
+  // for parallel fetch() probes. Explicit CI-only header stabilizes staging auth.
+  await context.setExtraHTTPHeaders({Authorization:AUTH});
   await context.clearCookies();
   if(person)await context.addCookies([{name:'cp_session',value:person.token,url:BASE,httpOnly:true,sameSite:'Lax'}]);
   await page.goto('/',{waitUntil:'domcontentloaded'});
+  if(person){
+    const session=await page.request.get('/api/auth/me');
+    if(session.status()!==200)
+      throw Error('Synthetic browser session unavailable; HTTP status '+session.status());
+  }
 }
 async function api(person,path,method='GET',body){
   const headers={Authorization:AUTH,Cookie:'cp_session='+person.token};
