@@ -76,7 +76,7 @@ test('preflight fails closed on client grants, RLS policies or privileged DB rol
   assert.equal(checkSnapshot(noClients,'before').schemaReady,false);
 });
 
-test('preflight's SQL transaction is read only and always commits',async()=>{
+test("preflight SQL transaction is read only and always commits",async()=>{
   const f=fixture(true),seen=[];
   const responses=[f.roles,f.schemas,f.tables,f.policies,
     f.indexes.map(indexname=>({indexname}))];
