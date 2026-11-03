@@ -4334,7 +4334,7 @@
     });
 
     window.CampusPoolMobilityBookCandidate = async function(rideId) {
-      if (typeof rideId !== 'string' || !/^[0-9a-f-]{36}$/i.test(rideId)) return false;
+      if (typeof rideId !== 'string' || !/^ride_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rideId)) return false;
       await syncLiveRides();
       const ride = appState.rides.find(r => r.id === rideId && r.seatsLeft > 0);
       if (!ride) return false;
