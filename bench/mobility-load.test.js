@@ -2,7 +2,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {
-  assertDisposableTarget,size,percentile,validateCandidate,random
+  assertDisposableTarget,privateServerAddress,size,percentile,validateCandidate,random
 }=require('./mobility-load');
 
 const safe={
@@ -21,6 +21,13 @@ test('benchmark refuses missing flag, non-loopback, wrong database and credentia
     'postgresql://postgres:synthetic@127.0.0.1:5432/campuspool_mobility_bench?sslmode=require',
     'https://postgres:synthetic@127.0.0.1:5432/campuspool_mobility_bench'
   ])assert.throws(()=>assertDisposableTarget({...safe,OTP_DATABASE_URL:bad}),bad);
+});
+
+test('private PostGIS Docker bridge addresses are allowed, public addresses rejected',()=>{
+  for(const value of ['127.0.0.1','::1','172.18.0.2','10.11.12.13','192.168.1.20'])
+    assert.equal(privateServerAddress(value),true,value);
+  for(const value of ['8.8.8.8','192.0.2.1','172.32.0.1','localhost',null,''])
+    assert.equal(privateServerAddress(value),false,String(value));
 });
 
 test('student count and connection sizes are bounded',()=>{
