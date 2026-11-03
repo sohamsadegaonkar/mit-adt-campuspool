@@ -52,7 +52,7 @@ function digestSql(name){
   // to_jsonb provides normalized column-key order; hash sorting ignores row order
   // while retaining duplicates. Requires PostgreSQL >= 14 (tested on PG16 CI).
   return "SELECT encode(sha256(convert_to("+
-    "COALESCE(string_agg(rowhash, '' ORDER BY rowhash), ''),'UTF8')),'hex') AS digest "+
+    "COALESCE(string_agg(rowhash, '' ORDER BY rowhash COLLATE \"C\"), ''),'UTF8')),'hex') AS digest "+
     "FROM (SELECT encode(sha256(convert_to(to_jsonb(t)::text,'UTF8')),'hex') AS rowhash "+
     'FROM public."'+name+'" t) hashes';
 }
