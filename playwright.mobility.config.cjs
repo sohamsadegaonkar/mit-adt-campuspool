@@ -43,7 +43,8 @@ module.exports=defineConfig({
       ...process.env,
       PORT:String(port),
       APP_ENV:'staging',
-      NODE_ENV:'production',
+      // CI uses HTTP loopback; production requires HTTPS same-origin and must not be spoofed here.
+      NODE_ENV:'test',
       ENABLE_CLUSTER:'false',
       AUTH_OTP_BACKEND:'postgres',
       RIDES_BACKEND:'postgres',
