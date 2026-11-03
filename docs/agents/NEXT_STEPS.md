@@ -69,3 +69,8 @@ See [2026-11-03-agent-workflow.md](tasks/2026-11-03-agent-workflow.md) for the m
 ## Operator execution handoff — 2026-11-03 UTC
 
 The actual PG17 backup/restore steps remain impossible to execute through the available read-only project metadata connections. The owner must use a trusted local encrypted machine with private stage-only DB owner credentials, age recipient, approved off-site storage and distinct PG17/PostGIS scratch restore target; see the detailed command sequence and queries in [runbook](../../STAGING_IDEMPOTENCY_RELEASE_RUNBOOK.md). Current `cceadbf6251f` Render deploy is confirmed `live` but artifact rollback eligibility cannot be verified by Render MCP; check the staging Events dashboard before release. **Staging migration/deploy and rollback remain NO-GO.**
+
+## Next concrete action — local-operator staging backup (2026-11-03)
+
+- The unmerged PR #11 adds `npm run check:staging-backup` (safe local preflight) and `npm run backup:staging-operator` (explicit private-stage export). [Task and conditions](tasks/2026-11-03-secure-backup-operator-tool.md). First confirm isolated CI green, then account owner runs these on an encrypted trusted workstation with a separately confirmed encrypted off-site mount and stage-only private connection string. **Never** run with live credentials from GitHub Actions/Render/chat.
+- After encrypted archive creation, independently download its off-site copy and check SHA-256; restore to a different approved Supabase-compatible PostgreSQL 17/PostGIS project and compare data/roles/indexes/RLS/policies/permissions. Until that evidence and Render build-artifact eligibility exist, live migration 008 and staged deployment remain blocked.

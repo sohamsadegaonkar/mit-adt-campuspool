@@ -14,6 +14,9 @@ on:
       - 'test_browser_idempotency.js'
       - 'test_staging_migration_preflight.js'
       - 'test_pg_backup_restore.js'
+      - 'test_staging_secure_backup.js'
+      - 'scripts/staging-backup-guard.js'
+      - 'scripts/staging-secure-backup.sh'
       - 'scripts/staging-migration-preflight.js'
       - 'test_stage1_otp.js'
       - 'test_pg_identity.js'
@@ -86,6 +89,9 @@ jobs:
           node --check scripts/staging-migration-preflight.js
           node --check test_staging_migration_preflight.js
           node --check test_pg_backup_restore.js
+          node --check test_staging_secure_backup.js
+          node --check scripts/staging-backup-guard.js
+          bash -n scripts/staging-secure-backup.sh
           node --check stage1-otp/pg-store.js
           node --check stage1-otp/auth-routes.js
           node --check stage1-otp/email-provider.js
@@ -124,3 +130,4 @@ jobs:
           npm run test:release
           npm run check:release-ci
           npm run test:backup-restore-ci
+          npm run test:staging-backup

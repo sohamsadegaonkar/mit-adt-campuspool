@@ -33,7 +33,10 @@
     "test:browser-idempotency": "node --test test_browser_idempotency.js",
     "test:staging-preflight": "node --test test_staging_migration_preflight.js",
     "test:backup-restore-ci": "node --test test_pg_backup_restore.js",
-    "check:staging-migration": "node scripts/staging-migration-preflight.js"
+    "check:staging-migration": "node scripts/staging-migration-preflight.js",
+    "check:staging-backup": "bash scripts/staging-secure-backup.sh --preflight",
+    "backup:staging-operator": "bash scripts/staging-secure-backup.sh --execute",
+    "test:staging-backup": "node --test test_staging_secure_backup.js"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",

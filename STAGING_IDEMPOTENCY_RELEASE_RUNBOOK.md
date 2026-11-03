@@ -196,3 +196,24 @@ Also verify all other application tables, indexes, constraints, extension versio
 ### Release decision
 
 **NO-GO**: the required real off-site encrypted staging dump, independent PostgreSQL 17 restore, matching verification evidence and Render artifact eligibility are absent. Do not apply 008, change Render settings, deploy, or run rollback; the CLI snippets above are an operator procedure only.
+
+## Private operator one-command backup export — proposed implementation on PR #11
+
+A fail-closed local-operator wrapper now automates the earlier three separate `supabase db dump` examples. It is **not** a connected-service backup and is NEVER run in CI or Render. On an operator-owned, encrypted Linux/WSL2 machine, install Node 22+, Docker, current Supabase CLI, PostgreSQL **17** psql, age, tar and sha256sum. Provide a private `STAGING_DB_URL` from the exact staging project's Connect panel; do not put it in shell history, GitHub or chat.
+
+The operator must prepare and verify **two separate already-existing paths**: `STAGING_ENCRYPTED_WORKDIR` (encrypted local scratch volume) and `OFFSITE_DIR` (encrypted remote filesystem mount). Configure the **public** age recipient string and attest each property only when verified (the program cannot authenticate physical storage encryption or remote provenance):
+
+```bash
+export STAGING_WORKDIR_ENCRYPTED=YES
+export OFFSITE_MOUNT_VERIFIED=YES
+# Also set privately: STAGING_DB_URL, STAGING_ENCRYPTED_WORKDIR,
+# OFFSITE_DIR, AGE_RECIPIENT (age public recipient; no private key).
+npm run check:staging-backup          # --preflight: validates, does NOT export
+npm run backup:staging-operator       # --execute: authorized operator export
+```
+
+The implementation validates the Supabase direct/pooler URL project ref `tnitksrlntrdxbvznxzf` and private credentials, refuses explicitly disabled TLS and unsafe overlapping/repo paths, suppresses sensitive CLI output, places plaintext only in an operator-attested encrypted temporary directory with restrictive permissions, age-encrypts directly to the operator-attested remote mount, creates a SHA-256 sidecar and verifies the mounted ciphertext. **Do not interpret this as a remote download-and-hash proof, independent restored backup, secure role credentials or release approval.**
+
+Operator next **downloads that encrypted remote object independently** (e.g. from the off-site provider's web interface, not through the same mount), checks the downloaded SHA-256 against the recorded sidecar, confirms private decryption works in a separately protected recovery environment and restores the actual roles/schema/data into a **different, disposable Supabase-compatible PG17/PostGIS** target. Compare tables, counts, indexes, RLS/grants/policies, required extensions and migration history before marking Gate B passed. Then separately verify Render's rollback artifact remains available. The command does not apply migration 008, deploy anything or trigger rollback.
+
+Source: `scripts/staging-secure-backup.sh`, validation: `scripts/staging-backup-guard.js`, tests: `test_staging_secure_backup.js`. [Owner task](docs/agents/tasks/2026-11-03-secure-backup-operator-tool.md). Local synthetic preflight/unit tests passed; PR CI to be independently confirmed. **Actual staging backup and recovery are still NOT PERFORMED.**
