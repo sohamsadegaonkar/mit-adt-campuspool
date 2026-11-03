@@ -12,6 +12,12 @@
 
 Prove the existing matching UI works across real Chromium, Firefox and mobile WebKit browsers: unauthenticated and disabled-feature hiding, verified student create/view/cancel, driver geocoded opt-in posting, real PostGIS candidate match, booking handoff without auto-reservation, CSRF enforcement, privacy, logout state reset and viewport fit. Real PostgreSQL tests must be isolated on CI's disposable PostGIS: no live staging or production access. Screenshots and traces are synthetic-only and retained briefly.
 
+## Current state
+
+- Existing frontend and backend CI passed before this task, but no actual Playwright browser had yet exercised the student-to-driver matching journey.
+- PR #14 remains a draft and the connected Render production/staging services are still on older commits; this QA does not authorize deployment or feature-flag changes.
+- A source-level ride-ID mismatch was identified and corrected in this branch, with CI regression evidence still being collected.
+
 ## Observed gap and corrective fix
 
 An independently checked integration mismatch was found before browser QA: `campus_rides.id` uses `ride_<uuid>`, but the new JS candidate validator and booking bridge previously required plain `<uuid>`. The backend `rank()` sends the database ride ID unchanged, so valid candidates would be discarded and their booking button would reject the ID. Updated `mobility-ui.js`, `index.html`, and `test_mobility_ui.js` to require `ride_<uuid>` for candidate ride IDs while leaving travel-intent ID validation as plain UUID.
