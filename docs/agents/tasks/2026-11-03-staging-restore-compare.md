@@ -1,7 +1,7 @@
 # Task: Read-only comparison of a recovered staging backup
 
 - **Task ID / file:** 2026-11-03-staging-restore-compare
-- **Status:** in review — branch implementation; real staging restore blocked
+- **Status:** in review — code CI passed; real staging restore blocked
 - **Agent / owner:** ChatGPT engineering agent (code and isolated tests); authorized account operator (private recovery execution)
 - **Last updated:** 2026-11-03 UTC
 - **Baseline:** main@3ee1f4a12e98; idempotency PR #11 head a1a06b767508912e5380668dc22f1f5a39226cf8
@@ -29,8 +29,8 @@ After an independently restored real staging backup is available, compare the kn
 
 - 2026-11-03 UTC — Reviewed AGENTS.md, current PR #11 and release handoffs. Created independent branch security/staging-restore-compare-2026-11-03 from a1a06b7.
 - 2026-11-03 UTC — Implemented read-only schema/grant/count comparison, strict staging vs. separate scratch project guard, sanitized CLI results and isolated mock tests.
-- 2026-11-03 UTC — Initial local Node 22.16.0 four synthetic tests passed with a local copy of the backup-guard contract; real repo/CI integration still to be confirmed. No live DB accesses made.
-- 2026-11-03 UTC — Wired to package script and security CI. Exact branch CI status pending review.
+- 2026-11-03 UTC — Initial local Node 22.16.0 four synthetic tests passed with a local copy of the backup-guard contract; real repo CI subsequently passed. No live DB accesses made.
+- 2026-11-03 UTC — Wired into security CI and added a disposable PostGIS SQL-integration test (never connects to Supabase); GitHub security smoke #41626504817 and Stage 1 PostgreSQL/PostGIS #41626505003 passed for code head a0962f2.
 
 ## Verification
 
@@ -38,7 +38,8 @@ After an independently restored real staging backup is available, compare the kn
 |---|---|---|
 | Unit guard and SQL fake-client tests | Local Node 22.16.0, node --test test_staging_restore_compare.js with local guard-contract copy | 4/4 pass; mock/synthetic only |
 | Syntax | node --check scripts/staging-restore-compare.js | PASS locally |
-| Full repo security smoke | GitHub Actions on proposed PR | Pending |
+| Full repo security smoke | GitHub Actions #41626504817, code head a0962f2 | PASS; synthetic/isolated only |
+| Disposable PostgreSQL SQL integration | GitHub Actions #41626505003; test:staging-restore-compare with local disposable PostGIS | PASS; no Supabase source or scratch access |
 | Real source vs independently restored scratch | Private owner-provided stage/scratch PostgreSQL 17+ | NOT RUN / BLOCKED |
 | Render baseline artifact eligibility | Render staging dashboard | NOT VERIFIED |
 
