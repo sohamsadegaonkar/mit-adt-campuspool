@@ -1,7 +1,7 @@
 # Task: Establish durable multi-agent engineering handoffs
 
 - **Task ID / file:** `2026-11-03-agent-workflow`
-- **Status:** in review
+- **Status:** completed (documentation and CI checks; PR integration pending)
 - **Agent / owner:** ChatGPT engineering agent
 - **Last updated:** 2026-11-03 UTC
 - **Baseline:** `main@0345b6aeff86`
@@ -30,15 +30,16 @@ Checked `main` at `0345b6aeff86`; PostGIS mobility matching and PostgreSQL ident
 
 - 2026-11-03 UTC — Inspected repository HEAD, open PRs, CI, existing rollout runbooks and recent Render deploy metadata.
 - 2026-11-03 UTC — Created this task and agent documentation on short-lived branch `docs/agent-working-agreement-2026-11-03`.
-- 2026-11-03 UTC — Verification and PR review pending until the new workflow runs; do not report CI success or merge as complete before GitHub confirms.
+- 2026-11-03 UTC — Opened [PR #10](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/10), targeting `main` with the documentation policy, handoff files, and mandatory PR check.
+- 2026-11-03 UTC — GitHub Actions passed: agent documentation contract run `41578418648` (detected 14 changed files, including 2 implementation/config paths), credential/secret hygiene run `41578418538`, and isolated PostgreSQL OTP/PostGIS suite run `41578418558`. These runs apply to the original PR head; reconfirm all checks after any final edit.
 
 ## Verification
 
 | Test/check | Environment and command/evidence | Result / limitations |
 |---|---|---|
 | Current GitHub state | GitHub `main@0345b6aeff86` and recent workflow metadata | Verified on 2026-11-03 |
-| Docs contract | `node scripts/check-agent-docs.js` | Pending |
-| PR diff enforcement | GitHub Actions `Agent documentation contract` | Pending |
+| Docs contract | `node scripts/check-agent-docs.js`, GitHub run `41578418648` | PASS (branch PR, before task-log final update) |
+| PR diff enforcement | `Agent documentation contract` GitHub run `41578418648`, 14 changed paths | PASS; implementation paths required STATUS/NEXT_STEPS and task log |
 | Production data/service | Not accessed or modified by this task | No production impact |
 
 ## Risks and decisions
@@ -47,7 +48,7 @@ Shared status/next-step docs may conflict when multiple PRs run concurrently; ag
 
 ## Next steps — exact handoff
 
-1. **Next action:** complete doc/CI file creation, open PR, run its Actions checks; fix any failing job.
+1. **Next action:** re-check PR #10's final-head CI, review docs for factual correctness, then merge the docs-only PR into `main`. Confirm the policy is available to future agents on `main`.
 2. **Who may do it:** assigned agent or repo reviewer; final merge is subject to PR checks and review.
 3. **Prerequisites:** verify latest `main` has not moved and no conflicting PR exists.
 4. **Expected evidence:** GitHub Actions success for documentation contract and known existing checks; after merge, new agents can read `AGENTS.md` on `main`.
@@ -55,6 +56,6 @@ Shared status/next-step docs may conflict when multiple PRs run concurrently; ag
 
 ## Links and files changed
 
-- Branch: `docs/agent-working-agreement-2026-11-03`.
+- Branch: `docs/agent-working-agreement-2026-11-03`. PR: [#10](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/10). Not merged as of this task log update.
 - Root `AGENTS.md`; `docs/agents/`; `.github/` agent workflow/PR template; `scripts/check-agent-docs.js`; README index.
 - Baseline production SHA observed `63ae5510bbe2`, staging SHA `cceadbf6251f`; neither changed by this task.
