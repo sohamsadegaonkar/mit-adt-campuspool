@@ -114,6 +114,10 @@ test('isolated PostgreSQL verifies real post-008 schema and policies',
   const c=new Client({connectionString:process.env.OTP_DATABASE_URL,ssl:false});
   try{
     await c.connect();
+    // Migration 005 deliberately creates NOLOGIN. Real staging enables LOGIN
+    // only after private credentials are provisioned; simulate that step in
+    // this disposable CI database, never on an external DB.
+    await c.query('ALTER ROLE campuspool_staging_app LOGIN');
     const result=checkSnapshot(await readSnapshot(c),'after');
     assert.equal(result.schemaReady,true,result.failures.join('; '));
   }finally{await c.end().catch(()=>{});}
