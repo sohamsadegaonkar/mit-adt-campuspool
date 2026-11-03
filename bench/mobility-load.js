@@ -36,7 +36,8 @@ function privateServerAddress(addr){
   // listening address a container bridge IP, even for a loopback-only client.
   if(typeof addr!=='string')return false;
   if(addr==='::1'||addr==='127.0.0.1')return true;
-  const parts=addr.split('.').map(Number);
+  const ipv4=addr.startsWith('::ffff:')?addr.slice(7):addr;
+  const parts=ipv4.split('.').map(Number);
   if(parts.length!==4||parts.some(x=>!Number.isInteger(x)||x<0||x>255))return false;
   return parts[0]===10 || (parts[0]===172&&parts[1]>=16&&parts[1]<=31) ||
     (parts[0]===192&&parts[1]===168) || parts[0]===127;
@@ -361,7 +362,11 @@ async function run(env=process.env){
 }
 if(require.main===module)run().catch(error=>{
   // Never print a connection string, UUID, student record, SQL or credentials.
-  process.stderr.write('MOBILITY_BENCH_FAILED: '+String(error?.code||'CHECK_REPORT_OR_FIXTURE_LOGS').replace(/[^A-Z0-9_]/gi,'_').slice(0,90)+'\n');
+  // Print only predetermined uppercase error identifiers; never DB URLs,
+  // SQL fragments, user IDs, hostnames or raw PostgreSQL exception text.
+  const category=String(error?.code||error?.message||'UNCLASSIFIED_FAILURE');
+  const safe=/^[A-Z][A-Z0-9_]{2,79}$/.test(category)?category:'UNCLASSIFIED_FAILURE';
+  process.stderr.write('MOBILITY_BENCH_FAILED: '+safe+'\n');
   process.exitCode=1;
 });
 module.exports={assertDisposableTarget,privateServerAddress,size,percentile,validateCandidate,random,run};
