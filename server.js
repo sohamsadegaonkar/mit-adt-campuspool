@@ -1189,7 +1189,7 @@ const server = http.createServer(async (req, res) => {
       }
       if (method==='POST' && pathname==='/api/mobility/intents') {
         const body=await parseBody();
-        return executeIdempotentMutation(pathname,body,async client=>{
+        return await executeIdempotentMutation(pathname,body,async client=>{
           await pgOtpStore.rate(client,'mobility-intent-create',authenticatedUser.id,8,3600);
           const intent=await pgMobilityStore.createIntent({
             studentUserId:authenticatedUser.id,pickup:body.pickup,dropoff:body.dropoff,
@@ -1213,7 +1213,7 @@ const server = http.createServer(async (req, res) => {
       }
       if (method==='POST' && pathname==='/api/mobility/intents/cancel') {
         const body=await parseBody();
-        return executeIdempotentMutation(pathname,body,async client=>{
+        return await executeIdempotentMutation(pathname,body,async client=>{
           const result=await pgMobilityStore.cancelIntent({
             studentUserId:authenticatedUser.id,intentId:body.intentId,client
           });
@@ -1311,7 +1311,7 @@ const server = http.createServer(async (req, res) => {
     const body = await parseBody();
     // Validation and settlement eligibility execute only for the *first*
     // successful key. A retry returns the original ride, even if state changes.
-    return executeIdempotentMutation(pathname,body,client=>{
+    return await executeIdempotentMutation(pathname,body,client=>{
       if (body.driverEmail && !isSelf(body.driverEmail)) {
         rejectMutation(403,{success:false,error:'NOT_RIDE_OWNER'});
       }
