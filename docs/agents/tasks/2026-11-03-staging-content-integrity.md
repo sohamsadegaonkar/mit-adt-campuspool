@@ -1,7 +1,7 @@
 # Task: Detect equal-count data corruption in staging restore checks
 
 - **Task ID / file:** 2026-11-03-staging-content-integrity
-- **Status:** in progress — implementation on separate child branch; GitHub CI and real restore pending
+- **Status:** in review — isolated GitHub CI passed; real staging restore still blocked
 - **Agent / owner:** ChatGPT engineering agent (code and isolated tests); authorized account operator (actual restoration)
 - **Last updated:** 2026-11-03 UTC
 - **Baseline:** main@3ee1f4a; idempotency PR #11 at a1a06b7; comparison PR #12 at e45e1db
@@ -29,14 +29,16 @@ The prior comparator verifies table definitions, permissions and row counts, but
 
 - 2026-11-03 UTC — Independently reviewed current branch, draft PR #12 and its active safety documentation; identified equal-count corruption detection gap.
 - 2026-11-03 UTC — Created branch security/staging-restore-content-digests-2026-11-03 from PR #12.
-- 2026-11-03 UTC — Added bounded per-table SHA-256 row-content fingerprints, normalized timezone/date rendering and internal-only comparison; added a same-count/different-record disposable PostgreSQL regression test. CI outcome pending at task creation.
+- 2026-11-03 UTC — Added bounded per-table SHA-256 row-content fingerprints, normalized timezone/date rendering and internal-only comparison; added a same-count/different-record disposable PostgreSQL regression test. GitHub CI subsequently passed: security smoke #41627772559 and disposable PostgreSQL/PostGIS #41627772557 on code+docs commit eb9200f8.
 
 ## Verification
 
+- Verified 2026-11-03 UTC: GitHub Actions on eb9200f8: security smoke #41627772559 SUCCESS and disposable PostGIS #41627772557 SUCCESS. These are not actual staging recovery results.
+
 | Test/check | Environment and command/evidence | Result / limitations |
 |---|---|---|
-| Syntax and unit | `npm run test:staging-restore-compare` | Pending GitHub CI |
-| Real SQL integration | Disposable PostgreSQL/PostGIS CI, equal-count mutation test | Pending GitHub CI; **never targets Supabase** |
+| Syntax and unit | Security smoke GitHub Actions #41627772559 on eb9200f8 | PASS; mock and safety assertions only |
+| Real SQL integration | Disposable PostgreSQL/PostGIS GitHub Actions #41627772557 on eb9200f8, including same-count data mutation | PASS; **never targets Supabase** |
 | Release-proof actual staging restore | Authorized private staging and separate approved PG17/PostGIS scratch | NOT RUN / owner blocked |
 | Secrets or student data read | None authorized | No live credential or database access performed |
 | Production/deployment | No tools used | None |
