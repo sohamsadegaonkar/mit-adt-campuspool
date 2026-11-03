@@ -130,7 +130,7 @@ function invalidSections(snapshot){
          new Set(entries).size!==entries.length ||
          names.some(n=>!entries.includes(n)))invalid.add(section);
       if(section==='counts' && rows.some(r=>typeof r?.count!=='string'||
-        !/^\\d+$/.test(r.count) || BigInt(r.count)>BigInt(MAX_DIGEST_ROWS)))
+        !/^\d+$/.test(r.count) || BigInt(r.count)>BigInt(MAX_DIGEST_ROWS)))
         invalid.add(section);
       if(section==='rowDigests' && rows.some(r=>typeof r?.digest!=='string'||
         !/^[0-9a-f]{64}$/.test(r.digest)))invalid.add(section);
