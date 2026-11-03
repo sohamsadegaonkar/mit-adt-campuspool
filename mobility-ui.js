@@ -74,6 +74,9 @@
     for(const id of fields){const el=byId('mobility'+id[0].toUpperCase()+id.slice(1));if(el)el.value='';}
     for(const m of Object.values(state.markers))m.remove();
     state.markers={};
+    for(const id of ['mobilityEarliest','mobilityLatest']){
+      const el=byId(id);if(el)el.value='';
+    }
   }
   function clearDriverRoute(){
     for(const id of ['offerMobilityPickupLat','offerMobilityPickupLon',
@@ -95,6 +98,9 @@
       clearLocations();
       clearDriverRoute();
       byId('mobilityMatches').replaceChildren();
+      byId('mobilityWindow').textContent='';
+      byId('mobilityActive').hidden=true;
+      byId('mobilityIntentForm').hidden=false;
       if(state.map){state.map.remove();state.map=null;state.mode=null;}
       byId('mobilityMap').hidden=true;
       message('');
@@ -121,7 +127,10 @@
         .map(x=>new Date(x).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'}));
       byId('mobilityWindow').textContent=dates.join(' – ');
       message('Travel request saved privately. Search for candidate rides when ready.');
-    }else message('Choose pickup, drop-off and a departure window to search.');
+    }else{
+      byId('mobilityWindow').textContent='';
+      message('Choose pickup, drop-off and a departure window to search.');
+    }
   }
   function renderMatches(items){
     const container=byId('mobilityMatches');
