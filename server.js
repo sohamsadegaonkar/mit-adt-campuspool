@@ -1561,7 +1561,7 @@ const server = http.createServer(async (req, res) => {
   }
   // Explicit public asset allowlist blocks source code, runtime databases, secrets,
   // traversal and unrecognized paths (instead of returning index.html with HTTP 200).
-  const publicAssets = new Set(['/', '/index.html', '/campuspool.css', '/campuspool-icon.svg', '/manifest.webmanifest', '/sw.js', '/404.html', '/503.html']);
+  const publicAssets = new Set(['/', '/index.html', '/campuspool.css', '/mobility-ui.js', '/campuspool-icon.svg', '/manifest.webmanifest', '/sw.js', '/404.html', '/503.html']);
   if (!publicAssets.has(pathname)) {
     const html = fs.readFileSync(path.join(__dirname, '404.html'));
     res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': html.length, 'Cache-Control': 'no-store' });
@@ -1583,7 +1583,7 @@ const server = http.createServer(async (req, res) => {
 
   const contentType = mimeTypes[ext] || 'application/octet-stream';
   const isHtml = ext === '.html';
-  const cacheControl = isHtml
+  const cacheControl = (isHtml || pathname === '/mobility-ui.js')
     ? 'public, no-cache, must-revalidate'
     : 'public, max-age=604800, stale-while-revalidate=86400';
 
