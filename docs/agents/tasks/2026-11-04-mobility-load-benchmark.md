@@ -1,9 +1,9 @@
 # Task: Reproducible PostGIS concurrency and abuse-control benchmark
 
 - **Task ID / file:** `2026-11-04-mobility-load-benchmark`
-- **Status:** in progress — isolated benchmark implementation/CI pending
+- **Status:** tested (CI) — 128/128 successful, all five CI workflows green; independent review pending
 - **Agent / owner:** ChatGPT engineering agent; independent reviewer unassigned
-- **Last updated:** 2026-11-04 UTC
+- **Last verified:** 2026-11-03 20:12 UTC, GitHub run #41710272878 (2026-11-04 user local date)
 - **Baseline:** `main@3ee1f4a12e984cb6aecbf8ea09150d1e79556c87`; unrelated PR #14 remains draft
 - **Scope:** `bench/mobility-load.js`, `bench/mobility-load.test.js`, isolated GitHub Actions benchmark, `package.json`, agent docs. No application API changes, Redis/H3, schema 008, staging/production deployment, external students, live data or providers.
 - **Dependencies / related tasks:** `MOBILITY_MATCHING_ROLLOUT.md`; `docs/agents/DECISIONS.md`; independent PR #14 (UI), PRs #11–13 (security/recovery)
@@ -34,17 +34,17 @@ Obtain reproducible baseline measurements for **128 simultaneous synthetic stude
 
 | Test/check | Environment and command/evidence | Result / limitations |
 |---|---|---|
-| Pure safety + percentile helper tests | `npm run test:mobility-bench` | Pending |
-| Synthetic concurrent matching, 128 requests | Dedicated GitHub disposable PostGIS service | Pending |
-| PostgreSQL shared 30/hour rate bucket check | Same disposable PostGIS | Pending |
-| PostgreSQL/PostGIS + security + agent-doc CI | PR GitHub Actions | Pending |
+| Pure safety + percentile helper tests | `npm run test:mobility-bench` in #41710272878 | PASS |
+| Synthetic concurrent matching, 128 requests | #41710272878; 512 synthetic rides, 24 pool connections | PASS: 128/128, p50=229.11ms, p95=297.87ms, p99=300.88ms |
+| PostgreSQL shared 30/hour rate bucket check | #41710272878, 35 parallel operations on one account | PASS: 30 allowed, 5 denied, durable count 30 |
+| PostgreSQL/PostGIS + security + agent-doc CI | #41710272720, #41710273292, #41710272608, #41710272767 | ALL PASS |
 | Production/staging load | Never run | Not authorized |
 
 ## Risks and decisions
 
 - This is a **DB-layer** microbenchmark, not full HTTP, real provider OTP, Render network latency, user-device response time, mixed writes, sustained throughput or real-world route verification. Do not mislabel as a capacity guarantee.
 - Synthetic spatial distribution and CI host CPU differ from campus traffic and production database. Record runner environment, dataset, pool max and queries in the report.
-- Benchmark must refuse anything but a specifically named dedicated localhost database even if environment flags are supplied. No arbitrary destructive SQL or copy of production data.
+- Benchmark requires an explicit flag, loopback *client URL*, exact dedicated database/role and empty benchmark tables; Docker can expose a different server-side bridge interface, so that is not a reliable security boundary. No arbitrary destructive SQL or copy of production data.
 - Rate bucket and geospatial checks use the same store as the app, no mock of ranking or throttling. No new runtime infrastructure.
 - `DECISIONS.md`: keep Redis/H3 deferred until measurements under realistic staged hardware and load show a need.
 
@@ -53,7 +53,7 @@ Obtain reproducible baseline measurements for **128 simultaneous synthetic stude
 1. **Next action:** create benchmark and unit safety tests, run CI, fix reproducible issues.
 2. **Who may do it:** engineering agent for isolated development; independent reviewer for code evaluation; operations owner for separately approved live staging only.
 3. **Prerequisites and blockers:** only isolated CI PostGIS allowed; live staging needs backup/restore+rollback approval and is out of scope.
-4. **Expected evidence:** 128 concurrent search completions, bounded candidates/privacy, aggregate percentiles + plan, controlled 31st shared-rate rejection, green CI.
+4. **Expected evidence:** obtained for synthetic DB-layer burst (128/128, p95=297.87ms, plan/index metadata, 30 allowed / 5 denied, green CI); independent representative staging/hardware review remains required.
 5. **Production impact:** none, no merge, migration or deployment.
 
 ## Links and files changed
@@ -61,3 +61,15 @@ Obtain reproducible baseline measurements for **128 simultaneous synthetic stude
 - Branch: `perf/mobility-load-baseline-2026-11-04` off main
 - Existing UI PR: #14 (not a dependency for DB-level benchmark)
 - Paths: `bench/mobility-load.js`, `bench/mobility-load.test.js`, `.github/workflows/mobility-load-benchmark.yml`, `package.json`, `docs/agents/{STATUS,NEXT_STEPS,DECISIONS}.md`, this task
+
+## Measured CI checkpoint — 2026-11-03 20:12 UTC
+
+- **Implementation SHA:** `da7063afa40f46143eba2545c6d15c461eddc36e`; benchmark GitHub Actions run [#41710272878](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41710272878) PASSED, report [aggregate-only artifact](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41710272878/artifacts/13266692837) (7-day retention).
+- **Scenario:** PostgreSQL 16 / PostGIS 3.4 on GitHub 4-CPU Linux runner, 128 simultaneous synthetic student queries, 512 synthetic geocoded rides, 24-connection application pool, deterministic random seed 4096. All 128 queries succeeded and all had matching candidates (1,280 bounded candidate cards). This is DB-level matching, not complete HTTP or real mobile E2E.
+- **Latency and burst rate:** p50 **229.11ms**, p95 **297.87ms**, p99 **300.88ms**, max 301.64ms, total 302.01ms and **423.83 queries/s** over this single burst; this is not sustainable throughput or a production SLA.
+- **Pool and database:** peak client queue **104**, max application connections **24**, monitoring max active PostgreSQL sessions **25**, sampled lock waiters **0**, Node.js CPU user 126.09ms / system 23.06ms (not PostgreSQL server CPU), RSS 67.13 MiB. `pg_stat_database` deltas are approximate (asynchronous counters).
+- **Representative plan:** EXPLAIN ANALYZE execution **1.70ms**, planning **0.64ms**; used `campus_ride_geo_dropoff_gist_idx` + `campus_rides_pkey`; 409 matched geocoded ride rows in the dense synthetic distribution. One student-intent Seq Scan is reasonable at tiny input size but not evidence about larger deployments.
+- **Shared-rate contention:** 35 simultaneous `PgOtpStore.rate` operations on the same synthetic identity => **30 allowed, 5 rejected** with durable count 30 (17.55ms). Backend policy remained enabled and unmodified.
+- **CI:** Stage 1 PG/PostGIS #41710272720, security #41710273292, credentials #41710272608, agent docs #41710272767 all PASS on the implementation SHA.
+- **Diagnostics corrected during development:** CI container server interface is not a reliable network isolation check and the first synthetic-intent SQL fixture had one missing value placeholder; both were fixed. The final benchmark requires a loopback client URL, dedicated empty DB, exact role and explicit opt-in, with own-ID cleanup. No SQL/secret details appear in failure logs.
+- **Architectural decision:** Redis/H3/microservices still deferred. The 104 queued requests demonstrate burst pool saturation under 128 callers but no sampled DB lock contention; investigate sustained throughput and representative staging hardware before scaling infrastructure. Not a feature release.
