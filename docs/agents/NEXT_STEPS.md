@@ -85,3 +85,8 @@ The actual PG17 backup/restore steps remain impossible to execute through the av
 
 - [Bounded SHA-256 restored-row verification](tasks/2026-11-03-staging-content-integrity.md) developed on child branch security/staging-restore-content-digests-2026-11-03 targeting draft PR #12 (which targets PR #11), not main. The staged recovery verifier now checks that **record contents** match, not just counts, while keeping all derived digests private.
 - **Immediate engineering action:** CI passed on eb9200f8 (security #41627772559, PostGIS #41627772557 including equal-count row mutation). Next independently review fingerprint serialization/collation, the 25,000-row cap and documentation contract, then fold reviewed changes into PR #12. The operator's real encrypted off-site backup/restore and Render rollback proof remain separately blocked; **NO** application migration 008 or live deploy is authorized.
+
+## Next exact review gate — fail-closed recovery evidence (2026-11-03 UTC)
+
+- Current draft PR #13 has an independent-review fix for the false-match case when both source/restore snapshots omit required sections or their migration ledger. **Next engineering action:** confirm fresh security and disposable PostGIS CI on these review-fix commits, including the new malformed/missing-evidence tests; then request independent human review before integrating PR #13 into PR #12.
+- Real-staging operator gates remain unchanged: off-site encrypted archive verified by independent download, a compatible separate scratch restore, role/security/data evidence and retained Render rollback artifact availability. Do not run a live migration 008, deploy staging or production, or merge the release branch merely because the tests pass.
