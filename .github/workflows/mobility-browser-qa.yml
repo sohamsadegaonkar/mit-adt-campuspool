@@ -1,0 +1,77 @@
+name: CampusPool mobility browser E2E (disposable only)
+
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'mobility-ui.js'
+      - 'e2e/**'
+      - 'playwright.mobility.config.cjs'
+      - 'stage1-otp/**'
+      - 'server.js'
+      - 'package.json'
+      - '.github/workflows/mobility-browser-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: qa-disposable-only
+          POSTGRES_DB: campuspool_browser_qa
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d campuspool_browser_qa"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      CI: "true"
+      QA_DISPOSABLE_POSTGIS: "YES"
+      OTP_DATABASE_URL: postgresql://postgres:qa-disposable-only@127.0.0.1:5432/campuspool_browser_qa
+      OTP_DB_SSL: "false"
+      PLAYWRIGHT_BROWSERS_PATH: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.2'
+          cache: npm
+      - name: Install locked app dependencies
+        run: npm ci
+      - name: Install isolated pinned Playwright test runner (not shipped)
+        run: npm install --no-save --package-lock=false @playwright/test@1.56.1
+      - name: Install Chromium, Firefox, WebKit and system libraries
+        run: npx playwright install --with-deps chromium firefox webkit
+      - name: Validate browser QA code
+        run: |
+          node --check playwright.mobility.config.cjs
+          node --check e2e/mobility-fixtures.cjs
+          node --check e2e/mobility.spec.cjs
+          node --check server.js
+          node --check mobility-ui.js
+      - name: Initialize isolated disposable PostGIS schema (never Supabase)
+        run: |
+          node -e "const {Client}=require('pg');(async()=>{const c=new Client({connectionString:process.env.OTP_DATABASE_URL});await c.connect();try{await c.query('DROP EXTENSION IF EXISTS postgis CASCADE; CREATE SCHEMA IF NOT EXISTS extensions;')}finally{await c.end();}})().catch(e=>{console.error(e.message);process.exit(1)})"
+          node stage1-otp/migrate.js
+      - name: Run real-browser mobility QA (desktop + mobile)
+        run: npm run test:e2e:mobility
+      - name: Upload synthetic-only traces and HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: campuspool-mobility-browser-qa
+          path: |
+            playwright-report/
+            test-results/mobility/
+          if-no-files-found: ignore
+          retention-days: 7
