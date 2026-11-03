@@ -1430,20 +1430,66 @@
         }));
       } catch (_) { console.warn('Preference saving unavailable'); }
     }
-    // Reuse the same request key for network retries / repeated clicks.
-    // In-memory only: no student payloads or identities written to localStorage.
+    // Retry token persistence is tab-scoped. Only hashes of operation inputs,
+    // random keys and expiry timestamps are stored; never request JSON or PII.
     const idempotentDomainRoutes = new Set([
       '/api/rides', '/api/bookings', '/api/rides/cancel',
       '/api/bookings/cancel', '/api/mobility/intents',
       '/api/mobility/intents/cancel'
     ]);
     const pendingDomainMutations = new Map();
+    const pendingMutationStore = 'campuspool.pending-mutators.v1';
+    const pendingMutationTtlMs = 24 * 60 * 60 * 1000;
+    const duplicateClickGraceMs = 1200;
     function secureRequestId() {
       if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
       const bytes = new Uint8Array(16);
       crypto.getRandomValues(bytes);
       return Array.from(bytes, x => x.toString(16).padStart(2, '0')).join('');
     }
+    function recoverPendingDomainMutations() {
+      try {
+        const saved = JSON.parse(sessionStorage.getItem(pendingMutationStore) || '[]');
+        if (!Array.isArray(saved)) return;
+        const now = Date.now();
+        for (const entry of saved.slice(-64)) {
+          if (!entry || typeof entry.slot !== 'string' ||
+              !/^[a-f0-9]{64}$/.test(entry.slot) ||
+              typeof entry.key !== 'string' ||
+              !/^[A-Za-z0-9_-]{16,128}$/.test(entry.key) ||
+              !Number.isFinite(entry.expiresAt) ||
+              entry.expiresAt <= now || entry.expiresAt > now + pendingMutationTtlMs) continue;
+          pendingDomainMutations.set(entry.slot, { key:entry.key, expiresAt:entry.expiresAt });
+        }
+      } catch (_) { /* sessionStorage may be blocked: in-memory retry still works */ }
+    }
+    function persistPendingDomainMutations() {
+      const now = Date.now();
+      for (const [slot, value] of pendingDomainMutations) {
+        if (value.expiresAt <= now) pendingDomainMutations.delete(slot);
+      }
+      // Bound memory/storage and never persist volatile plaintext fallback slots.
+      while (pendingDomainMutations.size > 64) {
+        pendingDomainMutations.delete(pendingDomainMutations.keys().next().value);
+      }
+      try {
+        const safe = Array.from(pendingDomainMutations, ([slot, value]) => ({
+          slot, key:value.key, expiresAt:value.expiresAt
+        })).filter(entry => /^[a-f0-9]{64}$/.test(entry.slot));
+        sessionStorage.setItem(pendingMutationStore, JSON.stringify(safe));
+      } catch (_) { /* optional, not an authentication mechanism */ }
+    }
+    function clearPendingDomainMutations() {
+      pendingDomainMutations.clear();
+      try { sessionStorage.removeItem(pendingMutationStore); } catch (_) {}
+    }
+    async function operationSlot(method, pathname, payload) {
+      const input = [method, pathname, appState.currentUser?.email || '', payload].join('\x1f');
+      if (!crypto.subtle?.digest) return 'volatile:' + input;
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
+      return Array.from(new Uint8Array(digest), x => x.toString(16).padStart(2, '0')).join('');
+    }
+    recoverPendingDomainMutations();
     async function apiFetch(input, options = {}) {
       const urlString = typeof input === 'string' ? input : input.url;
       const sameOriginApi = urlString.startsWith('/api/');
@@ -1454,26 +1500,34 @@
       }
       let mutationSlot = null;
       const pathname = urlString.split('?')[0];
-      if (sameOriginApi && method === 'POST' && idempotentDomainRoutes.has(pathname)) {
-        mutationSlot = method + ':' + pathname + ':' + String(options.body || '');
+      // Explicit keys belong to the caller; auto-key only plain JSON domain calls.
+      if (sameOriginApi && method === 'POST' && idempotentDomainRoutes.has(pathname) &&
+          !headers.has('Idempotency-Key')) {
+        mutationSlot = await operationSlot(method, pathname, String(options.body || ''));
         let pending = pendingDomainMutations.get(mutationSlot);
         if (!pending || pending.expiresAt <= Date.now()) {
-          pending = { key: secureRequestId(), expiresAt: Date.now() + 24 * 60 * 60 * 1000 };
+          pending = { key:secureRequestId(), expiresAt:Date.now() + pendingMutationTtlMs };
           pendingDomainMutations.set(mutationSlot, pending);
+          persistPendingDomainMutations(); // save before network dispatch
         }
-        if (!headers.has('Idempotency-Key')) headers.set('Idempotency-Key', pending.key);
+        headers.set('Idempotency-Key', pending.key);
       }
-      const response = await fetch(input, { ...options, headers, credentials: 'same-origin' });
+      // A network failure never clears the pending token. Retrying after a
+      // reload reuses the same key as long as the browser tab state survives.
+      const response = await fetch(input, { ...options, headers, credentials:'same-origin' });
       if (mutationSlot) {
         if (response.ok) {
-          // Short grace period also deduplicates double-clicks after success.
           const pending = pendingDomainMutations.get(mutationSlot);
-          if (pending) pending.expiresAt = Date.now() + 60000;
-        } else if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+          if (pending) pending.expiresAt = Math.min(pending.expiresAt,
+            Date.now() + duplicateClickGraceMs);
+        } else if (response.status >= 400 && response.status < 500 &&
+                   response.status !== 429) {
           pendingDomainMutations.delete(mutationSlot);
         }
+        persistPendingDomainMutations();
       }
       if (sameOriginApi && response.status === 401 && !urlString.startsWith('/api/auth/')) {
+        clearPendingDomainMutations();
         csrfToken = null;
         appState.currentUser = null;
         appState.myBookings = [];
@@ -1757,6 +1811,7 @@
             showToast('Could not revoke your session. Try again online.', '⚠️');
             return;
           }
+          clearPendingDomainMutations();
           appState.currentUser = null;
           csrfToken = null;
           appState.myBookings = [];

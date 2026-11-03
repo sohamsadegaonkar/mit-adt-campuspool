@@ -29,7 +29,8 @@
     "test:mobility-geo": "node --test test_mobility_geo.js",
     "test:mobility-http": "node --test test_pg_mobility_http.js",
     "test:idempotency": "node --test test_idempotency.js",
-    "test:idempotency-pg": "node --test test_pg_idempotency.js"
+    "test:idempotency-pg": "node --test test_pg_idempotency.js",
+    "test:browser-idempotency": "node --test test_browser_idempotency.js"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",

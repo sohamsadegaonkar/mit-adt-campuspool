@@ -75,6 +75,34 @@ test('PostgreSQL serializes concurrent identical keys and rolls back effect + re
       assert.equal(grants.rows[0].can_read,true);
       const rls=await pool.query("SELECT relrowsecurity FROM pg_class WHERE oid='public.campus_idempotency_keys'::regclass");
       assert.equal(rls.rows[0].relrowsecurity,true);
+      const appRole=await pool.query(
+        "SELECT rolbypassrls,rolsuper FROM pg_roles WHERE rolname='campuspool_staging_app'");
+      assert.equal(appRole.rows[0].rolbypassrls,false);
+      assert.equal(appRole.rows[0].rolsuper,false);
+      for(const role of ['anon','authenticated']) {
+        const denied=await pool.connect();
+        try {
+          await denied.query('BEGIN');
+          await denied.query('SET LOCAL ROLE ' + role);
+          await assert.rejects(denied.query(
+            'SELECT request_key FROM public.campus_idempotency_keys LIMIT 1'),
+            /permission denied/);
+        } finally {
+          await denied.query('ROLLBACK').catch(()=>{});
+          denied.release();
+        }
+      }
+      const backend=await pool.connect();
+      try {
+        await backend.query('BEGIN');
+        await backend.query('SET LOCAL ROLE campuspool_staging_app');
+        const access=await backend.query(
+          'SELECT request_key FROM public.campus_idempotency_keys WHERE request_key=$1',[key]);
+        assert.equal(access.rows.length,1);
+      } finally {
+        await backend.query('ROLLBACK').catch(()=>{});
+        backend.release();
+      }
     }finally{
       await pool.query('DELETE FROM public.campus_test_idempotency_effects WHERE id=ANY($1::uuid[])',
         [[effectId]]).catch(()=>{});
