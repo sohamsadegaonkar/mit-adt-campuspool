@@ -41,10 +41,28 @@ const QUERIES={
 };
 function sorted(rows){return rows.slice().sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)));}
 function tableNamed(row){return NAME.test(row.table_name||row.name||'');}
+
+// For a deliberately bounded, operator-controlled staging snapshot only.
+// A larger table requires an independently reviewed streaming recovery verifier.
+const MAX_DIGEST_ROWS=25000;
+function digestSql(name){
+  if(!NAME.test(name))throw Error('Unexpected table name');
+  // Multiset SHA-256: equal row counts with different content cannot silently pass.
+  // Hashes are computed inside PostgreSQL, never returned as records or printed.
+  // to_jsonb provides normalized column-key order; hash sorting ignores row order
+  // while retaining duplicates. Requires PostgreSQL >= 14 (tested on PG16 CI).
+  return "SELECT encode(sha256(convert_to("+
+    "COALESCE(string_agg(rowhash, '' ORDER BY rowhash), ''),'UTF8')),'hex') AS digest "+
+    "FROM (SELECT encode(sha256(convert_to(to_jsonb(t)::text,'UTF8')),'hex') AS rowhash "+
+    'FROM public."'+name+'" t) hashes';
+}
+
 async function snapshot(client){
   await client.query('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
   try{
     await client.query('SET LOCAL statement_timeout = 15000');
+    await client.query("SET LOCAL TIME ZONE 'UTC'");
+    await client.query("SET LOCAL DateStyle = 'ISO, YMD'");
     const result={};
     for(const [name,sql] of Object.entries(QUERIES)){
       const rows=(await client.query(sql)).rows;
@@ -55,13 +73,23 @@ async function snapshot(client){
     if(!result.roles.some(r=>r.name==='campuspool_staging_app'))
       throw Error('Backend role missing');
     result.counts=[];
+    result.rowDigests=[];
     for(const name of names){
       if(!NAME.test(name))throw Error('Unexpected table name');
       const q='SELECT count(*)::text AS count FROM public."'+name+'"';
       const row=(await client.query(q)).rows[0];
+      if(!row || !/^\d+$/.test(row.count))throw Error('Invalid table count');
+      // Fail closed rather than loading potentially huge or sensitive table data.
+      if(BigInt(row.count)>BigInt(MAX_DIGEST_ROWS))
+        throw Error('Recovery fingerprint row limit exceeded; manual plan required');
       result.counts.push({name,count:row.count});
+      const fingerprint=(await client.query(digestSql(name))).rows[0]?.digest;
+      if(typeof fingerprint!=='string' || !/^[0-9a-f]{64}$/.test(fingerprint))
+        throw Error('Invalid recovery fingerprint');
+      result.rowDigests.push({name,digest:fingerprint});
     }
     result.counts=sorted(result.counts);
+    result.rowDigests=sorted(result.rowDigests);
     const marker=await client.query("SELECT to_regclass('supabase_migrations.schema_migrations') IS NOT NULL AS present");
     result.migrationHistoryPresent=marker.rows[0].present;
     if(result.migrationHistoryPresent){
@@ -73,11 +101,12 @@ async function snapshot(client){
   }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}
 }
 function compare(source,target){
-  const sections=[...Object.keys(QUERIES),'counts','migrationHistoryPresent','migrationVersions'];
+  const sections=[...Object.keys(QUERIES),'counts','rowDigests','migrationHistoryPresent','migrationVersions'];
   const mismatches=sections.filter(k=>JSON.stringify(source[k])!==JSON.stringify(target[k]));
   return {matches:mismatches.length===0,releaseReady:false,
     compared:sections,mismatches,
-    notes:['Metadata and row counts only: row contents, private role credentials, backup provenance and remote ciphertext integrity are not established.',
+    notes:['SHA-256 row-content fingerprints are compared internally but never printed. This is bounded, point-in-time, logical-data verification, not proof of backup provenance or complete recovery.',
+      'Private role credentials, provider-managed objects, remote ciphertext integrity and restore provenance remain unverified.',
       'A successful comparison does not authorize migration 008, staging deployment or production release.']};
 }
 async function main(env=process.env,argv=process.argv.slice(2)){
@@ -106,4 +135,4 @@ if(require.main===module)main().catch(()=>{
   console.error('[RESTORE COMPARE] BLOCKED: precondition, connection or snapshot check failed.');
   process.exitCode=1;
 });
-module.exports={validatePlan,connectionConfig,snapshot,compare,QUERIES};
+module.exports={validatePlan,connectionConfig,snapshot,compare,QUERIES,digestSql,MAX_DIGEST_ROWS};
