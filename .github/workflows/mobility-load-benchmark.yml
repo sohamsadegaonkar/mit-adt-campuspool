@@ -1,0 +1,73 @@
+name: CampusPool disposable PostGIS mobility load benchmark
+
+on:
+  pull_request:
+    paths:
+      - 'bench/mobility-load.js'
+      - 'bench/mobility-load.test.js'
+      - 'stage1-otp/mobility-store.js'
+      - 'stage1-otp/mobility-geo.js'
+      - 'stage1-otp/pg-store.js'
+      - 'stage1-otp/migrations/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/mobility-load-benchmark.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  disposable-benchmark:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgis:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: bench-only-not-a-live-secret
+          POSTGRES_DB: campuspool_mobility_bench
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d campuspool_mobility_bench"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      CI: "true"
+      BENCH_DISPOSABLE_DB: "YES"
+      OTP_DATABASE_URL: postgresql://postgres:bench-only-not-a-live-secret@127.0.0.1:5432/campuspool_mobility_bench
+      OTP_DB_SSL: "false"
+      BENCH_STUDENTS: "128"
+      BENCH_RIDES: "512"
+      BENCH_POOL_MAX: "24"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.2'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Syntax and fail-closed benchmark validation
+        run: |
+          node --check bench/mobility-load.js
+          node --check bench/mobility-load.test.js
+          npm run test:mobility-bench
+      - name: Prepare PostGIS extension location in EMPTY disposable CI database
+        run: |
+          node -e "const {Client}=require('pg');(async()=>{const c=new Client({connectionString:process.env.OTP_DATABASE_URL});await c.connect();try{await c.query('DROP EXTENSION IF EXISTS postgis CASCADE; CREATE SCHEMA IF NOT EXISTS extensions;')}finally{await c.end();}})().catch(e=>{console.error(e.code||'PREP_FAILED');process.exit(1)})"
+      - name: Apply existing 001-007 migrations only in disposable CI
+        run: node stage1-otp/migrate.js
+      - name: Measure 128 concurrent matching calls and rate-limit contention
+        run: npm run bench:mobility
+      - name: Upload aggregate-only benchmark report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: campuspool-mobility-postgis-benchmark
+          path: bench-results/mobility.json
+          if-no-files-found: ignore
+          retention-days: 7
