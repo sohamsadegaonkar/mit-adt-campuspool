@@ -74,7 +74,8 @@ class PgRidesStore {
     await this.pool.query('SELECT 1 FROM public.campus_rides LIMIT 0');
     await this.pool.query('SELECT 1 FROM public.campus_bookings LIMIT 0');
   }
-  async tx(fn){
+  async tx(fn,externalClient){
+    if(externalClient)return fn(externalClient);
     const client=await this.pool.connect();
     try{
       await client.query('BEGIN');
@@ -86,7 +87,7 @@ class PgRidesStore {
       throw e;
     }finally{client.release();}
   }
-  async createRide({driverUserId,ride}={}){
+  async createRide({driverUserId,ride,client:txClient}={}){
     if(typeof driverUserId!=='string')throw new RidesError('AUTH_REQUIRED',401);
     const r=checkRideInput(ride);
     const geo=rideRouteInput(ride);
@@ -119,7 +120,7 @@ class PgRidesStore {
           geo.departure,geo.pickupCell,geo.dropoffCell,geo.departureBucket]);
       }
       return ridePublic(result.rows[0]);
-    });
+    },txClient);
   }
   async getRides(){
     const r=await this.pool.query(
@@ -141,7 +142,7 @@ class PgRidesStore {
     ].join(' '),[userId]);
     return r.rows.map(bookingPublic);
   }
-  async bookRide({rideId,passengerUserId}={}){
+  async bookRide({rideId,passengerUserId,client:txClient}={}){
     if(typeof passengerUserId!=='string')throw new RidesError('AUTH_REQUIRED',401);
     if(typeof rideId!=='string'||rideId.length>64)throw new RidesError('INVALID_RIDE');
     return this.tx(async client=>{
@@ -177,9 +178,9 @@ class PgRidesStore {
         ride.vehicle_model,ride.pickup,ride.destination,ride.departure_time,
         ride.student_fare,ride.upi_id]);
       return bookingPublic(insert.rows[0]);
-    });
+    },txClient);
   }
-  async cancelBooking({bookingId,passengerUserId}={}){
+  async cancelBooking({bookingId,passengerUserId,client:txClient}={}){
     if(typeof passengerUserId!=='string')throw new RidesError('AUTH_REQUIRED',401);
     if(typeof bookingId!=='string'||bookingId.length>64)throw new RidesError('INVALID_BOOKING');
     return this.tx(async client=>{
@@ -200,7 +201,7 @@ class PgRidesStore {
         'UPDATE public.campus_rides SET seats_left=LEAST(seats_total,seats_left+1),updated_at=now() WHERE id=$1',
         [booking.ride_id]);
       return {success:true,rideId:booking.ride_id};
-    });
+    },txClient);
   }
   async isRideDriver(rideId,userId){
     if(!rideId||!userId)return false;
@@ -267,7 +268,7 @@ class PgRidesStore {
     };
   }
 
-  async cancelRide({rideId,driverUserId}={}){
+  async cancelRide({rideId,driverUserId,client:txClient}={}){
     if(typeof driverUserId!=='string')throw new RidesError('AUTH_REQUIRED',401);
     if(typeof rideId!=='string'||rideId.length>64)throw new RidesError('INVALID_RIDE');
     return this.tx(async client=>{
@@ -283,7 +284,7 @@ class PgRidesStore {
         "UPDATE public.campus_rides SET status='cancelled',seats_left=seats_total,updated_at=now() WHERE id=$1",
         [rideId]);
       return {success:true};
-    });
+    },txClient);
   }
 }
 module.exports={PgRidesStore,RidesError,ridePublic,bookingPublic,checkRideInput};
