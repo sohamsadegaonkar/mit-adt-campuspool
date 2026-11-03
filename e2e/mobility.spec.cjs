@@ -57,7 +57,8 @@ test('server-disabled mobility remains hidden for verified student',async({page,
 test('verified student validates request, creates and cancels own intent',async({page,context})=>{
   await openAs(page,context,fixture.passenger);
   await expect(page.locator('#mobilityIntentPanel')).toBeVisible();
-  await expect(page.locator('#offerMobilityGeoSection')).toBeVisible();
+  // Driver opt-in is enabled by the server but stays visually hidden inside its inactive tab.
+  await expect(page.locator('#offerMobilityGeoSection')).not.toHaveAttribute('hidden', '');
   await expect(page.locator('#offerMobilityOptIn')).not.toBeChecked();
 
   await page.locator('#mobilityPickupLat').fill('40');
@@ -67,7 +68,7 @@ test('verified student validates request, creates and cancels own intent',async(
   await page.locator('#mobilityEarliest').fill(localInput(future(23)));
   await page.locator('#mobilityLatest').fill(localInput(future(25)));
   // Native input min/max must block invalid coordinates before network.
-  await expect(page.locator('#mobilityPickupLat')).toHaveJSProperty('validity',expect.anything());
+  expect(await page.locator('#mobilityPickupLat').evaluate(el=>el.checkValidity())).toBe(false);
   await page.locator('#mobilityPickupLat').fill('18.512');
 
   await createIntent(page);
@@ -187,6 +188,6 @@ test('matching panel fits viewport without causing horizontal overflow',async({p
   const width=await page.evaluate(()=>document.documentElement.clientWidth);
   expect(bounds.x).toBeGreaterThanOrEqual(-1);
   expect(bounds.x+bounds.width).toBeLessThanOrEqual(width+1);
-  await expect(page.getByLabel('Pickup latitude')).toBeVisible();
-  await expect(page.getByLabel('Destination latitude')).toBeVisible();
+  await expect(page.locator('#mobilityPickupLat')).toBeVisible();
+  await expect(page.locator('#mobilityDropoffLat')).toBeVisible();
 });
