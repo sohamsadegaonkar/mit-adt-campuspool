@@ -1,9 +1,10 @@
 # CampusPool — prioritized next steps and ownership
 
-**Last prioritized:** 2026-11-03 UTC. **Baseline:** `main@0345b6aeff86`. Items are an actionable backlog, **not authorizations** to alter Render production, student data, SMS/email accounts or payment systems.
+**Last prioritized:** 2026-11-03 UTC. **Baseline:** `main@3ee1f4a12e98`. Items are an actionable backlog, **not authorizations** to alter Render production, student data, SMS/email accounts or payment systems.
 
 | Priority | Work item | Current state | Next concrete action | Acceptance / evidence | Owner |
 |---|---|---|---|---|---|
+| P0 | Verify transactional request idempotency | Branch implementation in review, not in main/staging | Run full CI and review request-key replay/DB atomicity; after approval, stage PG migration 008 before controlled deployment | Original response replay, zero double-booking/cancel and rollback proof across workers | ChatGPT engineering agent (branch only) |
 | P0 | Close historical credential incident | Unverified account-side revocation | Account owner confirms revoked Gmail App Password, regenerated OTP secret and private Render replacement; review access logs | Dated verification, no raw secrets in Git/logs, controlled provider test | Account owner |
 | P0 | Genuine provider OTP verification in staging | Adapter and CI mock tests exist | Configure verified Resend sender/domain and approved MSG91/DLT Flow in isolated staging, then test controlled end-to-end signup/login | Actual inbox/handset receipt, expiry/replay/resend and provider failure checks | Unassigned |
 | P0 | Durable production Rides plan | PostgreSQL Rides implementation exists behind flag; production on SQLite | Inventory existing data; design consistent backup/export, UUID reconciliation, staging import and cold restore | Recorded counts/hashes, ownership continuity, proven forward+rollback | Unassigned |
@@ -28,6 +29,10 @@
 2. Choose a specific unassigned item, create `docs/agents/tasks/YYYY-MM-DD-<slug>.md`, record an explicit scope and owner, and coordinate changes with active PRs.
 3. Update progress in the task file and keep these priorities aligned with verified reality on each implementation PR.
 4. If no credentials, authority, safe environment or rollback evidence exist, mark the task blocked instead of improvising a production action.
+
+## Active agent handoff
+
+- [Transactional request idempotency](tasks/2026-11-03-transactional-idempotency.md): test branch, review migration/rollout, and complete staging QA before treating as deployed. No live migration authorized.
 
 ## Latest completed documentation task
 
