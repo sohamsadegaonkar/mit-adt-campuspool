@@ -1,7 +1,7 @@
 # Task: Read-only staging migration 008 preflight and fail-closed checks
 
 - **Task ID / file:** `2026-11-03-staging-migration-preflight`
-- **Status:** in review — implementation committed, isolated CI verification pending
+- **Status:** code implemented and isolated CI verified; staging rollout separately blocked
 - **Agent / owner:** ChatGPT engineering agent
 - **Last updated:** 2026-11-03 UTC
 - **Baseline:** `main@3ee1f4a12e98`; draft [PR #11](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/11) `security/transactional-idempotency-2026-11-03`, parent `d128437`
@@ -28,14 +28,15 @@ Prior review verified staging project `tnitksrlntrdxbvznxzf`: PostgreSQL 17.11, 
 
 - 2026-11-03 UTC — Read current PR #11 and migration runner. The runner executes every SQL file unconditionally; this tool is deliberately separate and **does not** adopt any new DB migration ledger on live staging.
 - 2026-11-03 UTC — Prepared `scripts/staging-migration-preflight.js` and `test_staging_migration_preflight.js`: exact staging ref verification, READ ONLY transaction, pre/post-008 table/role/RLS/grant tests, safe no-URL diagnostic JSON, no migration writes.
-- 2026-11-03 UTC — Updated npm scripts, CI coverage, staging runbook and agent handoff. **Exact-head CI evidence to be appended after runs finish.**
+- 2026-11-03 UTC — Updated npm scripts, CI coverage, staging runbook and agent handoff. First two CI attempts found a test-string typo and a disposable CI role marked NOLOGIN; the CI-only fixture now matches real staging's independently verified LOGIN flag, without loosening the actual preflight.
+- 2026-11-03 UTC — **Implementation commit `4d66aa023cf61bdc154fe32e3ce0336c8204e520` passed all four GitHub workflows**: PostGIS integration #41595567003, security smoke #41595567015, credential hygiene #41595567125, agent documentation #41595567097. The live staging project and Render remain untouched.
 
 ## Verification
 
 | Test/check | Environment and command/evidence | Result / limitations |
 |---|---|---|
-| Safe connection target + failure cases | `npm run test:staging-preflight` in CI | Pending |
-| Disposable PostGIS actual role and RLS posture | `npm run test:staging-preflight` with local `OTP_DATABASE_URL`, following `test:idempotency-pg` | Pending |
+| Safe connection target + failure cases | `npm run test:staging-preflight` in isolated CI | PASS `4d66aa0` security #41595567015 |
+| Disposable PostGIS actual role and RLS posture | `npm run test:staging-preflight` with local `OTP_DATABASE_URL`, following `test:idempotency-pg` | PASS `4d66aa0` PG #41595567003 |
 | Staging live before-008 check | `npm run check:staging-migration -- --mode=before` with private env, on authorized operator machine | Not run; no credentials supplied here |
 | Off-site backup and scratch restore | staging release runbook | BLOCKED / NOT VERIFIED |
 | Render staging rollback target | workspace selection | BLOCKED / NOT VERIFIED |
@@ -50,7 +51,7 @@ Prior review verified staging project `tnitksrlntrdxbvznxzf`: PostgreSQL 17.11, 
 
 ## Next steps — exact handoff
 
-1. **Next action:** confirm new-head CI green; inspect any failing tests, correct and document failures; then schedule safe staging backup + independent restore and select the exact Render workspace with owner.
+1. **Next action:** arrange secure staging database backup and independently verified restore with the owner, confirm the Render workspace + rollback SHA, then run read-only `--mode=before` from the private operator environment. Gate actual migration 008 and deployment separately.
 2. **Who may do it:** engineering reviewer for code/CI; authorized owner for backup and Render selection.
 3. **Prerequisites and blockers:** cryptographically protected off-site dump, scratch restore report, confirmed Render service/deploy SHA and scoped stage approval before applying 008.
 4. **Expected evidence:** GitHub Actions exact SHA PASS, before-mode sanitized preflight output, dump hash + restore confirmation, verified rollback deployment ref; then after-mode output only after authorized migration.

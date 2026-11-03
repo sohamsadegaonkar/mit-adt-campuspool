@@ -47,5 +47,5 @@ See [2026-11-03-agent-workflow.md](tasks/2026-11-03-agent-workflow.md) for the m
 
 ## Next engineering handoff — staging migration preflight (2026-11-03)
 
-- [Read-only migration 008 preflight](tasks/2026-11-03-staging-migration-preflight.md): validate isolated CI, review exact-project URL guard, run `APP_ENV=staging OTP_DB_SSL=true npm run check:staging-migration -- --mode=before` **only** with a private stage-only `OTP_DATABASE_URL` on the authorized operator machine.
+- [Read-only migration 008 preflight](tasks/2026-11-03-staging-migration-preflight.md): isolated GitHub CI passed at `4d66aa0` (PostGIS #41595567003, security #41595567015). Review the exact-project guard and run `APP_ENV=staging OTP_DB_SSL=true npm run check:staging-migration -- --mode=before` **only** with a private stage-only `OTP_DATABASE_URL` on the authorized operator machine.
 - Before any live SQL: obtain encrypted off-site backup, independent restore proof, verified Render workspace and re-deployable known-good SHA. The preflight itself deliberately reports `releaseReady:false`; passing schema inspection never waives release gates.

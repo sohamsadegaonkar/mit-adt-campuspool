@@ -71,3 +71,7 @@ APP_ENV=staging OTP_DB_SSL=true npm run check:staging-migration -- --mode=before
 It verifies the exact Supabase project ref (including pooler username suffix), server-only grants, app role privilege flags and RLS/policies. Its SQL transaction is `REPEATABLE READ READ ONLY`. It refuses unknown projects and never migrates, exports, alters or deploys anything. Its `releaseReady` value is intentionally `false` even on success because backup/restore and Render rollback proof are separate approval gates.
 
 Only *after* a separately authorized additive 008 migration is completed, run `--mode=after` to check receipt table, index, RLS and privileges. **Do not use** the all-in-one `npm run migrate:otp` script as an unreviewed staging upgrade: it re-executes all 001–008 migrations and has no own applied-version ledger.
+
+## CI verification — 2026-11-03
+
+The preflight implementation passed the full isolated GitHub suite at code commit `4d66aa0`: PostgreSQL/PostGIS #41595567003, security smoke #41595567015, credentials #41595567125 and agent docs #41595567097. **This is not evidence of a completed staging dump, restore, Render rollout or applied migration 008.**
