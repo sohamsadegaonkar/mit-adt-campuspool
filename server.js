@@ -12,6 +12,7 @@ const path = require('path');
 const crypto = require('crypto');
 const url = require('url');
 const smsProvider = require('./sms-provider');
+const { PgIdempotencyStore, SqliteIdempotencyStore, IdempotencyError } = require('./idempotency');
 const AUTH_OTP_BACKEND = process.env.AUTH_OTP_BACKEND || 'sqlite';
 if (!['sqlite', 'postgres'].includes(AUTH_OTP_BACKEND)) throw new Error('AUTH_OTP_BACKEND must be sqlite or postgres');
 // Opt-in only. Production/staging stay on the legacy Rides backend unless
@@ -168,6 +169,8 @@ const pgRidesStore = RIDES_BACKEND === 'postgres'
   ? new PgRidesStore({pool:pgOtpStore.pool}) : null;
 const pgMobilityStore = MOBILITY_MATCHING_ENABLED
   ? new PgMobilityStore({pool:pgOtpStore.pool}) : null;
+const pgIdempotency = pgRidesStore ? new PgIdempotencyStore(pgOtpStore.pool) : null;
+const sqliteIdempotency = !pgRidesStore ? new SqliteIdempotencyStore(db.db) : null;
 
 // -------------------------------------------------------------------------
 // Native Multi-Channel Email Dispatcher (HTTPS REST APIs + TLS SMTP Sockets)
@@ -433,8 +436,8 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('Vary', 'Origin');
   if (allowedOrigin) res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-CSRF-Token');
-  res.setHeader('Access-Control-Expose-Headers', 'RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset, Retry-After');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-CSRF-Token, Idempotency-Key');
+  res.setHeader('Access-Control-Expose-Headers', 'RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset, Retry-After, Idempotency-Replayed');
   if (origin && !allowedOrigin) {
     res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
     return res.end(JSON.stringify({ success: false, error: 'CORS_ORIGIN_DENIED' }));
@@ -579,6 +582,31 @@ const server = http.createServer(async (req, res) => {
   function sendJson(statusCode, data) {
     res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
     res.end(JSON.stringify(data));
+  }
+
+  class MutationRejection extends Error {
+    constructor(status, body) { super('MUTATION_REJECTED'); this.status = status; this.body = body; }
+  }
+  function rejectMutation(status, body) { throw new MutationRejection(status, body); }
+  async function executeIdempotentMutation(route, body, execute) {
+    const store = pgIdempotency || sqliteIdempotency;
+    try {
+      const receipt = await store.run({
+        actor: pgRidesStore ? authenticatedUser?.id : authenticatedUser?.email,
+        route: 'POST ' + route,
+        key: req.headers['idempotency-key'],
+        body,
+        execute
+      });
+      if (receipt.replayed) res.setHeader('Idempotency-Replayed', 'true');
+      return sendJson(receipt.status, receipt.body);
+    } catch (error) {
+      if (error instanceof IdempotencyError)
+        return sendJson(error.status, { success: false, error: error.code });
+      if (error instanceof MutationRejection)
+        return sendJson(error.status, error.body);
+      throw error;
+    }
   }
 
   function readSessionToken() {
@@ -1646,7 +1674,7 @@ const server = http.createServer(async (req, res) => {
 
   const startServer = async () => {
     if (pgOtpStore) { await pgOtpStore.ready(); await pgIdentity.pool.query('SELECT 1 FROM campus_users LIMIT 0'); await pgIdentity.pool.query('SELECT 1 FROM campus_sessions LIMIT 0'); }
-    if (pgRidesStore) await pgRidesStore.ready();
+    if (pgRidesStore) { await pgRidesStore.ready(); await pgIdempotency.ready(); }
     if (pgMobilityStore) await pgMobilityStore.ready();
     server.listen(PORT, '0.0.0.0', () => {
     const workerLabel = cluster.isWorker ? `Worker #${cluster.worker.id} (PID: ${process.pid})` : `Standalone Server (PID: ${process.pid})`;
