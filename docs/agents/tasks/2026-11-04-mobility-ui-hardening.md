@@ -1,9 +1,9 @@
 # Task: Mobility browser session-race, map and keyboard hardening
 
 - **Task ID:** 2026-11-04-mobility-ui-hardening
-- **Status:** in progress — implementation and isolated browser evidence pending
+- **Status:** tested (CI) — 30/30 Playwright scenarios green; independent human review, live staging and physical-device acceptance pending
 - **Owner:** ChatGPT engineering agent; independent human reviewer and staging owner pending
-- **Last verified:** 2026-11-04 UTC (repository and PR state verified at task start)
+- **Last verified:** 2026-11-03 19:38 UTC, GitHub run #41704799368 (2026-11-04 user local date)
 - **Baseline:** `cb3d7d0541b74c6dfabf43447f3ddae00565e674`, PR #14 draft, targets `main`
 - **Scope:** `mobility-ui.js`, synthetic-only browser QA and GitHub workflow, agent handoff. No modifications to SQL, Render, Supabase, identity providers, payments, deployment configuration or production.
 
@@ -32,9 +32,9 @@ Close the remaining isolated browser QA gaps before independent review: prevent 
 | Check | Evidence | Status |
 |---|---|---|
 | Prior PR browser matrix | #41701714564 — 21/21 PASS at `cb3d7d0` | PASS |
-| Stale-response session-race browser regression | New Playwright suite | PENDING |
-| Opt-in map and keyboard browser regressions | New Playwright suite | PENDING |
-| Security / PostgreSQL / secret hygiene / docs | GitHub Actions | PENDING |
+| Stale-response session-race browser regression | Three browser projects, run #41704799368, `76cd1a4` | PASS |
+| Opt-in map and keyboard browser regressions | Three browser projects, run #41704799368, `76cd1a4` | PASS |
+| Security / PostgreSQL / secret hygiene / docs | #41704799389, #41704799073, #41704799185, #41704799301 | ALL PASS |
 | Real provider OTP, manual smartphone, staging acceptance | Operator-controlled environment | NOT RUN / BLOCKED |
 
 ## Risks and boundaries
@@ -48,8 +48,14 @@ Close the remaining isolated browser QA gaps before independent review: prevent 
 
 - 2026-11-04 UTC — Confirmed PR #14 state, current SHA, green CI, missing independent review and inspected the UI/map/test code. Selected versioned asynchronous state protection and map/keyboard synthetic browser regressions.
 
+- 2026-11-03 UTC — Added request-epoch guard for delayed create, cancel and search results. A stale response after session invalidation is ignored rather than repopulating private cards, messages or intents.
+- 2026-11-03 UTC — Expanded browser E2E from 21 to 30 scenarios (three browsers × ten flows): genuine pinned CI-only Leaflet map clicks with fake tile responses, coordinate storage/URL leakage checks, Enter-key intent creation/cancellation and delayed-successful-match-after-logout regression. Production Leaflet/CDN delivery remains unchanged.
+- 2026-11-03 UTC — Separate privacy audit found hidden DOM could retain a previous request departure time on logout; added explicit form time + departure window wiping on logout/intent cancellation, with extra browser assertions.
+- 2026-11-03 UTC — The first docs-contract run identified a nonconforming task heading; corrected it without changing application logic.
+- **CI verified:** #41704799368 **30/30 passed** at code SHA \`76cd1a414bb942086ed7c81ba41c82835f58c19f\`. Security smoke #41704799389 PASS, PostgreSQL/PostGIS #41704799073 PASS, secret hygiene #41704799185 PASS, agent docs #41704799301 PASS. **No Render/Supabase/live data accessed; PR #14 remains draft, unmerged.**
+
 ## Next steps
 
-- Finish implementation and rerun GitHub Actions; record exact SHA and run results.
+- **Completed:** CI run #41704799368 verified `76cd1a414bb942086ed7c81ba41c82835f58c19f` with **30/30 Playwright tests passing** (59.9 s), and all four standard CI workflows also passed. The next agent should verify any subsequently pushed HEAD before treating this as current.
 - Obtain independent human review of state lifecycle, privacy/keyboard/mobile UX and test-only Leaflet substitution.
 - Coordinate authorized staging acceptance separately after restore and rollback evidence. No automatic merge or deploy.
