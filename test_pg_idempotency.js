@@ -111,7 +111,8 @@ test('PostgreSQL serializes concurrent identical keys and rolls back effect + re
         await backend.query('BEGIN');
         await backend.query('SET LOCAL ROLE campuspool_staging_app');
         const access=await backend.query(
-          'SELECT request_key FROM public.campus_idempotency_keys WHERE request_key=$1',[key]);
+          'SELECT request_key FROM public.campus_idempotency_keys WHERE actor_hash=$1 AND request_key=$2',
+          [hash,key]);
         assert.equal(access.rows.length,1);
       } finally {
         await backend.query('ROLLBACK').catch(()=>{});
