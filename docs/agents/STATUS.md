@@ -1,6 +1,6 @@
 # CampusPool — current engineering status
 
-**Last independently checked:** 2026-11-03 (UTC). **GitHub baseline:** `main@0345b6aeff8631cbb2a55d09b9bb745ae4dbb93b`. This snapshot reflects the repository and reported deployment state before the agent-documentation PR; refresh SHA and dates when merging subsequent implementation work.
+**Last independently checked:** 2026-11-03 (UTC). **GitHub baseline:** `main@3ee1f4a12e984cb6aecbf8ea09150d1e79556c87`. This snapshot records verified main and deployment baseline; pending branch work is explicitly described as unmerged.
 
 **Overall:** secure backend foundations and PostGIS mobility matching are developed; production migration and student-facing launch are **NOT APPROVED**. A passing CI test is not evidence of a deployed feature.
 
@@ -13,14 +13,15 @@
 | PostgreSQL OTP, sessions and identity | Implemented, tested against isolated Postgres in CI | Staging PostgreSQL configuration exists | Real controlled email/SMS OTP end-to-end delivery not verified |
 | PostgreSQL Rides and bookings | Implemented and CI-tested behind `RIDES_BACKEND=postgres` | Production still on legacy SQLite behavior; no audited migration | Backup/restore, reconciled data import, rollout/rollback |
 | Hyperlocal travel-intent matching | PostGIS, private intent/geometry, indexed radius/time search and API tests in `main` | Staging-only feature flag documented; no production activation | Student UI, real road-routing/detour checks, privacy/retention review |
+| Authenticated domain request idempotency | **Unmerged branch** `security/transactional-idempotency-2026-11-03`: atomic SQL receipts for ride/booking/intent create and cancel in PG/SQLite; tests in review | Neither environment has this branch or PG migration 008 deployed | Verify CI and plan staging-only migration before promotion; OTP/provider/GPS/payment are separate semantics |
 | Errands marketplace | Standalone responsive demo in `prototypes/campuspool-2/` | No live errands backend or real payment processing | Auth-integrated backend, transactions, fraud/refunds, tested marketplace model |
 | Payments and settlements | Unverified client-reported success intentionally blocked | Real provider settlement not enabled | Authorized provider, verified webhooks, reconciliation and compliance approval |
 | Redis, H3, Kafka, independent microservices | Not adopted; existing grid/time + PostGIS and PostgreSQL shared limits | No additional infrastructure provisioned for them | Benchmark-driven decision rather than speculative complexity |
 
 ## Verified GitHub baseline
 
-- Single long-lived branch: `main`; no open PRs when checked 2026-11-03.
-- Latest implementation commit: `0345b6aeff86` — PostgreSQL mobility search rate-limit/cancellation behavior.
+- Baseline `main` now contains merged multi-agent documentation contract `3ee1f4a12e98`. Temporary idempotency feature branch is **not merged**; PR/check status must be independently rechecked.
+- Latest underlying application implementation on `main`: `0345b6aeff86` — mobility search rate-limit/cancellation behavior; later docs-only commit `3ee1f4a12e98`.
 - Latest PostgreSQL OTP/PostGIS workflow on that commit: **success**; latest credential/secret-hygiene workflow: **success**.
 - Root `README.md`, `MOBILITY_MATCHING_ROLLOUT.md`, `RIDES_POSTGRES_ROLLOUT.md` and `PRODUCTION_RELEASE_GATE.md` contain the detailed application notes. Some older runbooks reference closed PR chains and must not be treated as newer evidence.
 
@@ -30,6 +31,10 @@
 - Staging: `mit-adt-campuspool-staging`, branch `main`, **auto-deploy off**. Last observed live deployed SHA `cceadbf6251f` (from 2026-11-02). **Not** the current `main` SHA.
 - This is service/deploy metadata verification; it does **not** by itself prove a particular user flow, provider delivery, migration or database state is healthy today.
 - Dedicated staging Supabase PostgreSQL is documented. Do not reuse other application databases or test against production.
+
+## In-progress engineering task
+
+- [Transactional idempotency, 2026-11-03](tasks/2026-11-03-transactional-idempotency.md) — branch-local receipts, API keys and retry tests. Not deployed or approved. [Contract](../../IDEMPOTENCY_CONTRACT.md).
 
 ## Security and release blockers (must not be silently waived)
 
