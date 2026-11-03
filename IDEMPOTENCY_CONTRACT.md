@@ -1,6 +1,6 @@
 # CampusPool request idempotency contract — staging implementation
 
-**Status:** implemented on `security/transactional-idempotency-2026-11-03` pending CI, migration and review. This document does **not** claim deployment, production protection or complete distributed exactly-once behavior.
+**Status:** implemented and CI-tested on the unmerged branch; staging migration, verified backup and controlled deployment remain outstanding. This document does **not** claim deployment, production protection or complete distributed exactly-once behavior.
 
 ## Verified baseline and problem
 

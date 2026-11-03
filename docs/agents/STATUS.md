@@ -13,7 +13,7 @@
 | PostgreSQL OTP, sessions and identity | Implemented, tested against isolated Postgres in CI | Staging PostgreSQL configuration exists | Real controlled email/SMS OTP end-to-end delivery not verified |
 | PostgreSQL Rides and bookings | Implemented and CI-tested behind `RIDES_BACKEND=postgres` | Production still on legacy SQLite behavior; no audited migration | Backup/restore, reconciled data import, rollout/rollback |
 | Hyperlocal travel-intent matching | PostGIS, private intent/geometry, indexed radius/time search and API tests in `main` | Staging-only feature flag documented; no production activation | Student UI, real road-routing/detour checks, privacy/retention review |
-| Authenticated domain request idempotency | **Unmerged branch** `security/transactional-idempotency-2026-11-03`: atomic SQL receipts for ride/booking/intent create and cancel in PG/SQLite; bounded throttled-replay recovery tested in isolated SQLite and PG/PostGIS CI at implementation `3c050be`; independent review pending | Neither environment has this branch or PG migration 008 deployed | Verify CI and plan staging-only migration before promotion; OTP/provider/GPS/payment are separate semantics |
+| Authenticated domain request idempotency | **Unmerged branch** `security/transactional-idempotency-2026-11-03`: atomic SQL receipts for ride/booking/intent create and cancel in PG/SQLite; bounded throttled-replay recovery tested in isolated SQLite and PG/PostGIS CI at implementation `282df2c`; independent review pending | Staging Supabase was read-only audited: 008 absent, no deployment of this branch verified | Verify CI and plan staging-only migration before promotion; OTP/provider/GPS/payment are separate semantics |
 | Errands marketplace | Standalone responsive demo in `prototypes/campuspool-2/` | No live errands backend or real payment processing | Auth-integrated backend, transactions, fraud/refunds, tested marketplace model |
 | Payments and settlements | Unverified client-reported success intentionally blocked | Real provider settlement not enabled | Authorized provider, verified webhooks, reconciliation and compliance approval |
 | Redis, H3, Kafka, independent microservices | Not adopted; existing grid/time + PostGIS and PostgreSQL shared limits | No additional infrastructure provisioned for them | Benchmark-driven decision rather than speculative complexity |
@@ -50,3 +50,12 @@
 ## How to update this file
 
 For every implementation PR: replace outdated evidence, record new commit SHA and CI, distinguish code vs staging vs production, add/remove blockers based on actual verification and link the relevant `tasks/` record. Do not copy optimistic claims from feature PRs into production columns.
+
+## Staging permissions and browser retry review — 2026-11-03 UTC
+
+- Verified dedicated Supabase project `campuspool-staging-db` (`tnitksrlntrdxbvznxzf`), PostgreSQL 17.11. Migrations 001–007 are recorded; `public.campus_idempotency_keys` from 008 is absent.
+- `campuspool_staging_app` LOGIN=true, SUPERUSER=false, BYPASSRLS=false; app role has USAGE but not CREATE on public/extensions schemas. Existing nine app tables have RLS, deny direct anon/authenticated SELECT, and grant backend CRUD. Supabase security advisor returned no findings.
+- Exact counts were zero for users, sessions, OTP challenges, rides, bookings, trip intents and ride geo. **This does not prove a restorable backup.**
+- Supabase Free lacks automatic daily backups. No secure off-site logical export and independent restore verification exists. Render workspace has not been confirmed for service discovery and the previous staging release SHA/branch/env have not been independently rechecked. **Staging migration and deploy remain NO-GO.**
+- Browser recovery across same-tab reload and PostgreSQL role access checks passed isolated CI on `282df2c`: PostGIS #41590954300, security #41590954587, secrets #41590954364, documentation #41590954266. This does not prove live staging behavior.
+- See [review task](tasks/2026-11-03-staging-permissions-browser-retry.md) and [staging runbook](../../STAGING_IDEMPOTENCY_RELEASE_RUNBOOK.md). No live SQL writes, Render deploys or production modifications were performed.

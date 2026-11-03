@@ -36,3 +36,11 @@
 - Tests and rollback:
 - Next review trigger:
 ```
+
+## A-011 — Conditional staging rollout requires off-site restore proof (2026-11-03 UTC)
+
+- **Status:** conditional/blocked; [task](tasks/2026-11-03-staging-permissions-browser-retry.md), draft PR #11.
+- **Evidence:** Supabase Free staging PG role is non-superuser/non-bypassrls, app tables RLS protected, source migration 008 not applied, seven critical tables empty. Browser retry across same-tab reload and SQL impersonated-role tests passed isolated CI at `282df2c`.
+- **Choice:** Do not apply 008 or deploy until there is an encrypted off-site dump, independently tested restore and a confirmed exact Render staging release/previous-artifact rollback mechanism. Supabase Free does not guarantee automatic daily snapshots.
+- **Rollback:** return app to verified prior deploy and retain additive 008 table; do not DROP active receipts to undo application code. A destructive DB restore requires independent approval, downtime/data-loss review.
+- **Revisit:** after operator provides verified off-site backup integrity, scratch restore result, selected Render workspace/service/branch and rollback SHA.
