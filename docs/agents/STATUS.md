@@ -59,3 +59,7 @@ For every implementation PR: replace outdated evidence, record new commit SHA an
 - Supabase Free lacks automatic daily backups. No secure off-site logical export and independent restore verification exists. Render workspace has not been confirmed for service discovery and the previous staging release SHA/branch/env have not been independently rechecked. **Staging migration and deploy remain NO-GO.**
 - Browser recovery across same-tab reload and PostgreSQL role access checks passed isolated CI on `282df2c`: PostGIS #41590954300, security #41590954587, secrets #41590954364, documentation #41590954266. This does not prove live staging behavior.
 - See [review task](tasks/2026-11-03-staging-permissions-browser-retry.md) and [staging runbook](../../STAGING_IDEMPOTENCY_RELEASE_RUNBOOK.md). No live SQL writes, Render deploys or production modifications were performed.
+
+## New engineering checkpoint — 2026-11-03 (read-only preflight)
+
+The unmerged idempotency branch now includes a **read-only** stage migration preflight (`scripts/staging-migration-preflight.js`) with exact Supabase project allowlist, no DML/DDL, and fail-closed RLS/role checks before or after proposed migration 008. The old `stage1-otp/migrate.js` is unchanged and blindly replays migrations 001–008; do not use it ad hoc on staging. Tests in isolated CI are pending on this change. The real staging database has not been changed; no backup, independent restore or Render deployment was performed. See [task](tasks/2026-11-03-staging-migration-preflight.md).

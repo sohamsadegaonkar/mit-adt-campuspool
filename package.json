@@ -30,7 +30,9 @@
     "test:mobility-http": "node --test test_pg_mobility_http.js",
     "test:idempotency": "node --test test_idempotency.js",
     "test:idempotency-pg": "node --test test_pg_idempotency.js",
-    "test:browser-idempotency": "node --test test_browser_idempotency.js"
+    "test:browser-idempotency": "node --test test_browser_idempotency.js",
+    "test:staging-preflight": "node --test test_staging_migration_preflight.js",
+    "check:staging-migration": "node scripts/staging-migration-preflight.js"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",

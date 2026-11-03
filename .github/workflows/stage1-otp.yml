@@ -12,6 +12,8 @@ on:
       - 'test_idempotency.js'
       - 'test_pg_idempotency.js'
       - 'test_browser_idempotency.js'
+      - 'test_staging_migration_preflight.js'
+      - 'scripts/staging-migration-preflight.js'
       - 'test_stage1_otp.js'
       - 'test_pg_identity.js'
       - 'test_pg_rides.js'
@@ -73,6 +75,8 @@ jobs:
           node --check test_idempotency.js
           node --check test_pg_idempotency.js
           node --check test_browser_idempotency.js
+          node --check scripts/staging-migration-preflight.js
+          node --check test_staging_migration_preflight.js
           node --check stage1-otp/pg-store.js
           node --check stage1-otp/auth-routes.js
           node --check stage1-otp/email-provider.js
@@ -96,6 +100,7 @@ jobs:
         run: |
           npm run test:idempotency
           npm run test:idempotency-pg
+          npm run test:staging-preflight
           npm run test:browser-idempotency
           npm run test:stage1
           npm run test:identity

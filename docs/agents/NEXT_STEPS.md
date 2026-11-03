@@ -44,3 +44,8 @@ See [2026-11-03-agent-workflow.md](tasks/2026-11-03-agent-workflow.md) for the m
 - **Exact next action:** account owner verifies encrypted off-site staging dump and restores it to an independent disposable PostgreSQL/PostGIS target; confirms intended Render workspace/service, current staging branch, known-good deploy SHA and executable rollback path. Do not request secrets in Git or chat.
 - **Next engineering action after gates pass:** re-audit grants, apply 008 in **staging only**, verify roles/RLS and deploy exact CI-tested branch SHA with both browser and backend. Run synthetic-account E2E and rehearse returning to prior SHA. **No live migration or deploy authorized by this note.**
 - Read [staging idempotency release runbook](../../STAGING_IDEMPOTENCY_RELEASE_RUNBOOK.md). Production remains NO-GO.
+
+## Next engineering handoff — staging migration preflight (2026-11-03)
+
+- [Read-only migration 008 preflight](tasks/2026-11-03-staging-migration-preflight.md): validate isolated CI, review exact-project URL guard, run `APP_ENV=staging OTP_DB_SSL=true npm run check:staging-migration -- --mode=before` **only** with a private stage-only `OTP_DATABASE_URL` on the authorized operator machine.
+- Before any live SQL: obtain encrypted off-site backup, independent restore proof, verified Render workspace and re-deployable known-good SHA. The preflight itself deliberately reports `releaseReady:false`; passing schema inspection never waives release gates.

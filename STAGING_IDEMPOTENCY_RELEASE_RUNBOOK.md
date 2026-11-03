@@ -58,3 +58,16 @@ Deploy the exact vetted commit to the confirmed staging service with auto deploy
 | Staging deploy, browser QA, rollback rehearsal | **Not performed** |
 
 **Production is never part of this runbook.**
+
+## Read-only automated migration preflight (new branch-local development)
+
+After confirming that the private `OTP_DATABASE_URL` targets ONLY the dedicated staging project and **before migration 008**, the authorized operator can run:
+
+```bash
+# Run on the trusted operator machine with OTP_DATABASE_URL already supplied privately.
+APP_ENV=staging OTP_DB_SSL=true npm run check:staging-migration -- --mode=before
+```
+
+It verifies the exact Supabase project ref (including pooler username suffix), server-only grants, app role privilege flags and RLS/policies. Its SQL transaction is `REPEATABLE READ READ ONLY`. It refuses unknown projects and never migrates, exports, alters or deploys anything. Its `releaseReady` value is intentionally `false` even on success because backup/restore and Render rollback proof are separate approval gates.
+
+Only *after* a separately authorized additive 008 migration is completed, run `--mode=after` to check receipt table, index, RLS and privileges. **Do not use** the all-in-one `npm run migrate:otp` script as an unreviewed staging upgrade: it re-executes all 001–008 migrations and has no own applied-version ledger.

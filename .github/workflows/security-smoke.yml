@@ -12,6 +12,8 @@ on:
       - 'idempotency.js'
       - 'test_idempotency.js'
       - 'test_browser_idempotency.js'
+      - 'test_staging_migration_preflight.js'
+      - 'scripts/staging-migration-preflight.js'
       - 'render.yaml'
       - 'package.json'
       - 'test_security_smoke.js'
@@ -42,6 +44,8 @@ jobs:
           node --check idempotency.js
           node --check test_idempotency.js
           node --check test_browser_idempotency.js
+          node --check test_staging_migration_preflight.js
+          node --check scripts/staging-migration-preflight.js
           node --check test_security_smoke.js
           node --check test_auth_integration.js
           node --check sms-provider.js
@@ -49,5 +53,6 @@ jobs:
         run: |
           npm run test:idempotency
           npm run test:browser-idempotency
+          npm run test:staging-preflight
           npm run test:security
           npm run test:auth
