@@ -53,7 +53,7 @@ Deploy the exact vetted commit to the confirmed staging service with auto deploy
 | Existing table grants and RLS | Verified read-only |
 | Browser/PG isolated CI on tested implementation | Passed `282df2c` |
 | Off-site export and independent restore | **Not performed / blocked** |
-| Render workspace/service exact previous SHA | **Not confirmed / blocked** |
+| Render workspace/service/previous SHA | **Verified** (see audit below); retained rollback build eligibility unverified |
 | Live migration 008 | **Not performed** |
 | Staging deploy, browser QA, rollback rehearsal | **Not performed** |
 
@@ -92,3 +92,24 @@ A disposable CI-only regression test `npm run test:backup-restore-ci` exercises 
 Commit `f59eb8b` passed GitHub PostGIS workflow #41597004644. The disposable PostGIS 16 test used matching PG16 archive tools **inside the container**, encrypted synthetic archive bytes using AES-256-GCM, verified SHA-256 integrity and restored into a fresh logical PostgreSQL database. It compared table counts, RLS policy counts and client/backend grants. Security, docs and credential workflows also passed.
 
 **Not a staging backup or real rollback:** no Supabase staging export, actual staging independent restore, verified Render rollback SHA, migration 008 or live deployment occurred. Before a live migration, confirm `My Workspace` with the account owner, inspect the staging service and execute the encrypted actual-stage backup/restore gate.
+
+## Read-only Render staging audit — 2026-11-03 UTC (workspace approved)
+
+Account owner confirmed workspace `My Workspace`, `tea-d8sftp7avr4c73fo8pbg`. Render service metadata and deployments were inspected without changing any settings, executing deploys, secrets or SQL:
+
+| Field | Verified value |
+|---|---|
+| Staging service | `mit-adt-campuspool-staging`, `srv-dbjof8fb9u1s73eks0bg` |
+| Dashboard | https://dashboard.render.com/web/srv-dbjof8fb9u1s73eks0bg |
+| Git repo and configured branch | `sohamsadegaonkar/mit-adt-campuspool`, `main` |
+| Auto-deploy | OFF |
+| Runtime / region | Node.js / Singapore |
+| Health check path | None configured; deployed status is not a real HTTP health check |
+| Current live deploy | `dep-dbke9uo8v5cc738cpnd0` — SHA `cceadbf6251f70634320e50b8288530ba77513c3` — successful at 2026-11-02 19:31:42 UTC |
+| Prior successful but deactivated deploy | `dep-dbkdr5qjnfac738p2heg` — SHA `fe93c6be16b49864571da80c186fbb0577485878` — successful at 2026-11-02 19:00:09 UTC |
+
+The correct rollback baseline **for a future staging idempotency release** is `dep-dbke9uo8v5cc738cpnd0` / `cceadbf6251f`, because this is the currently live successful build. Once a new code version is actually deployed, the operator should use **Render Dashboard → Staging service → Deploys → Rollback** to that exact baseline, after confirming that the prior artifact is still retained. See https://render.com/docs/rollbacks. A successful history entry is **not** proof that an old build artifact is available for rollback. No live rollback or button-eligibility check occurred.
+
+Important: the staging service follows `main`, **not** draft PR #11. Render's Dashboard supports **Manual Deploy → Deploy a specific commit** by SHA from the linked repository; see https://render.com/docs/deploys. The connector's `trigger_deploy` tool does **not** take a SHA and would deploy the service's configured branch. **Never trigger it to publish PR #11**. Do not merge to `main` just to force staging deployment. Deploying a specific commit, and any migration, remain strictly deferred until after encrypted off-site staging backup + independent actual-data restore, release authorization and a verified eligible rollback target.
+
+Render rollback restores a historical service build/configuration only; **it does not roll back PostgreSQL records or schema**. Keep migration 008 additive and intact during app rollback. The staging runtime's configured health-check path is currently blank; separately verify `/healthz`, browser security controls and synthetic user flows after an authorized staged deployment. No production changes were made.

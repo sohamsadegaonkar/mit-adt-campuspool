@@ -59,3 +59,9 @@ See [2026-11-03-agent-workflow.md](tasks/2026-11-03-agent-workflow.md) for the m
 
 - Draft PR #11 `f59eb8b` passed PostGIS #41597004644, security #41597004543, docs #41597004472 and credential #41597004588. The disposable PG16 synthetic backup + encrypted checksum + logical restore drill passed. It **does not substitute for a real encrypted off-site staging backup and scratch restore of the actual staging dataset**.
 - Next: owner confirms Render workspace `My Workspace`, then verify actual staging service/last-good deploy SHA. Owner securely exports and encrypts staging roles/schema/data, restores to an independent scratch target and records verification evidence. Only then can the authorized migration 008 and rollback rehearsal proceed.
+
+## Render target verified — next unblock (2026-11-03 UTC)
+
+- **Completed:** User confirmed `My Workspace`; staging service `srv-dbjof8fb9u1s73eks0bg` branch `main`/auto-deploy off. Current live rollback baseline `cceadbf6251f`, Render deploy `dep-dbke9uo8v5cc738cpnd0`; historical successful `fe93c6be16b4`, deploy `dep-dbkdr5qjnfac738p2heg`. Build-retention/rollback dashboard button still needs a read-only eligibility check.
+- **Unblocked action owner must perform next:** encrypted off-site export of real `campuspool-staging-db` PostgreSQL 17 roles/schema/data + migration history, verification of ciphertext digest, independent compatible scratch restore and RLS/grant/count comparisons. Keep all credentials and archive content out of Git/CI/chat. Until complete, **DO NOT** migrate 008, deploy PR #11, or rehearse live rollback.
+- On proof of successful restore and approved stage release, use Render Dashboard *Deploy a specific commit* for the reviewed PR SHA (not default `trigger_deploy` on `main`); preserve the original `cceadbf6251f` build as rollback target. Confirm that Rollback is eligible in Dashboard. See [task](tasks/2026-11-03-staging-backup-restore-gates.md).
