@@ -88,5 +88,5 @@ The actual PG17 backup/restore steps remain impossible to execute through the av
 
 ## Next exact review gate — fail-closed recovery evidence (2026-11-03 UTC)
 
-- Current draft PR #13 has an independent-review fix for the false-match case when both source/restore snapshots omit required sections or their migration ledger. **Next engineering action:** confirm fresh security and disposable PostGIS CI on these review-fix commits, including the new malformed/missing-evidence tests; then request independent human review before integrating PR #13 into PR #12.
+- Current draft PR #13 contains a fail-closed fix for both sides omitting required evidence or migration history. Fresh CI for hardened code commit `6384a55` PASSED (security smoke #41629693100; disposable PostgreSQL/PostGIS #41629693149). **Next engineering action:** obtain independent human review of query behavior, time bounds, strict ledger requirement and security claims before integrating PR #13 into PR #12.
 - Real-staging operator gates remain unchanged: off-site encrypted archive verified by independent download, a compatible separate scratch restore, role/security/data evidence and retained Render rollback artifact availability. Do not run a live migration 008, deploy staging or production, or merge the release branch merely because the tests pass.
