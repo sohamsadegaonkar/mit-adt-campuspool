@@ -15,6 +15,7 @@ on:
       - 'test_staging_migration_preflight.js'
       - 'test_pg_backup_restore.js'
       - 'test_staging_secure_backup.js'
+      - 'test_staging_restore_compare.js'
       - 'scripts/staging-backup-guard.js'
       - 'scripts/staging-secure-backup.sh'
       - 'scripts/staging-migration-preflight.js'
@@ -90,6 +91,8 @@ jobs:
           node --check test_staging_migration_preflight.js
           node --check test_pg_backup_restore.js
           node --check test_staging_secure_backup.js
+          node --check test_staging_restore_compare.js
+          node --check scripts/staging-restore-compare.js
           node --check scripts/staging-backup-guard.js
           bash -n scripts/staging-secure-backup.sh
           node --check stage1-otp/pg-store.js
@@ -131,3 +134,4 @@ jobs:
           npm run check:release-ci
           npm run test:backup-restore-ci
           npm run test:staging-backup
+          npm run test:staging-restore-compare
