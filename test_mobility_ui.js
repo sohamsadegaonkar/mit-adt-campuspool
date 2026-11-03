@@ -3,7 +3,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
-const {buildIntentPayload,candidateView,failureMessage}=require('./mobility-ui');
+const {buildIntentPayload,buildDriverRouteInput,candidateView,failureMessage}=require('./mobility-ui');
 
 const NOW=Date.UTC(2026,10,3,12,0,0);
 const iso=ms=>new Date(ms).toISOString();
@@ -32,6 +32,24 @@ test('travel-intent payload includes only exact server fields and respects 3h/7d
   ]){
     assert.throws(()=>buildIntentPayload({...valid(),...change},NOW),JSON.stringify(change));
   }
+});
+
+test('driver opt-in adds exactly three private geo fields only with a valid route',()=>{
+  const values={
+    pickupLat:'18.5103',pickupLon:'73.9232',
+    dropoffLat:'18.4652',dropoffLon:'74.0181',
+    departureAt:iso(NOW+24*3600000)
+  };
+  const route=buildDriverRouteInput(values,NOW);
+  assert.deepEqual(Object.keys(route).sort(),[
+    'departureAt','destinationCoordinates','pickupCoordinates'
+  ]);
+  assert.deepEqual(route.pickupCoordinates,{lat:18.5103,lon:73.9232});
+  assert.equal(route.departureAt,values.departureAt);
+  for(const invalid of [
+    {pickupLat:''},{dropoffLon:'99'},{departureAt:''},
+    {departureAt:iso(NOW-11*60000)},{departureAt:iso(NOW+8*24*3600000)}
+  ])assert.throws(()=>buildDriverRouteInput({...values,...invalid},NOW));
 });
 
 test('candidate cards only accept safe server candidate data, never copy private fields',()=>{
@@ -82,6 +100,14 @@ test('HTML is feature gated, keyboard accessible, and statically served by allow
   }
   assert.match(html,/campuspool:session-changed/);
   assert.match(html,/CampusPoolMobilityBookCandidate/);
+  assert.match(html,/CampusPoolMobilityBuildRoute/);
+  assert.match(html,/Object.assign(ridePayload,window.CampusPoolMobilityBuildRoute/);
+  assert.match(html,/id="offerMobilityGeoSection" hidden class="hidden /);
+  for(const id of ['offerMobilityOptIn','offerMobilityFields','offerMobilityPickupLat',
+    'offerMobilityPickupLon','offerMobilityDropoffLat','offerMobilityDropoffLon',
+    'offerMobilityDepartureAt'])assert.ok(html.includes('id="'+id+'"'),id);
+  assert.match(js,/offerMobilityOptIn.*addEventListener/);
+  assert.match(js,/clearDriverRoute/);
   assert.match(server,/'\/mobility-ui\.js'/);
   assert.match(js,/\/api\/mobility\/intent'/);
   assert.match(js,/\/api\/mobility\/intents'/);
