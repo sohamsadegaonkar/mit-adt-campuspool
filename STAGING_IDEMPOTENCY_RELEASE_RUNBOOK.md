@@ -217,3 +217,28 @@ The implementation validates the Supabase direct/pooler URL project ref `tnitksr
 Operator next **downloads that encrypted remote object independently** (e.g. from the off-site provider's web interface, not through the same mount), checks the downloaded SHA-256 against the recorded sidecar, confirms private decryption works in a separately protected recovery environment and restores the actual roles/schema/data into a **different, disposable Supabase-compatible PG17/PostGIS** target. Compare tables, counts, indexes, RLS/grants/policies, required extensions and migration history before marking Gate B passed. Then separately verify Render's rollback artifact remains available. The command does not apply migration 008, deploy anything or trigger rollback.
 
 Source: `scripts/staging-secure-backup.sh`, validation: `scripts/staging-backup-guard.js`, tests: `test_staging_secure_backup.js`. [Owner task](docs/agents/tasks/2026-11-03-secure-backup-operator-tool.md). Local synthetic preflight/unit tests passed and all four isolated CI workflows passed on code commit `3f723d1` (PostGIS #41602596062, security #41602595899, docs #41602596010, credentials #41602596048). **Actual staging backup and recovery are still NOT PERFORMED.**
+
+## Independent scratch-restore read-only comparison (new unmerged child branch; NOT EXECUTED)
+
+The recovery gate still requires a **real** off-site encrypted staging export, a separately downloaded matching ciphertext checksum, successful decryption and a complete **independent** restore of the roles/schema/data to a different approved Supabase-compatible PostgreSQL 17/PostGIS project. A synthetic CI restore, the export script's mounted checksum, or this comparator alone is not recovery proof.
+
+After the operator verifies that **both** project URLs are private, stage-only and different, the new script can compare application objects and row counts without changing either database. It specifically requires an exact source Supabase project ref and a different exact restore project ref. Both URLs must specify sslmode=require or sslmode=verify-full, and the Node PostgreSQL connection enforces TLS certificate verification. Do not paste private database URLs into shell history, scripts, chat, CI or Git.
+
+Operator supplies privately in the trusted, encrypted local shell:
+
+    APP_ENV=staging
+    RESTORE_TARGET_CONFIRMED=YES
+    RESTORE_PROJECT_REF=(exact 20-character approved scratch Supabase project ref)
+    STAGING_DB_URL=(private Supabase staging owner connection URL with sslmode=require)
+    RESTORE_DB_URL=(private different scratch project owner connection URL with sslmode=require)
+
+Run these commands from the branch workspace:
+
+    npm run check:staging-restore -- --preflight
+    npm run check:staging-restore -- --compare
+
+The preflight validates the target without opening either database. The compare performs SELECT-only, repeatable-read READ ONLY transactions, with query timeouts. It compares public campus tables and columns, indexes, constraints, RLS policies, grants for anon/authenticated/backend role, relevant DB role flags, selected extensions, migration-history version entries (if visible) and per-table aggregate row counts. Its result **always** includes releaseReady:false. Any discrepancy, missing core table, read/permission failure or connection failure blocks approval; diagnostic output omits URLs/row values/SQL error text. The operator may record the metadata-only result after review but **must never post credentials or private dumps**.
+
+**Scope and limitations:** This is *not* a write/replay test, a row-by-row data checksum, authentication of remote off-site provenance, validation of private role credentials, or a full inventory of Supabase-managed schemas. Matching counts can conceal different records. Querying two databases consecutively can also mismatch if the original is changing; use an approved staging write-free window for meaningful comparison. Compare all provider-managed objects and source migration history as part of the independent manual DBA checklist. The actual restore and role-secret provisioning must be validated separately, and Render staging's retained rollback artifact must still be independently confirmed before any migration 008 or exact-SHA staging deployment.
+
+[Engineering task and limitations](docs/agents/tasks/2026-11-03-staging-restore-compare.md). This work is isolated to an unmerged branch based on draft PR #11. No real staging source/target was accessed, no migration or deploy was performed, and production remains NO-GO.
