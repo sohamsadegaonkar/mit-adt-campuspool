@@ -38,6 +38,13 @@ test('SQLite: atomic keyed writes, canonical replay, conflicts, rollback and sea
       execute:()=>{throw Error('replay must never execute');}});
     assert.equal(replay.replayed,true);
     assert.deepEqual(replay.body,created.body);
+    const prior = idem.findCompleted(args);
+    assert.equal(prior.replayed,true);
+    assert.deepEqual(prior.body,created.body);
+    assert.equal(idem.findCompleted({...args,key:crypto.randomUUID()}),null);
+    assert.equal(idem.findCompleted({...args,actor:rider}),null);
+    assert.throws(()=>idem.findCompleted({...args,body:{vehicle:'Bike'}}),
+      e=>e instanceof IdempotencyError&&e.code==='IDEMPOTENCY_KEY_REUSED');
     assert.equal(storeDb.getRides().filter(x=>x.id===rideId).length,1);
     assert.throws(()=>idem.run({...args,body:{pickup:'Other',vehicle:'Car'},execute:()=>({status:201,body:{}})}),
       e=>e instanceof IdempotencyError&&e.code==='IDEMPOTENCY_KEY_REUSED');
@@ -91,6 +98,7 @@ test('SQLite idempotency keys expire and may be replaced',()=>{
     const initial=idem.run({...args,execute:()=>({status:201,body:{value:1}})});
     assert.equal(initial.body.value,1);
     db.db.prepare('UPDATE idempotency_keys SET expires_at=? WHERE request_key=?').run(Date.now()-1,args.key);
+    assert.equal(idem.findCompleted(args),null,'Expired receipts are never replayed');
     const later=idem.run({...args,execute:()=>({status:201,body:{value:2}})});
     assert.equal(later.body.value,2);
     assert.equal(later.replayed,false);

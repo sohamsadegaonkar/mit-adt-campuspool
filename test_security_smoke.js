@@ -175,6 +175,7 @@ test('CampusPool pre-deploy security smoke tests (isolated local database)', { t
       assert.equal(unknown.status,404);
     });
 
+    let completedRideForThrottle = null;
     await t.test('Client-supplied owner email cannot create rides for other students', async () => {
       const rideFields={
         driverEmail:'other@students.mituniversity.edu.in',driverName:'Impersonated',
@@ -200,6 +201,7 @@ test('CampusPool pre-deploy security smoke tests (isolated local database)', { t
       });
       assert.equal(created.status,201);
       const record=(await created.json()).ride;
+      completedRideForThrottle={key:rideKey,body:rideFields,id:record.id};
       const retry=await fetch(base+'/api/rides',{
         method:'POST',headers,body:JSON.stringify(rideFields)
       });
@@ -232,6 +234,44 @@ test('CampusPool pre-deploy security smoke tests (isolated local database)', { t
         if(res.status===429){blocked=true;break;}
       }
       assert.equal(blocked,true);
+    });
+
+    await t.test('Throttled mutations can only read a bounded completed-key receipt', async () => {
+      const headers={...authenticatedHeaders,'Content-Type':'application/json'};
+      let exceeded=false;
+      for(let i=0;i<75;i++){
+        const res=await fetch(base+'/api/bookings/payment-status',{
+          method:'POST',headers,body:'{}'
+        });
+        if(res.status===429){exceeded=true;break;}
+        assert.equal(res.status,501,'Unverified payment routes must remain disabled');
+      }
+      assert.equal(exceeded,true,'Shared mutation budget should be exhausted');
+      const original=completedRideForThrottle;
+      const replayHeaders={...headers,'Idempotency-Key':original.key};
+      const safeReplay=await fetch(base+'/api/rides',{
+        method:'POST',headers:replayHeaders,body:JSON.stringify(original.body)
+      });
+      assert.equal(safeReplay.status,201);
+      assert.equal(safeReplay.headers.get('Idempotency-Replayed'),'true');
+      assert.equal((await safeReplay.json()).ride.id,original.id);
+      const mismatch=await fetch(base+'/api/rides',{
+        method:'POST',headers:replayHeaders,body:JSON.stringify({...original.body,note:'different'})
+      });
+      assert.equal(mismatch.status,409);
+      const blockedNew=await fetch(base+'/api/rides',{
+        method:'POST',headers:{...headers,'Idempotency-Key':crypto.randomUUID()},
+        body:JSON.stringify(original.body)
+      });
+      assert.equal(blockedNew.status,429);
+      assert.ok(Number(blockedNew.headers.get('Retry-After'))>0);
+      const invalidCsrf=await fetch(base+'/api/rides',{
+        method:'POST',headers:{...replayHeaders,'X-CSRF-Token':'0'.repeat(64)},
+        body:JSON.stringify(original.body)
+      });
+      assert.equal(invalidCsrf.status,403);
+      const count=localDB.getRides().filter(x=>x.id===original.id).length;
+      assert.equal(count,1,'Rate-limited path cannot re-execute the business write');
     });
 
     await t.test('Session logout revokes the cookie server-side', async () => {

@@ -41,6 +41,7 @@ Criteria: same-key replay returns identical successful resource/status, differen
 - 2026-11-03 UTC — Strengthened the design with a separate concurrent PG transaction test and bounded PG/SQLite receipt pruning; extended `prune:otp` for full PG expired receipt cleanup. **Latest CI revalidation passed** on `a2e231b96d30dad33c7b1e6a9ce1d6d5dec262e6`.
 - 2026-11-03 UTC — Rechecked exact PR #11 head `a2e231b96d30` and four GitHub Actions workflows: PostgreSQL/PostGIS OTP integration (#41582822457), security smoke (#41582822448), secret hygiene (#41582822449), agent-doc contract (#41582822439) all succeeded. This verifies CI, not staging or production.
 - 2026-11-03 UTC — Static review found that the shared IP rate limiter executes **before** authenticated idempotency receipt lookup in `server.js`; a completed-key retry can receive transient HTTP 429 under throttling. Exactly-once-per-key *SQL business effects* still hold, but unconditional HTTP replay under rate limiting is not guaranteed. Follow-up design/test needed before advertising stronger semantics.
+- 2026-11-03 UTC — Implemented a bounded, read-only completed-receipt recovery path when the shared HTTP mutation limit returns 429: 12 replay probes/IP/minute, same session/CSRF/actor/key/payload scope, no new writes; added SQLite and PG HTTP regression tests. **GitHub CI verification pending on new code head.**
 - 2026-11-03 UTC — No database migration applied to live Supabase, no Render service modified.
 
 ## Verification
@@ -63,12 +64,12 @@ Criteria: same-key replay returns identical successful resource/status, differen
 - Provider OTP sends and payment webhooks need their own transactional outbox / event-ID model. No "full exactly once" claim for such external effects.
 - User row lock serializes concurrent **same-user** booking eligibility in PG. Booking capacity still uses its original ride row lock.
 - Cached successful receipt contains booking/user details; data is stored in server-only private tables, not shared HTTP caches.
-- The shared IP-based HTTP mutation limiter runs ahead of receipt lookup; a replay can receive HTTP 429 while throttled. Clients must preserve the original key and retry after `Retry-After`; a future improvement can safely reconcile receipts without weakening abuse controls.
+- The shared IP-based HTTP mutation limiter remains authoritative for *new writes*. Completed results can be fetched read-only with a second capped budget of 12 probes/IP/minute after session/CSRF validation; excess probes, new/expired keys and blocked attempts still return 429. This is best-effort bounded recovery, not unconditional HTTP replay.
 - See `docs/agents/DECISIONS.md` A-010 and `IDEMPOTENCY_CONTRACT.md`.
 
 ## Next steps — exact handoff
 
-1. **Next action:** Review the rate-limit/replay boundary and either add a safe authenticated reconciliation path with tests or explicitly accept transient 429 semantics. Independently review the migration permissions and browser retry lifecycle before declaring review complete.
+1. **Next action:** Verify new code head CI, review read-only throttled replay query/budget, and check session/CSRF/cross-user behavior under load. Then independently review PostgreSQL migration permissions and browser retry lifecycle before declaring review complete.
 2. **Who may do it:** engineering reviewer or next agent; staging migration/deploy requires separate explicit permission.
 3. **Prerequisites and blockers:** no live data mutation; use disposable PG/PostGIS and temporary SQLite only. If a workflow is red, copy *sanitized* failure cause into this record.
 4. **Evidence now available:** exact-head successful CI run IDs 41582822457 (PostGIS), 41582822448 (security), 41582822449 (secrets), 41582822439 (agent docs). **Still required:** independent code review, controlled staging-only migration approval/backups, browser/restart/concurrency QA. No tests were executed locally in this handoff environment.

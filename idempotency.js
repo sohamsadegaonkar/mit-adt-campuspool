@@ -55,6 +55,17 @@ class PgIdempotencyStore {
   async ready() {
     await this.pool.query('SELECT 1 FROM public.campus_idempotency_keys LIMIT 0');
   }
+  // Read-only lookup: used only after a shared HTTP mutation rate limit is hit.
+  // Never execute business writes or reserve a key from this path.
+  async findCompleted({ actor, route, key, body }) {
+    const id = identity({ actor, route, key, body });
+    const r = await this.pool.query([
+      'SELECT request_hash,response_status,response_json',
+      'FROM public.campus_idempotency_keys',
+      'WHERE actor_hash=$1 AND route=$2 AND request_key=$3 AND expires_at>now()'
+    ].join(' '), [id.actorHash, id.route, id.key]);
+    return r.rows.length ? replay(r.rows[0], id.requestHash) : null;
+  }
   async run({ actor, route, key, body, execute }) {
     const id = identity({ actor, route, key, body });
     if (typeof execute !== 'function') throw Error('Execute callback required');
@@ -117,6 +128,15 @@ class SqliteIdempotencyStore {
     if (!db || typeof db.transaction !== 'function') throw Error('SQLite connection required');
     this.db = db;
     this.lastPrunedAt = 0;
+  }
+  // SQLite variant of the same read-only, actor-scoped completed receipt lookup.
+  findCompleted({ actor, route, key, body }) {
+    const id = identity({ actor, route, key, body });
+    const row = this.db.prepare([
+      'SELECT request_hash,response_status,response_json FROM idempotency_keys',
+      'WHERE actor_hash=? AND route=? AND request_key=? AND expires_at>?'
+    ].join(' ')).get(id.actorHash, id.route, id.key, Date.now());
+    return row ? replay(row, id.requestHash) : null;
   }
   run({ actor, route, key, body, execute }) {
     const id = identity({ actor, route, key, body });

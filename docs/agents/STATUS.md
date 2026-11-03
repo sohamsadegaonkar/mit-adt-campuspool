@@ -13,7 +13,7 @@
 | PostgreSQL OTP, sessions and identity | Implemented, tested against isolated Postgres in CI | Staging PostgreSQL configuration exists | Real controlled email/SMS OTP end-to-end delivery not verified |
 | PostgreSQL Rides and bookings | Implemented and CI-tested behind `RIDES_BACKEND=postgres` | Production still on legacy SQLite behavior; no audited migration | Backup/restore, reconciled data import, rollout/rollback |
 | Hyperlocal travel-intent matching | PostGIS, private intent/geometry, indexed radius/time search and API tests in `main` | Staging-only feature flag documented; no production activation | Student UI, real road-routing/detour checks, privacy/retention review |
-| Authenticated domain request idempotency | **Unmerged branch** `security/transactional-idempotency-2026-11-03`: atomic SQL receipts for ride/booking/intent create and cancel in PG/SQLite; exact-head GitHub CI green, independent code review pending | Neither environment has this branch or PG migration 008 deployed | Verify CI and plan staging-only migration before promotion; OTP/provider/GPS/payment are separate semantics |
+| Authenticated domain request idempotency | **Unmerged branch** `security/transactional-idempotency-2026-11-03`: atomic SQL receipts for ride/booking/intent create and cancel in PG/SQLite; prior-head GitHub CI green; new bounded throttled-replay code under CI review | Neither environment has this branch or PG migration 008 deployed | Verify CI and plan staging-only migration before promotion; OTP/provider/GPS/payment are separate semantics |
 | Errands marketplace | Standalone responsive demo in `prototypes/campuspool-2/` | No live errands backend or real payment processing | Auth-integrated backend, transactions, fraud/refunds, tested marketplace model |
 | Payments and settlements | Unverified client-reported success intentionally blocked | Real provider settlement not enabled | Authorized provider, verified webhooks, reconciliation and compliance approval |
 | Redis, H3, Kafka, independent microservices | Not adopted; existing grid/time + PostGIS and PostgreSQL shared limits | No additional infrastructure provisioned for them | Benchmark-driven decision rather than speculative complexity |
@@ -34,7 +34,7 @@
 
 ## In-progress engineering task
 
-- [Transactional idempotency, 2026-11-03](tasks/2026-11-03-transactional-idempotency.md) — branch-local receipts, API keys and green isolated CI; static review identified possible transient `429` before receipt replay. Not deployed, merged or approved. [Contract](../../IDEMPOTENCY_CONTRACT.md).
+- [Transactional idempotency, 2026-11-03](tasks/2026-11-03-transactional-idempotency.md) — branch-local receipts, API keys and green isolated CI; bounded read-only completed-key replay under the mutation limit was implemented on the feature branch; new CI result pending. Excess probes and new keys still receive 429. Not deployed, merged or approved. [Contract](../../IDEMPOTENCY_CONTRACT.md).
 
 ## Security and release blockers (must not be silently waived)
 

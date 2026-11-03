@@ -165,6 +165,36 @@ test('HTTP rides and bookings switch to verified PostgreSQL user identities',
       csrf:csrfDriver,body:{rideId},idempotencyKey:cancelRideKey});
     assert.equal(rideCancelReplay.status,200);
     assert.equal(rideCancelReplay.replayed,'true');
+    // Once the global per-IP mutation bucket is full, only authenticated,
+    // already-committed same-key receipts are eligible for bounded replay.
+    let limited=false;
+    for(let i=0;i<75;i++){
+      const hit=await request('/api/bookings/payment-status',{
+        method:'POST',user:0,csrf:csrfDriver,body:{}
+      });
+      if(hit.status===429){limited=true;break;}
+      assert.equal(hit.status,501);
+    }
+    assert.equal(limited,true,'Mutation rate limit must be enforceable');
+    const overLimitReplay=await request('/api/rides',{
+      method:'POST',user:0,body:cleanInput,csrf:csrfDriver,idempotencyKey:rideKey
+    });
+    assert.equal(overLimitReplay.status,201,JSON.stringify(overLimitReplay.body));
+    assert.equal(overLimitReplay.replayed,'true');
+    assert.equal(overLimitReplay.body.ride.id,rideId);
+    const overLimitMismatch=await request('/api/rides',{
+      method:'POST',user:0,body:{...cleanInput,note:'Changed again'},
+      csrf:csrfDriver,idempotencyKey:rideKey
+    });
+    assert.equal(overLimitMismatch.status,409);
+    const overLimitNew=await request('/api/rides',{
+      method:'POST',user:0,body:cleanInput,csrf:csrfDriver,idempotencyKey:crypto.randomUUID()
+    });
+    assert.equal(overLimitNew.status,429);
+    const crossAccount=await request('/api/rides',{
+      method:'POST',user:1,body:cleanInput,csrf:csrfPassenger,idempotencyKey:rideKey
+    });
+    assert.equal(crossAccount.status,429,'Other actors cannot reuse completed receipts');
     const empty=await request('/api/my-rides',{user:0});
     assert.equal(empty.status,200);
     assert.deepEqual(empty.body.rides,[]);

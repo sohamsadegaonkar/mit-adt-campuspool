@@ -13,6 +13,13 @@ const crypto = require('crypto');
 const url = require('url');
 const smsProvider = require('./sms-provider');
 const { PgIdempotencyStore, SqliteIdempotencyStore, IdempotencyError } = require('./idempotency');
+// Only these authenticated mutations can return a bounded, read-only receipt
+// when the standard per-IP mutation rate limit has already been exhausted.
+const IDEMPOTENT_MUTATION_PATHS = new Set([
+  '/api/rides', '/api/bookings', '/api/rides/cancel',
+  '/api/bookings/cancel', '/api/mobility/intents',
+  '/api/mobility/intents/cancel'
+]);
 const AUTH_OTP_BACKEND = process.env.AUTH_OTP_BACKEND || 'sqlite';
 if (!['sqlite', 'postgres'].includes(AUTH_OTP_BACKEND)) throw new Error('AUTH_OTP_BACKEND must be sqlite or postgres');
 // Opt-in only. Production/staging stay on the legacy Rides backend unless
@@ -523,6 +530,7 @@ const server = http.createServer(async (req, res) => {
 
   // Enforce Shared Rate Limiting Across Cluster Workers
   const rateLimitPolicy = resolveRateLimitPolicy();
+  let throttledIdempotencyReplay = null;
   if (rateLimitPolicy) {
     const clientIp = getClientIp();
     const rateLimitKey = `rl:${rateLimitPolicy.tier}:${clientIp}`;
@@ -537,15 +545,31 @@ const server = http.createServer(async (req, res) => {
     res.setHeader('X-RateLimit-Tier', rateLimitPolicy.tier);
 
     if (!rlResult.allowed) {
-      res.setHeader('Retry-After', String(rlResult.resetSeconds));
-      res.writeHead(429, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({
-        success: false,
-        error: 'RATE_LIMIT_EXCEEDED',
-        tier: rateLimitPolicy.tier,
-        message: `Too many requests on ${rateLimitPolicy.tier}. Please wait ${rlResult.resetSeconds}s before retrying.`,
-        retryAfter: rlResult.resetSeconds
-      }));
+      let retryAfter = rlResult.resetSeconds;
+      // The normal rate limit still applies to all *new* writes. For completed
+      // retries, permit only a tiny number of read-only receipt probes per IP.
+      // This budget also bounds pre-auth DB work by forged cookie/key traffic.
+      if (method === 'POST' && IDEMPOTENT_MUTATION_PATHS.has(pathname) &&
+          typeof req.headers['idempotency-key'] === 'string' &&
+          req.headers['idempotency-key'].length >= 16) {
+        const replayBudget = db.checkRateLimit('rl:IDEMPOTENCY_REPLAY:' + clientIp, 12, 60000);
+        if (replayBudget.allowed) {
+          throttledIdempotencyReplay = { tier: rateLimitPolicy.tier, retryAfter };
+        } else {
+          retryAfter = Math.max(retryAfter, replayBudget.resetSeconds);
+        }
+      }
+      if (!throttledIdempotencyReplay) {
+        res.setHeader('Retry-After', String(retryAfter));
+        res.writeHead(429, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+        return res.end(JSON.stringify({
+          success: false,
+          error: 'RATE_LIMIT_EXCEEDED',
+          tier: rateLimitPolicy.tier,
+          message: `Too many requests on ${rateLimitPolicy.tier}. Please wait ${retryAfter}s before retrying.`,
+          retryAfter
+        }));
+      }
     }
   }
 
@@ -651,6 +675,35 @@ const server = http.createServer(async (req, res) => {
     && authenticatedUser && (!pathname.startsWith('/api/auth/') || pathname === '/api/auth/logout')
     && !authenticatedMutationAllowed()) {
     return sendJson(403, { success: false, error: 'CSRF_REQUIRED', message: 'Refresh your session and try again.' });
+  }
+  // A throttled request may *only* replay a committed receipt. This block
+  // runs after verified session and CSRF checks, before any mutation handler.
+  if (throttledIdempotencyReplay) {
+    try {
+      const body = await parseBody();
+      const receipt = await (pgIdempotency || sqliteIdempotency).findCompleted({
+        actor: pgRidesStore ? authenticatedUser.id : authenticatedUser.email,
+        route: 'POST ' + pathname,
+        key: req.headers['idempotency-key'],
+        body
+      });
+      if (receipt) {
+        res.setHeader('Idempotency-Replayed', 'true');
+        return sendJson(receipt.status, receipt.body);
+      }
+    } catch (error) {
+      if (error instanceof IdempotencyError) {
+        return sendJson(error.status, { success: false, error: error.code });
+      }
+      throw error;
+    }
+    res.setHeader('Retry-After', String(throttledIdempotencyReplay.retryAfter));
+    return sendJson(429, {
+      success: false, error: 'RATE_LIMIT_EXCEEDED',
+      tier: throttledIdempotencyReplay.tier,
+      message: 'Mutation rate limit reached. Retry with the same key after Retry-After.',
+      retryAfter: throttledIdempotencyReplay.retryAfter
+    });
   }
   if (method === 'POST' && pathname === '/api/auth/logout') {
     const token = readSessionToken();
