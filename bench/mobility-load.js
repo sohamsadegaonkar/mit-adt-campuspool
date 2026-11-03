@@ -31,6 +31,16 @@ function assertDisposableTarget(env=process.env){
     throw Error('REFUSE_NON_DISPOSABLE_DATABASE');
   return parsed;
 }
+function privateServerAddress(addr){
+  // GitHub's Docker port forwarding makes the PostgreSQL server's own
+  // listening address a container bridge IP, even for a loopback-only client.
+  if(typeof addr!=='string')return false;
+  if(addr==='::1'||addr==='127.0.0.1')return true;
+  const parts=addr.split('.').map(Number);
+  if(parts.length!==4||parts.some(x=>!Number.isInteger(x)||x<0||x>255))return false;
+  return parts[0]===10 || (parts[0]===172&&parts[1]>=16&&parts[1]<=31) ||
+    (parts[0]===192&&parts[1]===168) || parts[0]===127;
+}
 function size(value,fallback,min,max){
   const n=value===undefined?fallback:Number(value);
   if(!Number.isSafeInteger(n)||n<min||n>max)throw Error('INVALID_BENCHMARK_SIZE');
@@ -77,7 +87,7 @@ async function ensureEmpty(pool){
   );
   const x=p.rows[0]||{};
   if(x.db!=='campuspool_mobility_bench'||x.usr!=='postgres'||
-     !['127.0.0.1','::1'].includes(x.addr))
+     !privateServerAddress(x.addr))
     throw Error('UNEXPECTED_DATABASE_IDENTITY');
   const c=await pool.query([
     'SELECT',
@@ -183,7 +193,7 @@ async function cleanup(pool,fixtures,bucketKey){
 async function ensureIdentity(pool){
   const r=await pool.query('SELECT current_database() AS db,inet_server_addr()::text AS addr');
   if(r.rows[0].db!=='campuspool_mobility_bench'||
-    !['127.0.0.1','::1'].includes(r.rows[0].addr))throw Error('UNSAFE_CLEANUP_TARGET');
+    !privateServerAddress(r.rows[0].addr))throw Error('UNSAFE_CLEANUP_TARGET');
 }
 async function sampleDb(pool){
   const r=await pool.query([
@@ -262,8 +272,8 @@ async function run(env=process.env){
   let fixtures=null,bucketKey=null,timer=null,monitoring=false;
   try{
     await ensureEmpty(pool);
-    const startCpu=process.cpuUsage();
     fixtures=await seed(pool,students,rides,owned=>{fixtures=owned;});
+    const startCpu=process.cpuUsage();
     const statsBefore=await sampleDb(monitor);
     const mobility=new PgMobilityStore({pool});
     let maxWaiting=0,maxPoolTotal=0,maxLockWaiters=0,maxPgActive=0,samples=0;
@@ -354,4 +364,4 @@ if(require.main===module)run().catch(error=>{
   process.stderr.write('MOBILITY_BENCH_FAILED: '+String(error?.code||'CHECK_REPORT_OR_FIXTURE_LOGS').replace(/[^A-Z0-9_]/gi,'_').slice(0,90)+'\n');
   process.exitCode=1;
 });
-module.exports={assertDisposableTarget,size,percentile,validateCandidate,random,run};
+module.exports={assertDisposableTarget,privateServerAddress,size,percentile,validateCandidate,random,run};
