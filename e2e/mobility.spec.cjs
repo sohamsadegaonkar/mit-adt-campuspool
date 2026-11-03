@@ -225,6 +225,10 @@ test('session logout discards a late successful private candidate response',asyn
   await expect(page.locator('#mobilityMatches article')).toHaveCount(0);
   await expect(page.locator('#mobilityStatus')).toHaveText('');
   await expect(page.locator('#mobilityActive')).toBeHidden();
+  // Hidden DOM is still inspectable. Old trip windows and form dates must be erased.
+  await expect(page.locator('#mobilityWindow')).toHaveText('');
+  await expect(page.locator('#mobilityEarliest')).toHaveValue('');
+  await expect(page.locator('#mobilityLatest')).toHaveValue('');
 });
 
 test('explicit opt-in map clicks select coordinates without saving them to browser storage',async({page,context})=>{
