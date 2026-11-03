@@ -24,6 +24,17 @@
       throw Error('Choose a future departure window of up to 3 hours, within the next 7 days.');
     return {pickup,dropoff,earliestDeparture:earliest.toISOString(),latestDeparture:latest.toISOString()};
   }
+  function buildDriverRouteInput(values,now=Date.now()){
+    const departure=new Date(values.departureAt);
+    if(!values.departureAt||!Number.isFinite(departure.getTime())||
+       departure.getTime()<now-10*60000||departure.getTime()>now+7*DAY)
+      throw Error('Choose a valid exact departure within the next 7 days for matching.');
+    // Reuse the same strict coordinate/window checks for both sides of matching.
+    const intent=buildIntentPayload({...values,
+      earliest:departure.toISOString(),latest:new Date(departure.getTime()+60000).toISOString()},now);
+    return {pickupCoordinates:intent.pickup,destinationCoordinates:intent.dropoff,
+      departureAt:intent.earliestDeparture};
+  }
   function candidateView(item){
     if(!item || !UUID.test(String(item.rideId||'')) ||
        item.candidateOnly!==true || item.roadRouteVerificationRequired!==true)
@@ -48,10 +59,11 @@
     if(status===404)return 'This request or ride is no longer available.';
     return 'The request could not be completed. Check your connection and try again.';
   }
-  const exported={buildIntentPayload,candidateView,failureMessage};
+  const exported={buildIntentPayload,buildDriverRouteInput,candidateView,failureMessage};
   if(typeof module!=='undefined'&&module.exports)module.exports=exported;
   if(!root || !root.document || !root.fetch)return;
 
+  root.CampusPoolMobilityBuildRoute=buildDriverRouteInput;
   const document=root.document;
   const byId=id=>document.getElementById(id);
   const state={enabled:false,csrf:null,intent:null,busy:false,map:null,markers:{},mode:null,requestSeq:0};
@@ -62,14 +74,25 @@
     for(const m of Object.values(state.markers))m.remove();
     state.markers={};
   }
+  function clearDriverRoute(){
+    for(const id of ['offerMobilityPickupLat','offerMobilityPickupLon',
+      'offerMobilityDropoffLat','offerMobilityDropoffLon','offerMobilityDepartureAt']){
+      const element=byId(id);if(element)element.value='';
+    }
+    const checkbox=byId('offerMobilityOptIn');if(checkbox)checkbox.checked=false;
+    const fields=byId('offerMobilityFields');if(fields)fields.hidden=true;
+  }
   function setEnabled(enabled){
     const panel=byId('mobilityIntentPanel');
     if(!panel)return;
     panel.hidden=!enabled;panel.classList.toggle('hidden',!enabled);
+    const driverPanel=byId('offerMobilityGeoSection');
+    if(driverPanel){driverPanel.hidden=!enabled;driverPanel.classList.toggle('hidden',!enabled);}
     state.enabled=enabled;
     if(!enabled){
       state.intent=null;state.csrf=null;state.requestSeq++;
       clearLocations();
+      clearDriverRoute();
       byId('mobilityMatches').replaceChildren();
       if(state.map){state.map.remove();state.map=null;state.mode=null;}
       byId('mobilityMap').hidden=true;
@@ -235,6 +258,12 @@
     byId('mobilityRefresh').addEventListener('click',refresh);
     byId('mobilityPickPickup').addEventListener('click',()=>chooseOnMap('Pickup'));
     byId('mobilityPickDropoff').addEventListener('click',()=>chooseOnMap('Dropoff'));
+    byId('offerMobilityOptIn')?.addEventListener('change',event=>{
+      const enabled=state.enabled&&event.currentTarget.checked;
+      byId('offerMobilityFields').hidden=!enabled;
+      if(!enabled)clearDriverRoute();
+    });
+    byId('offerRideForm')?.addEventListener('reset',()=>root.setTimeout(clearDriverRoute,0));
     root.addEventListener('campuspool:session-changed',refresh);
     refresh();
   }
