@@ -1541,11 +1541,20 @@ const server = http.createServer(async (req, res) => {
       return sendJson(400, { success: false, message: 'Booking ID required.' });
     }
     try {
-      const result = pgRidesStore
-        ? await pgRidesStore.cancelBooking({bookingId:body.bookingId,passengerUserId:authenticatedUser.id})
-        : db.cancelBooking(body.bookingId, authenticatedUser.email);
-      invalidateRidesCache();
-      return sendJson(200, { success: true, message: 'Booking canceled and seat restored.', ...result });
+      return await executeIdempotentMutation(pathname,body,client=>{
+        if(pgRidesStore){
+          return pgRidesStore.cancelBooking({
+            bookingId:body.bookingId,passengerUserId:authenticatedUser.id,client
+          }).then(result=>({status:200,body:{
+            success:true,message:'Booking canceled and seat restored.',...result
+          }}));
+        }
+        const result=db.cancelBooking(body.bookingId,authenticatedUser.email);
+        invalidateRidesCache();
+        return {status:200,body:{
+          success:true,message:'Booking canceled and seat restored.',...result
+        }};
+      });
     } catch (err) {
       if(pgRidesStore){
         const known=err instanceof RidesError;
@@ -1566,11 +1575,20 @@ const server = http.createServer(async (req, res) => {
       return sendJson(400, { success: false, message: 'Ride ID required.' });
     }
     try {
-      const result = pgRidesStore
-        ? await pgRidesStore.cancelRide({rideId:body.rideId,driverUserId:authenticatedUser.id})
-        : db.cancelRide(body.rideId, authenticatedUser.email);
-      invalidateRidesCache();
-      return sendJson(200, { success: true, message: 'Offered ride canceled.', ...result });
+      return await executeIdempotentMutation(pathname,body,client=>{
+        if(pgRidesStore){
+          return pgRidesStore.cancelRide({
+            rideId:body.rideId,driverUserId:authenticatedUser.id,client
+          }).then(result=>({status:200,body:{
+            success:true,message:'Offered ride canceled.',...result
+          }}));
+        }
+        const result=db.cancelRide(body.rideId,authenticatedUser.email);
+        invalidateRidesCache();
+        return {status:200,body:{
+          success:true,message:'Offered ride canceled.',...result
+        }};
+      });
     } catch (err) {
       if(pgRidesStore){
         const known=err instanceof RidesError;
