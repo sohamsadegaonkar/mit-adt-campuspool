@@ -1460,47 +1460,46 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (method === 'POST' && pathname === '/api/bookings') {
-    const body = await parseBody();
-    if (body.passengerEmail && !isSelf(body.passengerEmail)) {
-      return sendJson(403, { success: false, error: 'NOT_ALLOWED' });
-    }
-    {
-      const settlementCheck = pgRidesStore
-        ? await pgRidesStore.checkUserSettlementBlock(authenticatedUser.id)
-        : db.checkUserSettlementBlock(authenticatedUser.email);
-      if (settlementCheck.isBlocked) {
-        const errorMsg = settlementCheck.hasUnsettledCommission
-          ? `Settlement Required: You have ₹${settlementCheck.commissionDue} in pending platform commission from a previous ride. Please settle via UPI to unlock bookings.`
-          : `Payment Settlement Required: You have an unpaid ride booking (₹${settlementCheck.pendingBookings[0].studentFare} with ${settlementCheck.pendingBookings[0].driverName}). Please settle your ride fare before booking another seat.`;
-
-        return sendJson(403, {
-          success: false,
-          error: 'SETTLEMENT_REQUIRED',
-          message: errorMsg,
-          ...settlementCheck
-        });
-      }
-    }
-
+    const body=await parseBody();
     try {
-      const booking = pgRidesStore
-        ? await pgRidesStore.bookRide({rideId:body.rideId,passengerUserId:authenticatedUser.id})
-        : db.bookRide({
-          rideId: body.rideId,
-          passengerEmail: authenticatedUser.email,
-          passengerName: authenticatedUser.name
-        });
-      invalidateRidesCache();
-      return sendJson(201, { success: true, booking });
-    } catch (err) {
+      return await executeIdempotentMutation(pathname,body,client=>{
+        if(body.passengerEmail && !isSelf(body.passengerEmail)){
+          rejectMutation(403,{success:false,error:'NOT_ALLOWED'});
+        }
+        const finish=settlementCheck=>{
+          if(settlementCheck.isBlocked){
+            const errorMsg=settlementCheck.hasUnsettledCommission
+              ? `Settlement Required: You have ₹${settlementCheck.commissionDue} in pending platform commission from a previous ride. Please settle via UPI to unlock bookings.`
+              : `Payment Settlement Required: You have an unpaid ride booking (₹${settlementCheck.pendingBookings[0].studentFare} with ${settlementCheck.pendingBookings[0].driverName}). Please settle your ride fare before booking another seat.`;
+            rejectMutation(403,{
+              success:false,error:'SETTLEMENT_REQUIRED',message:errorMsg,...settlementCheck
+            });
+          }
+          if(pgRidesStore){
+            return pgRidesStore.bookRide({
+              rideId:body.rideId,passengerUserId:authenticatedUser.id,client
+            }).then(booking=>({status:201,body:{success:true,booking}}));
+          }
+          const booking=db.bookRide({
+            rideId:body.rideId,passengerEmail:authenticatedUser.email,
+            passengerName:authenticatedUser.name
+          });
+          invalidateRidesCache();
+          return {status:201,body:{success:true,booking}};
+        };
+        return pgRidesStore
+          ? pgRidesStore.checkUserSettlementBlock(authenticatedUser.id).then(finish)
+          : finish(db.checkUserSettlementBlock(authenticatedUser.email));
+      });
+    }catch(err){
       if(pgRidesStore){
         const known=err instanceof RidesError;
         return sendJson(known?err.status:500,{success:false,
           error:known?err.code:'DATABASE_ERROR',
           message:known?err.code:'Booking could not be completed.'});
       }
-      const statusCode = err.message.includes('not found') ? 404 : 400;
-      return sendJson(statusCode, { success: false, message: err.message });
+      const statusCode=err.message.includes('not found')?404:400;
+      return sendJson(statusCode,{success:false,message:err.message});
     }
   }
 
