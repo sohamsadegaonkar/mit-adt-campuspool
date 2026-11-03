@@ -32,6 +32,7 @@
     "test:idempotency-pg": "node --test test_pg_idempotency.js",
     "test:browser-idempotency": "node --test test_browser_idempotency.js",
     "test:staging-preflight": "node --test test_staging_migration_preflight.js",
+    "test:backup-restore-ci": "node --test test_pg_backup_restore.js",
     "check:staging-migration": "node scripts/staging-migration-preflight.js"
   },
   "dependencies": {

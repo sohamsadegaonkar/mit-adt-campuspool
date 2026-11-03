@@ -75,3 +75,14 @@ Only *after* a separately authorized additive 008 migration is completed, run `-
 ## CI verification — 2026-11-03
 
 The preflight implementation passed the full isolated GitHub suite at code commit `4d66aa0`: PostgreSQL/PostGIS #41595567003, security smoke #41595567015, credentials #41595567125 and agent docs #41595567097. **This is not evidence of a completed staging dump, restore, Render rollout or applied migration 008.**
+
+## Operator backup/restore notes verified against current Supabase guidance
+
+The earlier generic `pg_dump` example is **not sufficient by itself** to claim a full Supabase recovery: a raw database dump may capture managed schemas which cannot cleanly be restored into a new Supabase instance. Current Supabase documentation recommends a **separate** `supabase db dump` of **roles**, **schema**, and **data**; schema-only defaults do **not** include data or custom roles. Review the current official guide before the real run:
+- https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore
+- https://supabase.com/docs/guides/platform/backups
+- https://supabase.com/docs/guides/deployment/ci/backups
+
+The owner should arrange a trusted machine and privately supplied staging DB URL, run `supabase db dump --help` against the installed version, export roles/schema/data and necessary migration history, encrypt the exports locally (for example with an age recipient key managed by the owner), store only ciphertext off-site, compute ciphertext SHA-256 and prove decryption into an **isolated** scratch restore target. Record audit-friendly counts and RLS grants, **never** dump contents or credentials. The actual restore must include compatible Supabase schemas/extensions and permission setup; a successful `pg_restore --list` alone is insufficient.
+
+A disposable CI-only regression test `npm run test:backup-restore-ci` exercises PostgreSQL custom-format archive, AES-256-GCM protection, SHA-256 integrity and a fresh scratch database restore with test-only data. **Its result cannot serve as actual staging backup or off-site restore evidence.**
