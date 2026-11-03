@@ -1,7 +1,7 @@
 # Task: Transactional request idempotency across Rides and mobility
 
 - **Task ID / file:** `2026-11-03-transactional-idempotency`
-- **Status:** in review — latest branch CI required before merge or any staging release
+- **Status:** in review — latest-head GitHub CI passed; code review and staging rollout gate still open
 - **Agent / owner:** ChatGPT engineering agent
 - **Last updated:** 2026-11-03 UTC
 - **Baseline:** `main@3ee1f4a12e984cb6aecbf8ea09150d1e79556c87`
@@ -38,42 +38,45 @@ Criteria: same-key replay returns identical successful resource/status, differen
 - 2026-11-03 UTC — Auth/OTP delivery, GPS update reordering and future payment webhooks explicitly excluded from global replay guarantees; documented in `IDEMPOTENCY_CONTRACT.md`.
 - 2026-11-03 UTC — Opened draft [PR #11](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/11). Initial idempotency, SQLite security, secrets and documentation checks passed; an existing mobility duplicate-conflict test exposed a crash caused by returning a rejected Promise without awaiting inside the HTTP handler.
 - 2026-11-03 UTC — Corrected three unawaited mutation-return paths in `server.js`; subsequent full PostgreSQL/PostGIS and other CI checks passed at commit `026607d734f8`.
-- 2026-11-03 UTC — Strengthened the design with a separate concurrent PG transaction test and bounded PG/SQLite receipt pruning; extended `prune:otp` for full PG expired receipt cleanup. **Latest CI revalidation is still pending** after these edits.
+- 2026-11-03 UTC — Strengthened the design with a separate concurrent PG transaction test and bounded PG/SQLite receipt pruning; extended `prune:otp` for full PG expired receipt cleanup. **Latest CI revalidation passed** on `a2e231b96d30dad33c7b1e6a9ce1d6d5dec262e6`.
+- 2026-11-03 UTC — Rechecked exact PR #11 head `a2e231b96d30` and four GitHub Actions workflows: PostgreSQL/PostGIS OTP integration (#41582822457), security smoke (#41582822448), secret hygiene (#41582822449), agent-doc contract (#41582822439) all succeeded. This verifies CI, not staging or production.
+- 2026-11-03 UTC — Static review found that the shared IP rate limiter executes **before** authenticated idempotency receipt lookup in `server.js`; a completed-key retry can receive transient HTTP 429 under throttling. Exactly-once-per-key *SQL business effects* still hold, but unconditional HTTP replay under rate limiting is not guaranteed. Follow-up design/test needed before advertising stronger semantics.
 - 2026-11-03 UTC — No database migration applied to live Supabase, no Render service modified.
 
 ## Verification
 
 | Test/check | Environment and command/evidence | Result / limitations |
 |---|---|---|
-| JavaScript syntax | GitHub source syntax checks and parser on changed snippets | PASS on prior head; recheck latest head |
-| SQLite transaction tests | `npm run test:idempotency` (isolated tempfile) | Pending GitHub CI |
-| Legacy auth + SQLite API | `npm run test:security` | Pending GitHub CI |
-| PostgreSQL booking+ride replay | `npm run test:rides-http` (disposable PostGIS) | Pending GitHub CI |
-| Mobility retry and rate limiting | `npm run test:mobility-http` (disposable PostGIS) | Pending GitHub CI |
-| PostgreSQL two-client concurrency | \`npm run test:idempotency-pg\` (disposable PostGIS) | New test, CI pending |\n| Live staging | No staging migration/deploy allowed by this task | Not performed |
+| JavaScript syntax | GitHub source syntax checks and parser on changed snippets | PASS on exact PR head `a2e231b` in GitHub CI |
+| SQLite transaction tests | `npm run test:idempotency` (isolated tempfile) | PASS on exact PR head `a2e231b` in isolated GitHub CI |
+| Legacy auth + SQLite API | `npm run test:security` | PASS on exact PR head `a2e231b` in isolated GitHub CI |
+| PostgreSQL booking+ride replay | `npm run test:rides-http` (disposable PostGIS) | PASS on exact PR head `a2e231b` in isolated GitHub CI |
+| Mobility retry and rate limiting | `npm run test:mobility-http` (disposable PostGIS) | PASS on exact PR head `a2e231b` in isolated GitHub CI |
+| PostgreSQL two-client concurrency | \`npm run test:idempotency-pg\` (disposable PostGIS) | PASS on exact PR head `a2e231b` in isolated GitHub CI |\n| Live staging | No staging migration/deploy allowed by this task | Not performed |
 | Live production | No production migration/deploy allowed by this task | Not performed |
 
 ## Risks and decisions
 
 - PostgreSQL migration 008 must be applied in isolated staging **before** switching on a build that requires the idempotency table; server startup fails closed otherwise.
 - SQLite still lacks production durability on free Render disks, even though local keyed transactions are atomic.
-- Key expiry is 24h, with periodic deletion still to implement. Existing mobile/browser clients must be upgraded because covered mutation routes require `Idempotency-Key`.
+- Key expiry is 24h; bounded opportunistic pruning is implemented and `prune:otp` can fully clean old receipts; no live scheduled task has been configured. Existing mobile/browser clients must be upgraded because covered mutation routes require `Idempotency-Key`.
 - Provider OTP sends and payment webhooks need their own transactional outbox / event-ID model. No "full exactly once" claim for such external effects.
 - User row lock serializes concurrent **same-user** booking eligibility in PG. Booking capacity still uses its original ride row lock.
 - Cached successful receipt contains booking/user details; data is stored in server-only private tables, not shared HTTP caches.
+- The shared IP-based HTTP mutation limiter runs ahead of receipt lookup; a replay can receive HTTP 429 while throttled. Clients must preserve the original key and retry after `Retry-After`; a future improvement can safely reconcile receipts without weakening abuse controls.
 - See `docs/agents/DECISIONS.md` A-010 and `IDEMPOTENCY_CONTRACT.md`.
 
 ## Next steps — exact handoff
 
-1. **Next action:** Open PR from `security/transactional-idempotency-2026-11-03`, inspect GitHub Actions `Stage 1 PostgreSQL OTP tests`, `CampusPool security smoke tests`, `Credential and secret hygiene`, and `Agent documentation contract`; fix any failed assertions or code issues.
+1. **Next action:** Review the rate-limit/replay boundary and either add a safe authenticated reconciliation path with tests or explicitly accept transient 429 semantics. Independently review the migration permissions and browser retry lifecycle before declaring review complete.
 2. **Who may do it:** engineering reviewer or next agent; staging migration/deploy requires separate explicit permission.
 3. **Prerequisites and blockers:** no live data mutation; use disposable PG/PostGIS and temporary SQLite only. If a workflow is red, copy *sanitized* failure cause into this record.
-4. **Expected evidence:** successful run IDs at exact PR head, tests for collision/replay/rollback, and reviewed idempotency security design.
+4. **Evidence now available:** exact-head successful CI run IDs 41582822457 (PostGIS), 41582822448 (security), 41582822449 (secrets), 41582822439 (agent docs). **Still required:** independent code review, controlled staging-only migration approval/backups, browser/restart/concurrency QA. No tests were executed locally in this handoff environment.
 5. **Production impact:** none; new code and migration are branch-local until independently approved and deployed.
 
 ## Links and files changed
 
-- Branch: `security/transactional-idempotency-2026-11-03` (PR link to be added when created).
+- Branch: `security/transactional-idempotency-2026-11-03`; [draft PR #11](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/11).
 - New: `idempotency.js`, `test_idempotency.js`, `IDEMPOTENCY_CONTRACT.md`, `stage1-otp/migrations/008_transactional_idempotency.sql`.
 - Modified: `server.js`, `database.js`, `index.html`, `stage1-otp/rides-store.js`, `stage1-otp/mobility-store.js`, `stage1-otp/migrate.js`, HTTP tests, CI, agent docs.
 - Last observed staging deployment: `cceadbf6251f`; production `63ae5510bbe2` (from previous verified status, reconfirm before future deployment).
