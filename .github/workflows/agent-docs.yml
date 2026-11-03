@@ -1,0 +1,30 @@
+name: Agent documentation contract
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  agent-docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out full revision history for exact PR comparison
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Configure Node runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.2'
+      - name: Validate document structure and implementation PR handoff
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/check-agent-docs.js
