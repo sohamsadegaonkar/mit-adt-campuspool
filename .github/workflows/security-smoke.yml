@@ -9,6 +9,8 @@ on:
       - 'render-staging.yaml'
       - 'test_auth_integration.js'
       - 'database.js'
+      - 'idempotency.js'
+      - 'test_idempotency.js'
       - 'render.yaml'
       - 'package.json'
       - 'test_security_smoke.js'
@@ -36,10 +38,13 @@ jobs:
         run: |
           node --check server.js
           node --check database.js
+          node --check idempotency.js
+          node --check test_idempotency.js
           node --check test_security_smoke.js
           node --check test_auth_integration.js
           node --check sms-provider.js
       - name: Run isolated security tests
         run: |
+          npm run test:idempotency
           npm run test:security
           npm run test:auth
