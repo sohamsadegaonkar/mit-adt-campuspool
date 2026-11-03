@@ -113,3 +113,86 @@ The correct rollback baseline **for a future staging idempotency release** is `d
 Important: the staging service follows `main`, **not** draft PR #11. Render's Dashboard supports **Manual Deploy → Deploy a specific commit** by SHA from the linked repository; see https://render.com/docs/deploys. The connector's `trigger_deploy` tool does **not** take a SHA and would deploy the service's configured branch. **Never trigger it to publish PR #11**. Do not merge to `main` just to force staging deployment. Deploying a specific commit, and any migration, remain strictly deferred until after encrypted off-site staging backup + independent actual-data restore, release authorization and a verified eligible rollback target.
 
 Render rollback restores a historical service build/configuration only; **it does not roll back PostgreSQL records or schema**. Keep migration 008 additive and intact during app rollback. The staging runtime's configured health-check path is currently blank; separately verify `/healthz`, browser security controls and synthetic user flows after an authorized staged deployment. No production changes were made.
+
+## Owner-executed real staging backup gate — verified CLI procedure, NOT EXECUTED
+
+**2026-11-03 live read-only recheck:** staging Supabase `tnitksrlntrdxbvznxzf` is PG17.11, on migrations 001–007, 008 absent, and user/ride/booking counts zero. Render staging service `srv-dbjof8fb9u1s73eks0bg` still has live deployment `dep-dbke9uo8v5cc738cpnd0` / `cceadbf6251f`. The Supabase organization is Free. **No database-owner export credential, secure off-site storage destination, verified independent scratch PG17 target or retained rollback artifact check is accessible from the current connected tools.** These operations are therefore **NOT DONE**; a synthetic CI backup is not an actual backup.
+
+**Operator preparation, not a secret-sharing request:** Run on a personally controlled, encrypted Linux/WSL2/macOS machine with Docker, installed current Supabase CLI, PostgreSQL **17** client, `age` encryption and a separately configured encrypted off-site destination. Obtain the stage-only owner connection string privately from [Supabase staging Connect](https://supabase.com/dashboard/project/tnitksrlntrdxbvznxzf); prefer session pooler on IPv4 networks. Do not paste the URI/password or any dump into a chat, source control, logs or GitHub Actions. Before executing, run `supabase db dump --help` and verify the installed CLI supports `--role-only`, `--data-only` and `--use-copy`. Ensure `STAGING_DB_URL` is **exactly** project `tnitksrlntrdxbvznxzf` (direct host `db.tnitksrlntrdxbvznxzf.supabase.co`, or pooler username ending in `.tnitksrlntrdxbvznxzf`), never production.
+
+The **following illustrative commands** must be executed *only by the approved operator*, using a temporary directory on their private encrypted filesystem, a preconfigured recipient public key in `AGE_RECIPIENT`, and an approved `OFFSITE_DIR` mounted from a secure remote provider:
+
+```bash
+set -euo pipefail
+set +x                         # Never print database URLs or encryption material
+umask 077
+: "${STAGING_DB_URL:?secure operator environment required}"
+: "${AGE_RECIPIENT:?age public recipient required}"
+: "${OFFSITE_DIR:?approved off-site mounted directory required}"
+supabase db dump --help
+psql --version                 # Must use PG17 compatible client
+work="$(mktemp -d)"
+trap 'rm -rf -- "$work"' EXIT  # Use only a trusted encrypted local volume
+supabase db dump --db-url "$STAGING_DB_URL" --role-only -f "$work/roles.sql"
+supabase db dump --db-url "$STAGING_DB_URL" -f "$work/schema.sql"
+supabase db dump --db-url "$STAGING_DB_URL" --use-copy --data-only \
+  -f "$work/data.sql"
+archive="$OFFSITE_DIR/campuspool-staging-roles-schema-data-2026-11-03.tar.age"
+tar -C "$work" -cf - roles.sql schema.sql data.sql |
+  age --encrypt --recipient "$AGE_RECIPIENT" --output "$archive"
+sha256sum "$archive" > "$archive.sha256"
+# Verify the object and digest AFTER the off-site copy/upload completes.
+```
+
+**Off-site proof requires more than a locally mounted path:** verify the encrypted remote object exists under the intended account and that a *freshly downloaded* copy's SHA-256 matches the recorded ciphertext checksum. Confirm a working decryption key in a separate protected location. Do not regard this example as successful execution or remote verification.
+
+**Independent restore:** A trusted operator provisions an approved **fresh separate** Supabase-compatible PostgreSQL 17/PostGIS target, records its different project ID and verifies that it is neither production nor the source staging project, and confirms it has no `campus_*` application tables. Decrypt the authenticated `.tar.age` archive into a private encrypted temporary directory, then restore **only to that scratch target** using Supabase's documented roles → schema → data SQL order. From the official [CLI backup/restore documentation](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore):
+
+```bash
+# On a trusted operator machine only, after verifying RESTORE_DB_URL points to
+# a DIFFERENT disposable project than tnitksrlntrdxbvznxzf:
+age --decrypt --identity "$AGE_IDENTITY_FILE" "$archive" | tar -C "$work" -xf -
+psql --single-transaction --set ON_ERROR_STOP=1 \
+  --dbname "$RESTORE_DB_URL" \
+  --file "$work/roles.sql" \
+  --file "$work/schema.sql" \
+  --command 'SET session_replication_role = replica' \
+  --file "$work/data.sql"
+```
+
+The target requires Supabase's baseline schemas/roles and the same supported extensions (PostGIS in `extensions`). Backup/restore is **not proven** if objects are skipped or SQL returns errors. A normal plain PostgreSQL instance lacking Supabase roles/schemas is not an equivalent full-fidelity restore. Never restore into `tnitksrlntrdxbvznxzf` itself as a rehearsal. Also verify the correct source migration history separately: Supabase-managed metadata may be excluded by CLI filtering.
+
+**Verify on BOTH source and independent restored target**, comparing outputs that contain only safe metadata:
+
+```sql
+SELECT to_regclass('public.campus_users') IS NOT NULL AS users_table,
+       to_regclass('public.campus_rides') IS NOT NULL AS rides_table,
+       to_regclass('public.campus_idempotency_keys') IS NOT NULL AS migration_008_present;
+SELECT (SELECT count(*) FROM public.campus_users) AS users,
+       (SELECT count(*) FROM public.campus_sessions) AS sessions,
+       (SELECT count(*) FROM public.campus_rides) AS rides,
+       (SELECT count(*) FROM public.campus_bookings) AS bookings,
+       (SELECT count(*) FROM public.campus_trip_intents) AS intents;
+SELECT c.relname, c.relrowsecurity AS rls,
+       has_table_privilege('anon',c.oid,'SELECT') AS anon_select,
+       has_table_privilege('authenticated',c.oid,'SELECT') AS authenticated_select,
+       has_table_privilege('campuspool_staging_app',c.oid,'SELECT,INSERT,UPDATE,DELETE') AS app_crud
+FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+WHERE n.nspname='public'
+  AND c.relname IN ('campus_users','campus_sessions','campus_rides',
+                    'campus_bookings','campus_trip_intents')
+ORDER BY c.relname;
+SELECT tablename,policyname,cmd,roles,qual,with_check FROM pg_policies
+WHERE schemaname='public' AND tablename LIKE 'campus_%'
+ORDER BY tablename,policyname;
+SELECT rolname,rolcanlogin,rolsuper,rolbypassrls
+FROM pg_roles WHERE rolname='campuspool_staging_app';
+```
+
+Also verify all other application tables, indexes, constraints, extension versions and column shape, not only this sample; compare no user records or passwords outside the protected restore workspace. Note that custom role passwords are not exported by Supabase and must be provisioned separately for authentication checks.
+
+**Render rollback artifact gate, not yet proven:** The linked Render `get_deploy` reports the current successful `dep-dbke9uo8v5cc738cpnd0` but not whether a retained build will still exist after the next deployment. According to [Render Rollbacks](https://render.com/docs/rollbacks), the operator must open [Staging service's Events page](https://dashboard.render.com/web/srv-dbjof8fb9u1s73eks0bg), locate the successful baseline deployment and confirm the **Rollback** control is offered for a still-retained artifact. **Do not click Rollback during a read-only eligibility inspection.** After an authorized new deployment, verify the baseline is still retained before attempting rollback. Render's generic connector offers neither artifact-retention metadata nor rollback action. Render rollback also does not reverse database migration 008.
+
+### Release decision
+
+**NO-GO**: the required real off-site encrypted staging dump, independent PostgreSQL 17 restore, matching verification evidence and Render artifact eligibility are absent. Do not apply 008, change Render settings, deploy, or run rollback; the CLI snippets above are an operator procedure only.
