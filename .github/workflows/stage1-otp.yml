@@ -10,6 +10,7 @@ on:
       - 'idempotency.js'
       - 'database.js'
       - 'test_idempotency.js'
+      - 'test_pg_idempotency.js'
       - 'test_stage1_otp.js'
       - 'test_pg_identity.js'
       - 'test_pg_rides.js'
@@ -69,6 +70,7 @@ jobs:
           node --check server.js
           node --check idempotency.js
           node --check test_idempotency.js
+          node --check test_pg_idempotency.js
           node --check stage1-otp/pg-store.js
           node --check stage1-otp/auth-routes.js
           node --check stage1-otp/email-provider.js
@@ -91,6 +93,7 @@ jobs:
       - name: Run isolated PostgreSQL integration tests
         run: |
           npm run test:idempotency
+          npm run test:idempotency-pg
           npm run test:stage1
           npm run test:identity
           npm run test:rides
