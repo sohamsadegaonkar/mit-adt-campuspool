@@ -178,6 +178,9 @@
       renderIntent();
     }catch(_){if(seq===state.requestSeq)setEnabled(false);}
   }
+  // Session refresh/logout invalidates all in-flight responses. Browser state
+  // must never be rebuilt from a request started for an earlier session.
+  function isCurrentRequest(epoch){return state.enabled && epoch===state.requestSeq;}
   function values(){
     const read=id=>byId(id)?.value ?? '';
     return {pickupLat:read('mobilityPickupLat'),pickupLon:read('mobilityPickupLon'),
@@ -197,33 +200,39 @@
     let payload;
     try{payload=buildIntentPayload(values());}
     catch(err){message(err.message);return;}
+    const epoch=state.requestSeq;
     setBusy(true);
     try{
       const res=await post('/api/mobility/intents',payload);
+      if(!isCurrentRequest(epoch))return;
       if(res.ok && UUID.test(res.data?.intent?.intentId||'')){
         clearLocations();state.intent=res.data.intent;renderIntent();
       }else{message(failureMessage(res.status));if(res.status===409)await refresh();}
-    }catch(_){message('Request status is uncertain. Check your active request before trying again.');}
+    }catch(_){if(isCurrentRequest(epoch))message('Request status is uncertain. Check your active request before trying again.');}
     finally{setBusy(false);}
   }
   async function onCancel(){
     if(state.busy||!state.intent||!state.enabled)return;
+    const epoch=state.requestSeq;
     setBusy(true);
     try{
       const res=await post('/api/mobility/intents/cancel',{intentId:state.intent.intentId});
+      if(!isCurrentRequest(epoch))return;
       if(res.ok){state.intent=null;clearLocations();renderIntent();}
       else message(failureMessage(res.status));
-    }catch(_){message('Cancellation status is uncertain. Refresh to verify before retrying.');}
+    }catch(_){if(isCurrentRequest(epoch))message('Cancellation status is uncertain. Refresh to verify before retrying.');}
     finally{setBusy(false);}
   }
   async function onSearch(){
     if(state.busy||!state.intent||!state.enabled)return;
+    const epoch=state.requestSeq;
     setBusy(true);
     try{
       const res=await request('/api/mobility/matches?intentId='+encodeURIComponent(state.intent.intentId));
+      if(!isCurrentRequest(epoch))return;
       if(res.ok&&res.data?.routeVerificationRequired===true)renderMatches(res.data.candidates);
       else message(failureMessage(res.status));
-    }catch(_){message('Matching search failed. Try again later.');}
+    }catch(_){if(isCurrentRequest(epoch))message('Matching search failed. Try again later.');}
     finally{setBusy(false);}
   }
   function chooseOnMap(mode){
