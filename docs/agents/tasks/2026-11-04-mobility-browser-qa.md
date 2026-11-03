@@ -1,9 +1,9 @@
 # Task: Real-browser mobility QA on PR #14 (disposable PostGIS)
 
 - **Task ID:** 2026-11-04-mobility-browser-qa
-- **Status:** in progress — tests and workflow committed on PR #14, first real-browser CI result pending
+- **Status:** tested (GitHub CI) — 21/21 real browser scenarios passed; independent review and actual staging/physical-device acceptance remain pending
 - **Owner:** ChatGPT engineering agent; independent reviewer and staging operator not yet assigned
-- **Last updated:** 2026-11-04 (user local date); UTC evidence must be read from GitHub Actions runs
+- **Last verified:** 2026-11-03 19:14 UTC (GitHub Actions #41701113565); 2026-11-04 user local date
 - **Baseline:** PR #14 at `9852c637a7afc9f5f9d03a3979e2729d0c7e00df` before this QA work
 - **Branch:** `feature/mobility-intent-ui-2026-11-03`; targets `main` via draft PR #14
 - **Scope:** frontend ride-ID validation fix, synthetic-only Playwright E2E tests and CI, agent docs. No Render deploy, live Supabase SQL, external OTP, payment, user data or schema migration 008.
@@ -34,15 +34,17 @@ An independently checked integration mismatch was found before browser QA: `camp
 - 2026-11-04 — Verified local WSL native Node QA result reported by user: six of six frontend unit/static tests passed at `9852c63`, but this was not real-browser QA.
 - 2026-11-04 — Reviewed backend ID contract; fixed mismatch between `ride_<uuid>` database IDs and plain UUID checks on candidate cards/booking handoff; added regression assertion.
 - 2026-11-04 — Added `playwright.mobility.config.cjs`, `e2e/mobility-fixtures.cjs`, `e2e/mobility.spec.cjs`, CI workflow, and `test:e2e:mobility` npm command. Database fixture verifies `QA_DISPOSABLE_POSTGIS=YES` and hostname loopback; browser service uses isolated PG identity/rides/mobility and synthetic-only identities. No data exported or live service changed.
-- **Pending:** GitHub CI must execute the real browser suites; static source alone is not evidence that Playwright passed.
+- 2026-11-03 UTC — Initial browser run #41698436474 revealed a CI runner incompatibility (Ubuntu 26.04 with Playwright 1.56.1); runner pinned to Ubuntu 24.04. Follow-up run #41699594647 exposed CI-only HTTP origin vs NODE_ENV=production mismatch and selector expectations; corrected HTTP test mode and browser assertions.
+- 2026-11-03 UTC — Run #41700402475 reached 19 passed, 1 failed, 1 flaky; failures traced to shared localhost API_READ rate limits accumulating across independent test scenarios. Introduced explicit preemptive synthetic staging Basic header and a guarded per-scenario reset of **only** `rl:%` counters in the dedicated ephemeral CI SQLite rate-limit table; kept application throttles enabled.
+- **CI PASS:** run **#41701113565** on code commit **`810ad6415ecdbe78ae5576bf840ce09c3e5d63cd`** completed **21/21 passed (46.8s browser test stage), no failed or flaky scenarios** across Chromium desktop, Firefox desktop and mobile WebKit. Associated security smoke #41701113571, PostgreSQL/PostGIS #41701113606, credential hygiene #41701113667 and agent documentation #41701113609 all passed. No real student/Render/Supabase staging access.
 
 ## Verification
 
 | Check | Environment | Status |
 |---|---|---|
 | User's previous Node unit/static QA | Local Ubuntu-D, commit `9852c63` | Reported PASS (6/6) |
-| Fixed ride-ID regression | `npm run test:mobility-ui` (new branch CI) | Pending |
-| Playwright browser QA | GitHub PR #14, Chromium / Firefox / WebKit, isolated loopback PostGIS | Pending |
+| Fixed ride-ID regression | `npm run test:mobility-ui` in security smoke #41701113571, code `810ad64` | PASS |
+| Playwright browser QA | GitHub #41701113565, code `810ad64`, three projects × seven scenarios | PASS: 21/21 (46.8s) |
 | Actual smartphone/browser manual acceptance | Approved isolated test environment | NOT RUN |
 | Actual staging/production Render or Supabase | Live services | UNTOUCHED |
 
@@ -68,3 +70,12 @@ An independently checked integration mismatch was found before browser QA: `camp
 - `playwright.mobility.config.cjs`, `e2e/mobility-fixtures.cjs`, `e2e/mobility.spec.cjs`
 - `.github/workflows/mobility-browser-qa.yml`
 - `docs/agents/tasks/2026-11-04-mobility-browser-qa.md`, `docs/agents/STATUS.md`, `docs/agents/NEXT_STEPS.md`
+
+## CI artifact and remaining acceptance evidence
+
+- Successful run: https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41701113565
+- Playwright used a **local PostgreSQL 16/PostGIS 3.4 container**, synthetic seeded campus users/sessions, staging Basic Auth and CSRF, the actual app HTTP server and actual browser engines.
+- The browser suite covered manual coordinate entry, not verified OpenStreetMap tile clicks or geolocation permission workflows. It did not validate real SMS/email OTP delivery, real payment callbacks, road routing, physical mobile devices or a staging Render deploy.
+- Artifact report includes Playwright HTML report, screenshots/traces on failure and seven-day retention; the pass run may have little to no failure screenshot evidence.
+- Rate limiter test independence: delete only synthetic `rl:%` counters in the dedicated /tmp CI SQLite file between tests, with disposable environment preflight; this avoids a false cross-project 429 while retaining app rate limits inside each scenario. Rate-limit enforcement is separately covered by existing backend integration tests.
+- **Release gate is unchanged:** PR #14 stays draft, migration 008 remains blocked, no production or staging deployment, and independent database recovery and retained Render rollback artifact still need owner confirmation.
