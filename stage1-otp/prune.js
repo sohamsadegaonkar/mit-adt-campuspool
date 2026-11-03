@@ -15,8 +15,11 @@ async function prune({
     ].join(' '));
     const oldBuckets=await pool.query(
       "DELETE FROM otp_rate_buckets WHERE expires_at < now() - interval '24 hours'");
+    const expiredReceipts=await pool.query(
+      'DELETE FROM public.campus_idempotency_keys WHERE expires_at<=now()');
     console.log('[OTP] Expired records pruned:',{
-      challenges:oldChallenges.rowCount,rateBuckets:oldBuckets.rowCount});
+      challenges:oldChallenges.rowCount,rateBuckets:oldBuckets.rowCount,
+      idempotencyReceipts:expiredReceipts.rowCount});
   } finally { await pool.end(); }
 }
 if(require.main===module)prune().catch(error=>{
