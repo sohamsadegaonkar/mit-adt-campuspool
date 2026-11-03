@@ -86,3 +86,9 @@ The earlier generic `pg_dump` example is **not sufficient by itself** to claim a
 The owner should arrange a trusted machine and privately supplied staging DB URL, run `supabase db dump --help` against the installed version, export roles/schema/data and necessary migration history, encrypt the exports locally (for example with an age recipient key managed by the owner), store only ciphertext off-site, compute ciphertext SHA-256 and prove decryption into an **isolated** scratch restore target. Record audit-friendly counts and RLS grants, **never** dump contents or credentials. The actual restore must include compatible Supabase schemas/extensions and permission setup; a successful `pg_restore --list` alone is insufficient.
 
 A disposable CI-only regression test `npm run test:backup-restore-ci` exercises PostgreSQL custom-format archive, AES-256-GCM protection, SHA-256 integrity and a fresh scratch database restore with test-only data. **Its result cannot serve as actual staging backup or off-site restore evidence.**
+
+## CI-only backup and restore rehearsal — passed
+
+Commit `f59eb8b` passed GitHub PostGIS workflow #41597004644. The disposable PostGIS 16 test used matching PG16 archive tools **inside the container**, encrypted synthetic archive bytes using AES-256-GCM, verified SHA-256 integrity and restored into a fresh logical PostgreSQL database. It compared table counts, RLS policy counts and client/backend grants. Security, docs and credential workflows also passed.
+
+**Not a staging backup or real rollback:** no Supabase staging export, actual staging independent restore, verified Render rollback SHA, migration 008 or live deployment occurred. Before a live migration, confirm `My Workspace` with the account owner, inspect the staging service and execute the encrypted actual-stage backup/restore gate.

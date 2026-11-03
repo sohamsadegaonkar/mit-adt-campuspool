@@ -54,3 +54,8 @@ See [2026-11-03-agent-workflow.md](tasks/2026-11-03-agent-workflow.md) for the m
 
 - [Actual staging backup and rollback evidence](tasks/2026-11-03-staging-backup-restore-gates.md): Render candidate `My Workspace` awaits owner confirmation; last deployed stage SHA not verified. Supabase stage remains 001–007 with no 008.
 - Verify a **real encrypted off-site staging database dump + scratch restore**, not just the synthetic CI backup/restore rehearsal; ensure schema/roles/data and migration history are restored correctly. After this and Render rollback artifact validation, consider stage-only migration 008 with reviewed tool and manual deployment to exact vetted SHA. NO-GO otherwise.
+
+## Latest verified synthetic restore CI — 2026-11-03
+
+- Draft PR #11 `f59eb8b` passed PostGIS #41597004644, security #41597004543, docs #41597004472 and credential #41597004588. The disposable PG16 synthetic backup + encrypted checksum + logical restore drill passed. It **does not substitute for a real encrypted off-site staging backup and scratch restore of the actual staging dataset**.
+- Next: owner confirms Render workspace `My Workspace`, then verify actual staging service/last-good deploy SHA. Owner securely exports and encrypts staging roles/schema/data, restores to an independent scratch target and records verification evidence. Only then can the authorized migration 008 and rollback rehearsal proceed.
