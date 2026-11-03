@@ -100,9 +100,49 @@ async function snapshot(client){
     return result;
   }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}
 }
+// Never report a match for two equally incomplete or malformed snapshots.
+function invalidSections(snapshot){
+  const arrays=[...Object.keys(QUERIES),'counts','rowDigests','migrationVersions'];
+  if(!snapshot || typeof snapshot!=='object' || Array.isArray(snapshot))
+    return [...arrays,'migrationHistoryPresent'];
+  const invalid=new Set();
+  for(const name of arrays){
+    if(!Array.isArray(snapshot[name]))invalid.add(name);
+  }
+  // A missing ledger on BOTH sides is not evidence of a successful recovery.
+  if(snapshot.migrationHistoryPresent!==true)invalid.add('migrationHistoryPresent');
+  if(Array.isArray(snapshot.migrationVersions)){
+    const versions=snapshot.migrationVersions;
+    if(!versions.length || versions.some(v=>typeof v!=='string'||!v.trim()) ||
+       new Set(versions).size!==versions.length)
+      invalid.add('migrationVersions');
+  }
+  if(Array.isArray(snapshot.tables)){
+    const names=snapshot.tables.map(r=>r?.name);
+    if(!names.length || names.some(n=>typeof n!=='string'||!NAME.test(n)) ||
+       new Set(names).size!==names.length)invalid.add('tables');
+    for(const section of ['counts','rowDigests']){
+      const rows=snapshot[section];
+      if(!Array.isArray(rows))continue;
+      const entries=rows.map(r=>r?.name);
+      if(rows.length!==names.length ||
+         entries.some(n=>!NAME.test(n)) ||
+         new Set(entries).size!==entries.length ||
+         names.some(n=>!entries.includes(n)))invalid.add(section);
+      if(section==='counts' && rows.some(r=>typeof r?.count!=='string'||
+        !/^\\d+$/.test(r.count) || BigInt(r.count)>BigInt(MAX_DIGEST_ROWS)))
+        invalid.add(section);
+      if(section==='rowDigests' && rows.some(r=>typeof r?.digest!=='string'||
+        !/^[0-9a-f]{64}$/.test(r.digest)))invalid.add(section);
+    }
+  }
+  return [...invalid];
+}
 function compare(source,target){
   const sections=[...Object.keys(QUERIES),'counts','rowDigests','migrationHistoryPresent','migrationVersions'];
-  const mismatches=sections.filter(k=>JSON.stringify(source[k])!==JSON.stringify(target[k]));
+  const invalid=new Set([...invalidSections(source),...invalidSections(target)]);
+  const mismatches=sections.filter(k=>invalid.has(k)||
+    JSON.stringify(source?.[k])!==JSON.stringify(target?.[k]));
   return {matches:mismatches.length===0,releaseReady:false,
     compared:sections,mismatches,
     notes:['SHA-256 row-content fingerprints are compared internally but never printed. This is bounded, point-in-time, logical-data verification, not proof of backup provenance or complete recovery.',
@@ -135,4 +175,4 @@ if(require.main===module)main().catch(()=>{
   console.error('[RESTORE COMPARE] BLOCKED: precondition, connection or snapshot check failed.');
   process.exitCode=1;
 });
-module.exports={validatePlan,connectionConfig,snapshot,compare,QUERIES,digestSql,MAX_DIGEST_ROWS};
+module.exports={validatePlan,connectionConfig,snapshot,compare,invalidSections,QUERIES,digestSql,MAX_DIGEST_ROWS};
