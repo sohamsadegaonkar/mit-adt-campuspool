@@ -1,7 +1,7 @@
 # Task: Feature-gated student travel intent UI
 
 - **Task ID / file:** 2026-11-03-mobility-intent-ui
-- **Status:** in review — code on isolated feature branch; CI and browser QA pending
+- **Status:** in review — isolated GitHub CI passed; real staging/browser QA pending
 - **Agent / owner:** ChatGPT engineering agent (code/tests); staging release operator unassigned
 - **Last updated:** 2026-11-03 UTC
 - **Baseline:** `main@3ee1f4a12e984cb6aecbf8ea09150d1e79556c87`; separate staging security PRs #11, #12 and #13 remain unmerged
@@ -29,15 +29,15 @@ Give verified students a usable private travel-intent form directly inside Avail
 
 - 2026-11-03 UTC — Read agent policy/architecture, confirmed existing API/matching privacy schema and current single-page UI. Chose a new independent `feature/mobility-intent-ui-2026-11-03` branch from `main` to avoid PR #13 review conflict.
 - 2026-11-03 UTC — Added server-feature-gated UI panel, isolated controller, session change notifications and booking handoff. Added controlled static asset allowlist, privacy/time/candidate unit tests and security smoke CI.
-- 2026-11-03 UTC — No Supabase database access, student records or Render release performed; GitHub CI verification pending at this checkpoint.
+- 2026-11-03 UTC — GitHub PR #14 opened as a draft, with no Supabase/Render or student record access. All four workflows on code/docs commit e31d644a passed: security smoke #41636232397 (including new frontend tests), PostgreSQL/PostGIS #41636232259, credential hygiene #41636232152 and agent documentation #41636232165.
 
 ## Verification
 
 | Check | Environment / evidence | Result / limitation |
 |---|---|---|
 | API contract | Reviewed `server.js`, `stage1-otp/mobility-store.js`, `stage1-otp/mobility-geo.js`, `test_pg_mobility_http.js` on main | Existing staging-only API contract verified in source; no live call |
-| UI unit/static safety | `npm run test:mobility-ui` | Awaiting GitHub Actions |
-| Security tests | GitHub security smoke workflow | Awaiting GitHub Actions |
+| UI unit/static safety | `npm run test:mobility-ui` in security smoke #41636232397 | PASS in GitHub CI; no real browser |
+| Security tests | GitHub security smoke #41636232397 and credential hygiene #41636232152 | PASS |
 | Real browser/mobile and accessibility | Authorized staging deployment with verified test accounts | NOT RUN / release blocked |
 | Real staging backup, migration 008, live provider tests | Separate release-gate owners | NOT PERFORMED |
 
