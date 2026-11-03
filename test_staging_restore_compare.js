@@ -62,3 +62,19 @@ test('CLI does not print credentials or connect during preflight',()=>{
   assert.notEqual(invalid.status,0);
   assert.doesNotMatch(invalid.stdout+invalid.stderr,/LEAK_ME|localhost/);
 });
+
+test('disposable PostGIS runs real read-only recovery catalog SQL',
+  {skip:!process.env.OTP_DATABASE_URL?'requires isolated local PostgreSQL CI':false},
+  async()=>{
+    const url=new URL(process.env.OTP_DATABASE_URL);
+    assert.ok(['localhost','127.0.0.1','[::1]'].includes(url.hostname),
+      'This integration test must NEVER connect to Supabase or production');
+    const {Client}=require('pg');
+    const client=new Client({connectionString:process.env.OTP_DATABASE_URL,ssl:false});
+    try{
+      await client.connect();
+      const data=await snapshot(client);
+      assert.ok(data.tables.some(t=>t.name==='campus_rides'));
+      assert.equal(compare(data,structuredClone(data)).matches,true);
+    }finally{await client.end().catch(()=>{});}
+  });
