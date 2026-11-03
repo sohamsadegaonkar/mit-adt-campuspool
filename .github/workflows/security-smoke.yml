@@ -14,6 +14,8 @@ on:
       - 'test_browser_idempotency.js'
       - 'test_staging_migration_preflight.js'
       - 'test_staging_secure_backup.js'
+      - 'test_staging_restore_compare.js'
+      - 'scripts/staging-restore-compare.js'
       - 'scripts/staging-backup-guard.js'
       - 'scripts/staging-secure-backup.sh'
       - 'scripts/staging-migration-preflight.js'
@@ -51,6 +53,8 @@ jobs:
           node --check scripts/staging-migration-preflight.js
           node --check scripts/staging-backup-guard.js
           node --check test_staging_secure_backup.js
+          node --check test_staging_restore_compare.js
+          node --check scripts/staging-restore-compare.js
           bash -n scripts/staging-secure-backup.sh
           node --check test_security_smoke.js
           node --check test_auth_integration.js
@@ -61,5 +65,6 @@ jobs:
           npm run test:browser-idempotency
           npm run test:staging-preflight
           npm run test:staging-backup
+          npm run test:staging-restore-compare
           npm run test:security
           npm run test:auth
