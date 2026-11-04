@@ -198,7 +198,6 @@ class _LandingContentState extends State<LandingContent> {
           ]),
         )),
       ),
-    ),
   );
 
   Widget _runnerCard() => Material(

@@ -352,7 +352,6 @@ class _PriceDetailsState extends State<PriceDetails> {
                 child: const Icon(Icons.keyboard_arrow_down_rounded)),
             ]),
           )),
-        ),
       ),
     ),
     AnimatedSize(
@@ -477,7 +476,7 @@ class _TipTopUpPreviewState extends State<TipTopUpPreview> {
         const CampusButton(label: 'Payment disabled in preview',
           onPressed: null),
       ]),
-    )))),
+    ))),
   );
 }
 

@@ -264,7 +264,7 @@ class VerificationPreview extends StatelessWidget {
           onPressed: onContinue,
         ),
       ]),
-    )))),
+    ))),
   );
 }
 
@@ -293,6 +293,6 @@ class RunnerIntro extends StatelessWidget {
         CampusButton(label: 'Continue to campus verification',
             onPressed: onVerify),
       ]),
-    )))),
+    ))),
   );
 }
