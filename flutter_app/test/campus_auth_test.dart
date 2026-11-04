@@ -68,7 +68,7 @@ void main() {
     final client = MockClient((request) async {
       switch (request.url.path) {
         case '/api/auth/login-request':
-          return http.Response('{"success":true}', 200);
+          return http.Response('{"success":true,"expiresInSeconds":300}', 200);
         case '/api/auth/verify-email-otp':
           return http.Response('{"success":true,"isLogin":true}', 200);
         case '/api/auth/me':
@@ -87,11 +87,25 @@ void main() {
     client.close();
   });
 
+  test('legacy OTP response exposing profile details is blocked', () async {
+    final client = MockClient((request) async => http.Response(
+      '{"success":true,"email":"private@example.com",'
+      '"phone":"0000000000","devOtpHint":"123456"}', 200));
+    final auth = CampusAuthController(
+      CampusAuthApi(origin: origin, client: client),
+    );
+    expect(await auth.requestCode('student@mit.edu'), isFalse);
+    expect(auth.isAuthenticated, isFalse);
+    expect(auth.issue, CampusAuthIssue.unsupportedLegacyAuth);
+    auth.dispose();
+    client.close();
+  });
+
   test('incorrect email and invalid code are rejected before network', () async {
     var calls = 0;
     final client = MockClient((request) async {
       calls++;
-      return http.Response('{"success":true}', 200);
+      return http.Response('{"success":true,"expiresInSeconds":300}', 200);
     });
     final auth = CampusAuthController(
       CampusAuthApi(origin: origin, client: client),

@@ -27,6 +27,7 @@ enum CampusAuthIssue {
   network,
   invalidResponse,
   sessionRequired,
+  unsupportedLegacyAuth,
 }
 
 @immutable
@@ -122,8 +123,17 @@ class CampusAuthApi {
       throw CampusAuthException(_error(response));
     }
     final data = _decode(response);
-    if (data['success'] != true) {
-      throw const CampusAuthException(CampusAuthIssue.invalidResponse);
+    final expires = data['expiresInSeconds'];
+    if (data['success'] != true ||
+        expires is! num || !expires.isFinite ||
+        expires < 60 || expires > 900 ||
+        data.containsKey('email') ||
+        data.containsKey('phone') ||
+        data.containsKey('name') ||
+        data.containsKey('devOtpHint')) {
+      // Older SQLite auth can enumerate registered accounts and return
+      // private profile fields. Never use it to unlock this Flutter flow.
+      throw const CampusAuthException(CampusAuthIssue.unsupportedLegacyAuth);
     }
   }
 
@@ -137,7 +147,9 @@ class CampusAuthApi {
       throw CampusAuthException(_error(response));
     }
     final data = _decode(response);
-    if (data['success'] != true || data['isLogin'] != true) {
+    if (data['success'] != true || data['isLogin'] != true ||
+        data.containsKey('emailToken') ||
+        data.containsKey('devOtpHint')) {
       throw const CampusAuthException(CampusAuthIssue.sessionRequired);
     }
     // Even a 200 verification reply is not evidence of a login. The server

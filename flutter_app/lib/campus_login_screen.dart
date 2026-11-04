@@ -189,6 +189,8 @@ class _CampusLoginScreenState extends State<CampusLoginScreen> {
         return 'The code was invalid or expired. Check it or request a new one.';
       case CampusAuthIssue.network:
         return 'Cannot reach CampusPool right now. Please try again.';
+      case CampusAuthIssue.unsupportedLegacyAuth:
+        return 'This server is not configured for secure, private sign-in.';
       case CampusAuthIssue.invalidResponse:
       case CampusAuthIssue.sessionRequired:
         return 'Your session was not confirmed. Please request a new code.';
