@@ -28,6 +28,7 @@ function mock({corrupt=false,uploadError=false}={}){
    commands.push({program,args,env:options.env});
    const c=new EventEmitter();
    c.stdout=new PassThrough();c.stdin=new PassThrough();
+   c.kill=()=>true; // Mock Node ChildProcess cancellation contract.
    if(program==='pg_dump'){
      process.nextTick(()=>{
        c.stdout.end(Buffer.from('FAKE_POSTGRES_CUSTOM_ARCHIVE'+'.'.repeat(100)));
