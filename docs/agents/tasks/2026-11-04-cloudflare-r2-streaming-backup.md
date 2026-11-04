@@ -1,7 +1,7 @@
 # Task: Cloudflare R2 encrypted streaming staging backup
 
 - **Task ID:** `2026-11-04-cloudflare-r2-streaming-backup`
-- **Status:** in progress; code/test/CI evidence pending
+- **Status:** implemented, tested (CI) — 5/5 synthetic R2 pipeline tests passed; private real Cloudflare setup/export/restore NOT RUN
 - **Agent:** ChatGPT engineering agent; Cloudflare/R2 account creation and actual operator execution remain with account owner
 - **Last updated:** 2026-11-04 UTC
 - **Baseline:** `ops/staging-recovery-ledger-2026-11-04@460be03`, stacked after PR #22 → #13 → #12 → #11, not main
@@ -35,9 +35,9 @@ The complete independent restore/release gate **still requires** verified global
 
 | Test/check | Status |
 |---|---|
-| Strict source/Cloudflare validation | PENDING |
-| Synthetic streaming pipeline and hash-match/corruption cases | PENDING |
-| CI code syntax and isolated tests | PENDING |
+| Strict source/Cloudflare validation | **PASS** — synthetic CI #41804980068 |
+| Synthetic streaming pipeline and hash-match/corruption cases | **PASS** — 5 tests, zero failures, head `1485f0e9` |
+| CI code syntax and isolated tests | **PASS** — R2 workflow #41804980068; no credentials used |
 | R2 bucket created and token scoped privately | NOT VERIFIED |
 | Real encrypted staging export to R2 | NOT RUN |
 | Independent off-site retrieval and cold restore | NOT RUN |
@@ -55,3 +55,10 @@ The complete independent restore/release gate **still requires** verified global
 
 - Branch: `ops/cloudflare-r2-stream-backup-2026-11-04`
 - Expected files: `scripts/r2-stream-backup.js`, `test_r2_stream_backup.js`, `docs/agents/tasks/2026-11-04-cloudflare-r2-streaming-backup.md`, `docs/agents/STATUS.md`, `docs/agents/NEXT_STEPS.md`, `docs/ops/CLOUDFLARE_R2_BACKUP.md`, `.github/workflows/r2-backup-synthetic.yml`.
+
+## Execution checkpoint — 2026-11-04 09:08 UTC
+
+- GitHub Actions [R2 synthetic workflow #41804980068](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41804980068) at PR #25 head `1485f0e9` **PASS: 5/5 tests**, 0 failures. CI additionally verified fail-closed `--preflight` when source secrets are absent.
+- Security smoke #41804980056 also **PASS**. PostgreSQL integration #41804979931 was still running at the first CI observation.
+- Cloudflare connected storage API is not available through current ChatGPT plugins. Bucket, account and token creation require the account owner in Cloudflare dashboard. No Cloudflare credentials were requested, created, logged or shared; no live pg_dump, R2 object or cold restore was attempted.
+- Next exact action: owner creates private Standard bucket `campuspool-staging-backups`, selects restricted Object Read & Write bucket-scoped token, then confirms setup **without sharing the token**. Verify rclone>=1.59 in Ubuntu-D and run safe synthetic credentialless tests, then private environment-only R2 connectivity check before any live source export.
