@@ -285,3 +285,11 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 
 - Review and test source-only archive exclusions and tracked-file checks, [task](tasks/2026-11-05-repo-dump-hygiene.md). Do not hide or commit the existing untracked WSL `-` file; do not treat Docker ignoring as secure erasure.
 - Combine only with green CI and preserve the existing staging encrypted-backup/independent-restore/Render rollback NO-GO. No live deployment from this PR.
+
+## 2026-11-05 — Mainline consolidation complete, next Render readiness gate
+
+- `main` contains the reviewed security/cloud-backup, Flutter/Places, mobility and dump-hygiene source through PRs #32–#35; latest dated [consolidation handoff](tasks/2026-11-05-main-consolidation-render-handoff.md). GitHub had **zero open PRs** at the audit. Verify exact main SHA and current CI before any deploy.
+- Clean up remote Git branches **only after reviewing ahead/behind and confirming no unique work**; this connector lacks a branch-delete action. Do not force-push, rewrite main, hide the owner's untracked plaintext `-` file or discard the separate R2 implementation inadvertently.
+- Confirm private Render `OTP_SECRET` is fresh and strong; avoid exposing secret values or weakening the startup guard. Verify production data persistence, retained rollback artifact and staging environment credentials.
+- Complete approved *manual-only* Azure cloud worker provisioning/recovery: lock/pin image dependencies, IAM/Key Vault, region/cost/network review; new encrypted staging archive, independent remote ciphertext retrieval/decryption, cold PG17/PostGIS restore with schema/roles/RLS/grants/migration/data parity.
+- Only after source data protection and rollback GO: choose exact staging release SHA, run controlled migration 008 if authorized, verify genuine provider OTP login, idempotent mutations, private mobility and mobile UX; then a separate production go/no-go. **No deployment or migration was performed by the consolidation.**
