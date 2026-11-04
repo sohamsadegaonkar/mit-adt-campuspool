@@ -135,7 +135,7 @@ class _CampusLoginScreenState extends State<CampusLoginScreen> {
                     ),
                     const SizedBox(height: 18),
                     CampusButton(
-                      label: auth!.phase == CampusAuthPhase.verifyingCode
+                      label: auth.phase == CampusAuthPhase.verifyingCode
                           ? 'Verifying…' : 'Verify and sign in',
                       onPressed: disabled ? null : _verify,
                     ),
@@ -149,7 +149,7 @@ class _CampusLoginScreenState extends State<CampusLoginScreen> {
                     ),
                   ] else ...[
                     CampusButton(
-                      label: auth!.phase == CampusAuthPhase.requestingCode
+                      label: auth.phase == CampusAuthPhase.requestingCode
                           ? 'Requesting code…' : 'Request sign-in code',
                       onPressed: disabled ? null : _requestCode,
                     ),

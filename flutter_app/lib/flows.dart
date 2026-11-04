@@ -543,42 +543,64 @@ class _TipTopUpPreviewState extends State<TipTopUpPreview> {
 }
 
 class ProfilePreview extends StatelessWidget {
-  const ProfilePreview({super.key, required this.signedInPreview,
-    required this.onPreviewSignIn, required this.onReturnGuest});
-  final bool signedInPreview;
-  final VoidCallback onPreviewSignIn;
-  final VoidCallback onReturnGuest;
+  const ProfilePreview({
+    super.key,
+    required this.hasVerifiedSession,
+    required this.onSignIn,
+    required this.onSignOut,
+    this.memberName,
+  });
+
+  final bool hasVerifiedSession;
+  final String? memberName;
+  final VoidCallback onSignIn;
+  final VoidCallback onSignOut;
 
   @override
   Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
       Text('Your campus profile',
-        style: Theme.of(context).textTheme.headlineSmall),
+          style: Theme.of(context).textTheme.headlineSmall),
       const SizedBox(height: 8),
       const Text('Identity, trust and privacy controls.'),
       const SizedBox(height: 25),
-      CampusPanel(child: Row(children: [
-        const Icon(Icons.person_outline_rounded, size: 33),
-        const SizedBox(width: 16),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(signedInPreview ? 'Signed-in layout preview' :
-              'Student account', style: const TextStyle(
-                fontWeight: FontWeight.w800, fontSize: 17)),
-            const SizedBox(height: 5),
-            const Text('Campus verification is not connected.',
-              style: TextStyle(fontSize: 12)),
-          ],
-        )),
-      ])),
+      CampusPanel(
+        child: Row(children: [
+          const Icon(Icons.person_outline_rounded, size: 33),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  hasVerifiedSession
+                      ? (memberName ?? 'Verified campus student')
+                      : 'Student account',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w800, fontSize: 17),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  hasVerifiedSession
+                      ? 'Session confirmed by the CampusPool server.'
+                      : 'Sign in with your verified campus email.',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ]),
+      ),
       const SizedBox(height: 19),
-      const CampusNote(message: 'Private student IDs and precise locations '
-        'must never be shown in public profiles.'),
+      const CampusNote(
+          message: 'Private student IDs and precise locations '
+              'must never be shown in public profiles.'),
       const SizedBox(height: 25),
       CampusButton(
-        label: signedInPreview ? 'Return to guest preview' :
-          'Preview campus sign-in',
-        onPressed: signedInPreview ? onReturnGuest : onPreviewSignIn),
+        label: hasVerifiedSession ? 'Sign out' : 'Sign in with email code',
+        onPressed: hasVerifiedSession ? onSignOut : onSignIn,
+      ),
     ],
   );
 }

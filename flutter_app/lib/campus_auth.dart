@@ -179,7 +179,7 @@ class CampusAuthApi {
     }
     _csrf = null;
     if (_client is CampusSessionClient) {
-      (_client as CampusSessionClient).clearLocalSession();
+      _client.clearLocalSession();
     }
   }
 

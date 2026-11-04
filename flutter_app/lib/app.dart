@@ -189,12 +189,12 @@ class _CampusShellState extends State<CampusShell> {
           const Spacer(),
           SizedBox(width: 155, child: CampusButton(
             label: _signedIn ? 'Find a ride' : 'Get started',
-            onPressed: _signedInPreview
+            onPressed: _signedIn
                 ? () => _select(CampusSection.rides) : _openLogin)),
           const SizedBox(width: 9),
           SizedBox(width: 175, child: CampusButton(
             label: _signedIn ? 'Request an item' : 'Become a runner',
-            primary: false, onPressed: _signedInPreview
+            primary: false, onPressed: _signedIn
               ? () => _select(CampusSection.errands) : _openRunner)),
         ] else ...[
           const Spacer(),
@@ -218,14 +218,14 @@ class _CampusShellState extends State<CampusShell> {
       child: Row(children: [
         Expanded(child: CampusButton(
           label: _signedIn ? 'Find a ride' : 'Get started',
-          onPressed: _signedInPreview
+          onPressed: _signedIn
             ? () => _select(CampusSection.rides) : _openLogin,
         )),
         const SizedBox(width: 10),
         Expanded(child: CampusButton(
           label: _signedIn ? 'Request an item' : 'Become a runner',
           primary: false,
-          onPressed: _signedInPreview
+          onPressed: _signedIn
             ? () => _select(CampusSection.errands) : _openRunner,
         )),
       ]),
