@@ -149,3 +149,9 @@ Draft PR #11 now carries a **private operator-only** `scripts/staging-secure-bac
 
 - Owner clarifies: **independent PostgreSQL restore is remaining, not completed**. This supersedes the preceding owner-reported-complete wording. Owner reported an independent AGE key copy and Malaysia data transfer/cost review complete; staging archive creation was reported but is still not verified with Azure object metadata/checksum in connected tools.
 - Current release state remains **NO-GO** until real separate PG17/PostGIS cold restore and table content/migration/RLS/role parity, plus Render rollback eligibility. Source staging remained live; no migration 008 or new Render deployment occurred in agent read-only checks. [Task](tasks/2026-11-04-azure-private-blob-backup.md).
+
+## Confirmed NO current Azure database backup object — owner read-only listing (2026-11-04)
+
+- Owner reports exact container `011campuspoolbackup/campuspool-staging-backups` returned **0** `staging/` blobs and **[]** for the whole current blob listing. Thus the prior reported actual database backup is **contradicted by current Azure CLI evidence**; this recovery container has no visible backup and no independent restore to perform yet. The deleted smoke-test object was not a real dump.
+- AGE permanent key and separate encrypted key copy, plus transfer/cost review, remain owner-reported complete; local fake-credential preflight and synthetic AGE upload test passed. Real staging PG17 two-schema backup via PR #26 is **next**, not done. Production/staging not modified by this evidence check.
+- Staging migration 008, Render deploy and release remain **NO-GO**, pending real archive, ciphertext readback checksum, independent PG17/PostGIS cold restore and role/RLS/row-content parity, and rollback test. [Task](tasks/2026-11-04-azure-private-blob-backup.md).
