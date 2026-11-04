@@ -99,3 +99,25 @@ Do not share SQL, unencrypted dumps, access tokens, keys, passwords, private ide
 - [Azure CLI Ubuntu install](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-linux)
 - [Azure for Students](https://azure.microsoft.com/en-us/free/students/)
 - [PostgreSQL 17 pg_dump](https://www.postgresql.org/docs/17/app-pgdump.html)
+
+## No-credentials local preflight after synthetic test success
+
+The owner confirmed **6/6 local synthetic Azure mock tests passed** and a real non-student AGE-encrypted sample upload/readback/decrypt/delete succeeded. Before preparing any real credentials or durable encryption keys, run this strictly **local**, non-networked `--preflight` with sentinel values. This confirms installed binary versions, Node SDK resolution, guarded tmpfs login cache and config shape **only**:
+
+```bash
+cd ~/campuspool-azure-recovery
+export NODE_PATH="$HOME/.local/share/campuspool-azure-sdk/node_modules"
+export AZURE_CONFIG_DIR="/dev/shm/campuspool-azure-$(id -u)"
+test "$(findmnt -T "$AZURE_CONFIG_DIR" -no FSTYPE)" = tmpfs
+test "$(stat -c '%a' "$AZURE_CONFIG_DIR")" = 700
+env PGUSER='postgres.tnitksrlntrdxbvznxzf' \
+ PGHOST='synthetic.pooler.supabase.com' PGPORT='5432' PGDATABASE='postgres' \
+ PGSSLMODE='verify-full' PGPASSWORD='TEST_ONLY_NOT_A_REAL_PASSWORD' \
+ AZURE_STORAGE_ACCOUNT='011campuspoolbackup' \
+ AZURE_BACKUP_CONTAINER='campuspool-staging-backups' \
+ AZURE_PRIVATE_CONTAINER_CONFIRMED='YES' \
+ AGE_RECIPIENT="age1$(printf 'a%.0s' {1..58})" \
+ node scripts/azure-blob-backup.js --preflight
+```
+
+Expected `AZURE_PREFLIGHT_PASS; no database or blob contacted`. **Never run `--execute`** with these sentinel values: the AGE recipient is not a usable key and there are no real source credentials. This diagnostic is a preparation check, not proof of remote DB access, backup recovery or authorized cross-border student data transfer.
