@@ -13,7 +13,8 @@ const {run,ACCOUNT,CONTAINER}=require('./scripts/azure-blob-backup');
 function command(program,args){
   const p=spawnSync(program,args,{encoding:'utf8',timeout:30000,
     stdio:['ignore','pipe','pipe']});
-  assert.equal(p.status,0,program+' synthetic subprocess failed');
+  assert.equal(p.status,0,program+' synthetic subprocess failed ('+
+    String(p.stderr||'').slice(0,300)+')');
   return (p.stdout||'').trim();
 }
 function closed(child){
@@ -61,7 +62,8 @@ test('real subprocess streaming and independent synthetic encrypted restore',
     ].join('; ')+';';
     command('docker',['exec',cid,'psql','-X','-U','postgres','-d','postgres',
       '-v','ON_ERROR_STOP=1','-q','-c',createSQL]);
-    command('docker',['exec',cid,'createdb','-U','postgres','campuspool_restore']);
+    command('docker',['exec',cid,'psql','-X','-U','postgres','-d','postgres',
+      '-v','ON_ERROR_STOP=1','-q','-c','CREATE DATABASE campuspool_restore']);
 
     // Allowlisted source names are dummy configuration. pg_dump is intercepted;
     // Docker's --network none prevents any staging or public DB connection.
