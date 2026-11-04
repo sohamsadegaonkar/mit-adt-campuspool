@@ -21,7 +21,8 @@ const env={
  AGE_RECIPIENT:'age1'+'a'.repeat(58),
  AZURE_CONFIG_DIR:dir,AZURE_EXPORT_APPROVED:'YES'
 };
-function mock({corrupt=false,uploadError=false,pgFailed=false,ageFailed=false,downloadError=false}={}){
+function mock({corrupt=false,uploadError=false,pgFailed=false,ageFailed=false,
+  downloadError=false,pgBytes=Buffer.from('PGDMP'+'.'.repeat(120))}={}){
  let stored,opts;
  const commands=[];
  function spawnImpl(program,args,options){
@@ -31,16 +32,21 @@ function mock({corrupt=false,uploadError=false,pgFailed=false,ageFailed=false,do
    c.kill=()=>true; // Mock Node ChildProcess cancellation contract.
    if(program==='pg_dump'){
      process.nextTick(()=>{
-       c.stdout.end(Buffer.from('FAKE_POSTGRES_CUSTOM_ARCHIVE'+'.'.repeat(100)));
+       c.stdout.end(pgBytes);
        c.emit('close',pgFailed?1:0);
      });
    }else if(program==='age'){
      const chunks=[];
      c.stdin.on('data',b=>chunks.push(b));
-     c.stdin.on('end',()=>{
+     let finished=false;
+     const finish=code=>{
+       if(finished)return;
+       finished=true;
        c.stdout.end(Buffer.concat([Buffer.from('CIPHERTEXT:'),...chunks]));
-       c.emit('close',ageFailed?1:0);
-     });
+       c.emit('close',code);
+     };
+     c.stdin.on('end',()=>finish(ageFailed?1:0));
+     c.stdin.on('close',()=>finish(ageFailed?1:0));
    }else throw Error('Unexpected synthetic program '+program);
    return c;
  }
@@ -111,9 +117,18 @@ test('encrypted streaming upload uses a consistent two-schema PostgreSQL snapsho
  assert.equal(result.ciphertextSHA256,crypto.createHash('sha256').update(m.getStored()).digest('hex'));
  const pg=m.commands.find(x=>x.program==='pg_dump');
  assert.deepEqual(pg.args,['--format=custom','--schema=public',
-   '--schema=supabase_migrations','--no-password','--file=-']);
+   '--schema=supabase_migrations','--no-password']);
+ assert.ok(!pg.args.some(arg=>arg.startsWith('--file') || arg==='-'),
+   'custom archive must stream via stdout rather than a local output file');
  assert.ok(!pg.args.join(' ').includes(env.PGPASSWORD));
  assert.deepEqual(m.getOpts().conditions,{ifNoneMatch:'*'});
+});
+test('empty or malformed pg_dump stdout cannot be verified as an encrypted backup',async()=>{
+ for(const pgBytes of [Buffer.alloc(0),Buffer.from('NOT_A_PG_ARCHIVE'),Buffer.from('PGD')]){
+   const m=mock({pgBytes});
+   await assert.rejects(run(env,{spawnImpl:m.spawnImpl,loadSdkImpl:m.loadSdkImpl}),
+     e=>e.message==='POSTGRES_ARCHIVE_HEADER_INVALID');
+ }
 });
 test('tampered Azure readback fails; the upload does not approve any restore',async()=>{
  await assert.rejects(run(env,{...mock({corrupt:true})}),/AZURE_CIPHERTEXT_SHA256_MISMATCH/);
