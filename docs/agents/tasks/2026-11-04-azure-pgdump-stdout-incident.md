@@ -1,7 +1,7 @@
 # Task: Correct Azure backup pg_dump stdout and investigate accidental local archive
 
 - **Task ID / file:** `2026-11-04-azure-pgdump-stdout-incident`
-- **Status:** in review; operator remediation and live backup remain blocked
+- **Status:** in review; local synthetic testing completed, operator remediation and live backup remain blocked
 - **Agent / owner:** ChatGPT engineering agent (code); staging/Azure account owner (local incident containment)
 - **Last updated:** 2026-11-04 UTC
 - **Baseline:** Azure backup branch `ops/azure-blob-stream-backup-2026-11-04@5e007bf`; fix branch `fix/azure-pgdump-stdout-guard-2026-11-04`
@@ -32,7 +32,9 @@ Make the custom-format PostgreSQL 17 archive reach the AGE encryptor through **s
 | PostgreSQL pg_dump output semantics | PostgreSQL 17 documentation, `--file` option | CONFIRMED: omit file to use stdout |
 | Original local operator files | Operator-reported name/byte count only | 48,600 bytes and 0 bytes; treat as sensitive; file content uninspected |
 | Old remote Azure blob | Operator-reported AGE/pg_restore check | 200-byte ciphertext; archive invalid; preserve pending reviewed cleanup |
-| Updated unit tests | `node --test test_azure_blob_backup.js` on fix branch | NOT YET RUN by owner / CI |
+| Updated unit tests | Operator Ubuntu-D 2026-11-04, `node --test test_azure_blob_backup.js`, `aa7c558` | **PASS 11/11**, 0 failures (operator output) |
+| GitHub CI (PR #27) | `azure-synthetic` and `postgres-otp` checks at `aa7c558` | **PASS** both checks; does not contact real cloud/storage or recover actual staging data |
+| Real synthetic PostgreSQL 17 + AGE cold restore | Ubuntu-D disposable Docker `postgres:17`, no network, synthetic public table and migration ledger; custom `pg_dump` stdout → AGE → AGE decrypt → `pg_restore --clean --if-exists --exit-on-error` into separate disposable database | **PASS** operator-reported `SYNTHETIC_PG17_AGE_RESTORE_PASS`; records count 2; ledger `synthetic_001`; no real source/blob touched |
 | Independent staging backup and restore | Different encrypted PG17/PostGIS target + comparisons | NOT DONE |
 | Production or staging database modification | No authorized operation | NONE |
 
@@ -43,6 +45,12 @@ Make the custom-format PostgreSQL 17 archive reach the AGE encryptor through **s
 - Treat the existing Azure object as an unverified failed attempt. Do not delete other remote objects or blindly rerun backup. Selected-schema archive remains **not full Supabase disaster recovery**.
 - The regression header check validates stream identity, **not full data completeness or restorable database state**. Independent ciphertext retrieval and PG17/PostGIS cold restore are still mandatory.
 - No migration 008, Render deployment or production activity.
+
+## Progress — synthetic real-tool recovery test (2026-11-04)
+
+- User confirmed `postgres:17` Docker image installed and reported `SYNTHETIC_ENCRYPTION_PASS`, `ARCHIVE_STRUCTURE_PASS` and `SYNTHETIC_PG17_AGE_RESTORE_PASS` from no-network tmpfs-backed PG17 source/target and ephemeral AGE key. The first synthetic restore hit expected `schema \"public\" already exists`; re-run using `--clean --if-exists` **only against the disposable synthetic database** succeeded with 2 records and 1 synthetic migration ledger entry.
+- GitHub PR #27 remains draft, unmerged, mergeable; both `postgres-otp` and `azure-synthetic` checks pass at `aa7c558`. Local unit test run 11/11 PASS.
+- This verifies a *shell-level* real PG17 + AGE pipeline, but does **not** exercise the Node uploader's real spawn with a live Azure SDK transfer or prove an off-site archive of actual staging data. No staging/production/Azure write conducted in this test. The local unencrypted file incident remains open.
 
 ## Next steps — exact handoff
 
