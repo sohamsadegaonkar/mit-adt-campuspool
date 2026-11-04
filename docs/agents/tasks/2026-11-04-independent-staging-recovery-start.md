@@ -76,3 +76,18 @@ The local tests verify source-code safety logic only. Actual encrypted staging e
 - **Next action:** CI review of the five-part backup tool; then operator completes the private Ubuntu-D `--preflight` and returns **only non-sensitive PASS/BLOCKED tool names**. After explicit write pause and verified independent off-site storage, execute export. Decide independently whether to provision scratch project or isolated local Supabase stack before restoring any private records.
 - **Safety:** do not expose private URL, dump, AGE identity, source/target row content, hashes or credentials to this chat, GitHub Actions, Notion or logs.
 - **Related:** PR #11 (backup utility/idempotency), #12 (restored schema comparator), #13 (row fingerprint hardening), this new stacked branch, and [staging runbook](https://github.com/sohamsadegaonkar/mit-adt-campuspool/blob/security/staging-restore-content-digests-2026-11-03/STAGING_IDEMPOTENCY_RELEASE_RUNBOOK.md).
+
+## Plan
+
+1. Run only synthetic PG17+AGE cold-restore integration tests in untrusted CI; keep student data out of runners.
+2. Require the owner to approve a protected cloud backup worker and independently encrypted recovery target before any real staging export.
+3. Validate role/grant/RLS, migration ledger, extensions, data-content comparison and retained Render rollback before migration or deployment.
+
+## Progress log
+
+- 2026-11-04 UTC — Source TLS/read-only metadata verified; real independent restore not completed.
+- 2026-11-05 UTC — Cloud-worker synthetic GitHub CI passed, but no actual protected cloud-side backup/recovery resource exists yet. Keep release NO-GO.
+
+## Next steps
+
+Prepare a manual, separately approved, encrypted cloud-side PostgreSQL 17/PostGIS restore and record independently verifiable parity results without disclosing student records or secrets.
