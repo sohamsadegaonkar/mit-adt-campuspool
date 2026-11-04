@@ -26,12 +26,12 @@ class RideSummary {
 
   static String _text(dynamic value, {int maxLength = 120}) {
     if (value is! String) return '';
-    return value
+    final cleaned = value
         .replaceAll(RegExp(r'[\u0000-\u001f\u007f<>]'), '')
-        .trim()
-        .characters
-        .take(maxLength)
-        .toString();
+        .trim();
+    return cleaned.length <= maxLength
+        ? cleaned
+        : cleaned.substring(0, maxLength);
   }
 
   factory RideSummary.fromServer(Map<String, dynamic> json) {
