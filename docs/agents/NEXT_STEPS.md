@@ -1,17 +1,16 @@
 # CampusPool — prioritized next steps and ownership
 
-**Last prioritized:** 2026-11-03 UTC. **Baseline:** `main@3ee1f4a12e98`. Items are an actionable backlog, **not authorizations** to alter Render production, student data, SMS/email accounts or payment systems.
+**Last prioritized:** 2026-11-03 UTC. **Baseline:** `main@0345b6aeff86`. Items are an actionable backlog, **not authorizations** to alter Render production, student data, SMS/email accounts or payment systems.
 
 | Priority | Work item | Current state | Next concrete action | Acceptance / evidence | Owner |
 |---|---|---|---|---|---|
-| P0 | Verify transactional request idempotency | Browser retry reload and PG role checks passed isolated CI at `282df2c`; PR #11 still unmerged/not staged | Independently review read-only replay under load, PG role/RLS permissions and browser key lifecycle; only after approval plan staging migration 008 | Green CI runs 41588934566/34664/34558/34552; independent review, controlled staging E2E and rollback still required | ChatGPT engineering agent (branch only) |
 | P0 | Close historical credential incident | Unverified account-side revocation | Account owner confirms revoked Gmail App Password, regenerated OTP secret and private Render replacement; review access logs | Dated verification, no raw secrets in Git/logs, controlled provider test | Account owner |
 | P0 | Genuine provider OTP verification in staging | Adapter and CI mock tests exist | Configure verified Resend sender/domain and approved MSG91/DLT Flow in isolated staging, then test controlled end-to-end signup/login | Actual inbox/handset receipt, expiry/replay/resend and provider failure checks | Unassigned |
 | P0 | Durable production Rides plan | PostgreSQL Rides implementation exists behind flag; production on SQLite | Inventory existing data; design consistent backup/export, UUID reconciliation, staging import and cold restore | Recorded counts/hashes, ownership continuity, proven forward+rollback | Unassigned |
 | P0 | Security and release QA | Automated backend tests green | Execute browser/phone E2E on a reviewed staging deploy with test users and adverse concurrency cases | Test report with exact deployed SHA and resolved high-severity defects | Unassigned |
 | P1 | Hyperlocal travel-intent frontend | Private PostGIS matching API exists; no integrated UI | Add authenticated travel-intent form, privacy-safe candidate cards and booking handoff behind flag | UI/mobile/E2E tests, no raw student coordinates or contacts leaked | Unassigned |
 | P1 | Realistic route-aware matching | Geometric straight-line proximity only | Evaluate road-routing provider, cost caps, route detour bounds and fallbacks | Costed design + test comparing sample ground-truth routes | Unassigned |
-| P1 | Mobility load and fraud benchmark | CI indexes + basic shared PostgreSQL limits | Create isolated 100+ concurrent-user benchmark, record p95, CPU, locks, query plans and rate-limit behavior | Reproducible report; decide whether optimizations beat Redis/H3 | Unassigned |
+| P1 | Mobility load and fraud benchmark | Independent PR #15 measured 128/128 synthetic PostGIS matches and 30/35 enforced shared rate limits; no real staging benchmark | Independently review #41710272878 (p95 297.87ms, queue peak 104, no sampled DB locks), then design representative sustained HTTP/staging-safe workload with restoration gates | Aggregate-only report in GitHub Actions, code SHA, decision memo; no Redis/H3 based on synthetic CI alone | Engineering agent / reviewer |
 | P2 | Errands backend | Standalone sample UI only | Specify request/runner/assignment state machine, roles, PIN handover, notifications and abuse model | Reviewed domain design + server-side integration tests with mock payments | Unassigned |
 | P2 | Payment partner readiness | Unverified payment settlement disabled | Review eligible regulated payout provider and settlement/refund flows, not a homegrown escrow | Provider eligibility, signed webhook tests, ledger/reconciliation and approval | Unassigned |
 | Conditional | Redis, H3, background queue or microservices | **Deferred**; no performance justification recorded yet | Revisit on evidence: slow spatial query, hot shared limits, reliable notification demand, or independent scaling | ADR with benchmarks, cost, added operational risks, rollback | Unassigned |
@@ -30,13 +29,51 @@
 3. Update progress in the task file and keep these priorities aligned with verified reality on each implementation PR.
 4. If no credentials, authority, safe environment or rollback evidence exist, mark the task blocked instead of improvising a production action.
 
-## Active agent handoff
-
-- [Transactional request idempotency](tasks/2026-11-03-transactional-idempotency.md): draft PR #11 has green GitHub CI at `a2e231b`; bounded throttled replay passed CI at `3c050be`; next independently review permissions/browser retry lifecycle and migration/rollout, then complete separately authorized staging QA before treating as deployed. No live migration authorized.
-
 ## Latest completed documentation task
 
 See [2026-11-03-agent-workflow.md](tasks/2026-11-03-agent-workflow.md) for the multi-agent continuity-policy bootstrap and its verification/handoff.
+
+## P1 performance measurement, isolated from blocked staging — 2026-11-04 UTC
+
+- [128-student mobility/PostGIS concurrency benchmark](tasks/2026-11-04-mobility-load-benchmark.md) is implemented **only** on `perf/mobility-load-baseline-2026-11-04` based on main. It creates 512 deterministic synthetic rides and 128 unique active intents; bursts 128 actual `PgMobilityStore.findCandidates` calls, checks result privacy/counts, and races 35 shared rate-bucket increments to verify the 30/hour account ceiling under contention.
+- **Next engineering action:** verified run #41710272878 passed on `da7063a`: 128/128 successful, 512 synthetic rides, p50/p95/p99 **229.11/297.87/300.88ms**, ~**424/s** burst, pool wait queue104/24 connections, no sampled DB lock waits, dropoff GiST index selected, 30 allowed/5 denied on concurrent rate increments. Independently review report and construct a sustained, representative HTTP + DB workload before changing indexes or adopting Redis/H3. Do not deploy, merge, add Redis/H3, touch protected staging databases or enable live matching.
+- **Independently blocked release:** draft PR #14's UI approval, staging backup/restore/cold recovery and Render rollback, historical credentials and OTP delivery remain separate P0 gates.
+
+## Most recent user-requested merge/Render deployment audit — 2026-11-03 UTC
+
+- **Merged and verified:** independent performance PR #15 is now merged into `main@a76eaca`, not deployed; `main` PostgreSQL, credential-hygiene and docs workflows passed. [Release audit and step-by-step gates](tasks/2026-11-04-release-merge-audit.md).
+- **Still open:** PR #11 transactional idempotency includes migration 008, with dependent PR #12 read-only restore comparison and PR #13 data-integrity digests; all require dependency-order independent review and owner-operated *actual* encrypted staging backup, independent off-site re-download/checksum/decrypt/PG17 restore, comparison and retained Render rollback proof. PR #14 has 30/30 synthetic browser E2E green but awaits independent reviewer/privacy/physical-device acceptance. None were merged in this audit.
+- **STOP on Render deploy:** both production and staging auto-deploy are OFF; live SHAs `63ae551` and `cceadbf` respectively. Connected staging DB lists migrations 001–007 (no 008) and is healthy; this is not a backup. Historical credential revocation and genuine email/SMS delivery still need account owner verification. Neither `trigger_deploy` (which deploys configured main) nor staging migration may run without the recovery proof and a **separate, explicit GO**. Do not infer that this user's request to deploy waives data protection and rollback.
+- **Next exact responsible actions:** owner privately proves secure off-site stage export and independently restored scratch + Render retained rollback artifact; independent reviewer approves PR #11–#14 scope; operator reviews candidate SHA, then performs a controlled staging-only test release after prerequisites. Production remains separately blocked by legacy SQLite durability, revoked secret verification, true OTP delivery and business safety acceptance. See [release audit task](tasks/2026-11-04-release-merge-audit.md).
+
+## Next engineering work — runtime config preflight after Render OTP_SECRET startup failure (2026-11-04)
+
+- [Private, read-only startup config preflight](tasks/2026-11-04-runtime-env-preflight.md) is implemented/tested (CI) in draft PR #18 on `chore/runtime-env-preflight-2026-11-04`, independent from draft PRs #11–14 and #17. Its `production` mode matches the **legacy SQLite** application actually configured on Render, instead of incorrectly reusing the PostgreSQL-only production release gate; `staging` checks separate Postgres/TLS/CA/Resend/Basic Auth settings. Tests are **synthetic only**, don't access Render, and may report only safe check codes.
+- **Next exact action:** runtime config job #41792580706 **PASS (10/10)** and all five other workflows passed on code SHA `33df5499`. Obtain independent review of PR #18; then verify real Render variables privately using the dashboard, separately confirm staging/production backup and rollback, and check genuine OTP provider delivery before any deployment. A passing runtime config check is **not** proof of old exposed App Password revocation, OTP inbox/handset receipt, live database backup/restore, PostgreSQL Rides durability or authorized deployment.
+- **Owner/operator work still separately required:** verify current Render secret settings without exposing values; produce backup/restore/rollback proof and real provider checks before deliberately deploying to staging, then production only after its distinct gates. Both Render services have auto-deploy OFF.
+
+## Latest four-step release execution checkpoint — 2026-11-04 UTC
+
+- **DONE:** PR #18 reviewed at implementation level and squash-merged, `main@3561bb5` with three green post-merge workflows. Read-only staging PG17.11/RLS/role metadata, migration list and zero security-advisor lints verified. Technical COMMENT reviews posted to PRs #11–14, with explicit branch-dependency and privacy/restore gates; no independent approval.
+- **BLOCKED — highest priority: protect real staging data.** Current connected tools cannot perform a real encrypted off-site `pg_dump` plus separately downloaded and verified archive/cold restore. The restricted backup utility/runbook exists on the **unmerged PR #11 branch**. A trusted operator must run it with private staging credentials, approved encrypted work volume, off-site AGE recipient and distinct scratch PG17/PostGIS recovery target. Record only export/checksum/restore/comparison verdicts without publishing data or credentials.
+- **BLOCKED — release rollback:** Render staging deploy `dep-dbke9uo8v5cc738cpnd0` at `cceadbf` is still marked live, but a dashboard `Rollback` action's availability must be verified on [staging service](https://dashboard.render.com/web/srv-dbjof8fb9u1s73eks0bg). A deploy history row is not proof that an old build artifact can still be used.
+- **NEXT once recovered:** independently review and integrate PR #11→#12→#13 in correct order and PR #14 after security/UX acceptance; choose an exact reviewed staging commit; run controlled staging migration 008 only after complete independent backup and restore with safe rollback; deploy staging and verify OTP, booking, idempotency, privacy and physical mobile flows. **No production promotion** without a separate data/credential/provider release GO.
+- **Authoritative task:** [2026-11-04-release-recovery-checkpoint.md](tasks/2026-11-04-release-recovery-checkpoint.md). Another agent should not deploy current `main` through generic Render `trigger_deploy` in place of a reviewed feature SHA, or treat synthetic tests as staging acceptance.
+
+## 2026-11-05 — Verified Render production release blocker (read-only audit)
+
+- Production remains live on previous release `63ae551`; attempted `056cd26` update on 2026-11-03 returned **`update_failed`** because production startup's `server.js:72` rejected missing/weak/exposed `OTP_SECRET`. Keep this guard intact; the owner must configure a fresh high-entropy 32+ character secret through Render's protected UI, never Git/chat. This is **necessary but not sufficient** for release.
+- Current GitHub `main` is ahead of live deployment, both Render CampusPool services have auto deploy OFF, staging retains known `cceadbf`. No new deployment initiated.
+- Review data persistence (production logs mention SQLite/JSON startup), protect staged migration and rollback. **Still NO-GO** pending actual off-site encrypted cloud staging backup, separate PG17/PostGIS cold restore, user/role/RLS/data comparison and Render rollback evidence.
+- See [production readiness task](tasks/2026-11-05-render-production-readiness.md); cloud backup worker PR #28 and stdout fix PR #27 are separate drafts.
+
+## Consolidation note — 2026-11-05
+
+The sections below preserve unique engineering evidence from the reviewed security/cloud-recovery branch. They are **historical checkpoints**, not new deployment approvals. The current release remains NO-GO until encrypted cloud backup and independent restore, credentials, privacy and rollback are verified. No Render deployment or migration was triggered by repository integration.
+
+## Active agent handoff
+
+- [Transactional request idempotency](tasks/2026-11-03-transactional-idempotency.md): draft PR #11 has green GitHub CI at `a2e231b`; bounded throttled replay passed CI at `3c050be`; next independently review permissions/browser retry lifecycle and migration/rollout, then complete separately authorized staging QA before treating as deployed. No live migration authorized.
 
 ## Current blocking handoff — staging release gate (2026-11-03 UTC)
 
@@ -192,3 +229,7 @@ The actual PG17 backup/restore steps remain impossible to execute through the av
 3. Owner approval for Azure Container Apps **manual-only** job resource, Key Vault/managed identity, network/region selection and costs. No recurring schedule without separate explicit approval. Use [cloud job runbook](../ops/CLOUD_AZURE_BACKUP_WORKER.md).
 4. Execute a single separately approved stage-only cloud backup with verified private ciphertext readback. Independently decrypt and cold restore to encrypted PG17/PostGIS, compare migration ledger/RLS/roles/content and verify Render rollback artifact. **NO-GO for migration 008 or live deployment until completed**.
 5. Local accidental `-` dump remains a separate at-rest security incident; don't upload, commit or assume securely erased. No more local staging exports.
+
+## Mainline integration follow-up — 2026-11-05
+
+Historical branch notes above may still call PRs unmerged. The checked integration PR governs final merge status. Keep the latest verified CI evidence and explicit recovery/rollback release gates in the dated consolidation task. Do not deploy merely because code reached main.
