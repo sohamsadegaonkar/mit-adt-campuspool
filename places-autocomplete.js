@@ -47,6 +47,18 @@ function safeText(text, max = 180) {
     .trim().slice(0, max);
 }
 
+// This local-instance cap supplements (NOT replaces) provider billing quotas.
+// Accept a deliberately tiny value (e.g. 1) for owner-approved smoke QA.
+// A malformed configuration must fail startup rather than silently increase cost.
+function parseDailyCap(value = '250') {
+  if (typeof value !== 'string' ||
+      !/^[1-9][0-9]{0,3}$/.test(value) ||
+      Number(value) > 1000) {
+    throw new Error('PLACES_DAILY_CAP must be an integer from 1 to 1000');
+  }
+  return Number(value);
+}
+
 function createPlacesClient({
   apiKey,
   fetchImpl = globalThis.fetch,
@@ -142,4 +154,4 @@ function createPlacesClient({
   return Object.freeze({suggest, resolve});
 }
 
-module.exports = {createPlacesClient, PlacesError, validInput, validToken, validPlaceId};
+module.exports = {createPlacesClient, PlacesError, validInput, validToken, validPlaceId, parseDailyCap};

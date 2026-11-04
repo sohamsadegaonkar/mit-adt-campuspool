@@ -117,6 +117,42 @@ void main() {
     expect(find.byKey(const Key('placeConfirmed')), findsOneWidget);
   });
 
+  testWidgets('five suggestions stay scrollable with mobile keyboard open',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 750);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final controller = TextEditingController();
+    addTearDown(controller.dispose);
+    final results = [
+      for (var i = 0; i < 5; i++)
+        PlaceSuggestion(
+          id: 'ChIJ123456789ABCDE0000$i',
+          title: 'Destination $i',
+          subtitle: 'Pune, Maharashtra, India',
+        ),
+    ];
+    final source = FakePlaces(lookup: (_, __) async => results);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(
+      body: SingleChildScrollView(
+        child: PlaceAutocompleteField(controller: controller, source: source),
+      ),
+    )));
+    await tester.enterText(find.byKey(const Key('destinationField')), 'swargat');
+    await tester.pump(const Duration(milliseconds: 330));
+    await tester.pump();
+    expect(find.byKey(const Key('placeSuggestions')), findsOneWidget);
+    final list = find.byKey(const Key('placeSuggestionList'));
+    expect(list, findsOneWidget);
+    expect(tester.getSize(list).height, lessThanOrEqualTo(260));
+    await tester.drag(list, const Offset(0, -220));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('new input invalidates an old pending network response',
       (tester) async {
     final first = Completer<List<PlaceSuggestion>>();

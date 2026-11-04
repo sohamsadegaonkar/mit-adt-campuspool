@@ -23,12 +23,13 @@ if (RIDES_BACKEND === 'postgres' && AUTH_OTP_BACKEND !== 'postgres')
 const MOBILITY_MATCHING_ENABLED = process.env.MOBILITY_MATCHING_ENABLED === 'true';
 // Cost-bearing Places calls stay OFF without an explicitly approved server flag.
 const PLACES_AUTOCOMPLETE_ENABLED = process.env.PLACES_AUTOCOMPLETE_ENABLED === 'true';
-const { createPlacesClient, PlacesError, validInput, validToken, validPlaceId } = require('./places-autocomplete');
+const { createPlacesClient, PlacesError, validInput, validToken, validPlaceId, parseDailyCap } = require('./places-autocomplete');
 const PLACES_CLIENT = PLACES_AUTOCOMPLETE_ENABLED
   ? createPlacesClient({apiKey: process.env.GOOGLE_PLACES_API_KEY})
   : null;
-const PLACES_DAILY_CAP = Math.max(20, Math.min(10000,
-  Number.parseInt(process.env.PLACES_DAILY_CAP || '250', 10) || 250));
+const PLACES_DAILY_CAP = PLACES_AUTOCOMPLETE_ENABLED
+  ? parseDailyCap(process.env.PLACES_DAILY_CAP ?? '250')
+  : 0;
 if (MOBILITY_MATCHING_ENABLED && RIDES_BACKEND !== 'postgres')
   throw new Error('Mobility matching requires PostgreSQL Rides and identity');
 const { PgOtpStore } = AUTH_OTP_BACKEND === 'postgres' ? require('./stage1-otp/pg-store') : { PgOtpStore: null };

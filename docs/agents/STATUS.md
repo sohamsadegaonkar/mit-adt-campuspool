@@ -82,3 +82,8 @@ For every implementation PR: replace outdated evidence, record new commit SHA an
 
 - **NOT MERGED / NOT DEPLOYED:** `feat/flutter-places-autocomplete-2026-11-04` builds Google Places (New) prediction / Place Details integration behind private Node API-key proxy and `PLACES_AUTOCOMPLETE_ENABLED` default-off flag. Flutter displays Pune/India suggestions beneath destination input with debounce, selection, keyboard and honest unavailable states. No production data, API keys, provider billing or Render configuration changed.
 - **Verified:** Flutter analyzer + 39/39 tests PASS at `6cbff8e` ([CI #41802050615](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41802050615)); Node Places adapter + server syntax 5/5 PASS at `1860647` ([CI #41801773535](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41801773535)). Latest Web/Android build pending. Google logo/terms, provider quota and physical-device QA are release blockers. [Task](tasks/2026-11-04-flutter-place-autocomplete.md).
+
+## Mobile Places QA follow-up (stacked draft, 2026-11-04 UTC)
+
+- **UNMERGED / NOT DEPLOYED:** `feat/flutter-places-mobile-qa-2026-11-04` builds on autocomplete PR #23; caps scrollable suggestion list above the keyboard, adds IME selection and a strict 80-character input bound. Places provider daily request cap now permits 1–1000 calls rather than silently enforcing minimum 20. CI pending on new code.
+- No Google billing/keys/Render config/student data changed; source and device QA still required. [Task](tasks/2026-11-04-flutter-places-mobile-qa.md).

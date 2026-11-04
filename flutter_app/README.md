@@ -93,3 +93,7 @@ The Rides **GOING TO** field now has a 320ms-debounced suggestions list showing 
 4. Type `swargat`: expect Google predictions after ~320ms, select Swargate, see confirmed formatted address. No request/booking is posted by selecting it.
 
 The two public read-only JSON POST endpoints are cost-bearing **only when enabled**, with strict per-IP/minute, per-IP/day, and server DB global/day caps; these are not a substitute for Google billing-level quotas or abuse defenses. No full prediction content is persistently cached. See `docs/agents/tasks/2026-11-04-flutter-place-autocomplete.md`.
+
+### Mobile keyboard QA follow-up
+
+The address prediction list now scrolls within a bounded dropdown (maximum 260 logical pixels), leaving its official Google attribution visible; tapping or keyboard Search chooses a prediction and then verifies the place through Place Details. Inputs are limited to 80 characters, matching Node validation. This work is in a stacked **draft** branch, not the existing installed APK until its own CI artifact is available. Node `PLACES_DAILY_CAP` accepts integers from 1–1000 (example `1` for a disposable, owner-approved provider test) and rejects invalid values on startup when enabled. The cap is not a hard Google billing ceiling. Do not turn on paid Places without quota/Terms review.

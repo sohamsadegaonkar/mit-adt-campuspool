@@ -74,3 +74,9 @@
 - **Choice:** Google Places API (New) prediction + details using secure session tokens, Pune-biased India search and a private server key. Flutter cannot directly embed an unrestricted Google key. A guest-readable read-only proxy with per-IP and global instance-level caps remains OFF until owner approves billing/attribution/privacy. Explicit coordinate confirmation required after selecting a suggestion.
 - **Rejected:** free-text route destinations treated as geocoded addresses; Nominatim public instance as per-keystroke autocomplete (not compliant with public usage); unrestricted direct Google Places calls from APK; cached prediction lists and made-up example addresses in real UI.
 - **Rollback:** discard branch; default-off flag requires no production rollback, credentials or DB mutation. Tests in `test_places_autocomplete.js` and Flutter widget/HTTP tests. [Task](tasks/2026-11-04-flutter-place-autocomplete.md).
+
+## A-015 — bounded mobile suggestions + fail-closed provider budget (branch proposal, 2026-11-04)
+
+- **Problem:** long prediction lists could be buried by Android IME; per-instance Places budget previously clamped values below 20 up to 20, preventing cautious one-request QA.
+- **Choice:** cap/scroll suggestion items while keeping attribution visible; support keyboard Search selection and 80-character input maximum. Parse the daily cap strictly (1–1000) only when opt-in feature is enabled; reject invalid limits rather than silently raising them.
+- **Caveat:** local shared rate limiter is not a Google Cloud billing cap; external quotas/alerts and provider terms/privacy reviews remain mandatory. No live testing or credential changes. [Task](tasks/2026-11-04-flutter-places-mobile-qa.md).

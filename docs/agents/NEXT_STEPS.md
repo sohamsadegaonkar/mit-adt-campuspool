@@ -63,3 +63,7 @@ See [2026-11-03-agent-workflow.md](tasks/2026-11-03-agent-workflow.md) for the m
 ## Flutter places destination picker — stacked branch, 2026-11-04 UTC
 
 - Review [autocomplete task](tasks/2026-11-04-flutter-place-autocomplete.md) on `feat/flutter-places-autocomplete-2026-11-04` stacked on PR #21. Flutter analyzer + 39/39 tests PASS (`6cbff8e`), Node 5/5 mock provider tests PASS (`1860647`). Latest Web/Android package build pending CI #41802050615. Next: approve Google Cloud key/quota/attribution, validate on an isolated local or approved staging setup, capture real Swargate selection/device screenshots and test abuse limits. The optional public read-only proxy is **OFF by default** and does not authorize production activation. Keep unmerged while cost/privacy/terms requirements remain unverified.
+
+## Flutter Places mobile QA — 2026-11-04 UTC (branch-only)
+
+- [Mobile keyboard + cost-cap task](tasks/2026-11-04-flutter-places-mobile-qa.md) on `feat/flutter-places-mobile-qa-2026-11-04`: inspect Flutter/Node CI first, fix any regressions, then QA real Android keyboard and scrolling; confirm official logo assets/Terms and Google Cloud billing budget before a controlled provider-enabled test. No release GO, merge or deploy implied.

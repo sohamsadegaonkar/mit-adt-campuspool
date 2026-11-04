@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const {createPlacesClient, PlacesError, validInput, validToken} =
+const {createPlacesClient, PlacesError, validInput, validToken, parseDailyCap} =
   require('./places-autocomplete');
 
 const SESSION = 'a'.repeat(24);
@@ -107,4 +107,16 @@ test('reject malformed Place Details instead of accepting fake locations', async
   });
   await assert.rejects(client.resolve({placeId:PLACE_ID,sessionToken:SESSION}),
     e => e.code === 'LOCATION_PROVIDER_UNAVAILABLE');
+});
+
+test('billing cap accepts one request for cautious controlled QA', () => {
+  assert.equal(parseDailyCap('1'), 1);
+  assert.equal(parseDailyCap('5'), 5);
+  assert.equal(parseDailyCap(), 250);
+  assert.equal(parseDailyCap('1000'), 1000);
+  for (const invalid of ['0', '-1', '1001', '10000', 'NaN', '3.5',
+    '100abc', 'Infinity', '', ' 5', '005']) {
+    assert.throws(() => parseDailyCap(invalid),
+      /PLACES_DAILY_CAP must be an integer/);
+  }
 });

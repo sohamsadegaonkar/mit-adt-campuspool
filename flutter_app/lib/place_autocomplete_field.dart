@@ -211,6 +211,12 @@ class _PlaceAutocompleteFieldState extends State<PlaceAutocompleteField> {
           keyboardType: TextInputType.streetAddress,
           textCapitalization: TextCapitalization.words,
           textInputAction: TextInputAction.search,
+          onSubmitted: (_) {
+            if (_phase == _SuggestPhase.results && _suggestions.isNotEmpty) {
+              _pick(_suggestions[_highlighted]);
+            }
+          },
+          inputFormatters: [LengthLimitingTextInputFormatter(80)],
           autofillHints: const [AutofillHints.fullStreetAddress],
           decoration: InputDecoration(
             hintText: 'Search destinations, e.g. Swargate',
@@ -294,14 +300,29 @@ class _PlaceAutocompleteFieldState extends State<PlaceAutocompleteField> {
     );
   }
 
-  Widget _suggestionsBox() => Material(
+  Widget _suggestionsBox() {
+    final viewport = MediaQuery.sizeOf(context).height;
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+    // Keep the suggestions and attribution visible above the phone keyboard.
+    // Individual results scroll inside this capped dropdown, not underneath
+    // the fixed CTA/nav bars.
+    final listHeight = min(260.0, max(140.0, (viewport - keyboard) * 0.38));
+    return Material(
     key: const Key('placeSuggestions'),
     elevation: 6,
     shadowColor: Colors.black26,
     color: Colors.white,
     borderRadius: BorderRadius.circular(13),
     child: Column(mainAxisSize: MainAxisSize.min, children: [
-      for (var i = 0; i < _suggestions.length; i++) ...[
+      ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: listHeight),
+        child: ListView(
+          key: const Key('placeSuggestionList'),
+          shrinkWrap: true,
+          padding: EdgeInsets.zero,
+          physics: const ClampingScrollPhysics(),
+          children: [
+            for (var i = 0; i < _suggestions.length; i++) ...[
         if (i > 0) const Divider(height: 1),
         InkWell(
           key: ValueKey('placeSuggestion_$i'),
@@ -342,7 +363,10 @@ class _PlaceAutocompleteFieldState extends State<PlaceAutocompleteField> {
             ),
           ),
         ),
-      ],
+            ],
+          ],
+        ),
+      ),
       const Divider(height: 1),
       // Official Google attribution is required if predictions are displayed
       // outside a Google Map. Replace this hosted logo with an approved local
@@ -364,4 +388,5 @@ class _PlaceAutocompleteFieldState extends State<PlaceAutocompleteField> {
       ),
     ]),
   );
+  }
 }
