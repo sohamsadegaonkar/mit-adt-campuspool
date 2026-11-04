@@ -112,3 +112,8 @@ The actual PG17 backup/restore steps remain impossible to execute through the av
 
 - Owner ran private Entra-authenticated test: AGE-encrypted synthetic payload upload/download/decrypt and test blob deletion — **both PASS**, no database access. Next local step: install the Azure JS SDK in a dedicated non-repository directory, fetch PR #26 in a **new worktree** and run its synthetic tests before preparing restricted preflight. Keep Azure CLI auth cache under verified private `/dev/shm`.
 - Before **any real staging PostgreSQL dump** uploaded to Malaysia West: ensure durable separate AGE private-key custody and recoverability, appropriate student-data cross-border review, credit/billing check, selected-schema backup scope review, local PG17/SDK preflight and an approved independent PG17/PostGIS cold-restore target. Release gating remains **NO-GO**; migration 008, Render and production unchanged.
+
+## Azure backup operator local preflight — 2026-11-04 UTC
+
+- Azure owner confirms local 6/6 synthetic tests passed. Run **credential-free** `node scripts/azure-blob-backup.js --preflight` from `~/campuspool-azure-recovery` using **synthetic PGHOST/PGPASSWORD/AGE_RECIPIENT sentinel values** that satisfy config shape and exact destination allowlists; `NODE_PATH` points to separately installed Azure SDK and `AZURE_CONFIG_DIR` is private 0700 tmpfs. This only validates tool versions, packages and config; it performs no DB or cloud query.
+- **Do not** proceed to `--execute` with sentinel values. The live cross-border staging export still requires separately recoverable **durable AGE private identity**, approved student-data transfer/privacy and subscription cost review, and independent recovery target planning. Release gates remain NO-GO.
