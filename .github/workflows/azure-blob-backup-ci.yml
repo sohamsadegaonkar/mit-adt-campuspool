@@ -5,6 +5,7 @@ on:
     paths:
       - 'scripts/azure-blob-backup.js'
       - 'test_azure_blob_backup.js'
+      - 'test_azure_blob_real_tools.js'
       - 'scripts/staging-backup-guard.js'
       - 'package.json'
       - '.github/workflows/azure-blob-backup-ci.yml'
@@ -39,3 +40,23 @@ jobs:
           else
             echo "Expected: Azure backup preflight blocks CI without operator secrets"
           fi
+
+  # No staging credentials or Azure login. Real PG17 and age binaries use
+  # only synthetic rows, an isolated no-network Docker container and tmpfs.
+  azure-realtools:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.2'
+      - name: Install AGE CLI and pull disposable PostgreSQL image
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y age
+          docker pull postgres:17
+      - name: Test real Node pg_dump and AGE subprocess pipeline with in-memory Azure and cold restore
+        run: node --test test_azure_blob_real_tools.js
