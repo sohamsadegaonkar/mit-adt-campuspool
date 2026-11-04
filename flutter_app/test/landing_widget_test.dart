@@ -1,3 +1,12 @@
+void expectFixedGuestActions() {
+  final sticky = find.byKey(const Key('stickyGuestActions'));
+  expect(sticky, findsOneWidget);
+  expect(find.descendant(
+    of: sticky, matching: find.text('Get started')), findsOneWidget);
+  expect(find.descendant(
+    of: sticky, matching: find.text('Become a runner')), findsOneWidget);
+}
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:campuspool_flutter/main.dart' as app;
@@ -8,32 +17,17 @@ void main() {
   testWidgets('logged-out CTA pair remains while exploring rides and errands',
       (tester) async {
     await tester.pumpWidget(const app.CampusPoolApp());
-    final sticky = find.byKey(const Key('stickyGuestActions'));
-    expect(sticky, findsOneWidget);
-    expect(find.descendant(
-      of: sticky, matching: find.text('Get started')), findsOneWidget);
-    expect(find.descendant(
-      of: sticky, matching: find.text('Become a runner')), findsOneWidget);
+    expectFixedGuestActions();
 
     await tester.tap(find.byKey(const ValueKey('tab_rides')));
     await tester.pumpAndSettle();
     expect(find.text('No live rides to display'), findsOneWidget);
-    final sticky = find.byKey(const Key('stickyGuestActions'));
-    expect(sticky, findsOneWidget);
-    expect(find.descendant(
-      of: sticky, matching: find.text('Get started')), findsOneWidget);
-    expect(find.descendant(
-      of: sticky, matching: find.text('Become a runner')), findsOneWidget);
+    expectFixedGuestActions();
 
     await tester.tap(find.byKey(const ValueKey('tab_errands')));
     await tester.pumpAndSettle();
     expect(find.text('Request an item'), findsOneWidget);
-    final sticky = find.byKey(const Key('stickyGuestActions'));
-    expect(sticky, findsOneWidget);
-    expect(find.descendant(
-      of: sticky, matching: find.text('Get started')), findsOneWidget);
-    expect(find.descendant(
-      of: sticky, matching: find.text('Become a runner')), findsOneWidget);
+    expectFixedGuestActions();
   });
 
   testWidgets('price disclosure is collapsed by default and toggles',
