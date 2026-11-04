@@ -123,3 +123,8 @@ Draft PR #11 now carries a **private operator-only** `scripts/staging-secure-bac
 
 - Exact private container `campuspool-staging-backups` was read through `az storage container show --auth-mode login` with `publicAccess:null`. Owner subsequently reports full AGE-encrypted non-student text sample upload, download, ciphertext match, decryption and sample blob deletion, both explicit PASS lines. **No Supabase source queried; no actual database backup attempted.**
 - Draft Azure backup PR #26 remains unmerged, with 3/3 automated checks last observed green on pre-smoke documentation commit `d7246237`. Owner-side JavaScript SDK, AGE durable decryption key custody, data transfer review, independent real PG17 restore and Render rollback still unverified. [Task](tasks/2026-11-04-azure-private-blob-backup.md).
+
+## Azure backup local test checkpoint — 2026-11-04 UTC
+
+- Owner reports **6/6 local synthetic Azure backup tests passed** on isolated Ubuntu-D worktree following encrypted Azure sample write/read/decrypt/delete PASS. This is not a real DB backup or restoration.
+- Next step is credential-free/local-only `--preflight` using fake sentinel source credentials + age recipient, to verify installed PG17, AGE, Azure CLI, Azure SDK and guarded configuration. Real source credentials, durable AGE key custody and applicable transfer/cost review remain blockers. [Task](tasks/2026-11-04-azure-private-blob-backup.md).
