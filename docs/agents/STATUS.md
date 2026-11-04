@@ -174,3 +174,10 @@ Draft PR #11 now carries a **private operator-only** `scripts/staging-secure-bac
 ## Retry worktree ready — November 4, 2026
 
 - Owner safely preserved earlier untracked `-` in the original Azure worktree and created a separate clean `~/campuspool-azure-retry` at commit `e6850ab`. Local Azure mocked safety tests: **10/10 passing**, 0 failed. Actual encrypted Azure stage export **not yet retried**, independent restore **not done**; release still NO-GO. [Task](tasks/2026-11-04-azure-private-blob-backup.md).
+
+## Azure backup stream bug and local plaintext risk — 2026-11-04 UTC (unmerged fix)
+
+- Operator's 10/10 synthetic Azure tests at `e6850ab` **did not** verify actual `pg_dump` stdout: the script and mock both used `--file=-`. PostgreSQL 17 defines `--file` as an output filename; the operator found a 48,600-byte untracked `-` file in a WSL checkout, presumed sensitive and not read by the agent. An older checkout has a zero-byte `-` file. Windows host disk encryption remains absent; chmod is only an access restriction, not secure disk-erasure proof.
+- Verified stage TLS/auth remains PASS. Previous reported dump/AGE shell PASS is **withdrawn** as a reliability claim because stdout could be empty. The sole 200-byte `staging/` Azure Blob failed decrypted PostgreSQL archive validation; **NO verified usable off-site database backup** and **NO cold restore**.
+- Separate branch `fix/azure-pgdump-stdout-guard-2026-11-04` changes custom-format pg_dump to stdout (omit file flag), checks `PGDMP` header before AGE, and updates synthetic tests. Code is **unmerged and not yet CI/operator-verified** at this checkpoint. See [incident task](tasks/2026-11-04-azure-pgdump-stdout-incident.md).
+- No database migration 008, staging Render deploy, production change or authorized live retry. Release remains **NO-GO** pending local incident containment, code+CI review, verified new ciphertext and separate secure PG17/PostGIS recovery proof.
