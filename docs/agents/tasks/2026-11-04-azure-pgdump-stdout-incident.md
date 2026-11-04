@@ -79,3 +79,13 @@ Make the custom-format PostgreSQL 17 archive reach the AGE encryptor through **s
 - [Original Azure backup task](2026-11-04-azure-private-blob-backup.md)
 - Fix branch: [fix/azure-pgdump-stdout-guard-2026-11-04](https://github.com/sohamsadegaonkar/mit-adt-campuspool/tree/fix/azure-pgdump-stdout-guard-2026-11-04)
 - Production impact: NONE
+
+## Plan
+
+1. Preserve the incident files and isolate the corrected real PostgreSQL 17 streaming worker for review; do not run live staging exports on the unencrypted laptop.
+2. Keep the new real-tool and mock Azure CI green, then obtain explicit approval for cloud-side staging backup and separate protected restore before deployment.
+
+## Progress log
+
+- 2026-11-04 UTC — Operator reported accidental 48,600-byte local file named `-`; both local `-` files set owner-only mode 0600. No verified secure erasure.
+- 2026-11-05 UTC — Azure stdout fix, AGE archive header checks and real-tools synthetic restore verified in PR #27 / cloud worker PR #28. Integration to main is source-only and does not authorize a live export.
