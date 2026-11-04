@@ -16,7 +16,10 @@ const snippet = html.slice(begin, end) +
 
 function environment({ storage, clock, user='driver@students.example', send }) {
   const captured=[];
+  const events=[];
   const scope={
+    Event:class {constructor(type){this.type=type;}},
+    window:{dispatchEvent(event){events.push(event.type);}},
     crypto:webcrypto, TextEncoder, Headers, Uint8Array, Set, Map,
     Date:class extends Date { static now(){ return clock.now; } },
     JSON, String, Number, Array,
@@ -34,7 +37,7 @@ function environment({ storage, clock, user='driver@students.example', send }) {
     }
   };
   vm.runInNewContext(snippet,scope,{timeout:2000});
-  return {api:scope.__test, captured, scope};
+  return {api:scope.__test, captured, events, scope};
 }
 const ridePayload=JSON.stringify({
   pickup:'Private Campus Gate',destination:'Private Station',vehicle:'Car'
@@ -84,6 +87,7 @@ test('401 and successful logout clear retry token cache',async()=>{
   await auth.api.apiFetch(route,opts);
   assert.equal(storage.size,0);
   assert.equal(auth.scope.appState.currentUser,null);
+  assert.deepEqual(auth.events,['campuspool:session-changed']);
   const other=environment({storage,clock,send:async()=>rateLimited()});
   await other.api.apiFetch(route,opts);
   assert.ok(storage.size>0);

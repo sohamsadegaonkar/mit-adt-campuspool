@@ -5,6 +5,8 @@ on:
     paths:
       - 'server.js'
       - 'index.html'
+      - 'mobility-ui.js'
+      - 'test_mobility_ui.js'
       - 'sms-provider.js'
       - 'render-staging.yaml'
       - 'test_auth_integration.js'
@@ -45,6 +47,8 @@ jobs:
       - name: Verify server and database syntax
         run: |
           node --check server.js
+          node --check mobility-ui.js
+          node --check test_mobility_ui.js
           node --check database.js
           node --check idempotency.js
           node --check test_idempotency.js
@@ -61,6 +65,7 @@ jobs:
           node --check sms-provider.js
       - name: Run isolated security tests
         run: |
+          npm run test:mobility-ui
           npm run test:idempotency
           npm run test:browser-idempotency
           npm run test:staging-preflight

@@ -45,7 +45,9 @@
     "check:staging-restore": "node scripts/staging-restore-compare.js",
     "test:azure-blob-backup": "node --test test_azure_blob_backup.js",
     "check:azure-blob-backup": "node scripts/azure-blob-backup.js --preflight",
-    "backup:azure-operator": "node scripts/azure-blob-backup.js --execute"
+    "backup:azure-operator": "node scripts/azure-blob-backup.js --execute",
+    "test:mobility-ui": "node --test test_mobility_ui.js",
+    "test:e2e:mobility": "playwright test --config=playwright.mobility.config.cjs"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",

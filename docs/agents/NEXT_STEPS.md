@@ -260,6 +260,27 @@ Historical headings below were recorded before the combined source merge. The UI
 
 - [Mobile keyboard + cost-cap task](tasks/2026-11-04-flutter-places-mobile-qa.md) on `feat/flutter-places-mobile-qa-2026-11-04`: Flutter analyzer and 41 tests PASS, Node Places 6 tests PASS at `e0ebb45`; packaging pending CI #41805066120. Next: inspect web/unsigned Android build artifact, then QA real Android keyboard and scrolling; confirm official logo assets/Terms and Google Cloud billing budget before a controlled provider-enabled test. No release GO, merge or deploy implied.
 
+## Mobility UI source reconciliation — 2026-11-05
+
+Historical branch-only checkpoints are retained below. Private travel-intent UI remains feature-gated and is not live; migration 008 and student data rollout require protected backup/restore, consent, device acceptance and rollback evidence.
+
+## Independent P1 development handoff — authenticated mobility UI (2026-11-03 UTC)
+
+- [Feature-gated mobility intent panel](tasks/2026-11-03-mobility-intent-ui.md): new unmerged `feature/mobility-intent-ui-2026-11-03` branch off `main`, separate from nested security PRs #11–13. Implements the previously missing student-facing request, cancellation, private geometric candidate cards, existing booking handoff and optional opt-in geocoded driver offer fields (default off), without revealing raw GPS or contact data in candidate cards. Staging-only backend flag remains OFF by default; this is **not a deployed feature**.
+- **Historical baseline:** PR #14's initial UI tests passed on `30e4fc2`; subsequent synthetic browser QA and privacy hardening are now documented in the later checkpoint below. No authorized staging browser test or physical-device acceptance has occurred. Independently audit accessibility/mobile UX and provider privacy, then run verified-student browser E2E against a separately authorized staging build. Do not enable public matching, migrate 008 or bypass the owner-operated backup/restore and rollback gates. Future route-aware matching and load benchmarking remain open; do not adopt Redis/H3 until measured evidence warrants it.
+
+## New QA gate — real-browser mobility checks (2026-11-04, PR #14)
+
+- [Disposable Chromium/Firefox/WebKit browser QA](tasks/2026-11-04-mobility-browser-qa.md) added on the unmerged mobility feature branch. The source review also fixed a real ride-ID contract mismatch: `ride_<uuid>` from PostgreSQL was rejected by candidate/booking UI guards. No staging or production service was touched.
+- **Immediate action:** code commit `810ad64` PASSED browser E2E run #41701113565 (**21/21** across Chromium, Firefox, mobile WebKit), alongside all four standard CI checks. Obtain independent usability/privacy and keyboard/physical-mobile review, then separately authorized staging E2E; collect exact deployed SHA and rollback evidence before any rollout. Synthetic user sessions bypass real OTP provider delivery and cannot substitute for approved staging E2E. Keep PR #14 draft and release/migration 008 blocked until separately documented owner approval.
+
+## Latest reviewed PR #14 checkpoint — browser state and accessibility (2026-11-03 19:38 UTC)
+
+- [Mobility session-race, map and keyboard hardening](tasks/2026-11-04-mobility-ui-hardening.md) is implemented on the **unmerged draft** `feature/mobility-intent-ui-2026-11-03` branch. Tested code SHA: `76cd1a414bb942086ed7c81ba41c82835f58c19f`.
+- **Verified isolated tests:** **30/30 browser cases PASS**, run #41704799368, for Chromium desktop, Firefox desktop and mobile WebKit; security #41704799389 PASS, PostgreSQL/PostGIS #41704799073 PASS, credential hygiene #41704799185 PASS, agent docs #41704799301 PASS. Browser regressions added for delayed successful matching after logout (discard stale response), DOM/form time clearing, genuine opt-in Leaflet map clicks with stubbed tiles and keyboard request creation/cancellation.
+- **Immediate responsible action:** an *independent human* should review PR #14 (state race/CSRF, location privacy and retention, accessibility and mobile, failure paths, opt-in semantics and test harness) and record review approval or requested changes. No independent approval was recorded at task start. Engineering can continue isolated static/browser regression only; do not mark passing CI as reviewer authorization.
+- **Staging owner / operator action after separately verified restoration gates:** confirm off-site encrypted staging backup, separate independently restored database with matching fingerprints, reviewed rollback, retained Render artifact and approved test accounts; then deploy exact reviewed SHA to isolated staging, run real delivery and physical-device QA and capture evidence. **Until then: no staging/production deploy, migration 008, public mobility enablement or payment activity.**
+
 ## Repo archive containment guard — 2026-11-05
 
 - Review and test source-only archive exclusions and tracked-file checks, [task](tasks/2026-11-05-repo-dump-hygiene.md). Do not hide or commit the existing untracked WSL `-` file; do not treat Docker ignoring as secure erasure.
