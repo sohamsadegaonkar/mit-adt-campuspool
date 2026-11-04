@@ -1,7 +1,7 @@
 # Task: Independent staging backup and cold-restore execution readiness
 
 - **Task ID:** `2026-11-04-independent-staging-recovery-start`
-- **Status:** Operator export and restore NOT RUN; source metadata preflight passed; protected backup tool hardening under CI review
+- **Status:** SOURCE PREFLIGHT PASS; operator backup/export and independent restore NOT RUN; updated encrypted five-part script tests PASS in disposable CI
 - **Agent/owner:** ChatGPT engineering agent for connected metadata checks and guarded script changes; trusted local WSL Ubuntu-D operator for private DB credentials, encrypted off-site storage and separately provisioned recovery target
 - **Date:** 2026-11-04, Asia/Kolkata
 - **Branch:** `ops/staging-recovery-ledger-2026-11-04`, stacked on security/staging-restore-content-digests-2026-11-03 (PR #13); do not merge directly to main or deploy
@@ -40,13 +40,20 @@ Actual release GO requires (1) a verified encrypted logical export from the **ex
 |---|---|
 | Source identity, PG17, app role and RLS metadata | VERIFIED read-only at 2026-11-04 08:15 UTC |
 | Migration history 001–007 and 008 absent | VERIFIED |
-| Five-part encrypted export tool syntax and synthetic tests | CI pending |
+| Five-part encrypted export tool syntax and synthetic tests | **PASS** — security smoke #41799053357 and disposable PostgreSQL #41799053373, tested code SHA `a5100308a9da4779bab02564d69c55677de589ec` |
 | Actual live staging export | NOT RUN — trusted operator-only URL / encrypted workdir / approved off-site mount unavailable in cloud agent |
 | Remote re-download checksum and independent decryption | NOT RUN |
 | Separate approved PG17/PostGIS restore | NOT RUN — separate target not provisioned |
 | Migration/RLS/role/content comparison of real snapshot | NOT RUN |
 | Render retained rollback artifact | NOT VERIFIED |
 | Staging release approval | NO-GO |
+
+## CI verification — November 4, 2026
+
+- Draft dependent PR [#22](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/22) follows #13 → #12 → #11; its changes are not yet part of `main` or any deployed Render artifact.
+- [Security smoke #41799053357](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41799053357) **PASS**.
+- [Stage 1 PostgreSQL #41799053373](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41799053373) **PASS**.
+- These checks validate synthetic shell guard and PostgreSQL operations, **not** a real staging export, off-site transfer or cold restore. Strict NO-GO remains until signed recovery and rollback evidence exists.
 
 ## Engineering handoff
 
