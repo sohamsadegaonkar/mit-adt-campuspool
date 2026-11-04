@@ -58,8 +58,8 @@ A 48,600-byte potential plaintext staging archive named `-` was found on an olde
 | Original streamer unit tests | PR #27, 11/11 operator tests | PASS |
 | Original streamer actual PG17/AGE synthetic restore | Operator-provided synthetic recovery proof | PASS |
 | Original Node real-tool mock Azure CI | PR #27 realtools job | PASS |
-| Cloud managed-identity guard unit tests | `node --test test_cloud_backup_auth.js` | PENDING cloud-worker CI |
-| Cloud image build and smoke | GitHub job `worker-image` | PENDING cloud-worker CI |
+| Cloud managed-identity guard unit tests | GitHub PR #28 `managed-identity-guards`, commit `2ebc327` | **PASS** |
+| Cloud image build and smoke | GitHub PR #28 `worker-image`, commit `2ebc327` | **PASS** |
 | Cloud staging job created / real encrypted export | Azure owner approval and protected environment | NOT DONE |
 | Independently decrypted real off-site staging restore | Encrypted independent PG17/PostGIS | NOT DONE |
 | Production rollout | Requires staged recovery and rollback evidence | BLOCKED |
