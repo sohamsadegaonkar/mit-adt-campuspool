@@ -6,7 +6,7 @@ const crypto=require('node:crypto');
 const {PassThrough}=require('node:stream');
 const {EventEmitter}=require('node:events');
 const {
-  validate,redactChildEnv,backup,objectKey,args
+  validate,redactChildEnv,limitedEnv,backup,objectKey,args
 }=require('./scripts/r2-stream-backup');
 
 const REF='tnitksrlntrdxbvznxzf';
@@ -86,6 +86,17 @@ test('no source URLs or private AGE identity inherited into child environment',(
     assert.equal(out[key],undefined);
   assert.equal(out.PGPASSWORD,fake.PGPASSWORD);
 });
+test('each child receives only its own private credentials',()=>{
+  const db=limitedEnv(fake,'pg'),age=limitedEnv(fake,'age'),cloud=limitedEnv(fake,'rclone');
+  assert.equal(db.PGPASSWORD,fake.PGPASSWORD);
+  assert.equal(db.RCLONE_CONFIG_CAMPUSPOOLR2_SECRET_ACCESS_KEY,undefined);
+  assert.equal(age.PGPASSWORD,undefined);
+  assert.equal(age.RCLONE_CONFIG_CAMPUSPOOLR2_SECRET_ACCESS_KEY,undefined);
+  assert.equal(cloud.PGPASSWORD,undefined);
+  assert.equal(cloud.RCLONE_CONFIG_CAMPUSPOOLR2_SECRET_ACCESS_KEY,
+    fake.RCLONE_CONFIG_CAMPUSPOOLR2_SECRET_ACCESS_KEY);
+  assert.throws(()=>limitedEnv(fake,'untrusted'),/UNKNOWN_CHILD_ROLE/);
+});
 test('unique per-run cloud object names never use predictable static location',()=>{
   const key=objectKey(new Date('2026-11-04T12:00:00Z'),
     Buffer.from('01'.repeat(16),'hex'));
@@ -108,6 +119,7 @@ test('fake source->AGE->R2 streaming then ciphertext read-back succeeds',async()
     '--schema=supabase_migrations','--no-password','--file=-']);
   assert.ok(!dump.args.some(x=>x.includes('SECRET')||x.includes('PASSWORD')));
   assert.equal(mock.calls.filter(c=>c.program==='rclone').length,2);
+  assert.ok(mock.calls.filter(c=>c.program==='rclone').every(c=>c.args.includes('/dev/null')));
   assert.equal(mock.calls.some(c=>c.args.includes('--clean')),false);
 });
 test('missing operator consent and cloud corruption both fail closed',async()=>{
