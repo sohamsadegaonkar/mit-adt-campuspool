@@ -1,0 +1,53 @@
+name: Cloud backup worker build and auth guard CI
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/azure-blob-backup.js'
+      - 'test_cloud_backup_auth.js'
+      - 'ops/cloud-backup/**'
+      - '.github/workflows/cloud-backup-worker-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  managed-identity-guards:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.2'
+      - name: Syntax and credential isolation
+        run: |
+          node --check scripts/azure-blob-backup.js
+          node --check test_cloud_backup_auth.js
+          node --test test_cloud_backup_auth.js
+      - name: Never package secrets in public worker image
+        run: |
+          ! grep -Eq 'COPY[[:space:]]+(\\.|/|\.\./)' ops/cloud-backup/Dockerfile
+          ! grep -Eq 'PGPASSWORD=|AZURE_STORAGE_KEY=|AGE_IDENTITY=' ops/cloud-backup/Dockerfile
+
+  worker-image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build disposable image (no cloud credentials)
+        run: docker build -f ops/cloud-backup/Dockerfile -t campuspool-backup-ci:local .
+      - name: Check Node, PostgreSQL 17 and AGE in isolated image
+        run: |
+          docker run --rm --network none --read-only \
+            --entrypoint sh campuspool-backup-ci:local -c \
+            'node --version && pg_dump --version && age --version'
+      - name: Verify missing secrets block any operator execution
+        run: |
+          if docker run --rm --network none --read-only \
+            campuspool-backup-ci:local --execute; then
+            echo "UNEXPECTED: cloud backup should block without credentials"
+            exit 1
+          fi
+          echo "EXPECTED: no live export without secrets and explicit approval"
