@@ -133,3 +133,8 @@ Draft PR #11 now carries a **private operator-only** `scripts/staging-secure-bac
 
 - Owner reports `AZURE_PREFLIGHT_PASS; no database or blob contacted` on Ubuntu-D with synthetic credentials, after AGE smoke test and 6/6 local synthetic tests. This confirms only installed local tools and source/destination validation; no real PostgreSQL export, actual Azure SDK backup run or independent restore.
 - Next gate is a **recoverable AGE identity**: generate key in private tmpfs, encrypt identity with a strong unique passphrase before any local persistent write, verify decrypting a synthetic file through the encrypted identity, and independently save the encrypted key in a separate secure vault. Any plaintext identity in WSL tmpfs may still face WSL swap risk on unencrypted Windows disks; do not claim full disk confidentiality. [Task](tasks/2026-11-04-azure-private-blob-backup.md).
+
+## AGE identity generated, independent custody pending — 2026-11-04 UTC
+
+- Owner reports two **PASS** results for generating permanent AGE recipient and passphrase-encrypting the private identity, followed by successful synthetic decryption on Ubuntu-D. The private identity and passphrase were **not** shared with the agent. A separately stored and retrieved recovery copy is still **NOT VERIFIED**.
+- Prior Azure encrypted sample upload/download/delete and 6/6 local mocks, plus credential-free `AZURE_PREFLIGHT_PASS`, were reported successful. Real staging export, independent cold restore, student-data transfer review, and Render rollback remain **NO-GO**. [Azure recovery task](tasks/2026-11-04-azure-private-blob-backup.md).
