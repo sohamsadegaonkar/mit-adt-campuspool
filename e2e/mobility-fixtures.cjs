@@ -76,6 +76,10 @@ async function api(person,path,method='GET',body){
     const session=await me.json();
     headers['X-CSRF-Token']=session.csrfToken;
     headers['Content-Type']='application/json';
+    // The reconciled backend requires idempotency keys for business writes.
+    // Use a new synthetic operation key for each fixture mutation, not a bypass.
+    if (method==='POST' && path==='/api/rides')
+      headers['Idempotency-Key']=crypto.randomUUID();
   }
   const res=await fetch(BASE+path,{
     method,headers,body:body===undefined?undefined:JSON.stringify(body)
