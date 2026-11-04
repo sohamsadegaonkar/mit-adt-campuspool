@@ -71,3 +71,8 @@ Expected checks: 320ms debounce, no searches shorter than 3 characters, at most 
 - **Owner action still needed:** acquire/approve Google Cloud billing quota, server-only key and explicit feature flag before real addresses can display on a physical phone. No production or staging activation authorized. Google official logo bundle and privacy/terms review remain launch gates.
 
 - **Privacy revision (2026-11-04):** Both public read-only Places requests now use JSON POST payloads to avoid putting destination text and session tokens into request URLs / reverse-proxy query logs. The exact routes execute before the router's authenticated mutation CSRF check because they do not create student account state; CORS checks, JSON content-type requirement, strict per-IP and global provider caps remain mandatory. They are still disabled by default.
+
+## Progress log
+
+- 2026-11-04 UTC — Feature-gated Google Places proxy and Flutter UI suggestions implemented in source; no provider key, billing or real student data used.
+- 2026-11-05 UTC — Reconciled the Places route with the mainline idempotency-aware Node router for PR #33. Runtime remains disabled by default until explicit provider approval.
