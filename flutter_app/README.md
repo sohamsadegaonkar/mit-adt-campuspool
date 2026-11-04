@@ -46,6 +46,6 @@ No token, session, student identity, live coordinate, booking, OTP or money is p
 2. Integrate real user sessions against the existing Node API after contract and CSRF review; no client-side login bypass.
 3. Integrate server-backed rides/errands only after security/release/privacy gates. Errands server domain and provider-backed settlement are not implemented.
 4. Import *approved, properly licensed real images* as static assets with attribution. Until then, the UI uses its Figma route illustration and does not mislabel concept artwork as real photography.
-5. Run `flutter test`, `flutter analyze`, physical-device layout/accessibility review and dependency/CI checks. Flutter was not installed in the authoring runtime, so compilation remains unverified until CI.
+5. Run `flutter test`, `flutter analyze`, physical-device layout/accessibility review and dependency/CI checks. Flutter was not installed in the authoring runtime. **GitHub Actions Flutter 3.47.7 verified analysis and 6/6 tests** in [run #41790737256](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41790737256); native builds and physical-device QA remain outstanding.
 
 See `../AGENTS.md` and `../docs/agents/tasks/2026-11-04-flutter-figma-ui.md` before continuing.

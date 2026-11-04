@@ -39,8 +39,8 @@ Create a working, independent Flutter/Dart UI scaffold reflecting CampusPool's F
 | Repository baseline | GitHub refs + tree for `056cd26` | PASS — no Flutter client before change |
 | Figma design mapping | Figma `get_design_context(66:172)` | PASS — guest screenshot and source hierarchy obtained |
 | Flutter SDK presence | Local `which flutter; which dart` | UNAVAILABLE — tooling not installed |
-| Flutter source analysis | `cd flutter_app && flutter analyze --no-fatal-infos` | NOT RUN locally — GitHub workflow added |
-| Flutter widget tests | `cd flutter_app && flutter test` | NOT RUN locally — GitHub workflow added |
+| Flutter source analysis | `flutter analyze --no-fatal-infos` | PASS in PR #17 [CI #41790737256](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41790737256); not run locally |
+| Flutter widget tests | `flutter test` | PASS 6/6 in PR #17 [CI #41790737256](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41790737256); not run locally |
 | Production / payment | No production or provider actions | NOT TOUCHED |
 
 ## Risks and decisions
@@ -68,3 +68,7 @@ Create a working, independent Flutter/Dart UI scaffold reflecting CampusPool's F
 ### CI checkpoint — 2026-11-04 UTC
 
 - GitHub Actions Flutter run [#41790254714](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41790254714) **analyzer PASS** and 5/6 tests passed. The remaining widget assertion expected a globally unique “Become a runner” label, but both the service card and sticky CTA intentionally use that text. This is a test-selector issue rather than UI behavior: test now scopes both guest buttons to the persistent action bar. Re-run Flutter CI on the next branch commit.
+
+### Verification checkpoint — 2026-11-04 UTC
+
+- **Flutter 3.47.7 CI PASSED:** PR #17 Flutter workflow [#41790737256](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41790737256) reported successful `flutter pub get`, `flutter analyze --no-fatal-infos`, and **6/6 passing** Dart/Flutter quote and widget tests at source commit `8ff4519ed4e53dafda21439b58a03156ef5747d2`. No physical-device screenshots or native Android/iOS builds were executed. The PR is still draft and not merged or deployed.
