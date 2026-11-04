@@ -55,7 +55,7 @@ function preflight(env=process.env,overrides={}){
   const v=validate(env);
   const commands=overrides.versionOk||versionOk;
   if(!commands('pg_dump',/\b17\.\d+\b/))v.errors.push('POSTGRES_17_PG_DUMP_REQUIRED');
-  if(!commands('age',/\bage\b/i))v.errors.push('AGE_CLI_REQUIRED');
+  if(!commands('age',/\b(?:age\s+)?v?\d+\.\d+\.\d+\b/i))v.errors.push('AGE_CLI_REQUIRED');
   if(!commands('az',/azure-cli/i))v.errors.push('AZURE_CLI_REQUIRED');
   try{
     (overrides.loadSdk||loadSdk)();
