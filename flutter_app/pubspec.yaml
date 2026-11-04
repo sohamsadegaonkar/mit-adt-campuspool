@@ -1,0 +1,18 @@
+name: campuspool_flutter
+description: CampusPool 2.0 Flutter UI prototype based on the Figma design system.
+publish_to: none
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.6.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true

@@ -74,3 +74,7 @@ Maintain a **modular monolith** with isolated domains. PostgreSQL/PostGIS remain
 - Agent-specific progress: distinct files under `docs/agents/tasks/`.
 
 **Rule:** if a diagram or this map disagrees with code or deployed configuration, fix it with evidence before using it to authorize a change.
+
+## Optional Flutter UI client (unmerged proposal, 2026-11-04)
+
+`feat/flutter-campuspool-figma-ui-2026-11-04` introduces `flutter_app/` as a **standalone local UI prototype** beside the existing static website. It has no network API client, no persistent or privileged student state, and no backend migration. Flutter screens reflect the existing Figma white/black/yellow design and local demonstration quote calculations. Do not replace this map's deployed Node frontend diagram until Flutter is reviewed, integrated and explicitly released. See [task record](tasks/2026-11-04-flutter-figma-ui.md).

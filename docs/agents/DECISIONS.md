@@ -44,3 +44,11 @@
 - **Interpretation and alternatives:** The burst queue reflects application pool contention, not yet a database bottleneck requiring Redis or microservices. Sample 11 monitoring intervals cannot rule out short lock contention. Next compare pool sizing/backpressure, spatial selectivity, query and index tuning, sustained reads+writes, and cost/headroom on approved representative hardware. H3 can be considered for aggregation only if a real need appears; it does not replace road-route verification or PostGIS.
 - **Privacy, cost and safety:** No production, staging, personal data or provider billing. The isolated test bypasses HTTP/auth network overhead, does not reproduce campus travel demand, and uses a database admin role for CI; it is not a student-facing latency SLA. Do not copy staging data into CI.
 - **Next decision trigger:** Independent benchmark review and signed-off sustained API + DB acceptance on isolated staging with recovery and rollback evidence. Otherwise keep the single PostGIS-backed modular monolith.
+
+## A-011 — Flutter as a separate optional client (proposed in branch, 2026-11-04)
+
+- **Problem:** implement CampusPool's new mobile-first Figma interface in Flutter/Dart without destabilizing the live Node/static web service.
+- **Choice:** create `flutter_app/` as an independent cross-platform UI scaffold. Keep existing Node API and website unchanged. The Flutter demo contains no live payment, verification, booking or student-data operation.
+- **Alternatives:** wholesale replacement of current frontend (rejected: release/auth regression risk); React-native client (rejected for this task: user expressly selected Flutter/Dart).
+- **Trade-offs:** separate UI implementation to maintain and test; Android/iOS platform scaffolds and accessibility review pending; backend API adapters require formal contracts.
+- **Validation and rollback:** run Flutter analyze/test/device QA in its own CI; branch-only change can be abandoned without any production rollback. [Task handoff](tasks/2026-11-04-flutter-figma-ui.md).
