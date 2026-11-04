@@ -15,7 +15,7 @@
 4. Support error/rate-limit/provider-unavailable/invalid-code states, real logout with server CSRF, revoked-session fallback, and disabled flow when backend is not configured.
 5. Pass static analysis, mock HTTP and widget tests, web release & unsigned Android debug build. Device QA, provider delivery and production deployment remain separate gates.
 
-## Verified baseline / evidence
+## Current state (verified vs assumed)
 
 - At 2026-11-04 UTC: draft PR #19 head `f43f8139`, PR #17 head `df65ad1`, neither merged into `main@056cd26`.
 - Node `POST /api/auth/login-request` accepts `identifier`; `POST /api/auth/verify-email-otp` accepts `email`, `otp`, `isLoginFlow:true` and sets HttpOnly `cp_session` after success. `GET /api/auth/me` confirms identity and a CSRF token. `POST /api/auth/logout` requires session-linked CSRF. `GET /api/rides` is blocked without server authentication. Existing CORS **does not allow credentialed cross-origin browser requests**.
