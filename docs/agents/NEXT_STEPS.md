@@ -50,3 +50,8 @@ See [2026-11-03-agent-workflow.md](tasks/2026-11-03-agent-workflow.md) for the m
 
 - **P1 / UI review:** [Flutter/Figma Phase 1](tasks/2026-11-04-flutter-figma-ui.md) lives only on `feat/flutter-campuspool-figma-ui-2026-11-04` and does not alter the production web app. **CI verified:** Flutter 3.47.7 analyzer and **6/6 tests pass** in [run #41790737256](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41790737256). **Next:** generate/review Android/iOS shells using `flutter create`, check real phone/tablet/browser screenshots, accessibility and reduced motion, then obtain independent PR review.
 - **After approval only:** design session-based Node API client integration with CSRF, ownership and ride-match privacy guards. Errands, verified pricing, tip top-ups and UPI remain disabled until server implementations and trusted provider callbacks exist. Do not deploy or merge this client as a production release by inference.
+
+## Flutter Phase 2 (stacked, not in main) — 2026-11-04 UTC
+
+- [Phase 2 ride feed / loading states + platform build](tasks/2026-11-04-flutter-phase2-platform-states.md): `feat/flutter-phase2-platform-states-2026-11-04` is stacked on draft PR #17 and **does not deploy**. Next: verify Flutter CI and downloadable web/debug Android artifacts, run manual emulator/browser responsive and reduced-motion checks, then review real session transport/cookie scoping and privacy. Do **not** wire the simulated signed-in preview to actual protected endpoints.
+- Separate approved work would be needed for a real verified OTP/session flow, Android secure cookie storage, iOS signing, actual rides inventory integration, and errands/payment backend. Existing P0 release blockers retain priority.

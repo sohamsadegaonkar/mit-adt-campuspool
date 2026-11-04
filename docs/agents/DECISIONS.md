@@ -52,3 +52,10 @@
 - **Alternatives:** wholesale replacement of current frontend (rejected: release/auth regression risk); React-native client (rejected for this task: user expressly selected Flutter/Dart).
 - **Trade-offs:** separate UI implementation to maintain and test; Android/iOS platform scaffolds and accessibility review pending; backend API adapters require formal contracts.
 - **Validation and rollback:** run Flutter analyze/test/device QA in its own CI; branch-only change can be abandoned without any production rollback. [Task handoff](tasks/2026-11-04-flutter-figma-ui.md).
+
+## A-012 — Keep Flutter ride feed authenticated and read-only (proposed in stacked branch, 2026-11-04)
+
+- **Decision:** Flutter gets an injected read-only adapter that first verifies the existing `/api/auth/me` server session, then reads `/api/rides`; guest and synthetic signed-in preview states do not trigger a network request. Never implement authentication by toggling local UI state.
+- **Data minimization:** map only ride ID, generic pickup/destination, departure, vehicle and seat count into UI. Discard driver email, phone, payment handle and free-form notes currently present in legacy backend responses. Future backend privacy review is still required.
+- **Alternatives rejected for now:** new public rides endpoint (would weaken server auth), direct client Postgres access (unacceptable), native cookie/token storage without provider/session review (premature).
+- **Validation/rollback:** Mock HTTP tests, session/late-result controller checks, Flutter CI/web/debug build; abandon stacked branch without affecting current web/Node deployment. [Task](tasks/2026-11-04-flutter-phase2-platform-states.md).

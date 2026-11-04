@@ -49,3 +49,10 @@ No token, session, student identity, live coordinate, booking, OTP or money is p
 5. Run `flutter test`, `flutter analyze`, physical-device layout/accessibility review and dependency/CI checks. Flutter was not installed in the authoring runtime. **GitHub Actions Flutter 3.47.7 verified analysis and 6/6 tests** in [run #41790737256](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41790737256); native builds and physical-device QA remain outstanding.
 
 See `../AGENTS.md` and `../docs/agents/tasks/2026-11-04-flutter-figma-ui.md` before continuing.
+
+## Phase 2: session-gated ride state system
+
+- `ride_feed.dart` contains a read-only HTTP adapter for the existing server `/api/auth/me` then `/api/rides` contract. It requires an injected already-authenticated transport. No cookie or token storage is implemented; guest mode never initializes a remote request.
+- `ride_results.dart` provides explicit loading skeleton, empty, session-expired, network-error/retry, and verified-results UI. The UI model deliberately drops driver email/phone, UPI IDs, raw geodata and free-form notes.
+- The optional `RidePreview(source: ..., hasVerifiedSession: ...)` is not wired to fake signed-in preview state. Real authenticated session bootstrap, cookie/CSRF behavior, platform origin handling, and device security QA must precede production enablement.
+- CI may generate temporary Android/iOS/Web host scaffolds with `flutter create`; those outputs and unsigned debug builds are *test artifacts*, not distributed or deployed application releases.

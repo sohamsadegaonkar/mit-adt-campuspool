@@ -78,3 +78,7 @@ Maintain a **modular monolith** with isolated domains. PostgreSQL/PostGIS remain
 ## Optional Flutter UI client (unmerged proposal, 2026-11-04)
 
 `feat/flutter-campuspool-figma-ui-2026-11-04` introduces `flutter_app/` as a **standalone local UI prototype** beside the existing static website. It has no network API client, no persistent or privileged student state, and no backend migration. Flutter screens reflect the existing Figma white/black/yellow design and local demonstration quote calculations. Do not replace this map's deployed Node frontend diagram until Flutter is reviewed, integrated and explicitly released. See [task record](tasks/2026-11-04-flutter-figma-ui.md).
+
+## Optional Flutter Phase 2 read-only adapter (branch-local, 2026-11-04)
+
+The separate Flutter UI branch introduces `lib/ride_feed.dart`: an opt-in HTTPS/localhost-only HTTP client that checks `GET /api/auth/me` before `GET /api/rides` using an **injected**, already-authenticated transport. There is no account login, credential persistence, or native cookie manager yet. A caller's UI flag alone is not proof of authorization; the existing Node session check remains mandatory. `lib/ride_results.dart` handles explicit state layouts and strips driver contact/UPI and free-form fields from the ride model. This is **not on main or deployed**. See [task](tasks/2026-11-04-flutter-phase2-platform-states.md).

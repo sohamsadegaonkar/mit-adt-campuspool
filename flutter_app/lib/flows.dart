@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 
 import 'pricing.dart';
+import 'ride_feed.dart';
+import 'ride_results.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
 class RidePreview extends StatefulWidget {
-  const RidePreview({super.key});
+  const RidePreview({super.key, this.source, this.hasVerifiedSession = false});
+
+  /// Networking is opt-in and requires a verified server session.
+  final RideFeedSource? source;
+  final bool hasVerifiedSession;
 
   @override
   State<RidePreview> createState() => _RidePreviewState();
@@ -15,10 +21,55 @@ class _RidePreviewState extends State<RidePreview> {
   final TextEditingController _destination = TextEditingController();
   String _vehicle = 'All';
   String _time = 'Today';
+  RideFeedController? _feedController;
+
+  @override
+  void initState() {
+    super.initState();
+    _installFeed();
+  }
+
+  void _installFeed() {
+    if (widget.source == null) return;
+    _feedController = RideFeedController(
+      source: widget.source!, hasVerifiedSession: widget.hasVerifiedSession);
+    if (widget.hasVerifiedSession) {
+      _feedController!.refresh();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant RidePreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.source != oldWidget.source) {
+      _feedController?.dispose();
+      _feedController = null;
+      _installFeed();
+    } else if (widget.hasVerifiedSession != oldWidget.hasVerifiedSession) {
+      _feedController?.updateSession(verified: widget.hasVerifiedSession);
+      if (widget.hasVerifiedSession) _feedController?.refresh();
+    }
+  }
+
+  Widget _results() {
+    final controller = _feedController;
+    if (controller == null) {
+      return const RideResultsPanel(
+        snapshot: RideFeedSnapshot(RideFeedPhase.preview));
+    }
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) => RideResultsPanel(
+        snapshot: controller.snapshot,
+        onRetry: controller.refresh,
+      ),
+    );
+  }
 
   @override
   void dispose() {
     _destination.dispose();
+    _feedController?.dispose();
     super.dispose();
   }
 
@@ -75,20 +126,7 @@ class _RidePreviewState extends State<RidePreview> {
         message: 'No live ride inventory is connected to this Flutter build. '
           'Filters are interactive previews, not a search of student trips.'),
       const SizedBox(height: 28),
-      const CampusPanel(
-        padding: EdgeInsets.all(23),
-        child: Column(children: [
-          Icon(Icons.directions_car_outlined, size: 46, color: CpColors.muted),
-          SizedBox(height: 14),
-          Text('No live rides to display', style: TextStyle(
-            fontWeight: FontWeight.w800, fontSize: 18)),
-          SizedBox(height: 8),
-          Text('Verified matches will appear here once a session and '
-            'server-backed search are connected.',
-            textAlign: TextAlign.center, style: TextStyle(
-              color: CpColors.muted, height: 1.5)),
-        ]),
-      ),
+      _results(),
       const SizedBox(height: 30),
     ],
   );

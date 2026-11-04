@@ -33,3 +33,34 @@ jobs:
       - name: Widget and quote tests
         working-directory: flutter_app
         run: flutter test
+
+  flutter-platform-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    needs: flutter-ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.7'
+          cache: true
+      - name: Generate temporary platform hosts
+        working-directory: flutter_app
+        run: flutter create --project-name campuspool_flutter --platforms=android,ios,web .
+      - name: Verify web release compilation
+        working-directory: flutter_app
+        run: flutter build web --release
+      - name: Verify Android debug compilation
+        working-directory: flutter_app
+        run: flutter build apk --debug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: campuspool-web-preview
+          path: flutter_app/build/web/
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: campuspool-android-debug
+          path: flutter_app/build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 7
