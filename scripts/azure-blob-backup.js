@@ -106,18 +106,30 @@ async function run(env,{spawnImpl=spawn,loadSdkImpl=loadSdk,now=new Date(),
     blobHTTPHeaders:{blobContentType:'application/octet-stream'}
   });
   const outcomes=await Promise.allSettled([pDump,pAge,pPipe,pEncrypt,upload]);
-  if(outcomes.some((r,i)=>r.status==='rejected'||(i<2&&r.value!==0))||bytes<50){
+  // Prefer an upload error when a failed remote upload causes an upstream EPIPE.
+  // Never print driver exceptions: they can contain URLs, account IDs or tokens.
+  const stages=['POSTGRES_DUMP_FAILED','AGE_ENCRYPTION_FAILED',
+    'POSTGRES_STREAM_FAILED','AGE_STREAM_FAILED','AZURE_UPLOAD_FAILED'];
+  const failed=outcomes.some((r,i)=>r.status==='rejected'||(i<2&&r.value!==0));
+  if(failed||bytes<50){
     dump.kill();age.kill();
-    throw Error('DATABASE_EXPORT_OR_ENCRYPTED_UPLOAD_FAILED');
+    if(outcomes[4].status==='rejected')throw Error(stages[4]);
+    const index=outcomes.findIndex((r,i)=>r.status==='rejected'||(i<2&&r.value!==0));
+    if(index>=0)throw Error(stages[index]);
+    throw Error('ENCRYPTED_STREAM_TOO_SMALL');
   }
   const digest=hash.digest('hex');
-  const downloaded=await blob.download();
-  if(!downloaded.readableStreamBody)throw Error('AZURE_CIPHERTEXT_READBACK_FAILED');
+  let downloaded;
+  try{downloaded=await blob.download();}
+  catch(_){throw Error('AZURE_READBACK_FAILED');}
+  if(!downloaded.readableStreamBody)throw Error('AZURE_READBACK_FAILED');
   let received=0;
   const verify=crypto.createHash('sha256');
-  for await(const chunk of downloaded.readableStreamBody){
-    received+=chunk.length;verify.update(chunk);
-  }
+  try{
+    for await(const chunk of downloaded.readableStreamBody){
+      received+=chunk.length;verify.update(chunk);
+    }
+  }catch(_){throw Error('AZURE_READBACK_FAILED');}
   if(received!==bytes||verify.digest('hex')!==digest)
     throw Error('AZURE_CIPHERTEXT_SHA256_MISMATCH');
   return {status:'AZURE_CIPHERTEXT_READBACK_MATCH_RESTORE_NOT_TESTED',
@@ -138,8 +150,16 @@ async function main(argv=process.argv.slice(2),env=process.env){
   try{
     const result=await run(env);
     process.stdout.write(JSON.stringify(result)+'\n');return 0;
-  }catch(_){
-    process.stderr.write('AZURE_BACKUP_BLOCKED; no verified restoration\n');return 1;
+  }catch(error){
+    // Stable error categories only. Never echo raw driver errors or secret values.
+    const allowed=new Set(['BACKUP_CONFIGURATION_BLOCKED','EXPLICIT_OPERATOR_APPROVAL_REQUIRED',
+      'BACKUP_CHILD_LAUNCH_FAILED','POSTGRES_DUMP_FAILED','AGE_ENCRYPTION_FAILED',
+      'POSTGRES_STREAM_FAILED','AGE_STREAM_FAILED','AZURE_UPLOAD_FAILED',
+      'ENCRYPTED_STREAM_TOO_SMALL','AZURE_READBACK_FAILED',
+      'AZURE_CIPHERTEXT_SHA256_MISMATCH']);
+    const code=allowed.has(error?.message)?error.message:'UNCLASSIFIED_FAILURE';
+    process.stderr.write('AZURE_BACKUP_BLOCKED '+code+'; no verified backup/restore\n');
+    return 1;
   }
 }
 if(require.main===module)main().then(code=>{process.exitCode=code;});
