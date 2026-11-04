@@ -21,7 +21,7 @@ const env={
  AGE_RECIPIENT:'age1'+'a'.repeat(58),
  AZURE_CONFIG_DIR:dir,AZURE_EXPORT_APPROVED:'YES'
 };
-function mock({corrupt=false,uploadError=false}={}){
+function mock({corrupt=false,uploadError=false,pgFailed=false,ageFailed=false,downloadError=false}={}){
  let stored,opts;
  const commands=[];
  function spawnImpl(program,args,options){
@@ -32,14 +32,14 @@ function mock({corrupt=false,uploadError=false}={}){
    if(program==='pg_dump'){
      process.nextTick(()=>{
        c.stdout.end(Buffer.from('FAKE_POSTGRES_CUSTOM_ARCHIVE'+'.'.repeat(100)));
-       c.emit('close',0);
+       c.emit('close',pgFailed?1:0);
      });
    }else if(program==='age'){
      const chunks=[];
      c.stdin.on('data',b=>chunks.push(b));
      c.stdin.on('end',()=>{
        c.stdout.end(Buffer.concat([Buffer.from('CIPHERTEXT:'),...chunks]));
-       c.emit('close',0);
+       c.emit('close',ageFailed?1:0);
      });
    }else throw Error('Unexpected synthetic program '+program);
    return c;
@@ -53,6 +53,7 @@ function mock({corrupt=false,uploadError=false}={}){
      stored=Buffer.concat(chunks);
    },
    async download(){
+     if(downloadError)throw Error('FAKE_REMOTE_HAS_SENSITIVE_MESSAGE_NEVER_PRINT');
      const bytes=corrupt?Buffer.concat([stored,Buffer.from('bad')]):stored;
      return {readableStreamBody:Readable.from([bytes])};
    }
@@ -120,6 +121,34 @@ test('tampered Azure readback fails; the upload does not approve any restore',as
 test('cloud upload failures and missing operator approval refuse success',async()=>{
  const m=mock({uploadError:true});
  await assert.rejects(run(env,{spawnImpl:m.spawnImpl,loadSdkImpl:m.loadSdkImpl}),
-   /DATABASE_EXPORT_OR_ENCRYPTED_UPLOAD_FAILED/);
+   /AZURE_UPLOAD_FAILED/);
  await assert.rejects(run({...env,AZURE_EXPORT_APPROVED:''}),/EXPLICIT_OPERATOR_APPROVAL_REQUIRED/);
+});
+
+test('source pg_dump failure is diagnosed without logging raw connection errors',async()=>{
+ const m=mock({pgFailed:true});
+ await assert.rejects(run(env,{spawnImpl:m.spawnImpl,loadSdkImpl:m.loadSdkImpl}),/POSTGRES_DUMP_FAILED/);
+});
+test('age binary failure is diagnosed with stable code',async()=>{
+ const m=mock({ageFailed:true});
+ await assert.rejects(run(env,{spawnImpl:m.spawnImpl,loadSdkImpl:m.loadSdkImpl}),/AGE_ENCRYPTION_FAILED/);
+});
+test('Azure readback errors are classified without exposing driver message',async()=>{
+ const m=mock({downloadError:true});
+ await assert.rejects(run(env,{spawnImpl:m.spawnImpl,loadSdkImpl:m.loadSdkImpl}),
+   e=>e.message==='AZURE_READBACK_FAILED');
+});
+test('CLI errors print only safe stage names, never raw exception messages',async()=>{
+ const m=mock({uploadError:true});
+ const messages=[];
+ const original=process.stderr.write;
+ process.stderr.write=function(chunk){messages.push(String(chunk));return true;};
+ try{
+   const {main}=require('./scripts/azure-blob-backup');
+   // Intentionally fail validation to avoid any external request.
+   const status=await main(['--execute'],{...env,PGHOST:'bad.example.com'});
+   assert.equal(status,1);
+   assert.ok(messages.join('').includes('BLOCK STAGING_PGHOST'));
+   assert.ok(!messages.join('').includes(env.PGPASSWORD));
+ }finally{process.stderr.write=original;}
 });
