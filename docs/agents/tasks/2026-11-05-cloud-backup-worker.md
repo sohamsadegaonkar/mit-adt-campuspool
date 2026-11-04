@@ -1,7 +1,7 @@
 # Task: Replace laptop-operated staging backups with cloud worker
 
 - **Task ID:** `2026-11-05-cloud-backup-worker`
-- **Status:** in review — cloud code exists, build/CI and staging deployment unverified
+- **Status:** in review — all five synthetic and build checks pass at 2ebc327; cloud deployment/recovery unverified
 - **Agent:** ChatGPT coding agent (scope is repository-only)
 - **Last updated:** 2026-11-05 UTC
 - **Baseline:** `fix/azure-pgdump-stdout-guard-2026-11-04`, draft PR #27 (unmerged)
@@ -34,15 +34,16 @@ Enable a minimal **Azure Container Apps manual Job** to export the existing allo
 - 2026-11-05: Research verified Azure Container Apps Jobs support manual runs, managed identities and usage-based billing (including a subscription-level free allowance; other resources may bill).
 - 2026-11-05: Added managed identity cloud mode in `scripts/azure-blob-backup.js` and synthetic `test_cloud_backup_auth.js`.
 - 2026-11-05: Created `ops/cloud-backup/Dockerfile`, minimal `package.json`, dedicated CI and cloud-runbook with release controls.
-- 2026-11-05: Created draft PR for review (record its number after creation). No secrets, credentials, external resource writes or live migrations.
+- 2026-11-05: Created draft PR #28 for review. No secrets, credentials, external resource writes or live migrations.
+- 2026-11-05: **All five** PR #28 check runs at commit `2ebc327` completed successfully: `managed-identity-guards`, `worker-image`, `azure-realtools`, `azure-synthetic`, and `postgres-otp`. An intermediate `azure-realtools` CI run failed during disposable `createdb` setup; updated synthetic test to use the already-proven `psql CREATE DATABASE` path and retain sanitized failures. Re-run passed, with no actual stage/production/Azure connection. Image and dependency digest/lockfile hardening are still pending before deployment.
 
 ## Verification
 
 | Check | Evidence | Status |
 |---|---|---|
 | Azure CLI local backend regression | PR #27 existing tests | passed prior branch |
-| Cloud guard and identity selection | `node --test test_cloud_backup_auth.js` on branch | pending |
-| Worker Docker image/no-secret smoke | `docker build -f ops/cloud-backup/Dockerfile .` in CI | pending |
+| Cloud guard and identity selection | GitHub PR #28 `managed-identity-guards`, `2ebc327` | **PASS** |
+| Worker Docker image/no-secret smoke | GitHub PR #28 `worker-image`, `2ebc327` | **PASS** |
 | Cloud worker real archive upload | Not authorized | not run |
 | Cold restoration of real staging data | Not authorized | not run |
 
