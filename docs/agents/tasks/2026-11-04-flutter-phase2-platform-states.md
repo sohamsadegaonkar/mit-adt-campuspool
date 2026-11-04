@@ -1,7 +1,7 @@
 # Task: Flutter Phase 2 — safe ride states and platform compilation
 
 - **Task ID / file:** `2026-11-04-flutter-phase2-platform-states`
-- **Status:** in progress / in review on stacked branch
+- **Status:** in review on stacked draft PR #19; device QA pending
 - **Agent / owner:** ChatGPT coding agent; independent reviewer unassigned
 - **Last updated:** 2026-11-04 UTC
 - **Baseline:** `feat/flutter-campuspool-figma-ui-2026-11-04@df65ad10842eeee16f269c5219557369b54adabe` (draft PR #17, not merged to main)
@@ -34,7 +34,7 @@
 
 - 2026-11-04 UTC — Inspected exact PR #17, current Node auth/rides routes, Figma design context and relevant private product UX decisions. Claimed a separate stacked branch `feat/flutter-phase2-platform-states-2026-11-04`.
 - 2026-11-04 UTC — Added authenticated read-only ride client and explicit screen states. Added mocked privacy/authorization and widget layout tests, and platform build CI.
-- 2026-11-04 UTC — Build/test results are pending GitHub Actions confirmation; source work remains unmerged.
+- 2026-11-04 UTC — GitHub CI Flutter 3.47.7 analysis and **19/19 tests PASS** at source `244e06c` (run #41793703183). Web release and Android unsigned debug compilation PASS at `2ad2d51` (run #41793334499); two downloadable 7-day artifacts created. Latest-source native smoke rerun remains separately observable. No device screenshots, iOS binary, merge or deploy.
 
 ## Verification
 
@@ -42,10 +42,10 @@
 |---|---|---|
 | Base PR | GitHub PR #17 at `df65ad1` | Verified, draft / unmerged |
 | Server session requirements | `server.js` GET auth/me and rides | Verified in source; no live API call |
-| Flutter analyze + tests | GitHub Actions `flutter-ui` | Pending |
-| Web release build | CI `flutter build web --release` | Pending |
-| Android unsigned debug | CI `flutter build apk --debug` | Pending |
-| iOS template generation | CI `flutter create --platforms=android,ios,web .` | Pending; no iOS signed build |
+| Flutter analyze + tests | [Flutter CI #41793703183](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41793703183) @ `244e06c` | PASS analyzer, 19/19 widget/unit tests |
+| Web release build | [Platform CI #41793334499](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41793334499) @ `2ad2d51` | PASS, artifact uploaded |
+| Android unsigned debug | [Platform CI #41793334499](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41793334499) @ `2ad2d51` | PASS, unsigned debug APK artifact uploaded; no device install |
+| iOS template generation | [Platform CI #41793334499](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41793334499) @ `2ad2d51` | PASS host generation; no iOS signed/unsigned compiled build |
 | Physical device QA | 390 px phone, browser, accessibility | Not run |
 | Backend / production / payment | No runtime changes | Not touched |
 
@@ -67,7 +67,14 @@
 
 ## Links and files changed
 
-- Branch: `feat/flutter-phase2-platform-states-2026-11-04`; stacked on draft PR #17.
+- Branch: `feat/flutter-phase2-platform-states-2026-11-04`; [draft PR #19](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/19) stacked on [draft PR #17](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/17).
 - Figma: https://www.figma.com/design/nwgHXgnnP3VNHW0jdP7qnA?node-id=4-23
 - Code: `flutter_app/lib/{ride_feed,ride_results,flows}.dart`, Flutter tests, CI, docs.
 - Deployment SHA: not rechecked; no deploy attempted.
+
+### Observed CI artifacts (development only)
+
+- Web preview artifact `campuspool-web-preview` (artifact ID 13304547677, 14.0 MB).
+- Android unsigned debug `campuspool-android-debug` (artifact ID 13305210597, 70.3 MB).
+- Both are available within [workflow run #41793334499](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41793334499) through **2026-11-11**, absent manual removal. Do not distribute them as release packages.
+- Full Android/iOS/web host files are created temporarily in CI, not yet committed as reviewed platform projects. iOS compilation and physical device testing remain unverified.

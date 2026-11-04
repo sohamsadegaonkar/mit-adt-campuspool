@@ -56,3 +56,9 @@ See `../AGENTS.md` and `../docs/agents/tasks/2026-11-04-flutter-figma-ui.md` bef
 - `ride_results.dart` provides explicit loading skeleton, empty, session-expired, network-error/retry, and verified-results UI. The UI model deliberately drops driver email/phone, UPI IDs, raw geodata and free-form notes.
 - The optional `RidePreview(source: ..., hasVerifiedSession: ...)` is not wired to fake signed-in preview state. Real authenticated session bootstrap, cookie/CSRF behavior, platform origin handling, and device security QA must precede production enablement.
 - CI may generate temporary Android/iOS/Web host scaffolds with `flutter create`; those outputs and unsigned debug builds are *test artifacts*, not distributed or deployed application releases.
+
+### Phase 2 build evidence
+
+- [Flutter analyzer + 19 tests, run #41793703183](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41793703183) — PASS on source `244e06c`.
+- [Web release and unsigned debug APK, run #41793334499](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41793334499) — PASS on source `2ad2d51`; CI artifacts expire after seven days.
+- Platform hosts were generated in CI. No iOS compiled binary, production signing or physical Android installation was tested. The latest-source native CI run is separate.
