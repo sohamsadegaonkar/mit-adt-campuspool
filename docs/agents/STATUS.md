@@ -165,3 +165,8 @@ Draft PR #11 now carries a **private operator-only** `scripts/staging-secure-bac
 
 - Read-only `psql SELECT 1` against the exact staging pooler, run privately by the operator, returned `DB_TLS_BLOCKED`. Authentication and source database data access have **not** been verified; no new real backup or restore.
 - Recommended local client-only correction is to download the **authentic Supabase CA** for project `tnitksrlntrdxbvznxzf` from the dashboard's SSL Configuration section and configure `PGSSLROOTCERT` while retaining `PGSSLMODE=verify-full`. The earlier Render issue was `SELF_SIGNED_CERT_IN_CHAIN`; this does not independently prove the Ubuntu-D failure has the same cause. No server-side TLS disablement, SSL relaxation, migrations or deploy. [Recovery task](tasks/2026-11-04-azure-private-blob-backup.md).
+
+## Staging source CA/TLS connectivity verified — 2026-11-04 (operator-reported)
+
+- Owner reports installed correct Supabase staging CA as `~/.config/campuspool/supabase-staging-ca.crt` and verified certificate parse; subsequent strict `PGSSLMODE=verify-full` `psql SELECT 1` returned **`DB_CONNECT_PASS`**. Thus the prior `DB_TLS_BLOCKED` local source-connection gate is resolved. This does **not** prove an actual database export exists.
+- Next: single deliberate operator-authorized retry of encrypted staging export, with `PGSSLROOTCERT` explicitly passed to the `pg_dump` child, current PR #26 safe error categories, private AGE public recipient and Azure CLI tmpfs auth. Confirm ciphertext checksum and actual nonzero remote archive before restore. Independent restore and Render rollback remain NO-GO. [Task](tasks/2026-11-04-azure-private-blob-backup.md).
