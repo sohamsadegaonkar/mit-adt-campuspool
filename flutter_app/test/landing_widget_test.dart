@@ -1,3 +1,9 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:campuspool_flutter/main.dart' as app;
+import 'package:campuspool_flutter/flows.dart';
+import 'package:campuspool_flutter/pricing.dart';
+
 void expectFixedGuestActions() {
   final sticky = find.byKey(const Key('stickyGuestActions'));
   expect(sticky, findsOneWidget);
@@ -6,12 +12,6 @@ void expectFixedGuestActions() {
   expect(find.descendant(
     of: sticky, matching: find.text('Become a runner')), findsOneWidget);
 }
-
-import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:campuspool_flutter/main.dart' as app;
-import 'package:campuspool_flutter/flows.dart';
-import 'package:campuspool_flutter/pricing.dart';
 
 void main() {
   testWidgets('logged-out CTA pair remains while exploring rides and errands',
