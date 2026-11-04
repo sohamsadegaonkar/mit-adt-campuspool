@@ -59,3 +59,9 @@
 - **Data minimization:** map only ride ID, generic pickup/destination, departure, vehicle and seat count into UI. Discard driver email, phone, payment handle and free-form notes currently present in legacy backend responses. Future backend privacy review is still required.
 - **Alternatives rejected for now:** new public rides endpoint (would weaken server auth), direct client Postgres access (unacceptable), native cookie/token storage without provider/session review (premature).
 - **Validation/rollback:** Mock HTTP tests, session/late-result controller checks, Flutter CI/web/debug build; abandon stacked branch without affecting current web/Node deployment. [Task](tasks/2026-11-04-flutter-phase2-platform-states.md).
+
+## A-013 — Verified OTP/cookie session required for Flutter login (branch proposal, 2026-11-04)
+
+- **Decision:** use existing email OTP and `/api/auth/me` instead of local preview state as authentication. Node remains sole credential/CSRF authority. The Flutter app never stores OTP/cookie/CSRF in preferences or URLs. Native cookie remains memory-only; Web requires same-origin. All data loads remain read-only and require server verification.
+- **Rejected:** fake sign-in via UI state, persistent client cookies without security review, cross-origin credentialed CORS changes, direct database access, and exposing legacy ride contact/UPI fields.
+- **Verification and rollback:** mocked OTP/session/cookie/logout tests; CI compile. Abandon stacked feature branch to roll back with no Node or production changes. [Task](tasks/2026-11-04-flutter-session-login.md).

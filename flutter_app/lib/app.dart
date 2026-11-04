@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'campus_auth.dart';
+import 'campus_login_screen.dart';
+import 'ride_feed.dart';
 import 'flows.dart';
 import 'landing.dart';
 import 'theme.dart';
@@ -8,7 +11,10 @@ import 'widgets.dart';
 enum CampusSection { home, rides, errands, activity, profile }
 
 class CampusShell extends StatefulWidget {
-  const CampusShell({super.key});
+  const CampusShell({super.key, this.auth, this.rideSource});
+
+  final CampusAuthController? auth;
+  final RideFeedSource? rideSource;
 
   @override
   State<CampusShell> createState() => _CampusShellState();
@@ -16,26 +22,60 @@ class CampusShell extends StatefulWidget {
 
 class _CampusShellState extends State<CampusShell> {
   CampusSection _section = CampusSection.home;
-  bool _signedInPreview = false;
+
+  bool get _signedIn => widget.auth?.isAuthenticated ?? false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.auth?.addListener(_onSessionChanged);
+    widget.auth?.restore();
+  }
+
+  @override
+  void didUpdateWidget(covariant CampusShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.auth != widget.auth) {
+      oldWidget.auth?.removeListener(_onSessionChanged);
+      widget.auth?.addListener(_onSessionChanged);
+      widget.auth?.restore();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.auth?.removeListener(_onSessionChanged);
+    super.dispose();
+  }
+
+  void _onSessionChanged() {
+    if (mounted) setState(() {});
+  }
 
   void _select(CampusSection section) => setState(() => _section = section);
 
-  void _previewVerification() {
+  void _openLogin() {
     Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => VerificationPreview(
-        onContinue: () {
-          Navigator.of(context).pop();
-          setState(() => _signedInPreview = true);
-        },
-      ),
+      builder: (_) => CampusLoginScreen(auth: widget.auth),
     ));
+  }
+
+  Future<void> _logout() async {
+    final auth = widget.auth;
+    if (auth == null) return;
+    final complete = await auth.logout();
+    if (!mounted || complete) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text(
+        'Could not securely sign out. Check your connection and retry.')),
+    );
   }
 
   void _openRunner() {
     Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (_) => RunnerIntro(onVerify: () {
         Navigator.of(context).pop();
-        _previewVerification();
+        _openLogin();
       }),
     ));
   }
@@ -69,7 +109,10 @@ class _CampusShellState extends State<CampusShell> {
           onRunner: _openRunner,
         );
       case CampusSection.rides:
-        return const RidePreview();
+        return RidePreview(
+          source: _signedIn ? widget.rideSource : null,
+          hasVerifiedSession: _signedIn,
+        );
       case CampusSection.errands:
         return const ErrandDraftFlow();
       case CampusSection.activity:
@@ -78,9 +121,12 @@ class _CampusShellState extends State<CampusShell> {
             builder: (_) => const TipTopUpPreview()));
         });
       case CampusSection.profile:
-        return ProfilePreview(signedInPreview: _signedInPreview,
-          onPreviewSignIn: _previewVerification,
-          onReturnGuest: () => setState(() => _signedInPreview = false));
+        return ProfilePreview(
+          hasVerifiedSession: _signedIn,
+          memberName: widget.auth?.member?.displayName,
+          onSignIn: _openLogin,
+          onSignOut: _logout,
+        );
     }
   }
 
@@ -97,7 +143,7 @@ class _CampusShellState extends State<CampusShell> {
                 duration: MediaQuery.disableAnimationsOf(context)
                     ? Duration.zero : const Duration(milliseconds: 240),
                 child: SingleChildScrollView(
-                  key: ValueKey('${_section.name}-${_signedInPreview ? 'preview' : 'guest'}'),
+                  key: ValueKey('${_section.name}-${_signedIn ? 'verified' : 'guest'}'),
                   padding: EdgeInsets.symmetric(
                     horizontal: wide ? 38 : 20, vertical: wide ? 24 : 22),
                   child: Center(
@@ -142,12 +188,12 @@ class _CampusShellState extends State<CampusShell> {
               child: const Text('Errands')),
           const Spacer(),
           SizedBox(width: 155, child: CampusButton(
-            label: _signedInPreview ? 'Find a ride' : 'Get started',
+            label: _signedIn ? 'Find a ride' : 'Get started',
             onPressed: _signedInPreview
-                ? () => _select(CampusSection.rides) : _previewVerification)),
+                ? () => _select(CampusSection.rides) : _openLogin)),
           const SizedBox(width: 9),
           SizedBox(width: 175, child: CampusButton(
-            label: _signedInPreview ? 'Request an item' : 'Become a runner',
+            label: _signedIn ? 'Request an item' : 'Become a runner',
             primary: false, onPressed: _signedInPreview
               ? () => _select(CampusSection.errands) : _openRunner)),
         ] else ...[
@@ -171,13 +217,13 @@ class _CampusShellState extends State<CampusShell> {
       ),
       child: Row(children: [
         Expanded(child: CampusButton(
-          label: _signedInPreview ? 'Find a ride' : 'Get started',
+          label: _signedIn ? 'Find a ride' : 'Get started',
           onPressed: _signedInPreview
-            ? () => _select(CampusSection.rides) : _previewVerification,
+            ? () => _select(CampusSection.rides) : _openLogin,
         )),
         const SizedBox(width: 10),
         Expanded(child: CampusButton(
-          label: _signedInPreview ? 'Request an item' : 'Become a runner',
+          label: _signedIn ? 'Request an item' : 'Become a runner',
           primary: false,
           onPressed: _signedInPreview
             ? () => _select(CampusSection.errands) : _openRunner,
@@ -229,43 +275,6 @@ class _CampusShellState extends State<CampusShell> {
       ]),
     );
   }
-}
-
-class VerificationPreview extends StatelessWidget {
-  const VerificationPreview({super.key, required this.onContinue});
-  final VoidCallback onContinue;
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Campus verification')),
-    body: SafeArea(child: Center(child: ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 540),
-      child: ListView(padding: const EdgeInsets.all(24), children: [
-        const CampusMark(size: 50),
-        const SizedBox(height: 26),
-        Text('Your campus. Your community.',
-          style: Theme.of(context).textTheme.headlineSmall),
-        const SizedBox(height: 12),
-        const Text('Student verification protects rides and handovers. '
-          'Email and OTP services are not connected in this UI build.'),
-        const SizedBox(height: 27),
-        const Text('UNIVERSITY EMAIL', style:
-          TextStyle(fontWeight: FontWeight.w700, fontSize: 11)),
-        const SizedBox(height: 10),
-        const TextField(key: Key('emailField'), keyboardType:
-          TextInputType.emailAddress,
-          decoration: InputDecoration(hintText: 'Your university email')),
-        const SizedBox(height: 20),
-        const CampusNote(message:
-          'This form is a visual preview only. No email is submitted or verified.'),
-        const SizedBox(height: 22),
-        CampusButton(
-          label: 'Preview signed-in layout',
-          onPressed: onContinue,
-        ),
-      ]),
-    ))),
-  );
 }
 
 class RunnerIntro extends StatelessWidget {

@@ -7,11 +7,17 @@ import 'theme.dart';
 import 'widgets.dart';
 
 class RidePreview extends StatefulWidget {
-  const RidePreview({super.key, this.source, this.hasVerifiedSession = false});
+  const RidePreview({
+    super.key,
+    this.source,
+    this.hasVerifiedSession = false,
+    this.onSignIn,
+  });
 
   /// Networking is opt-in and requires a verified server session.
   final RideFeedSource? source;
   final bool hasVerifiedSession;
+  final VoidCallback? onSignIn;
 
   @override
   State<RidePreview> createState() => _RidePreviewState();
@@ -51,6 +57,18 @@ class _RidePreviewState extends State<RidePreview> {
     }
   }
 
+  RideFeedSnapshot _filteredSnapshot(RideFeedSnapshot current) {
+    if (current.phase != RideFeedPhase.ready) return current;
+    final query = _destination.text.trim().toLowerCase();
+    final rides = current.rides.where((ride) {
+      return (_vehicle == 'All' || ride.vehicle == _vehicle) &&
+          (query.isEmpty || ride.destination.toLowerCase().contains(query));
+    }).toList(growable: false);
+    return RideFeedSnapshot(
+      rides.isEmpty ? RideFeedPhase.empty : RideFeedPhase.ready, rides,
+    );
+  }
+
   Widget _results() {
     final controller = _feedController;
     if (controller == null) {
@@ -60,8 +78,9 @@ class _RidePreviewState extends State<RidePreview> {
     return AnimatedBuilder(
       animation: controller,
       builder: (context, _) => RideResultsPanel(
-        snapshot: controller.snapshot,
+        snapshot: _filteredSnapshot(controller.snapshot),
         onRetry: controller.refresh,
+        onSignIn: widget.onSignIn,
       ),
     );
   }
@@ -86,11 +105,11 @@ class _RidePreviewState extends State<RidePreview> {
       const SizedBox(height: 22),
       CampusPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('LEAVING FROM', style: TextStyle(
+          Text(widget.source == null ? 'LEAVING FROM' : 'CAMPUS', style: const TextStyle(
             fontSize: 11, fontWeight: FontWeight.w700, color: CpColors.muted)),
           const SizedBox(height: 8),
-          const Text('MIT-ADT Main Gate',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          Text(widget.source == null ? 'MIT-ADT Main Gate' : 'MIT-ADT University',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
           const Divider(height: 30),
           const Text('GOING TO', style: TextStyle(
             fontSize: 11, fontWeight: FontWeight.w700, color: CpColors.muted)),
@@ -98,18 +117,20 @@ class _RidePreviewState extends State<RidePreview> {
           TextField(
             key: const Key('destinationField'),
             controller: _destination,
+            onChanged: (_) => setState(() {}),
             textInputAction: TextInputAction.search,
             decoration: const InputDecoration(
               hintText: 'Choose a destination in Pune',
               prefixIcon: Icon(Icons.location_on_outlined)),
           ),
           const SizedBox(height: 16),
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            for (final time in ['Today', 'Tomorrow'])
-              ChoiceChip(label: Text(time), selected: _time == time,
-                selectedColor: CpColors.yellowSoft,
-                onSelected: (_) => setState(() => _time = time)),
-          ]),
+          if (widget.source == null)
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              for (final time in ['Today', 'Tomorrow'])
+                ChoiceChip(label: Text(time), selected: _time == time,
+                  selectedColor: CpColors.yellowSoft,
+                  onSelected: (_) => setState(() => _time = time)),
+            ]),
         ])),
       const SizedBox(height: 20),
       const Text('VEHICLE TYPE', style: TextStyle(
@@ -122,9 +143,12 @@ class _RidePreviewState extends State<RidePreview> {
             onSelected: (_) => setState(() => _vehicle = type)),
       ]),
       const SizedBox(height: 22),
-      const CampusNote(icon: Icons.info_outline,
-        message: 'No live ride inventory is connected to this Flutter build. '
-          'Filters are interactive previews, not a search of student trips.'),
+      CampusNote(icon: Icons.info_outline,
+        message: widget.source == null
+          ? 'No live ride inventory is connected to this Flutter build. '
+              'Filters are interactive previews, not a search of student trips.'
+          : 'Read-only results from the authenticated server. Destination '
+              'and vehicle filters apply locally. Booking is not enabled.'),
       const SizedBox(height: 28),
       _results(),
       const SizedBox(height: 30),

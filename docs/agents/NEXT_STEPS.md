@@ -55,3 +55,7 @@ See [2026-11-03-agent-workflow.md](tasks/2026-11-03-agent-workflow.md) for the m
 
 - [Phase 2 ride feed / loading states + platform build](tasks/2026-11-04-flutter-phase2-platform-states.md): `feat/flutter-phase2-platform-states-2026-11-04` is stacked on draft PR #17 and **does not deploy**. Verified: Flutter analysis and 19/19 tests pass at `244e06c` (CI #41793703183); web release and Android unsigned debug APK build artifacts pass at `2ad2d51` (CI #41793334499). Next: run manual emulator/browser responsive and reduced-motion checks, review generated native host files, and design real session transport/cookie scoping and privacy. Do **not** wire the simulated signed-in preview to actual protected endpoints.
 - Separate approved work would be needed for a real verified OTP/session flow, Android secure cookie storage, iOS signing, actual rides inventory integration, and errands/payment backend. Existing P0 release blockers retain priority.
+
+## Flutter Phase 3 real login — stacked draft, 2026-11-04 UTC
+
+- [OTP/session transport task](tasks/2026-11-04-flutter-session-login.md) is in `feat/flutter-phase3-session-login-2026-11-04`, stacked on draft PR #19 and #17. Next: verify CI analysis, tests, Web/Android builds, then isolated staging/provider/device tests. Browser requires **same-origin** Node hosting. Native cookie is memory-only. Do not deploy or merge without independent security review, authentic OTP delivery and release GO.

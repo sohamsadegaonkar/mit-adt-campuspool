@@ -62,3 +62,21 @@ See `../AGENTS.md` and `../docs/agents/tasks/2026-11-04-flutter-figma-ui.md` bef
 - [Flutter analyzer + 19 tests, run #41793703183](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41793703183) — PASS on source `244e06c`.
 - [Web release and unsigned debug APK, run #41793334499](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41793334499) — PASS on source `2ad2d51`; CI artifacts expire after seven days.
 - Platform hosts were generated in CI. No iOS compiled binary, production signing or physical Android installation was tested. The latest-source native CI run is separate.
+
+## Phase 3 — real OTP/session integration (unmerged draft)
+
+Phase 3 replaces the visual sign-in shortcut with an API-backed email OTP form. It calls the existing Node `/api/auth/login-request`, `/api/auth/verify-email-otp`, and verifies `/api/auth/me` before enabling signed-in ride cards. It uses CSRF-protected `/api/auth/logout`. No signup, payment, booking, OTP-provider configuration, native session persistence or production release is included.
+
+**Default:** offline guest-only UI; OTP and protected reads are disabled. To *build for a reviewed backend*:
+
+```sh
+# Browser deployment: Flutter web must be served by the exact same Node/API origin.
+flutter build web --release --dart-define=CAMPUSPOOL_API_ORIGIN=same-origin
+
+# Native test build, explicit approved backend only (never store secrets in define):
+flutter run --dart-define=CAMPUSPOOL_API_ORIGIN=https://approved-campuspool-backend.example
+```
+
+For local native development, use a loopback address with `adb reverse` to a **disposable local** Node server. Do not target live Render or connected student accounts for testing. The API origin is public configuration; never embed API keys or a session cookie in `--dart-define`.
+
+Browser sessions use a managed HttpOnly cookie on same origin, and are cleared only by server logout; cross-origin Flutter dev server requests are intentionally unsupported because the existing backend does not allow credentialed CORS. Native sessions use an ephemeral, process-memory cookie and require login after a restart. The app refuses to show signed-in UI on OTP success until `/api/auth/me` confirms it. No real users should be invited before backend provider/recovery/release gates pass.
