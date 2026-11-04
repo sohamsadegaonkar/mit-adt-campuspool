@@ -38,7 +38,10 @@
     "backup:staging-operator": "bash scripts/staging-secure-backup.sh --execute",
     "test:staging-backup": "node --test test_staging_secure_backup.js",
     "test:staging-restore-compare": "node --test test_staging_restore_compare.js",
-    "check:staging-restore": "node scripts/staging-restore-compare.js"
+    "check:staging-restore": "node scripts/staging-restore-compare.js",
+    "check:r2-backup": "node scripts/r2-stream-backup.js --preflight",
+    "test:r2-backup": "node --test test_r2_stream_backup.js",
+    "backup:r2-operator": "node scripts/r2-stream-backup.js --execute"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
