@@ -160,3 +160,8 @@ Draft PR #11 now carries a **private operator-only** `scripts/staging-secure-bac
 
 - Operator ran the private real-source export after a synthetic-only preflight PASS and explicit `BACKUP` confirmation, but received `AZURE_BACKUP_BLOCKED; no verified restoration`. No stage-specific error was printed by the older script; root cause not established and encrypted object not yet rechecked. Do not claim staging backup stored or restored.
 - Safe diagnostics implemented in draft PR #26 to distinguish libpq/`pg_dump`, AGE, upload and Azure readback errors without echoing provider diagnostics, with synthetic tests and Azure CI PASS at `1263ca2`. Next: run only a private `psql SELECT 1` read-only source probe with strict TLS, and inspect Azure blob count before any new backup attempt. No staging schema writes, migration 008, Render deployment or production work.
+
+## PostgreSQL TLS diagnostic blocked — November 4, 2026 UTC
+
+- Read-only `psql SELECT 1` against the exact staging pooler, run privately by the operator, returned `DB_TLS_BLOCKED`. Authentication and source database data access have **not** been verified; no new real backup or restore.
+- Recommended local client-only correction is to download the **authentic Supabase CA** for project `tnitksrlntrdxbvznxzf` from the dashboard's SSL Configuration section and configure `PGSSLROOTCERT` while retaining `PGSSLMODE=verify-full`. The earlier Render issue was `SELF_SIGNED_CERT_IN_CHAIN`; this does not independently prove the Ubuntu-D failure has the same cause. No server-side TLS disablement, SSL relaxation, migrations or deploy. [Recovery task](tasks/2026-11-04-azure-private-blob-backup.md).
