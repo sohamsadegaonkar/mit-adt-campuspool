@@ -189,3 +189,38 @@ echo "Copy the encrypted identity to a separate approved secure vault and retain
 - Local `node --test test_azure_blob_backup.js`: **10 tests, 10 passed, 0 failed, 0 skipped**, including source PG failures, AGE failures, Azure readback errors and secret-safe CLI error categories.
 - Previous owner-reported `DB_CONNECT_PASS` remains the last known live source check, with `PGSSLMODE=verify-full` and authentic Supabase staging `PGSSLROOTCERT`. No real encrypted backup retry has been executed from the new worktree yet.
 - **Next controlled operator action:** from the new clean worktree, verify Azure RAM auth directory, the trusted CA certificate path, saved AGE public recipient and exact stage allowlist; read-only count current `staging/` backup blobs (stop if any exist); enter stage DB password privately; rerun guarded real-config preflight + `psql SELECT 1` under strict TLS; then after typed `BACKUP` confirmation attempt one `--execute`. Only a report of ciphertext-readback success plus independently verified nonzero Azure blob counts as backed-up. No restore or release authorization.
+
+## Goal and acceptance criteria
+
+Provide an operator-approved, end-to-end encrypted private Azure Blob backup of the exact staging PostgreSQL source, independently download it, validate the AGE archive and perform a separate protected PostgreSQL 17/PostGIS cold restore. Bytes-only ciphertext readback is not a substitute for independent restoration.
+
+## Current state
+
+- Historical local operator and CI evidence above does not show a usable off-site staging backup. The known 200-byte ciphertext object failed PostgreSQL archive validation.
+- The old `--file=-` custom-format dump argument accidentally created a potentially sensitive local archive; the corrected stream and managed-identity cloud worker exist as source under PRs #27 and #28. Local unencrypted Windows volumes remain a separate incident.
+- No real protected cloud-side staging backup or separate cold restore has been performed by this consolidation.
+
+## Plan
+
+1. Review and merge only tested source changes without running migration 008, Azure uploads, staging deployment or production deployment.
+2. Approve a manually invoked cloud worker with managed identity, strict verified TLS, vault-backed staging secret and private container scope, after region and cost review.
+3. Download/decrypt ciphertext in a separate protected recovery environment; compare roles, RLS/grants, migration ledger, schema, row counts and content fingerprints; preserve rollback artifact evidence.
+
+## Progress log
+
+- 2026-11-04 UTC — Existing Azure Blob proved unfit for PostgreSQL archive restoration after AGE decryption; local dump bug investigated and fixed in separate source branch.
+- 2026-11-05 UTC — Cloud backup worker CI passed synthetic managed-identity, image and real-tool tests. Live recovery and cost/IAM approvals remain pending.
+
+## Verification
+
+| Check | Result |
+|---|---|
+| Corrected `pg_dump` custom stdout + AGE mock/real-tools CI | PASS, synthetic only |
+| Existing 200-byte cloud object | INVALID as PostgreSQL archive |
+| New real Azure encrypted archive | NOT DONE |
+| Independent staging recovery into protected PG17/PostGIS | NOT DONE |
+| Render deploy, migration 008 | NOT AUTHORIZED |
+
+## Next steps
+
+Require approved cloud worker configuration and a separate verified staging cold restore before permitting any data migration or release. Do not retry local database exports on the unencrypted laptop.
