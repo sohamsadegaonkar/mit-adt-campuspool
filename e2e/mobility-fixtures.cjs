@@ -70,6 +70,11 @@ async function openAs(page,context,person){
 }
 async function api(person,path,method='GET',body){
   const headers={Authorization:AUTH,Cookie:'cp_session='+person.token};
+  // Respect the production PostgreSQL mutation contract: each synthetic ride
+  // creation receives a fresh, correctly scoped idempotency key. Never disable
+  // the server's 428 guard merely to make browser QA pass.
+  if(method==='POST' && path==='/api/rides')
+    headers['Idempotency-Key']='mobility-qa-'+crypto.randomUUID();
   if(body!==undefined){
     const me=await fetch(BASE+'/api/auth/me',{headers});
     if(!me.ok)throw Error('Synthetic QA session not accepted: '+me.status);
