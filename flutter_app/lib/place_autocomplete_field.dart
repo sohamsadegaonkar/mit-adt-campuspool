@@ -302,7 +302,10 @@ class _PlaceAutocompleteFieldState extends State<PlaceAutocompleteField> {
 
   Widget _suggestionsBox() {
     final viewport = MediaQuery.sizeOf(context).height;
-    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+    // Scaffold removes the keyboard inset from the child's MediaQuery.
+    // The underlying Flutter View retains the real IME obstruction.
+    final view = View.of(context);
+    final keyboard = view.viewInsets.bottom / view.devicePixelRatio;
     // Keep the suggestions and attribution visible above the phone keyboard.
     // Individual results scroll inside this capped dropdown, not underneath
     // the fixed CTA/nav bars.
