@@ -34,7 +34,7 @@
 | Check | Status |
 |---|---|
 | Owner reported Azure for Students Standard LRS account created | USER-REPORTED |
-| Private Blob container created | NOT YET CONFIRMED |
+| Private Blob container created | OWNER-CONFIRMED 2026-11-04; private ACL, network firewall and RBAC NOT YET INDEPENDENTLY VERIFIED |
 | Exact staging and Azure destination guards written | IMPLEMENTED; 6/6 Azure synthetic tests PASS #41825931989 |
 | Encrypted stream mock, readback corruption, subprocess secret isolation tests | CI PASS, 6/6 #41825931989 at `d9f2938` |
 | Live staging export to Azure | **NOT RUN** |
