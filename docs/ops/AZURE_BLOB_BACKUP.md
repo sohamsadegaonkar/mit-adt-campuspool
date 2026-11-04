@@ -121,3 +121,9 @@ env PGUSER='postgres.tnitksrlntrdxbvznxzf' \
 ```
 
 Expected `AZURE_PREFLIGHT_PASS; no database or blob contacted`. **Never run `--execute`** with these sentinel values: the AGE recipient is not a usable key and there are no real source credentials. This diagnostic is a preparation check, not proof of remote DB access, backup recovery or authorized cross-border student data transfer.
+
+## Following synthetic-only preflight: durable recovery key custody
+
+Operator reported `AZURE_PREFLIGHT_PASS; no database or blob contacted` using synthetic-only credentials. **Before** setting any actual source PG password or starting `--execute`, generate a durable AGE keypair, passphrase-encrypt its private identity and verify a synthetic decrypt. Exact restricted instructions are recorded in [the Azure recovery task](../agents/tasks/2026-11-04-azure-private-blob-backup.md). Copy the passphrase-encrypted identity to another secure location and separately safeguard its unique passphrase. The AGE public recipient may be shared only as a nonsecret config value; the private identity and passphrase must never be sent to chat, GitHub or the Azure backup container as the only copy.
+
+A local passphrase-encrypted identity is still a key-recovery **single point of failure** until its separate copy and passphrase are verified. WSL `/dev/shm` is a tmpfs but WSL swap may write memory to an unencrypted host drive. A protected isolated environment and host encryption remain recommended for real personal-data backups. No export authorization is implied by a successful preflight.
