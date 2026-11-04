@@ -635,13 +635,19 @@ const server = http.createServer(async (req, res) => {
   // The destination picker is a public, read-only, explicitly capped service.
   // It never stores queries/coordinates, never exposes Google credentials, and
   // remains disabled unless the owner configures key, quota and billing.
-  if (method === 'GET' && (pathname === '/api/places/suggest' ||
-                           pathname === '/api/places/resolve')) {
+  if (method === 'POST' && (pathname === '/api/places/suggest' ||
+                            pathname === '/api/places/resolve')) {
     if (!PLACES_CLIENT) {
       return sendJson(503, {success:false,error:'LOCATION_SEARCH_NOT_CONFIGURED'});
     }
     try {
-      const query = parsedUrl.query || {};
+      // A JSON body avoids putting typed destinations and session tokens
+      // into browser / reverse-proxy URL logs. Cross-origin JSON requires
+      // preflight, and the server's same-origin CORS policy applies.
+      if (!/^application\/json(?:\s*;|$)/i.test(req.headers['content-type'] || '')) {
+        return sendJson(415,{success:false,error:'JSON_REQUIRED'});
+      }
+      const query = await parseBody();
       const token = validToken(query.sessionToken);
       if (pathname === '/api/places/suggest') validInput(query.q);
       else validPlaceId(query.id);

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -17,9 +19,12 @@ void main() {
       origin: origin,
       client: MockClient((request) async {
         expect(request.url.origin, 'https://campuspool.test');
+        expect(request.method, 'POST');
         expect(request.url.path, '/api/places/suggest');
-        expect(request.url.queryParameters['q'], 'swargat');
-        expect(request.url.queryParameters['sessionToken'], 'a' * 24);
+        expect(request.url.hasQuery, isFalse);
+        final payload = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(payload['q'], 'swargat');
+        expect(payload['sessionToken'], 'a' * 24);
         return http.Response(
           '{"success":true,"provider":"google","suggestions":['
           '{"id":"ChIJ123456789ABCDEFGHIJK",'
@@ -38,8 +43,11 @@ void main() {
     final source = HttpPlaceSearchSource(
       origin: origin,
       client: MockClient((request) async {
+        expect(request.method, 'POST');
         expect(request.url.path, '/api/places/resolve');
-        expect(request.url.queryParameters['id'], suggestion.id);
+        expect(request.url.hasQuery, isFalse);
+        final payload = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(payload['id'], suggestion.id);
         return http.Response(
           '{"success":true,"provider":"google","place":{'
           '"id":"ChIJ123456789ABCDEFGHIJK",'

@@ -69,13 +69,17 @@ class HttpPlaceSearchSource implements PlaceSearchSource {
   final http.Client _client;
   final Duration timeout;
 
-  Future<Map<String, dynamic>> _get(String path, Map<String, String> query) async {
-    final url = _origin.replace(path: path, queryParameters: query);
+  Future<Map<String, dynamic>> _post(String path, Map<String, String> query) async {
+    final url = _origin.replace(path: path);
     http.Response response;
     try {
-      response = await _client.get(url, headers: const {
-        'Accept': 'application/json',
-      }).timeout(timeout);
+      response = await _client.post(url,
+        headers: const {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(query),
+      ).timeout(timeout);
     } on TimeoutException {
       throw const PlaceSearchException(PlaceSearchFailure.unavailable);
     } on http.ClientException {
@@ -117,7 +121,7 @@ class HttpPlaceSearchSource implements PlaceSearchSource {
     required String query,
     required String sessionToken,
   }) async {
-    final data = await _get('/api/places/suggest', {
+    final data = await _post('/api/places/suggest', {
       'q': query.trim(), 'sessionToken': sessionToken,
     });
     final raw = data['suggestions'];
@@ -145,7 +149,7 @@ class HttpPlaceSearchSource implements PlaceSearchSource {
     required PlaceSuggestion suggestion,
     required String sessionToken,
   }) async {
-    final data = await _get('/api/places/resolve', {
+    final data = await _post('/api/places/resolve', {
       'id': suggestion.id, 'sessionToken': sessionToken,
     });
     final place = data['place'];
