@@ -3,7 +3,7 @@
 - **Task ID:** `2026-11-04-azure-private-blob-backup`
 - **Agent:** ChatGPT engineering agent; Azure account owner for private container/RBAC and trust validation
 - **Date:** 2026-11-04 UTC
-- **State:** proposed/implemented in isolated branch, CI pending; real data export and independent restore **NOT PERFORMED**
+- **State:** implemented and tested in isolated CI (**6/6 synthetic Azure backup tests passing**); real data export and independent restore **NOT PERFORMED**
 - **Baseline:** `ops/staging-recovery-ledger-2026-11-04` commit `460be03f7fb6be267fa4e94fde14cb0347745509`, stacked after PR #22 → #13 → #12 → #11
 - **Branch:** `ops/azure-blob-stream-backup-2026-11-04` (separate from Cloudflare R2 draft #25, which remains untouched)
 - **Scope:** optional Azure-specific operator backup implementation, unit tests, CI and runbook; no credential retrieval, Azure resource creation, PostgreSQL changes, production interaction, staging migration, Render deploy or billing action
@@ -35,8 +35,8 @@
 |---|---|
 | Owner reported Azure for Students Standard LRS account created | USER-REPORTED |
 | Private Blob container created | NOT YET CONFIRMED |
-| Exact staging and Azure destination guards written | IMPLEMENTED, CI pending |
-| Encrypted stream mock, readback corruption, subprocess secret isolation tests | CI pending |
+| Exact staging and Azure destination guards written | IMPLEMENTED; 6/6 Azure synthetic tests PASS #41825931989 |
+| Encrypted stream mock, readback corruption, subprocess secret isolation tests | CI PASS, 6/6 #41825931989 at `d9f2938` |
 | Live staging export to Azure | **NOT RUN** |
 | Verified independent cold restore | **NOT RUN** |
 | Staging migration, production modification, deployment | **NONE** |
@@ -47,3 +47,10 @@
 2. Send confirmation of container presence and private access **only**; no keys, tenant/subscription IDs, passwords or signed URLs.
 3. Review PR/CI and execute private Ubuntu-D setup from [Azure Blob operator guide](../../ops/AZURE_BLOB_BACKUP.md), then report safe local PASS/BLOCKED results.
 4. Do **not** treat cloud archive round-trip as sufficient to approve release until independent PostgreSQL restore, role/RLS/grant/data and rollback evidence exists.
+
+## Tested checkpoint — November 4, 2026 UTC
+
+- PR #26 synthetic Azure Blob backup GitHub Action [#41825931989](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41825931989) **PASS** — 6 mock unit tests, 0 failures. Demonstrated private tmpfs auth guard, source/destination allowlist, verified TLS guard, pg_dump → AGE → Blob stream checksum readback, tamper detection, cloud failure, credential isolation and explicit operator consent.
+- First CI on original test mocked an incomplete child process (`kill` missing); fixed in test fixture commit `d9f293816f4977485b5b75b23f3c8572b1288af1`, rerun GREEN. No actual Azure/Supabase network access, student records, real secrets, resource writes or deployments.
+- Security smoke run [#41825932006](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41825932006) **PASS** on same code. Other parent-branch workflow result should be checked separately before merge.
+- Actual storage-account creation is owner-reported; private Blob container and RBAC remain unverified. No encrypted blob receipt or cold restore yet.
