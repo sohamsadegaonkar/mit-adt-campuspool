@@ -12,7 +12,7 @@ test('No local credential or runtime data files are tracked', () => {
   const denied = tracked.filter(filename => {
     const f = normalize(filename);
     return /(^|\/)\.env(?:\.[^/]+)?$/i.test(f) && !f.endsWith('.env.example') ||
-      /(^|\/)(?:campuspool_database\.json|[^/]+\.(?:db|db-shm|db-wal|sqlite|sqlite3|pem|key|p12|pfx))$/i.test(f);
+      /(^|\/)(?:-|campuspool_database\.json|[^/]+\.(?:db|db-shm|db-wal|sqlite|sqlite3|pem|key|p12|pfx|pgdump|dump|backup|age|tar|zip))$/i.test(f);
   });
   assert.deepEqual(denied, [], 'Tracked secrets/runtime data found (file paths only)');
 });
@@ -51,4 +51,9 @@ test('Git and Docker ignore rules exclude secret and local data files', () => {
   assert.match(dockerignore, /^\.env\.\*$/m);
   assert.match(dockerignore, /^\*\.db$/m);
   assert.match(dockerignore, /^campuspool_database\.json$/m);
+  assert.match(dockerignore, /^-$/m);
+  assert.match(dockerignore, /^\*\*\/-$/m);
+  for (const suffix of ['pgdump', 'dump', 'backup', 'age', 'tar', 'zip']) {
+    assert.ok(dockerignore.split('\n').includes('*.' + suffix), 'Docker must exclude local ' + suffix + ' archives');
+  }
 });
