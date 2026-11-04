@@ -15,6 +15,17 @@
 2. Record the **actual deployable previous staging artifact/commit**, health result and method to redeploy **that exact version**. Generic Render `trigger_deploy` deploys the configured service branch, not an arbitrary PR commit.
 3. If staging remains on `main` or other branch rather than this CI-tested feature commit, stop. Do not silently merge to production branch.
 
+## Recovery execution checkpoint — 2026-11-04 (no live export yet)
+
+**The existing owner-only backup utility now archives FIVE SQL components** inside a single AGE-encrypted tarball: `roles.sql`, `schema.sql`, `data.sql`, `history_schema.sql`, and `history_data.sql`. Supabase's default `db dump` excludes migration history, and the PR #13 strict comparison requires it; use the guarded script rather than a three-file archive. [Supabase's official CLI restore documentation](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore) confirms the separate ledger backup/restore steps.
+
+- The five `supabase db dump` commands run in **independent database transactions**. Before `--execute`, confirm staging receives **no writes throughout export**, including web workers, OTP, cron and manual SQL; then set `STAGING_WRITES_PAUSED_CONFIRMED=YES`. An environment variable records an operator attestation, not proof that writes really stopped.
+- Preflight: use `bash scripts/staging-secure-backup.sh --preflight` only from a trusted Ubuntu-D/other Linux environment, with private source URL and independently attested encrypted scratch/off-site mount. Preflight performs **no export**. This cloud assistant cannot access the user's WSL disk, export URL or off-site mount.
+- Operator execution after quiescence and private checks: `bash scripts/staging-secure-backup.sh --execute`. Archive encryption/manifest checksum of the mounted copy must then be **independently re-downloaded and checked**; a local `sha256sum --check` on the same mount is not independent proof.
+- Restore **only into a separate newly provisioned PG17/PostGIS-compatible project**, with independently approved resource costs and verified target identity. The five archive parts must be restored on the target with `ON_ERROR_STOP=1` and audited migration history; Supabase-managed roles/extensions and custom login passwords require separate manual validation. Do not run `restore_project`, `db reset`, schema migration 008 or restore SQL against the source.
+- After safe cold restore, run `scripts/staging-restore-compare.js --preflight` and `--compare` on the **distinct** source/restore refs under controlled read-only snapshot conditions. Its verdict is only part of the release gate. Record successful role/RLS/permission/migration/content parity without publishing raw rows or fingerprints.
+- **As of November 4, 2026: actual ciphertext export, remote retrieval, independent restore and live comparison have NOT been performed.** No staging release authorized. [Current task evidence](docs/agents/tasks/2026-11-04-independent-staging-recovery-start.md).
+
 ## Gate B — protected off-site database export and isolated restore
 
 Supabase [Database Backups](https://supabase.com/docs/guides/platform/backups) states daily automatic backups are on Pro/Team/Enterprise. Free requires manually managed exports. Operator uses a trusted machine with a compatible PostgreSQL 17+ client and a private DB-owner connection, **not** chat or Git.
