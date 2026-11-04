@@ -241,4 +241,12 @@ class RideFeedController extends ChangeNotifier {
     }
     notifyListeners();
   }
+
+  @override
+  void dispose() {
+    // Invalidate an in-flight response before ChangeNotifier is disposed.
+    _generation++;
+    _verified = false;
+    super.dispose();
+  }
 }
