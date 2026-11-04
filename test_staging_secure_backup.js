@@ -63,6 +63,22 @@ test('operator script syntax passes and mode remains explicit',()=>{
   assert.match(script,/scripts\/staging-backup-guard\.js/);
   assert.match(script,/--role-only/);
   assert.match(script,/--data-only/);
+  assert.match(script,/--schema supabase_migrations/);
+  assert.match(script,/history_schema\.sql history_data\.sql/);
+  assert.match(script,/STAGING_WRITES_PAUSED_CONFIRMED/);
+  assert.match(script,/-x storage\.buckets_vectors/);
   assert.match(script,/age --encrypt/);
   assert.doesNotMatch(script,/curl .*STAGING_DB_URL|npm publish|git add/);
+});
+
+test('sequential live exports fail closed unless operator attests write quiescence',()=>{
+  const script=fs.readFileSync(path.join(__dirname,'scripts/staging-secure-backup.sh'),'utf8');
+  const guard=script.indexOf('STAGING_WRITES_PAUSED_CONFIRMED');
+  const firstExport=script.indexOf('supabase db dump --db-url "$STAGING_DB_URL" --role-only');
+  assert.ok(guard>0 && firstExport>guard,
+    'write-quiescence guard must precede every real staging database export');
+  const parts=['roles.sql','schema.sql','data.sql','history_schema.sql','history_data.sql'];
+  const archiveLine=script.split('\n').find(line=>line.includes('tar -C "$work" -cf -'));
+  assert.ok(archiveLine);
+  for(const name of parts)assert.ok(archiveLine.includes(name),name+' missing from encrypted bundle');
 });
