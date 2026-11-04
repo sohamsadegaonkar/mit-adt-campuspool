@@ -8,7 +8,7 @@
 - **Feature branch:** `ops/cloud-backup-worker-2026-11-05`
 - **Dependencies:** Cloud-region/cost, credential storage, security review, PR #27, staging encrypted restore and retained Render rollback
 
-## Goal
+## Goal and acceptance criteria
 
 Enable a minimal **Azure Container Apps manual Job** to export the existing allowlisted CampusPool staging PostgreSQL schemas without executing database dumps or holding Azure CLI credentials on a personal Windows/WSL laptop. Use AGE streaming encryption before Azure Blob writes, managed identity with container-scoped data-plane permissions, and a fully reproducible synthetic test from GitHub Actions.
 
@@ -70,3 +70,14 @@ Enable a minimal **Azure Container Apps manual Job** to export the existing allo
 - [Container Apps Jobs](https://learn.microsoft.com/en-us/azure/container-apps/jobs)
 - [Container Apps cost](https://learn.microsoft.com/en-us/azure/container-apps/billing)
 - Production impact: NONE
+
+## Plan
+
+1. Keep the cloud-worker Docker image and managed-identity/fail-closed CI green; pin dependency lockfile and image digests before deployment.
+2. Obtain express owner approval for Azure region, managed identity roles, Key Vault secrets, registry, networking and any incremental cost.
+3. Launch at most one manual staging-only encrypted backup after proper access controls are verified, then perform an independent protected cold restore and compare data/RLS/migration evidence.
+
+## Progress log
+
+- 2026-11-05 UTC — Built managed identity mode, minimal Node/PostgreSQL 17/AGE image, cloud runbook and synthetic CI. Five checks passed at `cd5e193` in draft PR #28.
+- 2026-11-05 UTC — Source consolidation review opened. Cloud resources, live staging export, recovery and Render deployment remain unperformed.
