@@ -1,7 +1,7 @@
 # Task: Flutter Phase 3 — verified campus sign-in & read-only ride search
 
 - **Task ID / file:** `2026-11-04-flutter-session-login`
-- **Status:** in review (stacked draft; never deployed)
+- **Status:** in review — draft PR #21; never deployed
 - **Agent / owner:** ChatGPT engineering agent; independent reviewer unassigned
 - **Last updated:** 2026-11-04 UTC
 - **Baseline:** `feat/flutter-phase2-platform-states-2026-11-04@f43f8139bcb89170f7f1faa74d7249b4e3431fb7` (draft PR #19, stacked on draft PR #17). `main` unchanged.
@@ -40,10 +40,10 @@
 | Check | Environment and command | Result |
 |---|---|---|
 | Server routes and trust boundaries | GitHub source at exact `main@056cd26` | Verified in source, not live |
-| Flutter static analysis | GitHub Actions `flutter analyze --no-fatal-infos` | Pending |
-| Mock authentication / UI tests | GitHub Actions `flutter test` | Pending |
-| Browser release compile | GitHub Actions `flutter build web --release` | Pending |
-| Android unsigned debug | GitHub Actions `flutter build apk --debug` | Pending |
+| Flutter static analysis | [CI #41796997734](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41796997734), source `503b5ba` | PASS on Flutter 3.47.7 |
+| Mock authentication / UI tests | [CI #41796997734](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41796997734), source `503b5ba` | PASS — 28/28 tests |
+| Browser release compile | [CI #41796997734](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41796997734), source `503b5ba` | PASS |
+| Android unsigned debug | [CI #41796440947](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41796440947), source `f8d2ccf` | PASS; latest security-source rebuild in CI #41796997734 pending at this checkpoint |
 | Real OTP delivery, device QA and signed iOS | Controlled staging/device environment | Not run |
 | Production deployment / DB / provider | None | Not touched |
 
@@ -65,7 +65,13 @@
 
 ## Links and files changed
 
-- Branch: `feat/flutter-phase3-session-login-2026-11-04`, planned draft PR stacked on #19 and #17.
+- Branch: `feat/flutter-phase3-session-login-2026-11-04`; [draft PR #21](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/21) stacked on #19 and #17.
 - `flutter_app/lib/{campus_auth,campus_login_screen,campus_runtime,session_transport*,main,app,flows}.dart`; `flutter_app/test/*`; docs.
 - Figma entry: https://www.figma.com/design/nwgHXgnnP3VNHW0jdP7qnA?node-id=4-23
 - Last known deployment SHA: intentionally not reverified here; no deployment attempted.
+
+### Validation checkpoint — 2026-11-04 UTC
+
+- Flutter CI #41796997734 at source `503b5ba`: analyzer **PASS**, **28/28 tests PASS**, Web release compilation **PASS**. Android debug compilation was still in progress at the moment this note was recorded. Earlier Phase 3 CI #41796440947 built an unsigned Android debug APK successfully at `f8d2ccf`.
+- Safety hardening: `CampusAuthApi.requestCode` now requires the generic, non-account-enumerating PostgreSQL-auth response (`expiresInSeconds` between 60 and 900 with no returned email, phone, name or dev OTP hint), and refuses the legacy SQLite response. Added dedicated rejection test. **Server-side legacy enumeration remains a blocker** and must not be marketed as repaired by the Flutter client.
+- Live provider end-to-end, browser same-origin cookie round-trip, real Android install, staging recovery and release GO remain **not verified**. No student data or OTP provider was touched.
