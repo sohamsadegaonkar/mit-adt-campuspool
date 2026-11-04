@@ -85,5 +85,5 @@ For every implementation PR: replace outdated evidence, record new commit SHA an
 
 ## Mobile Places QA follow-up (stacked draft, 2026-11-04 UTC)
 
-- **UNMERGED / NOT DEPLOYED:** `feat/flutter-places-mobile-qa-2026-11-04` builds on autocomplete PR #23; caps scrollable suggestion list above the keyboard, adds IME selection and a strict 80-character input bound. Places provider daily request cap now permits 1–1000 calls rather than silently enforcing minimum 20. CI pending on new code.
+- **UNMERGED / NOT DEPLOYED:** `feat/flutter-places-mobile-qa-2026-11-04` builds on autocomplete PR #23; caps scrollable suggestion list above the keyboard, adds IME selection and a strict 80-character input bound. Places provider daily request cap now permits 1–1000 calls rather than silently enforcing minimum 20. **Verified:** 6/6 Node Places tests, analyzer + 41/41 Flutter tests PASS at `e0ebb45`; latest Web/Android packaging pending [run #41805066120](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41805066120).
 - No Google billing/keys/Render config/student data changed; source and device QA still required. [Task](tasks/2026-11-04-flutter-places-mobile-qa.md).

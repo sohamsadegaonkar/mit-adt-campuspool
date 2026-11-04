@@ -1,7 +1,7 @@
 # Task: Flutter Places mobile keyboard and cost-cap hardening
 
 - **Task ID:** `2026-11-04-flutter-places-mobile-qa`
-- **Status:** in progress — branch-only; no production/staging changes
+- **Status:** in review — draft PR #24; no production/staging changes
 - **Agent:** ChatGPT coding agent; independent reviewer unassigned
 - **Last updated:** 2026-11-04 UTC
 - **Baseline:** `feat/flutter-places-autocomplete-2026-11-04@9d57a917fc70d85f6b3592209cc3b259344eb3`; stacked on draft PR #23 → #21 → #19 → #17
@@ -38,8 +38,8 @@ Acceptance:
 | Check | Evidence | Result |
 |---|---|---|
 | Source baseline | PR #23 / `9d57a91` | PASS |
-| Node syntax / Places adapter | `node --check server.js && node --test test_places_autocomplete.js` | Pending |
-| Flutter static analysis / widget tests | `flutter analyze --no-fatal-infos && flutter test` | Pending |
+| Node syntax / Places adapter | [CI #41805066131](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41805066131) | PASS — 6/6 mocked tests plus syntax |
+| Flutter static analysis / widget tests | [CI #41805066120](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41805066120), source `e0ebb45` | PASS — analyzer and 41/41 widget/unit tests |
 | Web release / unsigned Android debug | CI Flutter platform smoke | Pending |
 | Real phone + IME + actual Google provider | No device or approved provider key | Not run |
 | Production / staging deployment | None | Not touched |
@@ -70,3 +70,9 @@ Acceptance:
 
 - In `flutter_app/lib/app.dart`, hide the fixed guest CTA/navigation bars **only while** Android's soft keyboard occupies the window, allowing the suggestion list to fit. Restore both bars to their original positions as soon as the keyboard closes. This preserves the user's logged-out layout at rest.
 - Add a widget test for the transition (open keyboard → hide CTA/nav; close keyboard → restore), alongside the bounded five-item suggestions test.
+
+### Verified check — 2026-11-04 UTC
+
+- Branch [draft PR #24](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/24), head source `e0ebb45`. Node Places unit (6/6) + server syntax PASS in [#41805066131](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41805066131), Flutter 3.47.7 analyzer + 41/41 tests PASS in [#41805066120](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41805066120).
+- A stricter test first failed on `1af69cb` because a nested `MediaQuery.viewInsets` was already consumed by `Scaffold`. Fixed on `e0ebb45` using `View.of(context).viewInsets` (real platform window metrics) and a 300px fake IME. Test PASS.
+- Android/Web packaging for corrected source is a separate CI job on the same workflow and was pending when this note was recorded; **no device acceptance** or live Google request has occurred.
