@@ -59,6 +59,13 @@ Make the custom-format PostgreSQL 17 archive reach the AGE encryptor through **s
 - Added `azure-realtools` GitHub Actions job to install only public test dependencies on an ephemeral runner. Initial CI at `ff97912` **in progress** when the job was recorded. Do not mark it PASS until GitHub reports success.
 - The new test does not independently authenticate real remote ciphertext or demonstrate complete Supabase recovery. Code review, local file remediation and actual staging restore gates remain blocked.
 
+## Operator drive-at-rest encryption check (2026-11-04)
+
+- Operator confirmed privately that the Windows volumes backing local WSL/Docker do **not** have active full-volume encryption. This is now an independently identified **security gate blocker** for further exports containing real staging data. Exact device and volume details are kept in the private recovery record rather than this public repository.
+- The potential plaintext local dump remains restricted (owner-only, mode 0600) but may still exist on unencrypted storage and in VHDX/snapshots/backups. Do not assume file permissions, moving files, deleting `-`, or enabling disk encryption retrospectively eliminates previous copies.
+- **Operator choice before live work:** enable and verify supported Windows full-volume/device encryption for all relevant host volumes, safeguarding recovery keys separately before making changes; or move sensitive backup execution to an appropriately secured, disposable, access-controlled environment with encrypted storage and tightly managed credentials. Use encrypted destination media for recovery exports, not the current unencrypted host.
+- No automated system encryption changes, host cleanup, new Azure blob operations or staging data exports performed by the agent. Reconfirm drive protection and independently recoverable encryption/recovery key custody before updating NO-GO status.
+
 ## Next steps — exact handoff
 
 1. **Operator:** restrict access to accidentally created local file using `chmod 600 -- "$HOME/campuspool-azure-retry/-"`; decide on secure cleanup without claiming deleted disk blocks are unrecoverable; do not commit or upload its contents.
