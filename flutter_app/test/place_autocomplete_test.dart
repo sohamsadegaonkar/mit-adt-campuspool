@@ -136,10 +136,14 @@ void main() {
         ),
     ];
     final source = FakePlaces(lookup: (_, __) async => results);
-    await tester.pumpWidget(MaterialApp(home: Scaffold(
-      body: SingleChildScrollView(
-        child: PlaceAutocompleteField(controller: controller, source: source),
+    await tester.pumpWidget(MaterialApp(home: MediaQuery(
+      data: const MediaQueryData(
+        size: Size(390, 750),
+        viewInsets: EdgeInsets.only(bottom: 300),
       ),
+      child: Scaffold(body: SingleChildScrollView(
+        child: PlaceAutocompleteField(controller: controller, source: source),
+      )),
     )));
     await tester.enterText(find.byKey(const Key('destinationField')), 'swargat');
     await tester.pump(const Duration(milliseconds: 330));
@@ -147,7 +151,8 @@ void main() {
     expect(find.byKey(const Key('placeSuggestions')), findsOneWidget);
     final list = find.byKey(const Key('placeSuggestionList'));
     expect(list, findsOneWidget);
-    expect(tester.getSize(list).height, lessThanOrEqualTo(260));
+    // 750 logical px minus a 300px keyboard => list height ~171px.
+    expect(tester.getSize(list).height, lessThanOrEqualTo(172));
     await tester.drag(list, const Offset(0, -220));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
