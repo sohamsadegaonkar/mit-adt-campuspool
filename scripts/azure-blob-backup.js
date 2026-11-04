@@ -21,15 +21,31 @@ function validate(env){
   check(env.AZURE_BACKUP_CONTAINER===CONTAINER,'PRIVATE_CONTAINER_ALLOWLIST');
   check(env.AZURE_PRIVATE_CONTAINER_CONFIRMED==='YES','PRIVATE_CONTAINER_NOT_VERIFIED');
   check(/^age1[0-9a-z]{45,90}$/.test(env.AGE_RECIPIENT||''),'AGE_PUBLIC_RECIPIENT');
-  // azure login tokens must be cached in temporary Linux RAM, never unencrypted C:/D:.
-  let ram=false;
-  try{
-    const real=fs.realpathSync(env.AZURE_CONFIG_DIR||'');
-    const type=fs.statfsSync(real).type;
-    const mode=fs.statSync(real).mode & 0o777;
-    ram=real.startsWith('/dev/shm/') && type===0x01021994 && mode===0o700;
-  }catch(_){}
-  check(ram,'AZURE_CLI_AUTH_CACHE_MUST_BE_PRIVATE_TMPFS');
+  const mode=env.AZURE_AUTH_MODE||'azure-cli';
+  check(['azure-cli','managed-identity'].includes(mode),'AZURE_AUTH_MODE_NOT_ALLOWED');
+  if(mode==='managed-identity'){
+    check(env.CAMPUSPOOL_CLOUD_WORKER==='YES','CLOUD_WORKER_GUARD_REQUIRED');
+    // A managed identity may be system-assigned or a specific user-assigned ID.
+    if(env.AZURE_CLIENT_ID)
+      check(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+        .test(env.AZURE_CLIENT_ID),'AZURE_CLIENT_ID_INVALID');
+    let ca=false;
+    try{
+      const file=fs.realpathSync(env.PGSSLROOTCERT||'');
+      ca=path.isAbsolute(env.PGSSLROOTCERT||'')&&fs.statSync(file).isFile();
+    }catch(_){}
+    check(ca,'CLOUD_PG_TLS_CA_REQUIRED');
+  }else{
+    // Azure CLI token cache must stay private on Linux RAM, never local SSD.
+    let ram=false;
+    try{
+      const real=fs.realpathSync(env.AZURE_CONFIG_DIR||'');
+      const type=fs.statfsSync(real).type;
+      const mode=fs.statSync(real).mode & 0o777;
+      ram=real.startsWith('/dev/shm/') && type===0x01021994 && mode===0o700;
+    }catch(_){}
+    check(ram,'AZURE_CLI_AUTH_CACHE_MUST_BE_PRIVATE_TMPFS');
+  }
   return {ok:errors.length===0,errors};
 }
 function limitedEnv(env,kind){
@@ -56,7 +72,8 @@ function preflight(env=process.env,overrides={}){
   const commands=overrides.versionOk||versionOk;
   if(!commands('pg_dump',/\b17\.\d+\b/))v.errors.push('POSTGRES_17_PG_DUMP_REQUIRED');
   if(!commands('age',/\b(?:age\s+)?v?\d+\.\d+\.\d+\b/i))v.errors.push('AGE_CLI_REQUIRED');
-  if(!commands('az',/azure-cli/i))v.errors.push('AZURE_CLI_REQUIRED');
+  if((env.AZURE_AUTH_MODE||'azure-cli')==='azure-cli'&&
+     !commands('az',/azure-cli/i))v.errors.push('AZURE_CLI_REQUIRED');
   try{
     (overrides.loadSdk||loadSdk)();
   }catch(_){v.errors.push('AZURE_NODE_SDK_REQUIRED');}
@@ -66,7 +83,8 @@ function preflight(env=process.env,overrides={}){
 function loadSdk(){
   return {
     BlobServiceClient:require('@azure/storage-blob').BlobServiceClient,
-    AzureCliCredential:require('@azure/identity').AzureCliCredential
+    AzureCliCredential:require('@azure/identity').AzureCliCredential,
+    ManagedIdentityCredential:require('@azure/identity').ManagedIdentityCredential
   };
 }
 function exit(child){
@@ -82,8 +100,12 @@ async function run(env,{spawnImpl=spawn,loadSdkImpl=loadSdk,now=new Date(),
   nonce=crypto.randomBytes(16)}={}){
   if(!validate(env).ok)throw Error('BACKUP_CONFIGURATION_BLOCKED');
   if(env.AZURE_EXPORT_APPROVED!=='YES')throw Error('EXPLICIT_OPERATOR_APPROVAL_REQUIRED');
-  const {BlobServiceClient,AzureCliCredential}=loadSdkImpl();
-  const credential=new AzureCliCredential();
+  const {BlobServiceClient,AzureCliCredential,ManagedIdentityCredential}=loadSdkImpl();
+  const mode=env.AZURE_AUTH_MODE||'azure-cli';
+  const credential=mode==='managed-identity'?
+    (env.AZURE_CLIENT_ID?
+      new ManagedIdentityCredential({clientId:env.AZURE_CLIENT_ID}):
+      new ManagedIdentityCredential()):new AzureCliCredential();
   const client=new BlobServiceClient('https://'+ACCOUNT+'.blob.core.windows.net',credential);
   const container=client.getContainerClient(CONTAINER);
   const key=keyAt(now,nonce);
