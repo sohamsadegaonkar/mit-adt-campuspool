@@ -184,3 +184,11 @@ The actual PG17 backup/restore steps remain impossible to execute through the av
 - **Code task:** [Azure stdout incident](tasks/2026-11-04-azure-pgdump-stdout-incident.md) on isolated fix branch `fix/azure-pgdump-stdout-guard-2026-11-04`. Review code, run `node --test test_azure_blob_backup.js`, check CI and use synthetic PG17+AGE validation of real archive bytes. No old-code live export.
 - **Owner action:** restrict and securely handle local `-` file (no content sharing, `git add -A`, or unsafe claim of secure deletion), review encryption for Windows/WSL host and backups, confirm AGE key custody and permitted stage-region transfer. Avoid any new cloud upload before approved corrected code and safe environment.
 - **After review and separate approval:** one guarded live staging backup, independent ciphertext readback and AGE decrypt, valid `pg_restore --list` and complete cold restore in distinct encrypted PG17/PostGIS, permissions/migrations/RLS/grants/data parity, Render retained artifact verification. Keep migration 008 and staging/production deployments **NO-GO**.
+
+## Next cloud recovery engineering milestone — 2026-11-05
+
+1. Review new draft PR #28 (`ops/cloud-backup-worker-2026-11-05`) stacked on PR #27. Confirm all GitHub CI and Docker smoke checks pass; patch any failures and record code commit/evidence. No live cloud operation.
+2. Fix worker supply-chain reproducibility: lock exact Azure SDK transitive dependencies, review vulnerability scan, pin Node/PostgreSQL image digests, generate immutable signed image before any cloud deployment.
+3. Owner approval for Azure Container Apps **manual-only** job resource, Key Vault/managed identity, network/region selection and costs. No recurring schedule without separate explicit approval. Use [cloud job runbook](../ops/CLOUD_AZURE_BACKUP_WORKER.md).
+4. Execute a single separately approved stage-only cloud backup with verified private ciphertext readback. Independently decrypt and cold restore to encrypted PG17/PostGIS, compare migration ledger/RLS/roles/content and verify Render rollback artifact. **NO-GO for migration 008 or live deployment until completed**.
+5. Local accidental `-` dump remains a separate at-rest security incident; don't upload, commit or assume securely erased. No more local staging exports.
