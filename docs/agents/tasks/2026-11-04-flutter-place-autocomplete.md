@@ -1,7 +1,7 @@
 # Task: Mobile destination autocomplete — Flutter + protected Places proxy
 
 - **Task ID / file:** `2026-11-04-flutter-place-autocomplete`
-- **Status:** in review (feature branch; no deployment)
+- **Status:** in review — draft PR #23, unmerged / not deployed
 - **Agent / owner:** ChatGPT coding agent; independent reviewer unassigned
 - **Last updated:** 2026-11-04 UTC
 - **Baseline:** `feat/flutter-phase3-session-login-2026-11-04@20527bd17da705d8414f2051196927db1e3b0b`, stacked on draft PR #21 → #19 → #17; `main` was independently observed at `b83107d`, but this task does **not** modify `main`.
@@ -32,9 +32,9 @@ Expected checks: 320ms debounce, no searches shorter than 3 characters, at most 
 
 | Check | Environment | Result |
 |---|---|---|
-| Node provider syntax and mock API tests | `node --check server.js`, `node --test test_places_autocomplete.js` | Pending CI |
-| Flutter unit/widget tests and analyzer | `flutter test`, `flutter analyze --no-fatal-infos` | Pending CI |
-| Flutter Web / unsigned Android build | `flutter build web --release`; `flutter build apk --debug` | Pending CI |
+| Node provider syntax and mock API tests | [CI #41801773535](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41801773535), source `1860647` | PASS — 5/5 mocked provider tests + server syntax |
+| Flutter unit/widget tests and analyzer | [CI #41802050615](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41802050615), source `6cbff8e` | PASS — 39/39 tests, static analyzer |
+| Flutter Web / unsigned Android build | [CI #41802050615](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41802050615), source `6cbff8e` | In progress at this checkpoint; do not claim APK yet |
 | Real Swargate prediction / provider bill | Deliberately not called | Not verified |
 | On-device keyboard, tap targets and screen overflow | Physical Android | Pending |
 | Production/staging API key, flag, quota and Google policy sign-off | Manual owner action | Not performed |
@@ -57,9 +57,15 @@ Expected checks: 320ms debounce, no searches shorter than 3 characters, at most 
 
 ## Links and files changed
 
-- Branch: `feat/flutter-places-autocomplete-2026-11-04` (PR to be added after creation).
+- Branch: `feat/flutter-places-autocomplete-2026-11-04`; [draft PR #23](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/23) stacked on draft #21.
 - Paths: `places-autocomplete.js`, `server.js`, `test_places_autocomplete.js`, `.github/workflows/places-node.yml`, `flutter_app/lib/place_{search,autocomplete_field}.dart`, Flutter UI wiring/tests, agent docs.
 - Figma: https://www.figma.com/design/nwgHXgnnP3VNHW0jdP7qnA?node-id=4-23
 - Google Places (New): https://developers.google.com/maps/documentation/places/web-service/place-autocomplete
 - Provider policy: https://developers.google.com/maps/documentation/places/web-service/policies
 - Deployment: not attempted; live SHA not independently rechecked.
+
+### CI checkpoint — 2026-11-04 UTC
+
+- **Verified source** `6cbff8e` (PR #23): Flutter 3.47.7 static analyzer and 39/39 tests PASS in [run #41802050615](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41802050615). Node provider adapter 5/5 tests and syntax PASS in [run #41801773535](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41801773535) from immediate prior commit. Security smoke and PostgreSQL OTP checks also passed at `1860647`.
+- Additional UI verification: keyboard arrow/Enter selection tested; selected resolved destination retained for local ride filtering. No provider key or Google request was used in CI. Latest Web/Android build was still pending at the time of this note.
+- **Owner action still needed:** acquire/approve Google Cloud billing quota, server-only key and explicit feature flag before real addresses can display on a physical phone. No production or staging activation authorized. Google official logo bundle and privacy/terms review remain launch gates.
