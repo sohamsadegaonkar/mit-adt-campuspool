@@ -170,3 +170,7 @@ Draft PR #11 now carries a **private operator-only** `scripts/staging-secure-bac
 
 - Owner reports installed correct Supabase staging CA as `~/.config/campuspool/supabase-staging-ca.crt` and verified certificate parse; subsequent strict `PGSSLMODE=verify-full` `psql SELECT 1` returned **`DB_CONNECT_PASS`**. Thus the prior `DB_TLS_BLOCKED` local source-connection gate is resolved. This does **not** prove an actual database export exists.
 - Next: single deliberate operator-authorized retry of encrypted staging export, with `PGSSLROOTCERT` explicitly passed to the `pg_dump` child, current PR #26 safe error categories, private AGE public recipient and Azure CLI tmpfs auth. Confirm ciphertext checksum and actual nonzero remote archive before restore. Independent restore and Render rollback remain NO-GO. [Task](tasks/2026-11-04-azure-private-blob-backup.md).
+
+## Retry worktree ready — November 4, 2026
+
+- Owner safely preserved earlier untracked `-` in the original Azure worktree and created a separate clean `~/campuspool-azure-retry` at commit `e6850ab`. Local Azure mocked safety tests: **10/10 passing**, 0 failed. Actual encrypted Azure stage export **not yet retried**, independent restore **not done**; release still NO-GO. [Task](tasks/2026-11-04-azure-private-blob-backup.md).
