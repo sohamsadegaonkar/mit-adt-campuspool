@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:campuspool_flutter/place_autocomplete_field.dart';
 import 'package:campuspool_flutter/place_search.dart';
@@ -95,6 +96,25 @@ void main() {
     expect(find.byKey(const Key('placeConfirmed')), findsOneWidget);
     expect(source.tokens, hasLength(2));
     expect(source.tokens[0], source.tokens[1]);
+  });
+
+  testWidgets('arrow key and Enter choose a suggested destination',
+      (tester) async {
+    final controller = TextEditingController();
+    final source = FakePlaces();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(
+      body: PlaceAutocompleteField(controller: controller, source: source),
+    )));
+    await tester.enterText(
+        find.byKey(const Key('destinationField')), 'swargat');
+    await tester.pump(const Duration(milliseconds: 330));
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(controller.text, 'Swargate');
+    expect(find.byKey(const Key('placeConfirmed')), findsOneWidget);
   });
 
   testWidgets('new input invalidates an old pending network response',

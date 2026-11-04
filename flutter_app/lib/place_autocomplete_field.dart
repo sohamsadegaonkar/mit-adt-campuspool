@@ -33,7 +33,13 @@ class PlaceAutocompleteField extends StatefulWidget {
 }
 
 class _PlaceAutocompleteFieldState extends State<PlaceAutocompleteField> {
-  final _focus = FocusNode(debugLabel: 'destination-search');
+  late final FocusNode _focus;
+
+  @override
+  void initState() {
+    super.initState();
+    _focus = FocusNode(debugLabel: 'destination-search', onKeyEvent: _onKey);
+  }
   Timer? _debounce;
   String? _sessionToken;
   SelectedPlace? _selected;
@@ -196,9 +202,7 @@ class _PlaceAutocompleteFieldState extends State<PlaceAutocompleteField> {
 
   @override
   Widget build(BuildContext context) {
-    return Focus(
-      onKeyEvent: _onKey,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         TextField(
           key: const Key('destinationField'),
           focusNode: _focus,
@@ -262,8 +266,7 @@ class _PlaceAutocompleteFieldState extends State<PlaceAutocompleteField> {
                       color: CpColors.muted, fontSize: 12, height: 1.35))),
             ]),
           ),
-      ]),
-    );
+      ]);
   }
 
   Widget _errorMessage() {
