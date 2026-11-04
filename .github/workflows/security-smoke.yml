@@ -9,6 +9,16 @@ on:
       - 'render-staging.yaml'
       - 'test_auth_integration.js'
       - 'database.js'
+      - 'idempotency.js'
+      - 'test_idempotency.js'
+      - 'test_browser_idempotency.js'
+      - 'test_staging_migration_preflight.js'
+      - 'test_staging_secure_backup.js'
+      - 'test_staging_restore_compare.js'
+      - 'scripts/staging-restore-compare.js'
+      - 'scripts/staging-backup-guard.js'
+      - 'scripts/staging-secure-backup.sh'
+      - 'scripts/staging-migration-preflight.js'
       - 'render.yaml'
       - 'package.json'
       - 'test_security_smoke.js'
@@ -36,10 +46,25 @@ jobs:
         run: |
           node --check server.js
           node --check database.js
+          node --check idempotency.js
+          node --check test_idempotency.js
+          node --check test_browser_idempotency.js
+          node --check test_staging_migration_preflight.js
+          node --check scripts/staging-migration-preflight.js
+          node --check scripts/staging-backup-guard.js
+          node --check test_staging_secure_backup.js
+          node --check test_staging_restore_compare.js
+          node --check scripts/staging-restore-compare.js
+          bash -n scripts/staging-secure-backup.sh
           node --check test_security_smoke.js
           node --check test_auth_integration.js
           node --check sms-provider.js
       - name: Run isolated security tests
         run: |
+          npm run test:idempotency
+          npm run test:browser-idempotency
+          npm run test:staging-preflight
+          npm run test:staging-backup
+          npm run test:staging-restore-compare
           npm run test:security
           npm run test:auth

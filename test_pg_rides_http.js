@@ -56,14 +56,16 @@ test('HTTP rides and bookings switch to verified PostgreSQL user identities',
   const port=await freePort();
   let child,rideId,bookingId;
   const base='http://127.0.0.1:'+port;
-  async function request(endpoint,{method='GET',user=0,body,csrf,anonymous=false}={}){
+  async function request(endpoint,{method='GET',user=0,body,csrf,anonymous=false,idempotencyKey}={}){
     const headers={Authorization:basic};
     if(!anonymous)headers.Cookie='cp_session='+tokens[user];
     if(body!==undefined)headers['Content-Type']='application/json';
     if(csrf)headers['x-csrf-token']=csrf;
+    if(method==='POST' && ['/api/rides','/api/bookings','/api/rides/cancel','/api/bookings/cancel'].includes(endpoint))
+      headers['Idempotency-Key']=idempotencyKey||crypto.randomUUID();
     const response=await fetch(base+endpoint,{method,headers,body:body===undefined?undefined:JSON.stringify(body)});
     let json;try{json=await response.json();}catch{json=null;}
-    return {status:response.status,body:json};
+    return {status:response.status,body:json,replayed:response.headers.get('Idempotency-Replayed')};
   }
   try{
     await pool.query([
@@ -107,9 +109,17 @@ test('HTTP rides and bookings switch to verified PostgreSQL user identities',
     const cleanInput={...rideInput};
     delete cleanInput.driverEmail;
     delete cleanInput.driverName;
-    const created=await request('/api/rides',{method:'POST',user:0,body:cleanInput,csrf:csrfDriver});
+    const rideKey=crypto.randomUUID();
+    const created=await request('/api/rides',{method:'POST',user:0,body:cleanInput,csrf:csrfDriver,idempotencyKey:rideKey});
     assert.equal(created.status,201,JSON.stringify(created.body));
     rideId=created.body.ride.id;
+    const rideReplay=await request('/api/rides',{method:'POST',user:0,body:cleanInput,csrf:csrfDriver,idempotencyKey:rideKey});
+    assert.equal(rideReplay.status,201);
+    assert.equal(rideReplay.body.ride.id,rideId);
+    assert.equal(rideReplay.replayed,'true');
+    const collision=await request('/api/rides',{method:'POST',user:0,body:{...cleanInput,note:'Changed'},csrf:csrfDriver,idempotencyKey:rideKey});
+    assert.equal(collision.status,409);
+    assert.equal(collision.body.error,'IDEMPOTENCY_KEY_REUSED');
     assert.equal(created.body.ride.driverEmail,emails[0]);
     const visible=await request('/api/rides',{user:1});
     assert.equal(visible.status,200);
@@ -117,26 +127,74 @@ test('HTTP rides and bookings switch to verified PostgreSQL user identities',
     const cannotBookSelf=await request('/api/bookings',{method:'POST',user:0,
       csrf:csrfDriver,body:{rideId}});
     assert.equal(cannotBookSelf.status,403,JSON.stringify(cannotBookSelf.body));
+    const bookKey=crypto.randomUUID();
     const seat=await request('/api/bookings',{method:'POST',user:1,
-      csrf:csrfPassenger,body:{rideId,passengerEmail:emails[1]}});
+      csrf:csrfPassenger,body:{rideId,passengerEmail:emails[1]},idempotencyKey:bookKey});
     assert.equal(seat.status,201,JSON.stringify(seat.body));
     bookingId=seat.body.booking.bookingId;
+    // Previously a replay failed the unpaid-booking guard. It must now
+    // return the original booking without consuming a second seat.
+    const seatReplay=await request('/api/bookings',{method:'POST',user:1,
+      csrf:csrfPassenger,body:{rideId,passengerEmail:emails[1]},idempotencyKey:bookKey});
+    assert.equal(seatReplay.status,201);
+    assert.equal(seatReplay.body.booking.bookingId,bookingId);
+    assert.equal(seatReplay.replayed,'true');
     const booked=await request('/api/rides',{user:0});
     assert.equal(booked.body.rides.find(r=>r.id===rideId).seatsLeft,0);
     const wrongCancel=await request('/api/bookings/cancel',{method:'POST',user:0,
       csrf:csrfDriver,body:{bookingId}});
     assert.equal(wrongCancel.status,403);
+    const cancelKey=crypto.randomUUID();
     const cancelled=await request('/api/bookings/cancel',{method:'POST',user:1,
-      csrf:csrfPassenger,body:{bookingId}});
+      csrf:csrfPassenger,body:{bookingId},idempotencyKey:cancelKey});
     assert.equal(cancelled.status,200);
+    const cancelReplay=await request('/api/bookings/cancel',{method:'POST',user:1,
+      csrf:csrfPassenger,body:{bookingId},idempotencyKey:cancelKey});
+    assert.equal(cancelReplay.status,200);
+    assert.equal(cancelReplay.replayed,'true');
     const restored=await request('/api/rides',{user:1});
     assert.equal(restored.body.rides.find(r=>r.id===rideId).seatsLeft,1);
     const wrongRide=await request('/api/rides/cancel',{method:'POST',user:1,
       csrf:csrfPassenger,body:{rideId}});
     assert.equal(wrongRide.status,403);
+    const cancelRideKey=crypto.randomUUID();
     const cancelRide=await request('/api/rides/cancel',{method:'POST',user:0,
-      csrf:csrfDriver,body:{rideId}});
+      csrf:csrfDriver,body:{rideId},idempotencyKey:cancelRideKey});
     assert.equal(cancelRide.status,200);
+    const rideCancelReplay=await request('/api/rides/cancel',{method:'POST',user:0,
+      csrf:csrfDriver,body:{rideId},idempotencyKey:cancelRideKey});
+    assert.equal(rideCancelReplay.status,200);
+    assert.equal(rideCancelReplay.replayed,'true');
+    // Once the global per-IP mutation bucket is full, only authenticated,
+    // already-committed same-key receipts are eligible for bounded replay.
+    let limited=false;
+    for(let i=0;i<75;i++){
+      const hit=await request('/api/bookings/payment-status',{
+        method:'POST',user:0,csrf:csrfDriver,body:{}
+      });
+      if(hit.status===429){limited=true;break;}
+      assert.equal(hit.status,501);
+    }
+    assert.equal(limited,true,'Mutation rate limit must be enforceable');
+    const overLimitReplay=await request('/api/rides',{
+      method:'POST',user:0,body:cleanInput,csrf:csrfDriver,idempotencyKey:rideKey
+    });
+    assert.equal(overLimitReplay.status,201,JSON.stringify(overLimitReplay.body));
+    assert.equal(overLimitReplay.replayed,'true');
+    assert.equal(overLimitReplay.body.ride.id,rideId);
+    const overLimitMismatch=await request('/api/rides',{
+      method:'POST',user:0,body:{...cleanInput,note:'Changed again'},
+      csrf:csrfDriver,idempotencyKey:rideKey
+    });
+    assert.equal(overLimitMismatch.status,409);
+    const overLimitNew=await request('/api/rides',{
+      method:'POST',user:0,body:cleanInput,csrf:csrfDriver,idempotencyKey:crypto.randomUUID()
+    });
+    assert.equal(overLimitNew.status,429);
+    const crossAccount=await request('/api/rides',{
+      method:'POST',user:1,body:cleanInput,csrf:csrfPassenger,idempotencyKey:rideKey
+    });
+    assert.equal(crossAccount.status,429,'Other actors cannot reuse completed receipts');
     const empty=await request('/api/my-rides',{user:0});
     assert.equal(empty.status,200);
     assert.deepEqual(empty.body.rides,[]);
@@ -155,6 +213,8 @@ test('HTTP rides and bookings switch to verified PostgreSQL user identities',
     }
     await pool.query('DELETE FROM public.campus_sessions WHERE user_id=ANY($1::uuid[])',[ids]);
     await pool.query('DELETE FROM public.campus_users WHERE id=ANY($1::uuid[])',[ids]);
+    await pool.query('DELETE FROM public.campus_idempotency_keys WHERE actor_hash=ANY($1::text[])',
+      [ids.map(id=>crypto.createHash('sha256').update('campus-user:'+id.toLowerCase()).digest('hex'))]);
     await pool.end();
     fs.rmSync(temp,{recursive:true,force:true});
   }

@@ -7,6 +7,18 @@ on:
   pull_request:
     paths:
       - 'stage1-otp/**'
+      - 'idempotency.js'
+      - 'database.js'
+      - 'test_idempotency.js'
+      - 'test_pg_idempotency.js'
+      - 'test_browser_idempotency.js'
+      - 'test_staging_migration_preflight.js'
+      - 'test_pg_backup_restore.js'
+      - 'test_staging_secure_backup.js'
+      - 'test_staging_restore_compare.js'
+      - 'scripts/staging-backup-guard.js'
+      - 'scripts/staging-secure-backup.sh'
+      - 'scripts/staging-migration-preflight.js'
       - 'test_stage1_otp.js'
       - 'test_pg_identity.js'
       - 'test_pg_rides.js'
@@ -61,9 +73,28 @@ jobs:
       - name: Prepare disposable PostGIS schema
         run: |
           node -e "const {Client}=require('pg');(async()=>{const c=new Client({connectionString:process.env.OTP_DATABASE_URL});await c.connect();try{await c.query('DROP EXTENSION IF EXISTS postgis CASCADE; CREATE SCHEMA IF NOT EXISTS extensions;')}finally{await c.end();}})().catch(e=>{console.error(e.message);process.exit(1)})"
+      - name: Use bundled PostgreSQL 16 client tools in disposable PostGIS container
+        run: |
+          CID="$(docker ps --quiet --filter ancestor=postgis/postgis:16-3.4 | head -n 1)"
+          test -n "$CID"
+          echo "POSTGIS_CI_CONTAINER_ID=$CID" >> "$GITHUB_ENV"
+          docker exec "$CID" pg_dump --version
+          docker exec "$CID" pg_restore --version
       - name: Verify source syntax
         run: |
           node --check server.js
+          node --check idempotency.js
+          node --check test_idempotency.js
+          node --check test_pg_idempotency.js
+          node --check test_browser_idempotency.js
+          node --check scripts/staging-migration-preflight.js
+          node --check test_staging_migration_preflight.js
+          node --check test_pg_backup_restore.js
+          node --check test_staging_secure_backup.js
+          node --check test_staging_restore_compare.js
+          node --check scripts/staging-restore-compare.js
+          node --check scripts/staging-backup-guard.js
+          bash -n scripts/staging-secure-backup.sh
           node --check stage1-otp/pg-store.js
           node --check stage1-otp/auth-routes.js
           node --check stage1-otp/email-provider.js
@@ -85,6 +116,10 @@ jobs:
           node --check test_staging_isolation.js
       - name: Run isolated PostgreSQL integration tests
         run: |
+          npm run test:idempotency
+          npm run test:idempotency-pg
+          npm run test:staging-preflight
+          npm run test:browser-idempotency
           npm run test:stage1
           npm run test:identity
           npm run test:rides
@@ -97,3 +132,6 @@ jobs:
           npm run test:production-auth
           npm run test:release
           npm run check:release-ci
+          npm run test:backup-restore-ci
+          npm run test:staging-backup
+          npm run test:staging-restore-compare

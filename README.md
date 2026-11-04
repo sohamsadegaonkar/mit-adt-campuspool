@@ -2,6 +2,10 @@
 
 Student ridesharing and bike-pooling application for MIT Art, Design and Technology University, Pune.
 
+## Idempotent domain mutations (draft security work)
+
+The Rides/Bookings and feature-gated PostGIS mobility POST endpoints have a proposed durable `Idempotency-Key` contract in [`IDEMPOTENCY_CONTRACT.md`](IDEMPOTENCY_CONTRACT.md). This change is in **draft PR #11**, not deployed; live PostgreSQL requires additive migration 008 before the new API can start. OTP proofs, external provider delivery, GPS and future payment webhooks require separate replay/freshness guarantees.
+
 ## Multi-agent development
 
 **All development agents must read [AGENTS.md](AGENTS.md) before making changes.** Every implementation task needs an auditable Markdown record of the current state, plan, progress, test evidence, blockers and the exact next action. See the [agent documentation index](docs/agents/README.md), [current status](docs/agents/STATUS.md), [prioritized next steps](docs/agents/NEXT_STEPS.md), [architecture map](docs/agents/ARCHITECTURE_MAP.md) and [task template](docs/agents/tasks/TEMPLATE.md).

@@ -12,6 +12,14 @@ const path = require('path');
 const crypto = require('crypto');
 const url = require('url');
 const smsProvider = require('./sms-provider');
+const { PgIdempotencyStore, SqliteIdempotencyStore, IdempotencyError } = require('./idempotency');
+// Only these authenticated mutations can return a bounded, read-only receipt
+// when the standard per-IP mutation rate limit has already been exhausted.
+const IDEMPOTENT_MUTATION_PATHS = new Set([
+  '/api/rides', '/api/bookings', '/api/rides/cancel',
+  '/api/bookings/cancel', '/api/mobility/intents',
+  '/api/mobility/intents/cancel'
+]);
 const AUTH_OTP_BACKEND = process.env.AUTH_OTP_BACKEND || 'sqlite';
 if (!['sqlite', 'postgres'].includes(AUTH_OTP_BACKEND)) throw new Error('AUTH_OTP_BACKEND must be sqlite or postgres');
 // Opt-in only. Production/staging stay on the legacy Rides backend unless
@@ -168,6 +176,8 @@ const pgRidesStore = RIDES_BACKEND === 'postgres'
   ? new PgRidesStore({pool:pgOtpStore.pool}) : null;
 const pgMobilityStore = MOBILITY_MATCHING_ENABLED
   ? new PgMobilityStore({pool:pgOtpStore.pool}) : null;
+const pgIdempotency = pgRidesStore ? new PgIdempotencyStore(pgOtpStore.pool) : null;
+const sqliteIdempotency = !pgRidesStore ? new SqliteIdempotencyStore(db.db) : null;
 
 // -------------------------------------------------------------------------
 // Native Multi-Channel Email Dispatcher (HTTPS REST APIs + TLS SMTP Sockets)
@@ -433,8 +443,8 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('Vary', 'Origin');
   if (allowedOrigin) res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-CSRF-Token');
-  res.setHeader('Access-Control-Expose-Headers', 'RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset, Retry-After');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-CSRF-Token, Idempotency-Key');
+  res.setHeader('Access-Control-Expose-Headers', 'RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset, Retry-After, Idempotency-Replayed');
   if (origin && !allowedOrigin) {
     res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
     return res.end(JSON.stringify({ success: false, error: 'CORS_ORIGIN_DENIED' }));
@@ -520,6 +530,7 @@ const server = http.createServer(async (req, res) => {
 
   // Enforce Shared Rate Limiting Across Cluster Workers
   const rateLimitPolicy = resolveRateLimitPolicy();
+  let throttledIdempotencyReplay = null;
   if (rateLimitPolicy) {
     const clientIp = getClientIp();
     const rateLimitKey = `rl:${rateLimitPolicy.tier}:${clientIp}`;
@@ -534,15 +545,31 @@ const server = http.createServer(async (req, res) => {
     res.setHeader('X-RateLimit-Tier', rateLimitPolicy.tier);
 
     if (!rlResult.allowed) {
-      res.setHeader('Retry-After', String(rlResult.resetSeconds));
-      res.writeHead(429, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({
-        success: false,
-        error: 'RATE_LIMIT_EXCEEDED',
-        tier: rateLimitPolicy.tier,
-        message: `Too many requests on ${rateLimitPolicy.tier}. Please wait ${rlResult.resetSeconds}s before retrying.`,
-        retryAfter: rlResult.resetSeconds
-      }));
+      let retryAfter = rlResult.resetSeconds;
+      // The normal rate limit still applies to all *new* writes. For completed
+      // retries, permit only a tiny number of read-only receipt probes per IP.
+      // This budget also bounds pre-auth DB work by forged cookie/key traffic.
+      if (method === 'POST' && IDEMPOTENT_MUTATION_PATHS.has(pathname) &&
+          typeof req.headers['idempotency-key'] === 'string' &&
+          req.headers['idempotency-key'].length >= 16) {
+        const replayBudget = db.checkRateLimit('rl:IDEMPOTENCY_REPLAY:' + clientIp, 12, 60000);
+        if (replayBudget.allowed) {
+          throttledIdempotencyReplay = { tier: rateLimitPolicy.tier, retryAfter };
+        } else {
+          retryAfter = Math.max(retryAfter, replayBudget.resetSeconds);
+        }
+      }
+      if (!throttledIdempotencyReplay) {
+        res.setHeader('Retry-After', String(retryAfter));
+        res.writeHead(429, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+        return res.end(JSON.stringify({
+          success: false,
+          error: 'RATE_LIMIT_EXCEEDED',
+          tier: rateLimitPolicy.tier,
+          message: `Too many requests on ${rateLimitPolicy.tier}. Please wait ${retryAfter}s before retrying.`,
+          retryAfter
+        }));
+      }
     }
   }
 
@@ -579,6 +606,31 @@ const server = http.createServer(async (req, res) => {
   function sendJson(statusCode, data) {
     res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
     res.end(JSON.stringify(data));
+  }
+
+  class MutationRejection extends Error {
+    constructor(status, body) { super('MUTATION_REJECTED'); this.status = status; this.body = body; }
+  }
+  function rejectMutation(status, body) { throw new MutationRejection(status, body); }
+  async function executeIdempotentMutation(route, body, execute) {
+    const store = pgIdempotency || sqliteIdempotency;
+    try {
+      const receipt = await store.run({
+        actor: pgRidesStore ? authenticatedUser?.id : authenticatedUser?.email,
+        route: 'POST ' + route,
+        key: req.headers['idempotency-key'],
+        body,
+        execute
+      });
+      if (receipt.replayed) res.setHeader('Idempotency-Replayed', 'true');
+      return sendJson(receipt.status, receipt.body);
+    } catch (error) {
+      if (error instanceof IdempotencyError)
+        return sendJson(error.status, { success: false, error: error.code });
+      if (error instanceof MutationRejection)
+        return sendJson(error.status, error.body);
+      throw error;
+    }
   }
 
   function readSessionToken() {
@@ -623,6 +675,35 @@ const server = http.createServer(async (req, res) => {
     && authenticatedUser && (!pathname.startsWith('/api/auth/') || pathname === '/api/auth/logout')
     && !authenticatedMutationAllowed()) {
     return sendJson(403, { success: false, error: 'CSRF_REQUIRED', message: 'Refresh your session and try again.' });
+  }
+  // A throttled request may *only* replay a committed receipt. This block
+  // runs after verified session and CSRF checks, before any mutation handler.
+  if (throttledIdempotencyReplay) {
+    try {
+      const body = await parseBody();
+      const receipt = await (pgIdempotency || sqliteIdempotency).findCompleted({
+        actor: pgRidesStore ? authenticatedUser.id : authenticatedUser.email,
+        route: 'POST ' + pathname,
+        key: req.headers['idempotency-key'],
+        body
+      });
+      if (receipt) {
+        res.setHeader('Idempotency-Replayed', 'true');
+        return sendJson(receipt.status, receipt.body);
+      }
+    } catch (error) {
+      if (error instanceof IdempotencyError) {
+        return sendJson(error.status, { success: false, error: error.code });
+      }
+      throw error;
+    }
+    res.setHeader('Retry-After', String(throttledIdempotencyReplay.retryAfter));
+    return sendJson(429, {
+      success: false, error: 'RATE_LIMIT_EXCEEDED',
+      tier: throttledIdempotencyReplay.tier,
+      message: 'Mutation rate limit reached. Retry with the same key after Retry-After.',
+      retryAfter: throttledIdempotencyReplay.retryAfter
+    });
   }
   if (method === 'POST' && pathname === '/api/auth/logout') {
     const token = readSessionToken();
@@ -1151,24 +1232,24 @@ const server = http.createServer(async (req, res) => {
   if (pathname.startsWith('/api/mobility/')) {
     if (!pgMobilityStore) return sendJson(404,{success:false,error:'FEATURE_NOT_ENABLED'});
     try {
-      // Shared PostgreSQL rate buckets apply across all future API replicas.
-      // Expensive matching reads and repeated create/cancel cycles are bounded.
-      if ((method==='POST' && pathname==='/api/mobility/intents') ||
-          (method==='GET' && pathname==='/api/mobility/matches')) {
-        const isWrite=method==='POST';
+      // Expensive match search has a persistent shared PostgreSQL rate bucket.
+      // Intent creation is throttled in the *same* transaction as its receipt:
+      // replaying a committed key does not consume the student's quota.
+      if (method==='GET' && pathname==='/api/mobility/matches') {
         await pgOtpStore.tx(client=>pgOtpStore.rate(
-          client,isWrite?'mobility-intent-create':'mobility-match-search',
-          authenticatedUser.id,isWrite?8:30,3600
+          client,'mobility-match-search',authenticatedUser.id,30,3600
         ));
       }
       if (method==='POST' && pathname==='/api/mobility/intents') {
         const body=await parseBody();
-        const intent=await pgMobilityStore.createIntent({
-          studentUserId:authenticatedUser.id,pickup:body.pickup,dropoff:body.dropoff,
-          earliestDeparture:body.earliestDeparture,latestDeparture:body.latestDeparture
+        return await executeIdempotentMutation(pathname,body,async client=>{
+          await pgOtpStore.rate(client,'mobility-intent-create',authenticatedUser.id,8,3600);
+          const intent=await pgMobilityStore.createIntent({
+            studentUserId:authenticatedUser.id,pickup:body.pickup,dropoff:body.dropoff,
+            earliestDeparture:body.earliestDeparture,latestDeparture:body.latestDeparture,client
+          });
+          return {status:201,body:{success:true,intent}};
         });
-        res.setHeader('Cache-Control','no-store');
-        return sendJson(201,{success:true,intent});
       }
       if (method==='GET' && pathname==='/api/mobility/intent') {
         const intent=await pgMobilityStore.getActiveIntent({studentUserId:authenticatedUser.id});
@@ -1185,11 +1266,12 @@ const server = http.createServer(async (req, res) => {
       }
       if (method==='POST' && pathname==='/api/mobility/intents/cancel') {
         const body=await parseBody();
-        const result=await pgMobilityStore.cancelIntent({
-          studentUserId:authenticatedUser.id,intentId:body.intentId
+        return await executeIdempotentMutation(pathname,body,async client=>{
+          const result=await pgMobilityStore.cancelIntent({
+            studentUserId:authenticatedUser.id,intentId:body.intentId,client
+          });
+          return {status:200,body:result};
         });
-        res.setHeader('Cache-Control','no-store');
-        return sendJson(200,result);
       }
       return sendJson(404,{success:false,error:'NOT_FOUND'});
     } catch(error){
@@ -1280,48 +1362,53 @@ const server = http.createServer(async (req, res) => {
 
   if (method === 'POST' && pathname === '/api/rides') {
     const body = await parseBody();
-    {
-      const settlementCheck = pgRidesStore
-        ? await pgRidesStore.checkUserSettlementBlock(authenticatedUser.id)
-        : db.checkUserSettlementBlock(authenticatedUser.email);
-      if (settlementCheck.hasUnsettledCommission) {
-        return sendJson(403, {
-          success: false,
-          error: 'COMMISSION_SETTLEMENT_REQUIRED',
-          message: `Commission Settlement Required: You have ₹${settlementCheck.commissionDue} in pending platform commission from a previous commute. Please settle your commission via UPI before offering new rides.`,
-          ...settlementCheck
-        });
+    // Validation and settlement eligibility execute only for the *first*
+    // successful key. A retry returns the original ride, even if state changes.
+    return await executeIdempotentMutation(pathname,body,client=>{
+      if (body.driverEmail && !isSelf(body.driverEmail)) {
+        rejectMutation(403,{success:false,error:'NOT_RIDE_OWNER'});
       }
-    }
-    if (body.driverEmail && !isSelf(body.driverEmail)) {
-      return sendJson(403, { success: false, error: 'NOT_RIDE_OWNER' });
-    }
-    if (!['Car', 'Bike'].includes(body.vehicle) || !validText(body.vehicleModel, 80) ||
-        !validText(body.pickup, 120) || !validText(body.destination, 120) ||
-        !validText(body.departureTime, 120) ||
-        (body.note && !validText(body.note, 500)) ||
-        !Number.isInteger(Number(body.seatsTotal)) || Number(body.seatsTotal) < 1 || Number(body.seatsTotal) > 4 ||
-        ![body.uberBenchmark,body.studentFare,body.driverPayout].every(v => Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) <= 10000)) {
-      return sendJson(400, { success: false, error: 'INVALID_RIDE', message: 'Ride details must be valid, reasonably sized and contain no markup.' });
-    }
-    if (pgRidesStore && !pgMobilityStore &&
-      ['pickupCoordinates','destinationCoordinates','departureAt'].some(k=>body[k]!==undefined)){
-      return sendJson(400,{success:false,error:'FEATURE_NOT_ENABLED'});
-    }
-    const cleanRide = {
-      ...body,
-      driverName: authenticatedUser.name, driverEmail: authenticatedUser.email,
-      driverPhone: authenticatedUser.phone, dept: authenticatedUser.dept,
-      seatsTotal: Number(body.seatsTotal),
-      uberBenchmark: Number(body.uberBenchmark), studentFare: Number(body.studentFare),
-      driverPayout: Number(body.driverPayout),
-      note: body.note || ''
-    };
-    const newRide = pgRidesStore
-      ? await pgRidesStore.createRide({driverUserId:authenticatedUser.id,ride:cleanRide})
-      : db.createRide(cleanRide);
-    invalidateRidesCache();
-    return sendJson(201, { success: true, ride: newRide });
+      if (!['Car', 'Bike'].includes(body.vehicle) || !validText(body.vehicleModel, 80) ||
+          !validText(body.pickup, 120) || !validText(body.destination, 120) ||
+          !validText(body.departureTime, 120) ||
+          (body.note && !validText(body.note, 500)) ||
+          !Number.isInteger(Number(body.seatsTotal)) || Number(body.seatsTotal) < 1 || Number(body.seatsTotal) > 4 ||
+          ![body.uberBenchmark,body.studentFare,body.driverPayout].every(v =>
+            Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) <= 10000)) {
+        rejectMutation(400,{success:false,error:'INVALID_RIDE',
+          message:'Ride details must be valid, reasonably sized and contain no markup.'});
+      }
+      if (pgRidesStore && !pgMobilityStore &&
+          ['pickupCoordinates','destinationCoordinates','departureAt'].some(k=>body[k]!==undefined)){
+        rejectMutation(400,{success:false,error:'FEATURE_NOT_ENABLED'});
+      }
+      const finish = settlementCheck => {
+        if (settlementCheck.hasUnsettledCommission) {
+          rejectMutation(403, {
+            success:false,error:'COMMISSION_SETTLEMENT_REQUIRED',
+            message:`Commission Settlement Required: You have ₹${settlementCheck.commissionDue} in pending platform commission from a previous commute. Please settle your commission via UPI before offering new rides.`,
+            ...settlementCheck
+          });
+        }
+        const cleanRide = {
+          ...body,driverName:authenticatedUser.name,driverEmail:authenticatedUser.email,
+          driverPhone:authenticatedUser.phone,dept:authenticatedUser.dept,
+          seatsTotal:Number(body.seatsTotal),
+          uberBenchmark:Number(body.uberBenchmark),studentFare:Number(body.studentFare),
+          driverPayout:Number(body.driverPayout),note:body.note||''
+        };
+        if(pgRidesStore){
+          return pgRidesStore.createRide({driverUserId:authenticatedUser.id,ride:cleanRide,client})
+            .then(ride=>({status:201,body:{success:true,ride}}));
+        }
+        const ride=db.createRide(cleanRide);
+        invalidateRidesCache();
+        return {status:201,body:{success:true,ride}};
+      };
+      return pgRidesStore
+        ? pgRidesStore.checkUserSettlementBlock(authenticatedUser.id,client).then(finish)
+        : finish(db.checkUserSettlementBlock(authenticatedUser.email));
+    });
   }
 
   // -----------------------------------------------------------------------
@@ -1426,47 +1513,48 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (method === 'POST' && pathname === '/api/bookings') {
-    const body = await parseBody();
-    if (body.passengerEmail && !isSelf(body.passengerEmail)) {
-      return sendJson(403, { success: false, error: 'NOT_ALLOWED' });
-    }
-    {
-      const settlementCheck = pgRidesStore
-        ? await pgRidesStore.checkUserSettlementBlock(authenticatedUser.id)
-        : db.checkUserSettlementBlock(authenticatedUser.email);
-      if (settlementCheck.isBlocked) {
-        const errorMsg = settlementCheck.hasUnsettledCommission
-          ? `Settlement Required: You have ₹${settlementCheck.commissionDue} in pending platform commission from a previous ride. Please settle via UPI to unlock bookings.`
-          : `Payment Settlement Required: You have an unpaid ride booking (₹${settlementCheck.pendingBookings[0].studentFare} with ${settlementCheck.pendingBookings[0].driverName}). Please settle your ride fare before booking another seat.`;
-
-        return sendJson(403, {
-          success: false,
-          error: 'SETTLEMENT_REQUIRED',
-          message: errorMsg,
-          ...settlementCheck
-        });
-      }
-    }
-
+    const body=await parseBody();
     try {
-      const booking = pgRidesStore
-        ? await pgRidesStore.bookRide({rideId:body.rideId,passengerUserId:authenticatedUser.id})
-        : db.bookRide({
-          rideId: body.rideId,
-          passengerEmail: authenticatedUser.email,
-          passengerName: authenticatedUser.name
-        });
-      invalidateRidesCache();
-      return sendJson(201, { success: true, booking });
-    } catch (err) {
+      return await executeIdempotentMutation(pathname,body,client=>{
+        if(body.passengerEmail && !isSelf(body.passengerEmail)){
+          rejectMutation(403,{success:false,error:'NOT_ALLOWED'});
+        }
+        const finish=settlementCheck=>{
+          if(settlementCheck.isBlocked){
+            const errorMsg=settlementCheck.hasUnsettledCommission
+              ? `Settlement Required: You have ₹${settlementCheck.commissionDue} in pending platform commission from a previous ride. Please settle via UPI to unlock bookings.`
+              : `Payment Settlement Required: You have an unpaid ride booking (₹${settlementCheck.pendingBookings[0].studentFare} with ${settlementCheck.pendingBookings[0].driverName}). Please settle your ride fare before booking another seat.`;
+            rejectMutation(403,{
+              success:false,error:'SETTLEMENT_REQUIRED',message:errorMsg,...settlementCheck
+            });
+          }
+          if(pgRidesStore){
+            return pgRidesStore.bookRide({
+              rideId:body.rideId,passengerUserId:authenticatedUser.id,client
+            }).then(booking=>({status:201,body:{success:true,booking}}));
+          }
+          const booking=db.bookRide({
+            rideId:body.rideId,passengerEmail:authenticatedUser.email,
+            passengerName:authenticatedUser.name
+          });
+          invalidateRidesCache();
+          return {status:201,body:{success:true,booking}};
+        };
+        return pgRidesStore
+          ? client.query('SELECT id FROM public.campus_users WHERE id=$1::uuid FOR UPDATE',
+              [authenticatedUser.id]).then(() =>
+              pgRidesStore.checkUserSettlementBlock(authenticatedUser.id,client).then(finish))
+          : finish(db.checkUserSettlementBlock(authenticatedUser.email));
+      });
+    }catch(err){
       if(pgRidesStore){
         const known=err instanceof RidesError;
         return sendJson(known?err.status:500,{success:false,
           error:known?err.code:'DATABASE_ERROR',
           message:known?err.code:'Booking could not be completed.'});
       }
-      const statusCode = err.message.includes('not found') ? 404 : 400;
-      return sendJson(statusCode, { success: false, message: err.message });
+      const statusCode=err.message.includes('not found')?404:400;
+      return sendJson(statusCode,{success:false,message:err.message});
     }
   }
 
@@ -1508,11 +1596,20 @@ const server = http.createServer(async (req, res) => {
       return sendJson(400, { success: false, message: 'Booking ID required.' });
     }
     try {
-      const result = pgRidesStore
-        ? await pgRidesStore.cancelBooking({bookingId:body.bookingId,passengerUserId:authenticatedUser.id})
-        : db.cancelBooking(body.bookingId, authenticatedUser.email);
-      invalidateRidesCache();
-      return sendJson(200, { success: true, message: 'Booking canceled and seat restored.', ...result });
+      return await executeIdempotentMutation(pathname,body,client=>{
+        if(pgRidesStore){
+          return pgRidesStore.cancelBooking({
+            bookingId:body.bookingId,passengerUserId:authenticatedUser.id,client
+          }).then(result=>({status:200,body:{
+            success:true,message:'Booking canceled and seat restored.',...result
+          }}));
+        }
+        const result=db.cancelBooking(body.bookingId,authenticatedUser.email);
+        invalidateRidesCache();
+        return {status:200,body:{
+          success:true,message:'Booking canceled and seat restored.',...result
+        }};
+      });
     } catch (err) {
       if(pgRidesStore){
         const known=err instanceof RidesError;
@@ -1533,11 +1630,20 @@ const server = http.createServer(async (req, res) => {
       return sendJson(400, { success: false, message: 'Ride ID required.' });
     }
     try {
-      const result = pgRidesStore
-        ? await pgRidesStore.cancelRide({rideId:body.rideId,driverUserId:authenticatedUser.id})
-        : db.cancelRide(body.rideId, authenticatedUser.email);
-      invalidateRidesCache();
-      return sendJson(200, { success: true, message: 'Offered ride canceled.', ...result });
+      return await executeIdempotentMutation(pathname,body,client=>{
+        if(pgRidesStore){
+          return pgRidesStore.cancelRide({
+            rideId:body.rideId,driverUserId:authenticatedUser.id,client
+          }).then(result=>({status:200,body:{
+            success:true,message:'Offered ride canceled.',...result
+          }}));
+        }
+        const result=db.cancelRide(body.rideId,authenticatedUser.email);
+        invalidateRidesCache();
+        return {status:200,body:{
+          success:true,message:'Offered ride canceled.',...result
+        }};
+      });
     } catch (err) {
       if(pgRidesStore){
         const known=err instanceof RidesError;
@@ -1646,7 +1752,7 @@ const server = http.createServer(async (req, res) => {
 
   const startServer = async () => {
     if (pgOtpStore) { await pgOtpStore.ready(); await pgIdentity.pool.query('SELECT 1 FROM campus_users LIMIT 0'); await pgIdentity.pool.query('SELECT 1 FROM campus_sessions LIMIT 0'); }
-    if (pgRidesStore) await pgRidesStore.ready();
+    if (pgRidesStore) { await pgRidesStore.ready(); await pgIdempotency.ready(); }
     if (pgMobilityStore) await pgMobilityStore.ready();
     server.listen(PORT, '0.0.0.0', () => {
     const workerLabel = cluster.isWorker ? `Worker #${cluster.worker.id} (PID: ${process.pid})` : `Standalone Server (PID: ${process.pid})`;

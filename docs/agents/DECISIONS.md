@@ -15,6 +15,8 @@
 | A-009 | Proposed (not implemented) | Prefer PostgreSQL transactional outbox + worker as first reliable async step | Atomic event recording with core DB, fewer moving parts | Measured notification/retry need and benchmark/cost review |
 | A-010 | Proposed (synthetic evidence recorded; not infrastructure approval) | Keep existing PostGIS architecture while collecting representative scale evidence | PR #15 run #41710272878: 128/128 burst, p95 297.87ms, queue 104 with pool24, no sampled lock waits, GiST plan used, 30/35 throttled; synthetic CI is insufficient for a Redis/H3 decision | Representative staging hardware, sustained HTTP and mixed write/read workload, independent review |
 
+| A-011 | Implemented in source behind migration gate | Require per-operation client idempotency keys with durable SQL receipts on business mutations | Duplicate booking/cancel responses and ride creation lack exact retry guarantees; store response in same DB transaction | After CI and bounded replay-probe validation, staging migration and browser/device tests. New HTTP writes remain rate-limited; completed-key read-only probes are separately capped at 12/IP/minute on the unmerged branch. Do NOT apply generic replay to OTP proof/session or external payment/webhook calls |
+
 ## Decision rule for adding infrastructure
 
 1. Reproduce and quantify the problem: request rate, p50/p95/p99, database load, query plans, contention, queue delay, privacy risk or failure case.
@@ -44,3 +46,12 @@
 - **Interpretation and alternatives:** The burst queue reflects application pool contention, not yet a database bottleneck requiring Redis or microservices. Sample 11 monitoring intervals cannot rule out short lock contention. Next compare pool sizing/backpressure, spatial selectivity, query and index tuning, sustained reads+writes, and cost/headroom on approved representative hardware. H3 can be considered for aggregation only if a real need appears; it does not replace road-route verification or PostGIS.
 - **Privacy, cost and safety:** No production, staging, personal data or provider billing. The isolated test bypasses HTTP/auth network overhead, does not reproduce campus travel demand, and uses a database admin role for CI; it is not a student-facing latency SLA. Do not copy staging data into CI.
 - **Next decision trigger:** Independent benchmark review and signed-off sustained API + DB acceptance on isolated staging with recovery and rollback evidence. Otherwise keep the single PostGIS-backed modular monolith.
+
+## A-012 — Conditional staging rollout requires off-site restore proof (2026-11-03 UTC)
+
+- **Status:** conditional/blocked; [task](tasks/2026-11-03-staging-permissions-browser-retry.md), draft PR #11.
+- **Evidence:** Supabase Free staging PG role is non-superuser/non-bypassrls, app tables RLS protected, source migration 008 not applied, seven critical tables empty. Browser retry across same-tab reload and SQL impersonated-role tests passed isolated CI at `282df2c`.
+- **Choice:** Do not apply 008 or deploy until there is an encrypted off-site dump, independently tested restore and a confirmed exact Render staging release/previous-artifact rollback mechanism. Supabase Free does not guarantee automatic daily snapshots.
+- **Rollback:** return app to verified prior deploy and retain additive 008 table; do not DROP active receipts to undo application code. A destructive DB restore requires independent approval, downtime/data-loss review.
+- **Revisit:** after operator provides verified off-site backup integrity, scratch restore result, selected Render workspace/service/branch and rollback SHA.
+

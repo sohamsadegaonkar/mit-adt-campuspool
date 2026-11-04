@@ -175,6 +175,7 @@ test('CampusPool pre-deploy security smoke tests (isolated local database)', { t
       assert.equal(unknown.status,404);
     });
 
+    let completedRideForThrottle = null;
     await t.test('Client-supplied owner email cannot create rides for other students', async () => {
       const rideFields={
         driverEmail:'other@students.mituniversity.edu.in',driverName:'Impersonated',
@@ -182,15 +183,31 @@ test('CampusPool pre-deploy security smoke tests (isolated local database)', { t
         departureTime:'2026-11-05 17:30',seatsTotal:2,uberBenchmark:100,studentFare:60,driverPayout:54
       };
       const blocked=await fetch(base+'/api/rides',{
-        method:'POST',headers:{...authenticatedHeaders,'Content-Type':'application/json'},body:JSON.stringify(rideFields)
+        method:'POST',headers:{...authenticatedHeaders,'Idempotency-Key':crypto.randomUUID(),
+          'Content-Type':'application/json'},body:JSON.stringify(rideFields)
       });
       assert.equal(blocked.status,403);
       rideFields.driverEmail=person.email;
+      const missingKey=await fetch(base+'/api/rides',{
+        method:'POST',headers:{...authenticatedHeaders,'Content-Type':'application/json'},
+        body:JSON.stringify(rideFields)
+      });
+      assert.equal(missingKey.status,428);
+      assert.equal((await missingKey.json()).error,'IDEMPOTENCY_KEY_REQUIRED');
+      const rideKey=crypto.randomUUID();
+      const headers={...authenticatedHeaders,'Idempotency-Key':rideKey,'Content-Type':'application/json'};
       const created=await fetch(base+'/api/rides',{
-        method:'POST',headers:{...authenticatedHeaders,'Content-Type':'application/json'},body:JSON.stringify(rideFields)
+        method:'POST',headers,body:JSON.stringify(rideFields)
       });
       assert.equal(created.status,201);
       const record=(await created.json()).ride;
+      completedRideForThrottle={key:rideKey,body:rideFields,id:record.id};
+      const retry=await fetch(base+'/api/rides',{
+        method:'POST',headers,body:JSON.stringify(rideFields)
+      });
+      assert.equal(retry.status,201);
+      assert.equal(retry.headers.get('Idempotency-Replayed'),'true');
+      assert.equal((await retry.json()).ride.id,record.id);
       assert.equal(record.driverName,person.name);
       const wrongLocation=await fetch(base+'/api/rides/location',{
         method:'POST',headers:{...authenticatedHeaders,'Content-Type':'application/json'},
@@ -238,6 +255,62 @@ test('CampusPool pre-deploy security smoke tests (isolated local database)', { t
       const yaml=fs.readFileSync(path.join(__dirname,'render.yaml'),'utf8');
       assert.match(yaml,/key: SMTP_PASS\s+sync: false/);
     });
+    await t.test('Throttled mutations can only read a bounded completed-key receipt', async () => {
+      // Logout is verified first. A new valid session for the same actor must
+      // still replay the original receipt, which is actor- not cookie-scoped.
+      const freshSession=localDB.createSession(person.email);
+      const newIdentity=await fetch(base+'/api/auth/me',{
+        headers:{Cookie:'cp_session='+freshSession}
+      });
+      assert.equal(newIdentity.status,200);
+      const freshCsrf=(await newIdentity.json()).csrfToken;
+      const headers={Cookie:'cp_session='+freshSession,
+        'X-CSRF-Token':freshCsrf,'Content-Type':'application/json'};
+      let exceeded=false;
+      for(let i=0;i<75;i++){
+        const res=await fetch(base+'/api/bookings/payment-status',{
+          method:'POST',headers,body:'{}'
+        });
+        if(res.status===429){exceeded=true;break;}
+        assert.equal(res.status,501,'Unverified payment routes must remain disabled');
+      }
+      assert.equal(exceeded,true,'Shared mutation budget should be exhausted');
+      const original=completedRideForThrottle;
+      const replayHeaders={...headers,'Idempotency-Key':original.key};
+      const safeReplay=await fetch(base+'/api/rides',{
+        method:'POST',headers:replayHeaders,body:JSON.stringify(original.body)
+      });
+      assert.equal(safeReplay.status,201);
+      assert.equal(safeReplay.headers.get('Idempotency-Replayed'),'true');
+      assert.equal((await safeReplay.json()).ride.id,original.id);
+      const mismatch=await fetch(base+'/api/rides',{
+        method:'POST',headers:replayHeaders,body:JSON.stringify({...original.body,note:'different'})
+      });
+      assert.equal(mismatch.status,409);
+      const blockedNew=await fetch(base+'/api/rides',{
+        method:'POST',headers:{...headers,'Idempotency-Key':crypto.randomUUID()},
+        body:JSON.stringify(original.body)
+      });
+      assert.equal(blockedNew.status,429);
+      assert.ok(Number(blockedNew.headers.get('Retry-After'))>0);
+      const invalidCsrf=await fetch(base+'/api/rides',{
+        method:'POST',headers:{...replayHeaders,'X-CSRF-Token':'0'.repeat(64)},
+        body:JSON.stringify(original.body)
+      });
+      assert.equal(invalidCsrf.status,403);
+      let replayBudgetExhausted=false;
+      for(let i=0;i<16;i++){
+        const probe=await fetch(base+'/api/rides',{
+          method:'POST',headers:replayHeaders,body:JSON.stringify(original.body)
+        });
+        if(probe.status===429){replayBudgetExhausted=true;break;}
+        assert.equal(probe.status,201);
+      }
+      assert.equal(replayBudgetExhausted,true,'Replay probes stay bounded under attack');
+      const count=localDB.getRides().filter(x=>x.id===original.id).length;
+      assert.equal(count,1,'Rate-limited path cannot re-execute the business write');
+    });
+
   } finally {
     try { localDB?.db.close(); } catch {}
     if(child && !child.killed) child.kill('SIGTERM');

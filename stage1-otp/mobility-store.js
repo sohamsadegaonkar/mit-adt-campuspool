@@ -15,13 +15,14 @@ class PgMobilityStore {
     await this.pool.query('SELECT 1 FROM public.campus_trip_intents LIMIT 0');
     await this.pool.query('SELECT 1 FROM public.campus_ride_geo LIMIT 0');
   }
-  async createIntent({studentUserId,pickup,dropoff,earliestDeparture,latestDeparture}={}){
+  async createIntent({studentUserId,pickup,dropoff,earliestDeparture,latestDeparture,client:txClient}={}){
     if(typeof studentUserId!=='string')throw new MobilityError('AUTH_REQUIRED',401);
     const origin=point(pickup),destination=point(dropoff);
     const {first,last,firstBucket}=windowTimes(earliestDeparture,latestDeparture);
-    const client=await this.pool.connect();
+    const ownsClient=!txClient;
+    const client=txClient || await this.pool.connect();
     try{
-      await client.query('BEGIN');
+      if(ownsClient)await client.query('BEGIN');
       // An expired intent cannot indefinitely block a new commute request.
       await client.query([
         "UPDATE public.campus_trip_intents SET status='expired',updated_at=now()",
@@ -42,7 +43,7 @@ class PgMobilityStore {
       const result=await client.query(sql,[id,origin.lon,origin.lat,destination.lon,destination.lat,
         cell(origin),cell(destination),firstBucket,first,last,studentUserId]);
       if(result.rowCount!==1)throw new MobilityError('AUTH_REQUIRED',401);
-      await client.query('COMMIT');
+      if(ownsClient)await client.query('COMMIT');
       const row=result.rows[0];
       return {
         intentId:row.id,status:'active',pickupCell:row.pickup_cell,dropoffCell:row.dropoff_cell,
@@ -50,10 +51,10 @@ class PgMobilityStore {
         latestDeparture:new Date(row.latest_departure).toISOString()
       };
     }catch(err){
-      try{await client.query('ROLLBACK');}catch(_){}
+      if(ownsClient)try{await client.query('ROLLBACK');}catch(_){}
       if(err.code==='23505')throw new MobilityError('ACTIVE_INTENT_EXISTS',409);
       throw err;
-    }finally{client.release();}
+    }finally{if(ownsClient)client.release();}
   }
   async getActiveIntent({studentUserId,intentId}={}){
     if(!studentUserId)throw new MobilityError('AUTH_REQUIRED',401);
@@ -75,12 +76,12 @@ class PgMobilityStore {
       latestDeparture:new Date(item.latest_departure).toISOString()
     }:null;
   }
-  async cancelIntent({studentUserId,intentId}={}){
+  async cancelIntent({studentUserId,intentId,client}={}){
     if(!studentUserId)throw new MobilityError('AUTH_REQUIRED',401);
     if(typeof intentId!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(intentId)){
       throw new MobilityError('INVALID_INTENT',400);
     }
-    const r=await this.pool.query([
+    const r=await (client||this.pool).query([
       "UPDATE public.campus_trip_intents SET status='cancelled',updated_at=now()",
       "WHERE id=$1::uuid AND student_user_id=$2::uuid AND status='active'",
       'RETURNING id'

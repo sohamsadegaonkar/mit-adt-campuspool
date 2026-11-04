@@ -31,7 +31,21 @@
     "test:mobility-bench": "node --test bench/mobility-load.test.js",
     "bench:mobility": "node bench/mobility-load.js",
     "test:runtime-config": "node --test test_runtime_config.js",
-    "check:runtime-config": "node scripts/check-runtime-config.js"
+    "check:runtime-config": "node scripts/check-runtime-config.js",
+    "test:idempotency": "node --test test_idempotency.js",
+    "test:idempotency-pg": "node --test test_pg_idempotency.js",
+    "test:browser-idempotency": "node --test test_browser_idempotency.js",
+    "test:staging-preflight": "node --test test_staging_migration_preflight.js",
+    "test:backup-restore-ci": "node --test test_pg_backup_restore.js",
+    "check:staging-migration": "node scripts/staging-migration-preflight.js",
+    "check:staging-backup": "bash scripts/staging-secure-backup.sh --preflight",
+    "backup:staging-operator": "bash scripts/staging-secure-backup.sh --execute",
+    "test:staging-backup": "node --test test_staging_secure_backup.js",
+    "test:staging-restore-compare": "node --test test_staging_restore_compare.js",
+    "check:staging-restore": "node scripts/staging-restore-compare.js",
+    "test:azure-blob-backup": "node --test test_azure_blob_backup.js",
+    "check:azure-blob-backup": "node scripts/azure-blob-backup.js --preflight",
+    "backup:azure-operator": "node scripts/azure-blob-backup.js --execute"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",

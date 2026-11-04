@@ -123,6 +123,18 @@ class SQLiteCampusDatabase {
         reset_at INTEGER NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS idempotency_keys (
+        actor_hash TEXT NOT NULL,
+        route TEXT NOT NULL,
+        request_key TEXT NOT NULL,
+        request_hash TEXT NOT NULL,
+        response_status INTEGER,
+        response_json TEXT,
+        expires_at INTEGER NOT NULL,
+        PRIMARY KEY (actor_hash, route, request_key)
+      );
+      CREATE INDEX IF NOT EXISTS idx_idempotency_keys_expiry ON idempotency_keys(expires_at);
+
       CREATE TABLE IF NOT EXISTS sessions (
         session_hash TEXT PRIMARY KEY,
         user_email TEXT NOT NULL COLLATE NOCASE,

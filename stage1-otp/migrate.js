@@ -24,7 +24,9 @@ async function migrate({
     await pool.query(ridesSql);
     const mobilitySql=fs.readFileSync(path.join(__dirname,'migrations','007_spatiotemporal_matching.sql'),'utf8');
     await pool.query(mobilitySql);
-    console.log('[OTP MIGRATION] Applied OTP, identity, rides and PostGIS mobility schema migrations');
+    const idemSql=fs.readFileSync(path.join(__dirname,'migrations','008_transactional_idempotency.sql'),'utf8');
+    await pool.query(idemSql);
+    console.log('[OTP MIGRATION] Applied OTP, identity, rides, PostGIS and idempotency schema migrations');
   } finally {
     await pool.end();
   }

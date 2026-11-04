@@ -1,0 +1,10 @@
+{
+  "name": "campuspool-cloud-backup-worker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Minimal Azure managed-identity PostgreSQL streaming backup worker",
+  "dependencies": {
+    "@azure/identity": "4.14.1",
+    "@azure/storage-blob": "12.34.0"
+  }
+}
