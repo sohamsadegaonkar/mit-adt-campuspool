@@ -60,7 +60,11 @@ Create a working, independent Flutter/Dart UI scaffold reflecting CampusPool's F
 
 ## Links and files changed
 
-- Branch: `feat/flutter-campuspool-figma-ui-2026-11-04` (PR link to be added after creation)
+- Branch: `feat/flutter-campuspool-figma-ui-2026-11-04`; review: https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/17
 - Files: `flutter_app/**`, `.github/workflows/flutter-ui.yml`, `docs/agents/tasks/2026-11-04-flutter-figma-ui.md`, `docs/agents/{STATUS,NEXT_STEPS,DECISIONS,ARCHITECTURE_MAP}.md`
 - Figma: https://www.figma.com/design/nwgHXgnnP3VNHW0jdP7qnA?node-id=4-23
 - Deployment SHA: not independently rechecked during this Flutter-only task; no deploy attempted.
+
+### CI checkpoint — 2026-11-04 UTC
+
+- GitHub Actions Flutter run [#41790254714](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41790254714) **analyzer PASS** and 5/6 tests passed. The remaining widget assertion expected a globally unique “Become a runner” label, but both the service card and sticky CTA intentionally use that text. This is a test-selector issue rather than UI behavior: test now scopes both guest buttons to the persistent action bar. Re-run Flutter CI on the next branch commit.

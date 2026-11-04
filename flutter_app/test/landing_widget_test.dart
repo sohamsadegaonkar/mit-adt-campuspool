@@ -8,20 +8,32 @@ void main() {
   testWidgets('logged-out CTA pair remains while exploring rides and errands',
       (tester) async {
     await tester.pumpWidget(const app.CampusPoolApp());
-    expect(find.text('Get started'), findsOneWidget);
-    expect(find.text('Become a runner'), findsOneWidget);
+    final sticky = find.byKey(const Key('stickyGuestActions'));
+    expect(sticky, findsOneWidget);
+    expect(find.descendant(
+      of: sticky, matching: find.text('Get started')), findsOneWidget);
+    expect(find.descendant(
+      of: sticky, matching: find.text('Become a runner')), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('tab_rides')));
     await tester.pumpAndSettle();
     expect(find.text('No live rides to display'), findsOneWidget);
-    expect(find.text('Get started'), findsOneWidget);
-    expect(find.text('Become a runner'), findsOneWidget);
+    final sticky = find.byKey(const Key('stickyGuestActions'));
+    expect(sticky, findsOneWidget);
+    expect(find.descendant(
+      of: sticky, matching: find.text('Get started')), findsOneWidget);
+    expect(find.descendant(
+      of: sticky, matching: find.text('Become a runner')), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('tab_errands')));
     await tester.pumpAndSettle();
     expect(find.text('Request an item'), findsOneWidget);
-    expect(find.text('Get started'), findsOneWidget);
-    expect(find.text('Become a runner'), findsOneWidget);
+    final sticky = find.byKey(const Key('stickyGuestActions'));
+    expect(sticky, findsOneWidget);
+    expect(find.descendant(
+      of: sticky, matching: find.text('Get started')), findsOneWidget);
+    expect(find.descendant(
+      of: sticky, matching: find.text('Become a runner')), findsOneWidget);
   });
 
   testWidgets('price disclosure is collapsed by default and toggles',
