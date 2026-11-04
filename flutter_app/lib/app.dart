@@ -137,6 +137,11 @@ class _CampusShellState extends State<CampusShell> {
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, size) {
       final wide = size.maxWidth >= 900;
+      // The Android IME needs the full remaining viewport for address
+      // predictions. Temporarily hide the guest CTA/nav bars only while
+      // a text field is actively using the on-screen keyboard. On dismiss,
+      // they return to their identical fixed positions.
+      final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
       return Scaffold(
         body: SafeArea(
           child: Column(children: [
@@ -158,8 +163,8 @@ class _CampusShellState extends State<CampusShell> {
                 ),
               ),
             ),
-            if (!wide) _stickyActions(),
-            if (!wide) _navigation(),
+            if (!wide && !keyboardOpen) _stickyActions(),
+            if (!wide && !keyboardOpen) _navigation(),
           ]),
         ),
       );

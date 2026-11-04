@@ -65,3 +65,8 @@ Acceptance:
 - Provider reference: https://developers.google.com/maps/documentation/places/web-service/place-session-tokens
 - Previous PR #23: https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/23
 - Deployment: none.
+
+### Mobile keyboard viewport refinement — 2026-11-04 UTC
+
+- In `flutter_app/lib/app.dart`, hide the fixed guest CTA/navigation bars **only while** Android's soft keyboard occupies the window, allowing the suggestion list to fit. Restore both bars to their original positions as soon as the keyboard closes. This preserves the user's logged-out layout at rest.
+- Add a widget test for the transition (open keyboard → hide CTA/nav; close keyboard → restore), alongside the bounded five-item suggestions test.
