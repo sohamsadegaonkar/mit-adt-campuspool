@@ -107,3 +107,8 @@ The actual PG17 backup/restore steps remain impossible to execute through the av
 
 - Owner reports `Storage Blob Data Contributor` assignment for their Microsoft Entra user at the `campuspool-staging-backups` container scope. Next safe step: Ubuntu-D `az login --use-device-code` with `AZURE_CONFIG_DIR` rooted in `/dev/shm` (tmpfs 0700) and **read-only** `az storage container show --auth-mode login` on the exact storage account and container. Verify private access, proper subscription and successful RBAC. Report only PASS/BLOCKED, not access codes/tokens or IDs.
 - PR #26 remains draft, unmerged. No student data export or cloud test upload occurred; after successful read-only access, test encrypted synthetic upload and independent ciphertext readback. A full cold restore and source/target parity remain mandatory before migration 008 or any protected staging deployment.
+
+## Following successful Azure AGE smoke test — Nov 4 2026
+
+- Owner ran private Entra-authenticated test: AGE-encrypted synthetic payload upload/download/decrypt and test blob deletion — **both PASS**, no database access. Next local step: install the Azure JS SDK in a dedicated non-repository directory, fetch PR #26 in a **new worktree** and run its synthetic tests before preparing restricted preflight. Keep Azure CLI auth cache under verified private `/dev/shm`.
+- Before **any real staging PostgreSQL dump** uploaded to Malaysia West: ensure durable separate AGE private-key custody and recoverability, appropriate student-data cross-border review, credit/billing check, selected-schema backup scope review, local PG17/SDK preflight and an approved independent PG17/PostGIS cold-restore target. Release gating remains **NO-GO**; migration 008, Render and production unchanged.
