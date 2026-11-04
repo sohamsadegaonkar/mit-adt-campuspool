@@ -7,7 +7,7 @@
 - **Baseline:** `feat/flutter-places-autocomplete-2026-11-04@9d57a917fc70d85f6b3592209cc3b259344eb3`; stacked on draft PR #23 → #21 → #19 → #17
 - **Scope:** Flutter suggestion popup and tests; server Places daily cap validation and tests; agent/README handoff. Out of scope: Google billing activation, API key deployment, live student data, release, auth, payment, booking.
 
-## User problem and acceptance criteria
+## Goal and acceptance criteria
 
 On a real Android phone, typing a partial place name should produce a compact, scrollable suggestion list **below the field but above the keyboard**, with Google attribution still visible, and allow Enter/search-key selection. Daily cost-cap configuration must accept tiny test limits without silently rounding up.
 
@@ -18,7 +18,7 @@ Acceptance:
 - `PLACES_DAILY_CAP=1` is accepted for controlled testing; malformed values fail closed when feature enabled. The public endpoint remains disabled without explicit flag and private key.
 - Flutter analyzer/tests, Node mock provider tests, Web release and Android debug build pass on a reproducible exact commit.
 
-## Verified baseline
+## Current state (verified vs assumed)
 
 - PR #23 at `9d57a91` is draft, mergeable, unmerged, not deployed.
 - GitHub Actions Flutter run [#41802737844](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41802737844) **passed static analysis, 39/39 unit/widget tests, Web release compilation and Android debug APK compilation**.
@@ -76,3 +76,8 @@ Acceptance:
 - Branch [draft PR #24](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/24), head source `e0ebb45`. Node Places unit (6/6) + server syntax PASS in [#41805066131](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41805066131), Flutter 3.47.7 analyzer + 41/41 tests PASS in [#41805066120](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41805066120).
 - A stricter test first failed on `1af69cb` because a nested `MediaQuery.viewInsets` was already consumed by `Scaffold`. Fixed on `e0ebb45` using `View.of(context).viewInsets` (real platform window metrics) and a 300px fake IME. Test PASS.
 - Android/Web packaging for corrected source is a separate CI job on the same workflow and was pending when this note was recorded; **no device acceptance** or live Google request has occurred.
+
+## Progress log
+
+- 2026-11-04 UTC — Flutter Places mobile QA and source-only budget controls added; synthetic mobile/Node tests previously passed. Real devices and Google account billing were not validated.
+- 2026-11-05 UTC — Combined branch PR #33 preserves the Flutter UI and opt-in Places proxy, with no live provider requests or production deployment. Source integration is not a release acceptance test.
