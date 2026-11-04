@@ -86,7 +86,7 @@ test('exact source and Azure account/container, verified TLS, private container,
  assert.ok(!JSON.stringify(validate({...env,PGPASSWORD:''})).includes('SYNTHETIC_DB_PASSWORD'));
 });
 test('operator-only preflight requires command versions and Azure SDK, never contacts storage',()=>{
- const v=preflight(env,{versionOk:()=>true,loadSdk:()=>({})});
+ const v=preflight(env,{versionOk:(bin,re)=>bin==='age'?re.test('v1.3.1'):true,loadSdk:()=>({})});
  assert.equal(v.ok,true);
  const denied=preflight(env,{versionOk:()=>false,loadSdk:()=>{throw Error('not installed')}});
  assert.equal(denied.ok,false);
