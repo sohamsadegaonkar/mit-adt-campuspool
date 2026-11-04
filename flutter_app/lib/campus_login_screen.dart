@@ -55,7 +55,7 @@ class _CampusLoginScreenState extends State<CampusLoginScreen> {
   Widget build(BuildContext context) {
     final auth = widget.auth;
     final awaiting = auth?.awaitingCode ?? false;
-    final disabled = auth == null || (auth?.busy ?? false);
+    final disabled = auth == null || auth.busy;
     return Scaffold(
       appBar: AppBar(title: const Text('Campus sign-in')),
       body: SafeArea(
