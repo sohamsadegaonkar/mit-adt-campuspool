@@ -51,6 +51,24 @@ function redactChildEnv(env){
   delete child.PGURI;
   return child;
 }
+function limitedEnv(env,role){
+  // Child processes receive only their specific credentials, never all app secrets.
+  if(!['pg','age','rclone'].includes(role))throw Error('UNKNOWN_CHILD_ROLE');
+  const kept={};
+  const basics=['PATH','HOME','LANG','LC_ALL','TMPDIR','SSL_CERT_FILE','SSL_CERT_DIR'];
+  for(const k of basics)if(typeof env[k]==='string')kept[k]=env[k];
+  if(role==='pg'){
+    for(const k of ['PGUSER','PGHOST','PGPORT','PGDATABASE','PGPASSWORD',
+      'PGSSLMODE','PGSSLROOTCERT','PGCONNECT_TIMEOUT'])
+      if(typeof env[k]==='string')kept[k]=env[k];
+  }
+  if(role==='rclone'){
+    for(const [key,value] of Object.entries(env))
+      if(key.startsWith('RCLONE_CONFIG_CAMPUSPOOLR2_') && typeof value==='string')
+        kept[key]=value;
+  }
+  return kept;
+}
 function wait(child){
   return new Promise((resolve,reject)=>{
     child.once('error',()=>reject(Error('CHILD_START_FAILED')));
@@ -92,13 +110,15 @@ async function backup(env=process.env,
   if(env.R2_EXECUTE_CONFIRMED!=='YES')throw Error('EXECUTE_NOT_AUTHORIZED');
   const key=objectKey(clock,random);
   const object=REMOTE+':'+BUCKET+'/'+key;
-  const pgEnv=redactChildEnv(env);
+  const pgEnv=limitedEnv(env,'pg');
+  const ageEnv=limitedEnv(env,'age');
+  const cloudEnv=limitedEnv(env,'rclone');
   // One pg_dump transaction => consistent snapshot of both schemas; global
   // PostgreSQL roles and Supabase-managed schemas are NOT in this archive.
   const dump=child('pg_dump',['--format=custom','--schema=public',
     '--schema=supabase_migrations','--no-password','--file=-'],pgEnv,spawnImpl);
-  const encrypt=child('age',['--encrypt','--recipient',env.AGE_RECIPIENT],pgEnv,spawnImpl);
-  const upload=child('rclone',['rcat',object,'--s3-no-check-bucket'],pgEnv,spawnImpl);
+  const encrypt=child('age',['--encrypt','--recipient',env.AGE_RECIPIENT],ageEnv,spawnImpl);
+  const upload=child('rclone',['rcat',object,'--s3-no-check-bucket','--config','/dev/null'],cloudEnv,spawnImpl);
   let count=0;
   const hash=crypto.createHash('sha256');
   const tally=new Transform({transform(buf,encoding,done){
@@ -115,7 +135,7 @@ async function backup(env=process.env,
   if(exits.some(x=>x.code!==0)||count<50)throw Error('STREAMING_UPLOAD_FAILED');
   const localDigest=hash.digest('hex');
   // New remote read verifies ciphertext; does NOT decrypt or restore data.
-  const download=child('rclone',['cat',object],pgEnv,spawnImpl);
+  const download=child('rclone',['cat',object,'--config','/dev/null'],cloudEnv,spawnImpl);
   download.stdin.end();
   const downloadExit=wait(download);
   let checkedBytes=0;
@@ -152,4 +172,4 @@ async function main(argv=process.argv.slice(2),env=process.env){
   }
 }
 if(require.main===module)main().then(code=>{process.exitCode=code;});
-module.exports={BUCKET,REMOTE,validate,redactChildEnv,preflight,objectKey,backup,args,main};
+module.exports={BUCKET,REMOTE,validate,redactChildEnv,limitedEnv,preflight,objectKey,backup,args,main};
