@@ -128,3 +128,8 @@ Draft PR #11 now carries a **private operator-only** `scripts/staging-secure-bac
 
 - Owner reports **6/6 local synthetic Azure backup tests passed** on isolated Ubuntu-D worktree following encrypted Azure sample write/read/decrypt/delete PASS. This is not a real DB backup or restoration.
 - Next step is credential-free/local-only `--preflight` using fake sentinel source credentials + age recipient, to verify installed PG17, AGE, Azure CLI, Azure SDK and guarded configuration. Real source credentials, durable AGE key custody and applicable transfer/cost review remain blockers. [Task](tasks/2026-11-04-azure-private-blob-backup.md).
+
+## Azure backup credential-free preflight verified — 2026-11-04 UTC
+
+- Owner reports `AZURE_PREFLIGHT_PASS; no database or blob contacted` on Ubuntu-D with synthetic credentials, after AGE smoke test and 6/6 local synthetic tests. This confirms only installed local tools and source/destination validation; no real PostgreSQL export, actual Azure SDK backup run or independent restore.
+- Next gate is a **recoverable AGE identity**: generate key in private tmpfs, encrypt identity with a strong unique passphrase before any local persistent write, verify decrypting a synthetic file through the encrypted identity, and independently save the encrypted key in a separate secure vault. Any plaintext identity in WSL tmpfs may still face WSL swap risk on unencrypted Windows disks; do not claim full disk confidentiality. [Task](tasks/2026-11-04-azure-private-blob-backup.md).
