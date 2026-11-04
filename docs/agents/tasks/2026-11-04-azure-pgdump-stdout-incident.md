@@ -52,6 +52,13 @@ Make the custom-format PostgreSQL 17 archive reach the AGE encryptor through **s
 - GitHub PR #27 remains draft, unmerged, mergeable; both `postgres-otp` and `azure-synthetic` checks pass at `aa7c558`. Local unit test run 11/11 PASS.
 - This verifies a *shell-level* real PG17 + AGE pipeline, but does **not** exercise the Node uploader's real spawn with a live Azure SDK transfer or prove an off-site archive of actual staging data. No staging/production/Azure write conducted in this test. The local unencrypted file incident remains open.
 
+## Worktree containment and additional Node uploader test (2026-11-04)
+
+- Operator verified `chmod 600` on the potential local plaintext `-` archive (48,600 bytes) and the older empty `-` artifact (0 bytes). The retry checkout `git status --short` prints only `?? -`; corrected `~/campuspool-azure-fixed` checkout is clean. **No archive deletion or secure host-disk erasure is claimed.**
+- Added `test_azure_blob_real_tools.js`: network-isolated disposable PG17 Docker container, synthetic tables, temporary AGE key in `/dev/shm`, actual `run()` orchestration with real `pg_dump` and AGE subprocesses, *in-memory* Blob SDK stand-in, independent AGE decrypt, `pg_restore`, restored row/ledger checks and no local file named `-`. This tests execution of the Node streaming pipeline beyond the original mock-only suite but **never uses real Azure or Supabase**.
+- Added `azure-realtools` GitHub Actions job to install only public test dependencies on an ephemeral runner. Initial CI at `ff97912` **in progress** when the job was recorded. Do not mark it PASS until GitHub reports success.
+- The new test does not independently authenticate real remote ciphertext or demonstrate complete Supabase recovery. Code review, local file remediation and actual staging restore gates remain blocked.
+
 ## Next steps — exact handoff
 
 1. **Operator:** restrict access to accidentally created local file using `chmod 600 -- "$HOME/campuspool-azure-retry/-"`; decide on secure cleanup without claiming deleted disk blocks are unrecoverable; do not commit or upload its contents.
