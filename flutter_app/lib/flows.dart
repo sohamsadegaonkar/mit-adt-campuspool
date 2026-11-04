@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'place_autocomplete_field.dart';
+import 'place_search.dart';
 import 'pricing.dart';
 import 'ride_feed.dart';
 import 'ride_results.dart';
@@ -12,12 +14,14 @@ class RidePreview extends StatefulWidget {
     this.source,
     this.hasVerifiedSession = false,
     this.onSignIn,
+    this.placeSource,
   });
 
   /// Networking is opt-in and requires a verified server session.
   final RideFeedSource? source;
   final bool hasVerifiedSession;
   final VoidCallback? onSignIn;
+  final PlaceSearchSource? placeSource;
 
   @override
   State<RidePreview> createState() => _RidePreviewState();
@@ -114,14 +118,10 @@ class _RidePreviewState extends State<RidePreview> {
           const Text('GOING TO', style: TextStyle(
             fontSize: 11, fontWeight: FontWeight.w700, color: CpColors.muted)),
           const SizedBox(height: 7),
-          TextField(
-            key: const Key('destinationField'),
+          PlaceAutocompleteField(
             controller: _destination,
-            onChanged: (_) => setState(() {}),
-            textInputAction: TextInputAction.search,
-            decoration: const InputDecoration(
-              hintText: 'Choose a destination in Pune',
-              prefixIcon: Icon(Icons.location_on_outlined)),
+            source: widget.placeSource,
+            onQueryChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: 16),
           if (widget.source == null)

@@ -35,6 +35,7 @@ class _CampusPoolAppState extends State<CampusPoolApp> {
     home: CampusShell(
       auth: widget.runtime?.auth,
       rideSource: widget.runtime?.rideSource,
+      placeSource: widget.runtime?.placeSource,
     ),
   );
 }

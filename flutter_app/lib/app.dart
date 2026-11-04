@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'campus_auth.dart';
 import 'campus_login_screen.dart';
 import 'ride_feed.dart';
+import 'place_search.dart';
 import 'flows.dart';
 import 'landing.dart';
 import 'theme.dart';
@@ -11,10 +12,11 @@ import 'widgets.dart';
 enum CampusSection { home, rides, errands, activity, profile }
 
 class CampusShell extends StatefulWidget {
-  const CampusShell({super.key, this.auth, this.rideSource});
+  const CampusShell({super.key, this.auth, this.rideSource, this.placeSource});
 
   final CampusAuthController? auth;
   final RideFeedSource? rideSource;
+  final PlaceSearchSource? placeSource;
 
   @override
   State<CampusShell> createState() => _CampusShellState();
@@ -112,6 +114,7 @@ class _CampusShellState extends State<CampusShell> {
         return RidePreview(
           source: _signedIn ? widget.rideSource : null,
           hasVerifiedSession: _signedIn,
+          placeSource: widget.placeSource,
         );
       case CampusSection.errands:
         return const ErrandDraftFlow();

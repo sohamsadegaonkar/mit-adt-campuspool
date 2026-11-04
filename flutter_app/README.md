@@ -80,3 +80,16 @@ flutter run --dart-define=CAMPUSPOOL_API_ORIGIN=https://approved-campuspool-back
 For local native development, use a loopback address with `adb reverse` to a **disposable local** Node server. Do not target live Render or connected student accounts for testing. The API origin is public configuration; never embed API keys or a session cookie in `--dart-define`.
 
 Browser sessions use a managed HttpOnly cookie on same origin, and are cleared only by server logout; cross-origin Flutter dev server requests are intentionally unsupported because the existing backend does not allow credentialed CORS. Native sessions use an ephemeral, process-memory cookie and require login after a restart. The app refuses to show signed-in UI on OTP success until `/api/auth/me` confirms it. No real users should be invited before backend provider/recovery/release gates pass.
+
+## Phase 4 — Places (New) address suggestions (unmerged draft)
+
+The Rides **GOING TO** field now has a 320ms-debounced suggestions list showing real place title/address parts, loading/empty/rate-limit/error states, and selection confirmation. The selector uses Google Places session tokens and a Place Details lookup before considering a place selected. All API keys remain in the Node backend, never in Dart or Android. **An unconfigured APK remains safe/offline and displays a clear unavailable message rather than fictional locations.**
+
+### Opt-in staging setup (owner review required)
+
+1. In a reviewed Google Cloud project, enable **Places API (New)** and a restrictive budget/quotas, monitor cost. Confirm Google Maps Platform branding, Terms and Privacy requirements; replace the network Google logo with an official bundled asset before release.
+2. Store `GOOGLE_PLACES_API_KEY` privately on a disposable local server or approved staging only; use an API-restricted key with only Places API (New). Configure `PLACES_AUTOCOMPLETE_ENABLED=true` and `PLACES_DAILY_CAP=250` (adjust downward for a paid quota). **Do not add these values to Git or Flutter --dart-define.** No existing Render/production environment is changed by this PR.
+3. Build native Flutter with `--dart-define=CAMPUSPOOL_API_ORIGIN=https://approved-staging-api.example` or use disposable localhost with `adb reverse tcp:3000 tcp:3000` and `CAMPUSPOOL_API_ORIGIN=http://127.0.0.1:3000`. Web requires a same-origin deployed server. Do not test against real student identities.
+4. Type `swargat`: expect Google predictions after ~320ms, select Swargate, see confirmed formatted address. No request/booking is posted by selecting it.
+
+The two public read endpoints are cost-bearing **only when enabled**, with strict per-IP/minute, per-IP/day, and server DB global/day caps; these are not a substitute for Google billing-level quotas or abuse defenses. No full prediction content is persistently cached. See `docs/agents/tasks/2026-11-04-flutter-place-autocomplete.md`.

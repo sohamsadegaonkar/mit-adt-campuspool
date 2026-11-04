@@ -67,3 +67,10 @@
 - **Verification and rollback:** mocked OTP/session/cookie/logout tests; CI compile. Abandon stacked feature branch to roll back with no Node or production changes. [Task](tasks/2026-11-04-flutter-session-login.md).
 
 - **Phase 3 security follow-up (2026-11-04):** Legacy SQLite `login-request` returns account-dependent status and profile fields. The Flutter client rejects such non-generic acknowledgement bodies and refuses to authenticate against them, but this does **not** make the existing server endpoint non-enumerating. Real rollout requires verified Postgres OTP backend, real provider delivery, server response minimization and independent security acceptance. [Task](tasks/2026-11-04-flutter-session-login.md).
+
+## A-014 — Real, cost-capped destination predictions via optional server proxy (proposed, 2026-11-04)
+
+- **Problem:** plain Flutter ride-destination text input gives no address confidence; request a Rapido/Uber-style suggestion dropdown.
+- **Choice:** Google Places API (New) prediction + details using secure session tokens, Pune-biased India search and a private server key. Flutter cannot directly embed an unrestricted Google key. A guest-readable read-only proxy with per-IP and global instance-level caps remains OFF until owner approves billing/attribution/privacy. Explicit coordinate confirmation required after selecting a suggestion.
+- **Rejected:** free-text route destinations treated as geocoded addresses; Nominatim public instance as per-keystroke autocomplete (not compliant with public usage); unrestricted direct Google Places calls from APK; cached prediction lists and made-up example addresses in real UI.
+- **Rollback:** discard branch; default-off flag requires no production rollback, credentials or DB mutation. Tests in `test_places_autocomplete.js` and Flutter widget/HTTP tests. [Task](tasks/2026-11-04-flutter-place-autocomplete.md).

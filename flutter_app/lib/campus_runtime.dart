@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import 'campus_auth.dart';
 import 'ride_feed.dart';
+import 'place_search.dart';
 import 'session_transport.dart';
 import 'session_transport_base.dart';
 
@@ -10,11 +11,12 @@ import 'session_transport_base.dart';
 /// --dart-define=CAMPUSPOOL_API_ORIGIN=same-origin (browser, same origin only)
 /// --dart-define=CAMPUSPOOL_API_ORIGIN=https://approved-api-host (native)
 class CampusRuntime {
-  CampusRuntime._(this.transport, this.auth, this.rideSource);
+  CampusRuntime._(this.transport, this.auth, this.rideSource, this.placeSource);
 
   final CampusSessionClient transport;
   final CampusAuthController auth;
   final RideFeedSource rideSource;
+  final PlaceSearchSource placeSource;
 
   static CampusRuntime? fromEnvironment() {
     const configured = String.fromEnvironment('CAMPUSPOOL_API_ORIGIN');
@@ -35,6 +37,7 @@ class CampusRuntime {
       CampusAuthController(CampusAuthApi(
           origin: origin, client: transport)),
       AuthenticatedRideFeed(origin: origin, client: transport),
+      HttpPlaceSearchSource(origin: origin, client: transport),
     );
   }
 

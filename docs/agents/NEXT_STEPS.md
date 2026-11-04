@@ -59,3 +59,7 @@ See [2026-11-03-agent-workflow.md](tasks/2026-11-03-agent-workflow.md) for the m
 ## Flutter Phase 3 real login — stacked draft, 2026-11-04 UTC
 
 - [OTP/session transport task](tasks/2026-11-04-flutter-session-login.md) is in `feat/flutter-phase3-session-login-2026-11-04`, stacked on draft PR #19 and #17. Verified: analyzer + 28/28 tests and Web release PASS at `503b5ba` (CI #41796997734); unsigned Android debug PASS at earlier `f8d2ccf` (CI #41796440947), latest build still running at checkpoint. Next: isolate and disable the account-enumerating legacy SQLite OTP mode in server configuration, then carry out isolated staging/provider/device tests and signed-off session/CORS/CSRF review. Browser requires **same-origin** Node hosting. Native cookie is memory-only. Do not deploy or merge without independent security review, authentic OTP delivery and release GO.
+
+## Flutter places destination picker — stacked branch, 2026-11-04 UTC
+
+- Review [autocomplete task](tasks/2026-11-04-flutter-place-autocomplete.md) on `feat/flutter-places-autocomplete-2026-11-04` stacked on PR #21. Run Flutter and Node CI, screen/keyboard QA and controlled provider-backed Swargate selection in *disposable local or approved staging* only after separate Google billing/quota/attribution acceptance. The optional public read-only proxy is **OFF by default** and does not authorize production activation. Keep unmerged while cost/privacy/terms requirements remain unverified.
