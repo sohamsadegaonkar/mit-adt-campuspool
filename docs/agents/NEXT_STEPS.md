@@ -117,3 +117,9 @@ The actual PG17 backup/restore steps remain impossible to execute through the av
 
 - Azure owner confirms local 6/6 synthetic tests passed. Run **credential-free** `node scripts/azure-blob-backup.js --preflight` from `~/campuspool-azure-recovery` using **synthetic PGHOST/PGPASSWORD/AGE_RECIPIENT sentinel values** that satisfy config shape and exact destination allowlists; `NODE_PATH` points to separately installed Azure SDK and `AZURE_CONFIG_DIR` is private 0700 tmpfs. This only validates tool versions, packages and config; it performs no DB or cloud query.
 - **Do not** proceed to `--execute` with sentinel values. The live cross-border staging export still requires separately recoverable **durable AGE private identity**, approved student-data transfer/privacy and subscription cost review, and independent recovery target planning. Release gates remain NO-GO.
+
+## Azure preflight passed — next durable AGE recovery key gate (2026-11-04)
+
+- Owner reports `AZURE_PREFLIGHT_PASS; no database or blob contacted` from guarded fake-only CLI preflight. No source/cloud contact. Azure private-container and synthetic AGE upload checks already passed.
+- Execute **only** the persistent AGE encryption-identity key generation procedure in [Azure task](tasks/2026-11-04-azure-private-blob-backup.md), keeping plaintext identity in `/dev/shm` and writing only a strongly passphrase-encrypted identity to local persistent storage. Verify synthetic ciphertext decrypts through this protected identity and independently back up encrypted key/passphrase in approved separate secure storage. Treat WSL swap and key-loss risk as unresolved until reviewed.
+- Do not run `--execute` or any real student-data export to Malaysia until transfer privacy/data-retention and Azure credits are reviewed, durable decryption recovery proved, and separate PG17/PostGIS restore + rollback plan approved. Migration 008, staging/production deploy remain NO-GO.
