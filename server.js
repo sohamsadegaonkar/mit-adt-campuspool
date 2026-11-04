@@ -29,6 +29,15 @@ if (!['sqlite', 'postgres'].includes(RIDES_BACKEND)) throw new Error('RIDES_BACK
 if (RIDES_BACKEND === 'postgres' && AUTH_OTP_BACKEND !== 'postgres')
   throw new Error('PostgreSQL Rides requires PostgreSQL identity backend');
 const MOBILITY_MATCHING_ENABLED = process.env.MOBILITY_MATCHING_ENABLED === 'true';
+// Cost-bearing Places calls stay OFF without an explicitly approved server flag.
+const PLACES_AUTOCOMPLETE_ENABLED = process.env.PLACES_AUTOCOMPLETE_ENABLED === 'true';
+const { createPlacesClient, PlacesError, validInput, validToken, validPlaceId, parseDailyCap } = require('./places-autocomplete');
+const PLACES_CLIENT = PLACES_AUTOCOMPLETE_ENABLED
+  ? createPlacesClient({apiKey: process.env.GOOGLE_PLACES_API_KEY})
+  : null;
+const PLACES_DAILY_CAP = PLACES_AUTOCOMPLETE_ENABLED
+  ? parseDailyCap(process.env.PLACES_DAILY_CAP ?? '250')
+  : 0;
 if (MOBILITY_MATCHING_ENABLED && RIDES_BACKEND !== 'postgres')
   throw new Error('Mobility matching requires PostgreSQL Rides and identity');
 const { PgOtpStore } = AUTH_OTP_BACKEND === 'postgres' ? require('./stage1-otp/pg-store') : { PgOtpStore: null };
@@ -483,6 +492,14 @@ const server = http.createServer(async (req, res) => {
       return null; // Static assets served from memory cache without DB lookup
     }
 
+    // Billable Google Places endpoints use a tighter per-IP limit.
+    if (pathname === '/api/places/suggest') {
+      return { tier: 'PLACES_SUGGEST', limit: 18, windowMs: 60000 };
+    }
+    if (pathname === '/api/places/resolve') {
+      return { tier: 'PLACES_RESOLVE', limit: 8, windowMs: 60000 };
+    }
+
     // Tier 1: Strict Auth Gateways (10 req / min)
     if (
       pathname === '/api/auth/send-email-otp' ||
@@ -661,10 +678,60 @@ const server = http.createServer(async (req, res) => {
     return typeof provided === 'string' && /^[a-f0-9]{64}$/.test(provided)
       && constantTimeMatch(provided, csrfForSession(sessionToken));
   }
-  const publicApiRoute = pathname.startsWith('/api/auth/') || pathname === '/api/health' || pathname === '/api/lb-status' || pathname === '/healthz';
+  const publicApiRoute = pathname.startsWith('/api/auth/') || pathname === '/api/health' ||
+    pathname === '/api/lb-status' || pathname === '/healthz' ||
+    pathname === '/api/places/suggest' || pathname === '/api/places/resolve';
   if (pathname.startsWith('/api/') && !publicApiRoute && !authenticatedUser) {
     return sendJson(401, { success: false, error: 'AUTH_REQUIRED', message: 'Sign in with your verified campus account.' });
   }
+  // The destination picker is a public, read-only, explicitly capped service.
+  // It never stores queries/coordinates, never exposes Google credentials, and
+  // remains disabled unless the owner configures key, quota and billing.
+  if (method === 'POST' && (pathname === '/api/places/suggest' ||
+                            pathname === '/api/places/resolve')) {
+    if (!PLACES_CLIENT) {
+      return sendJson(503, {success:false,error:'LOCATION_SEARCH_NOT_CONFIGURED'});
+    }
+    try {
+      // A JSON body avoids putting typed destinations and session tokens
+      // into browser / reverse-proxy URL logs. Cross-origin JSON requires
+      // preflight, and the server's same-origin CORS policy applies.
+      if (!/^application\/json(?:\s*;|$)/i.test(req.headers['content-type'] || '')) {
+        return sendJson(415,{success:false,error:'JSON_REQUIRED'});
+      }
+      const query = await parseBody();
+      const token = validToken(query.sessionToken);
+      if (pathname === '/api/places/suggest') validInput(query.q);
+      else validPlaceId(query.id);
+
+      // Secondary budget controls in addition to shared per-IP rate limits.
+      // Production must ALSO configure a Google Cloud quota/billing budget,
+      // particularly when deployed as multiple independent DB replicas.
+      const perIpDay = db.checkRateLimit(
+        'places:perip:day:' + getClientIp(), 80, 24 * 60 * 60 * 1000);
+      if (!perIpDay.allowed) {
+        res.setHeader('Retry-After', String(perIpDay.resetSeconds));
+        return sendJson(429, {success:false,error:'LOCATION_SEARCH_RATE_LIMIT'});
+      }
+      const globalDay = db.checkRateLimit(
+        'places:global:day', PLACES_DAILY_CAP, 24 * 60 * 60 * 1000);
+      if (!globalDay.allowed) {
+        res.setHeader('Retry-After', String(globalDay.resetSeconds));
+        return sendJson(429, {success:false,error:'LOCATION_SEARCH_DAILY_LIMIT'});
+      }
+      if (pathname === '/api/places/suggest') {
+        const suggestions = await PLACES_CLIENT.suggest({input:query.q,sessionToken:token});
+        return sendJson(200, {success:true,suggestions,provider:'google'});
+      }
+      const place = await PLACES_CLIENT.resolve({placeId:query.id,sessionToken:token});
+      return sendJson(200, {success:true,place,provider:'google'});
+    } catch (err) {
+      const safeStatus = err instanceof PlacesError ? err.status : 503;
+      const safeCode = err instanceof PlacesError ? err.code : 'LOCATION_PROVIDER_UNAVAILABLE';
+      return sendJson(safeStatus,{success:false,error:safeCode});
+    }
+  }
+
   if (method === 'GET' && pathname === '/api/auth/me') {
     if (!authenticatedUser) {
       return sendJson(401, { success: false, error: 'AUTH_REQUIRED' });

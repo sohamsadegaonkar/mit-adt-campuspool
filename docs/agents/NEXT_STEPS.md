@@ -233,3 +233,29 @@ The actual PG17 backup/restore steps remain impossible to execute through the av
 ## Mainline integration follow-up — 2026-11-05
 
 Historical branch notes above may still call PRs unmerged. The checked integration PR governs final merge status. Keep the latest verified CI evidence and explicit recovery/rollback release gates in the dated consolidation task. Do not deploy merely because code reached main.
+
+## Flutter/Places branch history carried into main — 2026-11-05
+
+Historical headings below were recorded before the combined source merge. The UI remains separate and optional; Google Places billing-dependent endpoints are disabled until explicit provider approval. No Render deployment, staging migration or provider charge was authorized.
+
+## New Flutter client handoff — 2026-11-04 UTC (branch only)
+
+- **P1 / UI review:** [Flutter/Figma Phase 1](tasks/2026-11-04-flutter-figma-ui.md) lives only on `feat/flutter-campuspool-figma-ui-2026-11-04` and does not alter the production web app. **CI verified:** Flutter 3.47.7 analyzer and **6/6 tests pass** in [run #41790737256](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41790737256). **Next:** generate/review Android/iOS shells using `flutter create`, check real phone/tablet/browser screenshots, accessibility and reduced motion, then obtain independent PR review.
+- **After approval only:** design session-based Node API client integration with CSRF, ownership and ride-match privacy guards. Errands, verified pricing, tip top-ups and UPI remain disabled until server implementations and trusted provider callbacks exist. Do not deploy or merge this client as a production release by inference.
+
+## Flutter Phase 2 (stacked, not in main) — 2026-11-04 UTC
+
+- [Phase 2 ride feed / loading states + platform build](tasks/2026-11-04-flutter-phase2-platform-states.md): `feat/flutter-phase2-platform-states-2026-11-04` is stacked on draft PR #17 and **does not deploy**. Verified: Flutter analysis and 19/19 tests pass at `244e06c` (CI #41793703183); web release and Android unsigned debug APK build artifacts pass at `2ad2d51` (CI #41793334499). Next: run manual emulator/browser responsive and reduced-motion checks, review generated native host files, and design real session transport/cookie scoping and privacy. Do **not** wire the simulated signed-in preview to actual protected endpoints.
+- Separate approved work would be needed for a real verified OTP/session flow, Android secure cookie storage, iOS signing, actual rides inventory integration, and errands/payment backend. Existing P0 release blockers retain priority.
+
+## Flutter Phase 3 real login — stacked draft, 2026-11-04 UTC
+
+- [OTP/session transport task](tasks/2026-11-04-flutter-session-login.md) is in `feat/flutter-phase3-session-login-2026-11-04`, stacked on draft PR #19 and #17. Verified: analyzer + 28/28 tests and Web release PASS at `503b5ba` (CI #41796997734); unsigned Android debug PASS at earlier `f8d2ccf` (CI #41796440947), latest build still running at checkpoint. Next: isolate and disable the account-enumerating legacy SQLite OTP mode in server configuration, then carry out isolated staging/provider/device tests and signed-off session/CORS/CSRF review. Browser requires **same-origin** Node hosting. Native cookie is memory-only. Do not deploy or merge without independent security review, authentic OTP delivery and release GO.
+
+## Flutter places destination picker — stacked branch, 2026-11-04 UTC
+
+- Review [autocomplete task](tasks/2026-11-04-flutter-place-autocomplete.md) on `feat/flutter-places-autocomplete-2026-11-04` stacked on PR #21. Flutter analyzer + 39/39 tests PASS (`6cbff8e`), Node 5/5 mock provider tests PASS (`1860647`). Latest Web/Android package build pending CI #41802050615. Next: approve Google Cloud key/quota/attribution, validate on an isolated local or approved staging setup, capture real Swargate selection/device screenshots and test abuse limits. The optional public read-only proxy is **OFF by default** and does not authorize production activation. Keep unmerged while cost/privacy/terms requirements remain unverified.
+
+## Flutter Places mobile QA — 2026-11-04 UTC (branch-only)
+
+- [Mobile keyboard + cost-cap task](tasks/2026-11-04-flutter-places-mobile-qa.md) on `feat/flutter-places-mobile-qa-2026-11-04`: Flutter analyzer and 41 tests PASS, Node Places 6 tests PASS at `e0ebb45`; packaging pending CI #41805066120. Next: inspect web/unsigned Android build artifact, then QA real Android keyboard and scrolling; confirm official logo assets/Terms and Google Cloud billing budget before a controlled provider-enabled test. No release GO, merge or deploy implied.

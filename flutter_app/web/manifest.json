@@ -1,0 +1,9 @@
+{
+  "name": "CampusPool Flutter Preview",
+  "short_name": "CampusPool",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#f4ce37",
+  "description": "A non-production Flutter UI preview of CampusPool"
+}
