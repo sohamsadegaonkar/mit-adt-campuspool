@@ -1,0 +1,41 @@
+name: Azure private encrypted backup synthetic tests
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/azure-blob-backup.js'
+      - 'test_azure_blob_backup.js'
+      - 'scripts/staging-backup-guard.js'
+      - 'package.json'
+      - '.github/workflows/azure-blob-backup-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  azure-synthetic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.2'
+          cache: npm
+      - name: Install exact application dependencies
+        run: npm ci
+      - name: Syntax
+        run: |
+          node --check scripts/azure-blob-backup.js
+          node --check test_azure_blob_backup.js
+      - name: Synthetic encrypted streaming and fail-closed tests (no Azure/DB connection)
+        run: npm run test:azure-blob-backup
+      - name: Verify preflight fails without private credentials
+        run: |
+          if npm run check:azure-blob-backup; then
+            echo "ERROR: Preflight unexpectedly succeeded without operator configuration"
+            exit 1
+          else
+            echo "Expected: Azure backup preflight blocks CI without operator secrets"
+          fi
