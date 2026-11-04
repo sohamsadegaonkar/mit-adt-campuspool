@@ -1,0 +1,35 @@
+name: CampusPool runtime configuration preflight tests
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/check-runtime-config.js'
+      - 'test_runtime_config.js'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/runtime-env-preflight.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-config:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.2'
+          cache: npm
+      - name: Install locked dependencies (no provider/DB secrets)
+        run: npm ci
+      - name: Verify the checker and tests parse
+        run: |
+          node --check scripts/check-runtime-config.js
+          node --check test_runtime_config.js
+      - name: Exercise synthetic production/staging configurations
+        run: npm run test:runtime-config
+      - name: Preserve distinct production release gate
+        run: npm run check:release-ci

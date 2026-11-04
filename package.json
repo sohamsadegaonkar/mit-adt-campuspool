@@ -29,7 +29,9 @@
     "test:mobility-geo": "node --test test_mobility_geo.js",
     "test:mobility-http": "node --test test_pg_mobility_http.js",
     "test:mobility-bench": "node --test bench/mobility-load.test.js",
-    "bench:mobility": "node bench/mobility-load.js"
+    "bench:mobility": "node bench/mobility-load.js",
+    "test:runtime-config": "node --test test_runtime_config.js",
+    "check:runtime-config": "node scripts/check-runtime-config.js"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
