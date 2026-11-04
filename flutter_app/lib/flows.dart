@@ -29,6 +29,7 @@ class RidePreview extends StatefulWidget {
 
 class _RidePreviewState extends State<RidePreview> {
   final TextEditingController _destination = TextEditingController();
+  SelectedPlace? _selectedDestination;
   String _vehicle = 'All';
   String _time = 'Today';
   RideFeedController? _feedController;
@@ -63,7 +64,8 @@ class _RidePreviewState extends State<RidePreview> {
 
   RideFeedSnapshot _filteredSnapshot(RideFeedSnapshot current) {
     if (current.phase != RideFeedPhase.ready) return current;
-    final query = _destination.text.trim().toLowerCase();
+    final query = (_selectedDestination?.title ?? _destination.text)
+        .trim().toLowerCase();
     final rides = current.rides.where((ride) {
       return (_vehicle == 'All' || ride.vehicle == _vehicle) &&
           (query.isEmpty || ride.destination.toLowerCase().contains(query));
@@ -99,9 +101,11 @@ class _RidePreviewState extends State<RidePreview> {
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      const Text('RIDES / GUEST PREVIEW', style:
-        TextStyle(color: CpColors.warning, fontSize: 11,
-          fontWeight: FontWeight.w800)),
+      Text(widget.source == null
+          ? 'RIDES / GUEST PREVIEW'
+          : 'RIDES / VERIFIED SEARCH', style: const TextStyle(
+            color: CpColors.warning, fontSize: 11,
+            fontWeight: FontWeight.w800)),
       const SizedBox(height: 14),
       Text('Find a ride', style: Theme.of(context).textTheme.headlineSmall),
       const SizedBox(height: 7),
@@ -122,6 +126,9 @@ class _RidePreviewState extends State<RidePreview> {
             controller: _destination,
             source: widget.placeSource,
             onQueryChanged: (_) => setState(() {}),
+            onSelected: (place) => setState(() {
+              _selectedDestination = place;
+            }),
           ),
           const SizedBox(height: 16),
           if (widget.source == null)
