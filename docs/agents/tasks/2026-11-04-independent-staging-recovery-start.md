@@ -55,6 +55,22 @@ Actual release GO requires (1) a verified encrypted logical export from the **ex
 - [Stage 1 PostgreSQL #41799053373](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41799053373) **PASS**.
 - These checks validate synthetic shell guard and PostgreSQL operations, **not** a real staging export, off-site transfer or cold restore. Strict NO-GO remains until signed recovery and rollback evidence exists.
 
+## Operator local preflight evidence — November 4, 2026
+
+The operator ran the existing detached recovery worktree at `ec4bb57` from Ubuntu-D WSL2 (directory `~/campuspool-staging-recovery`) and reported **actual local** results:
+
+- `bash -n scripts/staging-secure-backup.sh`: **PASS**.
+- `node --test test_staging_secure_backup.js`: **5 passed, 0 failed, no skipped tests**.
+- `psql --version`: **PostgreSQL 17.11**, appropriate for source PG17.
+- `docker info`: **PASS**, daemon available.
+- `age`, `tar`, `sha256sum`: all found on PATH.
+- `supabase`: **MISSING**. Consequently, no safe `supabase db dump` preflight could run.
+- An initial pasted `source` command contained terminal bracketed-paste control characters; this is unrelated to recovery or the verified Node tests.
+
+**Next specific operator action:** install and verify **Supabase CLI v2.122.1** in a separate user-local directory outside the repository. Version is pinned intentionally: v3 changes command targeting and deprecates `--db-url`; the existing guarded export script uses v2 CLI syntax. Verify `supabase --version` and `supabase db dump --help`, not a real remote dump. Official guidance: https://supabase.com/docs/guides/local-development/cli/migrating-to-v3
+
+The local tests verify source-code safety logic only. Actual encrypted staging export, independent off-site retrieval and cold restore remain **NOT RUN**; actual private operator target/paths/AGE recipient/write-quiescence remain **NOT VERIFIED**.
+
 ## Engineering handoff
 
 - **Next action:** CI review of the five-part backup tool; then operator completes the private Ubuntu-D `--preflight` and returns **only non-sensitive PASS/BLOCKED tool names**. After explicit write pause and verified independent off-site storage, execute export. Decide independently whether to provision scratch project or isolated local Supabase stack before restoring any private records.
