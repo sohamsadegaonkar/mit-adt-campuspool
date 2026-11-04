@@ -62,3 +62,9 @@ The complete independent restore/release gate **still requires** verified global
 - Security smoke #41804980056 also **PASS**. PostgreSQL integration #41804979931 was still running at the first CI observation.
 - Cloudflare connected storage API is not available through current ChatGPT plugins. Bucket, account and token creation require the account owner in Cloudflare dashboard. No Cloudflare credentials were requested, created, logged or shared; no live pg_dump, R2 object or cold restore was attempted.
 - Next exact action: owner creates private Standard bucket `campuspool-staging-backups`, selects restricted Object Read & Write bucket-scoped token, then confirms setup **without sharing the token**. Verify rclone>=1.59 in Ubuntu-D and run safe synthetic credentialless tests, then private environment-only R2 connectivity check before any live source export.
+
+## Validation checkpoint — November 4, 2026, 09:11 UTC
+
+- Code SHA `63a5173b3489f540d137808a9da8df0f7b75a95f`: R2 synthetic workflow **#41805387238 success: 6/6 tests**, zero failures, checks no-credential `--preflight` fails closed. Security smoke workflow #41805387333 also passed.
+- The process environment is now split: `pg_dump` alone sees DB password/TLS vars, `age` sees no DB or R2 secret, `rclone` alone sees R2 access credentials. Rclone commands force `--config /dev/null` so the operator cannot accidentally load a plaintext `rclone.conf` from unencrypted D:.
+- **Not verified:** Cloudflare account, billing acceptance, bucket creation, private token, remote connectivity, real R2 ciphertext object, actual staging logical export or independent cold restore. No secrets were handled by this agent. Staging migration and Render deployments remain NO-GO.
