@@ -16,3 +16,15 @@ npm-debug.log*
 campuspool_database.json
 .DS_Store
 Thumbs.db
+
+# Defense in depth: never package accidentally generated PostgreSQL archives
+# (including the literal filename '-' from the prior pg_dump --file=- incident).
+-
+**/-
+*.pgdump
+*.dump
+*.backup
+*.age
+*.tar
+*.tar.gz
+*.zip
