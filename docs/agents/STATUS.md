@@ -261,3 +261,8 @@ Historical headings below were recorded before the combined source merge. The UI
 
 - **UNMERGED / NOT DEPLOYED:** `feat/flutter-places-mobile-qa-2026-11-04` builds on autocomplete PR #23; caps scrollable suggestion list above the keyboard, adds IME selection and a strict 80-character input bound. Places provider daily request cap now permits 1–1000 calls rather than silently enforcing minimum 20. **Verified:** 6/6 Node Places tests, analyzer + 41/41 Flutter tests PASS at `e0ebb45`; latest Web/Android packaging pending [run #41805066120](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41805066120).
 - No Google billing/keys/Render config/student data changed; source and device QA still required. [Task](tasks/2026-11-04-flutter-places-mobile-qa.md).
+
+## 2026-11-05 — Docker/Git archive hygiene hardening (source only)
+
+- The existing unexpected local PostgreSQL archive filename `-` is still restricted but unremediated on the owner's unencrypted workstation. Add root Docker context exclusions for `-`, `**/-` and archive suffixes; reject tracked backup artifacts in the secret hygiene tests without hiding the local untracked file from `git status`.
+- Work in [dated task](tasks/2026-11-05-repo-dump-hygiene.md). This does not retroactively remove historical secrets, sanitize disk blocks, or prove live recovery. No deploy, staging database migration or Azure job execution. Release NO-GO.
