@@ -54,3 +54,9 @@
 - First CI on original test mocked an incomplete child process (`kill` missing); fixed in test fixture commit `d9f293816f4977485b5b75b23f3c8572b1288af1`, rerun GREEN. No actual Azure/Supabase network access, student records, real secrets, resource writes or deployments.
 - Security smoke run [#41825932006](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41825932006) **PASS** on same code. Other parent-branch workflow result should be checked separately before merge.
 - Actual storage-account creation is owner-reported; private Blob container and RBAC remain unverified. No encrypted blob receipt or cold restore yet.
+
+## Owner IAM checkpoint — November 4, 2026 (reported)
+
+- Owner confirmed assigning **Storage Blob Data Contributor** to their own Microsoft Entra user at exact container scope `011campuspoolbackup/campuspool-staging-backups` through Azure portal, no conditions. This is **owner-reported, not API-verified**; role propagation and actual data-plane permissions remain untested.
+- Before any remote blob write, operator must confirm `az account show` is Azure for Students/Enabled, and run `az storage container show --account-name 011campuspoolbackup --name campuspool-staging-backups --auth-mode login` from Ubuntu-D with Azure CLI token cache on verified private `/dev/shm` tmpfs. Expect private/no anonymous access. A 403 or network policy error is a STOP rather than permission to use shared storage account keys.
+- The operator can then run a **synthetic, AGE-encrypted sample** upload/download test, not the real staging export. Real source data transfer, separate PG17/PostGIS cold restore and Render rollback remain unverified.
