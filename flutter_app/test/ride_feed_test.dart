@@ -110,6 +110,18 @@ void main() {
     controller.dispose();
   });
 
+  test('disposing controller ignores a late network response', () async {
+    final completed = Completer<List<RideSummary>>();
+    final controller = RideFeedController(
+      source: _FakeSource(() => completed.future),
+      hasVerifiedSession: true,
+    );
+    final loading = controller.refresh();
+    controller.dispose();
+    completed.complete([_fixture]);
+    await loading;
+  });
+
   test('logging out discards late server results', () async {
     final completed = Completer<List<RideSummary>>();
     final source = _FakeSource(() => completed.future);
