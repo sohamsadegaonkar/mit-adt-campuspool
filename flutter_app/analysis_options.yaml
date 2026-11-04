@@ -1,0 +1,12 @@
+analyzer:
+  errors:
+    invalid_assignment: error
+    missing_required_argument: error
+    undefined_identifier: error
+    undefined_method: error
+linter:
+  rules:
+    - avoid_print
+    - prefer_const_constructors
+    - prefer_const_literals_to_create_immutables
+    - use_key_in_widget_constructors

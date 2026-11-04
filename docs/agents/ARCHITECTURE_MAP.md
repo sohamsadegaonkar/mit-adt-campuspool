@@ -76,3 +76,23 @@ Maintain a **modular monolith** with isolated domains. PostgreSQL/PostGIS remain
 - Agent-specific progress: distinct files under `docs/agents/tasks/`.
 
 **Rule:** if a diagram or this map disagrees with code or deployed configuration, fix it with evidence before using it to authorize a change.
+
+## Flutter/Places branch history carried into main — 2026-11-05
+
+Historical headings below were recorded before the combined source merge. The UI remains separate and optional; Google Places billing-dependent endpoints are disabled until explicit provider approval. No Render deployment, staging migration or provider charge was authorized.
+
+## Optional Flutter UI client (unmerged proposal, 2026-11-04)
+
+`feat/flutter-campuspool-figma-ui-2026-11-04` introduces `flutter_app/` as a **standalone local UI prototype** beside the existing static website. It has no network API client, no persistent or privileged student state, and no backend migration. Flutter screens reflect the existing Figma white/black/yellow design and local demonstration quote calculations. Do not replace this map's deployed Node frontend diagram until Flutter is reviewed, integrated and explicitly released. See [task record](tasks/2026-11-04-flutter-figma-ui.md).
+
+## Optional Flutter Phase 2 read-only adapter (branch-local, 2026-11-04)
+
+The separate Flutter UI branch introduces `lib/ride_feed.dart`: an opt-in HTTPS/localhost-only HTTP client that checks `GET /api/auth/me` before `GET /api/rides` using an **injected**, already-authenticated transport. There is no account login, credential persistence, or native cookie manager yet. A caller's UI flag alone is not proof of authorization; the existing Node session check remains mandatory. `lib/ride_results.dart` handles explicit state layouts and strips driver contact/UPI and free-form fields from the ride model. This is **not on main or deployed**. See [task](tasks/2026-11-04-flutter-phase2-platform-states.md).
+
+## Proposed Flutter Phase 3 session boundary (unmerged, 2026-11-04)
+
+`campus_auth.dart` requests an email OTP using existing Node endpoints and only marks a session authenticated after an actual successful `GET /api/auth/me` with a server-issued cookie. `session_transport_web.dart` uses browser-managed HttpOnly same-origin credentials, while `session_transport_io.dart` holds `cp_session` solely in native process memory, denies cross-origin and redirects, and discards it on logout. `campus_runtime.dart` requires explicitly configured, reviewed API origin; an unconfigured build remains guest-only. Existing Node authorization/CSRF remains authoritative; no live bookings or payment features are added. This is branch-local and not deployed. [Task](tasks/2026-11-04-flutter-session-login.md).
+
+## Proposed destination autocomplete integration — branch-local (2026-11-04)
+
+Flutter `PlaceAutocompleteField` calls `HttpPlaceSearchSource` using the configured CampusPool origin. The Node server has two narrow optional, publicly readable JSON POST endpoints, `/api/places/suggest` and `/api/places/resolve`, behind `PLACES_AUTOCOMPLETE_ENABLED`. `places-autocomplete.js` calls fixed Google Places (New) endpoints using the **server-only** `GOOGLE_PLACES_API_KEY`. Google session token comes from the Flutter typing/selection session. Strict rate/budget limits are checked in the Node SQLite bucket; external provider quota must be configured separately. No user session, GPS, payment, rides data or production environment is changed by this unmerged branch. [Task](tasks/2026-11-04-flutter-place-autocomplete.md).

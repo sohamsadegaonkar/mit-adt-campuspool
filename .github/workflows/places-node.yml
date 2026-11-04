@@ -1,0 +1,31 @@
+name: Places autocomplete server checks
+
+on:
+  pull_request:
+    paths:
+      - 'places-autocomplete.js'
+      - 'test_places_autocomplete.js'
+      - 'server.js'
+      - '.github/workflows/places-node.yml'
+  push:
+    paths:
+      - 'places-autocomplete.js'
+      - 'test_places_autocomplete.js'
+      - 'server.js'
+      - '.github/workflows/places-node.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  places-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Server syntax check
+        run: node --check server.js
+      - name: Places API adapter tests (no network or keys)
+        run: node --test test_places_autocomplete.js

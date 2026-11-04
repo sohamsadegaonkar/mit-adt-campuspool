@@ -230,3 +230,34 @@ Draft PR #11 now carries a **private operator-only** `scripts/staging-secure-bac
 ## Mainline integration follow-up — 2026-11-05
 
 Historical branch notes above may still call PRs unmerged. The checked integration PR governs final merge status. Keep the latest verified CI evidence and explicit recovery/rollback release gates in the dated consolidation task. Do not deploy merely because code reached main.
+
+## Flutter/Places branch history carried into main — 2026-11-05
+
+Historical headings below were recorded before the combined source merge. The UI remains separate and optional; Google Places billing-dependent endpoints are disabled until explicit provider approval. No Render deployment, staging migration or provider charge was authorized.
+
+## Flutter UI Phase 1 — branch-only, 2026-11-04 UTC
+
+- **UNMERGED / NOT DEPLOYED:** `feat/flutter-campuspool-figma-ui-2026-11-04` adds an isolated `flutter_app/` scaffold matching the Figma guest landing, desktop style, local ride/errand previews, voluntary tip totals and a collapsed price-details accordion. Existing Node/static web, APIs, databases, feature flags and Render services remain unchanged.
+- Contains Dart quote/widget tests and `.github/workflows/flutter-ui.yml`. **CI VERIFIED (source commit `8ff4519`)**: Flutter 3.47.7 `flutter analyze --no-fatal-infos` and **6/6 unit/widget tests PASS** in [run #41790737256](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41790737256). Flutter/Dart SDK unavailable in authoring environment; native/device builds and visual UX QA remain **not verified**.
+- **Safety:** no live sign-in, rides, errands, money movement or student data are enabled in the Flutter demo. Production NO-GO remains unchanged. [Handoff](tasks/2026-11-04-flutter-figma-ui.md).
+
+## Flutter Phase 2 state/API boundary — stacked branch only, 2026-11-04 UTC
+
+- **UNMERGED / NOT DEPLOYED:** `feat/flutter-phase2-platform-states-2026-11-04` is stacked on draft Phase 1 PR #17 (head `df65ad1`); it does not exist on `main`. Adds an authenticated-session-gated, read-only ride-feed adapter; restricts UI data to safe summary fields and adds Figma-aligned loading/empty/error/retry states and tests.
+- Flutter CI extends to generated Android/iOS/web platform hosts, a Flutter web build and an **unsigned debug APK**, without production signing or release. Do not treat these as native distribution or deployment. **Verified:** Flutter analysis and 19/19 tests pass at `244e06c` in [CI #41793703183](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41793703183); web release + Android unsigned debug APK build pass at `2ad2d51` in [CI #41793334499](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41793334499). CI-generated iOS/Android/web hosts exist only as ephemeral build output. No physical-device QA, iOS binary, or production release.
+- Existing Node authorization/CSRF and production NO-GO are unchanged. [Task handoff](tasks/2026-11-04-flutter-phase2-platform-states.md).
+
+## Flutter Phase 3 verified OTP session — draft stacked branch, 2026-11-04 UTC
+
+- **UNMERGED, NOT DEPLOYED:** `feat/flutter-phase3-session-login-2026-11-04` (stacked on draft PR #19 → #17) adds real API-backed email OTP/session validation in Flutter, same-origin Web HttpOnly cookies, memory-only native cp_session transport, CSRF-protected logout and read-only rides after /api/auth/me verification. The old simulated login shortcut has been removed on this branch.
+- No Node/Render/provider/DB/student changes. **Observed:** Flutter 3.47.7 analyzer and 28/28 tests PASS at `503b5ba` in [CI #41796997734](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41796997734); Web release PASS. Android debug succeeded on earlier Phase 3 source `f8d2ccf` in [CI #41796440947](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41796440947); latest build pending at this checkpoint. The Flutter client now rejects account-detail-bearing legacy OTP responses; the backend legacy path is still a P0 privacy risk, not repaired here. Email provider readiness, real device QA, auth privacy/CSRF review, staging backup/rollback and product release gates still block deployment. [Task](tasks/2026-11-04-flutter-session-login.md).
+
+## Flutter ride destination autocomplete (stacked branch only, 2026-11-04 UTC)
+
+- **NOT MERGED / NOT DEPLOYED:** `feat/flutter-places-autocomplete-2026-11-04` builds Google Places (New) prediction / Place Details integration behind private Node API-key proxy and `PLACES_AUTOCOMPLETE_ENABLED` default-off flag. Flutter displays Pune/India suggestions beneath destination input with debounce, selection, keyboard and honest unavailable states. No production data, API keys, provider billing or Render configuration changed.
+- **Verified:** Flutter analyzer + 39/39 tests PASS at `6cbff8e` ([CI #41802050615](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41802050615)); Node Places adapter + server syntax 5/5 PASS at `1860647` ([CI #41801773535](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41801773535)). Latest Web/Android build pending. Google logo/terms, provider quota and physical-device QA are release blockers. [Task](tasks/2026-11-04-flutter-place-autocomplete.md).
+
+## Mobile Places QA follow-up (stacked draft, 2026-11-04 UTC)
+
+- **UNMERGED / NOT DEPLOYED:** `feat/flutter-places-mobile-qa-2026-11-04` builds on autocomplete PR #23; caps scrollable suggestion list above the keyboard, adds IME selection and a strict 80-character input bound. Places provider daily request cap now permits 1–1000 calls rather than silently enforcing minimum 20. **Verified:** 6/6 Node Places tests, analyzer + 41/41 Flutter tests PASS at `e0ebb45`; latest Web/Android packaging pending [run #41805066120](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/41805066120).
+- No Google billing/keys/Render config/student data changed; source and device QA still required. [Task](tasks/2026-11-04-flutter-places-mobile-qa.md).
