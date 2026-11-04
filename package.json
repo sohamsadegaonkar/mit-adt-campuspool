@@ -38,7 +38,10 @@
     "backup:staging-operator": "bash scripts/staging-secure-backup.sh --execute",
     "test:staging-backup": "node --test test_staging_secure_backup.js",
     "test:staging-restore-compare": "node --test test_staging_restore_compare.js",
-    "check:staging-restore": "node scripts/staging-restore-compare.js"
+    "check:staging-restore": "node scripts/staging-restore-compare.js",
+    "test:azure-blob-backup": "node --test test_azure_blob_backup.js",
+    "check:azure-blob-backup": "node scripts/azure-blob-backup.js --preflight",
+    "backup:azure-operator": "node scripts/azure-blob-backup.js --execute"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
