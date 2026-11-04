@@ -259,3 +259,8 @@ Historical headings below were recorded before the combined source merge. The UI
 ## Flutter Places mobile QA — 2026-11-04 UTC (branch-only)
 
 - [Mobile keyboard + cost-cap task](tasks/2026-11-04-flutter-places-mobile-qa.md) on `feat/flutter-places-mobile-qa-2026-11-04`: Flutter analyzer and 41 tests PASS, Node Places 6 tests PASS at `e0ebb45`; packaging pending CI #41805066120. Next: inspect web/unsigned Android build artifact, then QA real Android keyboard and scrolling; confirm official logo assets/Terms and Google Cloud billing budget before a controlled provider-enabled test. No release GO, merge or deploy implied.
+
+## Repo archive containment guard — 2026-11-05
+
+- Review and test source-only archive exclusions and tracked-file checks, [task](tasks/2026-11-05-repo-dump-hygiene.md). Do not hide or commit the existing untracked WSL `-` file; do not treat Docker ignoring as secure erasure.
+- Combine only with green CI and preserve the existing staging encrypted-backup/independent-restore/Render rollback NO-GO. No live deployment from this PR.
