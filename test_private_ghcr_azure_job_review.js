@@ -75,10 +75,14 @@ function compiledFixture(){
 test('compiled ARM has exactly one bounded manual backup container',()=>{
  const good=compiledFixture();
  assert.equal(reviewCompiled(good).status,'COMPILED_STRUCTURE_ELIGIBLE_FOR_REVIEW');
+ const compiledCpu=structuredClone(good);
+ compiledCpu.resources[0].properties.template.containers[0].resources.cpu="[json('0.5')]";
+ assert.equal(reviewCompiled(compiledCpu).status,'COMPILED_STRUCTURE_ELIGIBLE_FOR_REVIEW');
  const mutations=[
   x=>x.resources[0].properties.template.containers.push({name:'another',image:'busybox'}),
   x=>x.resources[0].properties.template.initContainers=[{name:'sidecar'}],
   x=>x.resources[0].properties.template.containers[0].command=['sh'],
+  x=>x.resources[0].properties.template.containers[0].resources.cpu="[json('1.5')]",
   x=>x.resources[0].properties.configuration.registries.push({server:'evil.example'}),
   x=>x.resources[0].properties.template.containers[0].env.push({name:'PGPASSWORD',value:'bad'}),
   x=>x.resources[0].properties.configuration.secrets[0].value='inline-secret',
