@@ -191,8 +191,8 @@ async function run(env,{spawnImpl=spawn,loadSdkImpl=loadSdk,now=new Date(),
     objectKey:key,bytes,ciphertextSHA256:digest};
 }
 async function main(argv=process.argv.slice(2),env=process.env,overrides={}){
-  if(argv.length!==1||!['--preflight','--execute'].includes(argv[0])){
-    process.stderr.write('Usage: node scripts/azure-blob-backup.js --preflight|--execute\n');return 2;
+  if(argv.length!==1||!['--preflight','--execute','--check-tls'].includes(argv[0])){
+    process.stderr.write('Usage: node scripts/azure-blob-backup.js --preflight|--check-tls|--execute\n');return 2;
   }
   // In cloud Key Vault mode, --preflight remains OFFLINE and never reads a
   // secret. Only --execute with explicit approval may fetch it into tmpfs.
@@ -214,7 +214,11 @@ async function main(argv=process.argv.slice(2),env=process.env,overrides={}){
       process.stdout.write('AZURE_VAULT_PREFLIGHT_PASS; no vault, database or blob contacted\n');
       return 0;
     }
-    if(env.AZURE_EXPORT_APPROVED!=='YES'){
+    if(argv[0]==='--check-tls' && env.AZURE_TLS_CHECK_APPROVED!=='YES'){
+      process.stderr.write('STAGING_TLS_BLOCKED EXPLICIT_TLS_APPROVAL_REQUIRED\n');
+      return 1;
+    }
+    if(argv[0]==='--execute' && env.AZURE_EXPORT_APPROVED!=='YES'){
       process.stderr.write('AZURE_BACKUP_BLOCKED EXPLICIT_OPERATOR_APPROVAL_REQUIRED\n');
       return 1;
     }
@@ -224,7 +228,10 @@ async function main(argv=process.argv.slice(2),env=process.env,overrides={}){
         new ManagedIdentityCredential({clientId:env.AZURE_CLIENT_ID}):
         new ManagedIdentityCredential();
       const result=await withProtectedPgpass(env,
-        protectedEnv=>run(protectedEnv,overrides.runOptions||{}),
+        protectedEnv=>argv[0]==='--check-tls'?
+          (overrides.tlsProbe||require('./cloud-backup-tls-probe').stagingTlsProbe)
+            (protectedEnv,overrides.tlsProbeOptions||{}):
+          run(protectedEnv,overrides.runOptions||{}),
         {getToken:scope=>cred.getToken(scope),fetchImpl:overrides.fetchImpl||globalThis.fetch});
       process.stdout.write(JSON.stringify(result)+'\n');return 0;
     }catch(error){
@@ -233,10 +240,15 @@ async function main(argv=process.argv.slice(2),env=process.env,overrides={}){
         'VAULT_PGPASS_VALIDATION_BLOCKED','BACKUP_CONFIGURATION_BLOCKED',
         'EXPLICIT_OPERATOR_APPROVAL_REQUIRED','AZURE_UPLOAD_FAILED',
         'AZURE_READBACK_FAILED','AZURE_CIPHERTEXT_SHA256_MISMATCH']);
-      const category=known.has(error?.message)?error.message:'CLOUD_VAULT_EXPORT_BLOCKED';
-      process.stderr.write('AZURE_BACKUP_BLOCKED '+category+'; restore not verified\n');
+      const category=known.has(error?.message)?error.message:
+        argv[0]==='--check-tls'?'STAGING_TLS_HANDSHAKE_BLOCKED':'CLOUD_VAULT_EXPORT_BLOCKED';
+      process.stderr.write((argv[0]==='--check-tls'?'STAGING_TLS_BLOCKED ':'AZURE_BACKUP_BLOCKED ')+
+        category+'; restore not verified\n');
       return 1;
     }
+  }
+  if(argv[0]==='--check-tls'){
+    process.stderr.write('STAGING_TLS_BLOCKED VAULT_MODE_REQUIRED\n');return 1;
   }
   const p=preflight(env,overrides);
   if(!p.ok){
