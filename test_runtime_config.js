@@ -11,9 +11,8 @@ const otp='synthetic-otp-private-'.padEnd(64,'q');
 const hmac='synthetic-hmac-private-'.padEnd(64,'r');
 const prod={
   NODE_ENV:'production',OTP_SECRET:otp,
-  SMTP_FROM:'CampusPool QA <noreply@example.org>',
-  SMTP_USER:'synthetic@example.org',SMTP_PASS:'synthetic-app-password-for-unit-tests',
-  SMTP_HOST:'smtp.gmail.com',SMTP_PORT:'465',SMTP_SECURE:'true',
+  EMAIL_PROVIDER:'resend',RESEND_API_KEY:'synthetic-test-key-only',
+  EMAIL_FROM:'CampusPool QA <noreply@example.org>',
   AUTH_OTP_BACKEND:'sqlite',RIDES_BACKEND:'sqlite',MOBILITY_MATCHING_ENABLED:'false'
 };
 const staging={
@@ -64,11 +63,21 @@ test('production legacy profile rejects staging switch, live mobility and unexpe
     'LEGACY_RIDES_BACKEND','MOBILITY_FLAG_OFF'])assert.ok(result.failed.includes(code));
 });
 
-test('production SMTP sender and TLS port are checked without connecting to Google',()=>{
-  const result=checkRuntime({target:'production',env:{...prod,SMTP_PORT:'465',SMTP_SECURE:'false',SMTP_PASS:''}});
-  assert.ok(result.failed.includes('SMTP_PORT_TLS_CONSISTENT'));
-  assert.ok(result.failed.includes('SMTP_SENDER_CONFIGURED'));
-  assert.deepEqual(checkRuntime({target:'production',env:{...prod,SMTP_PORT:'587',SMTP_SECURE:'false'}}).failed,[]);
+test('production requires HTTPS provider and sender instead of SMTP credentials',()=>{
+  const bad=checkRuntime({target:'production',env:{
+    ...prod,EMAIL_PROVIDER:'disabled',RESEND_API_KEY:'',EMAIL_FROM:''
+  }});
+  assert.ok(bad.failed.includes('TRANSACTIONAL_EMAIL_PROVIDER_CONFIGURED'));
+  const brevo=checkRuntime({target:'production',env:{
+    ...prod,EMAIL_PROVIDER:'brevo',BREVO_API_KEY:'synthetic-brevo-only',
+    RESEND_API_KEY:''
+  }});
+  assert.deepEqual(brevo.failed,[]);
+  const smtpOnly=checkRuntime({target:'production',env:{
+    ...prod,EMAIL_PROVIDER:'disabled',SMTP_USER:'test@example.org',SMTP_PASS:'fake',
+    SMTP_HOST:'smtp.gmail.com'
+  }});
+  assert.ok(smtpOnly.failed.includes('TRANSACTIONAL_EMAIL_PROVIDER_CONFIGURED'));
 });
 
 test('valid staging Postgres configuration passes known checks but explicitly blocks promotion',()=>{
@@ -130,7 +139,7 @@ test('target flags are explicit and CLI JSON contains no secret values or URLs',
   assert.equal(invoked.status,0,invoked.stderr);
   const data=JSON.parse(invoked.stdout);
   assert.equal(data.status,'CONFIG_CHECKS_PASSED_RELEASE_NOT_APPROVED');
-  for(const secret of [otp,prod.SMTP_PASS,prod.SMTP_USER,prod.SMTP_FROM]){
+  for(const secret of [otp,prod.RESEND_API_KEY,prod.EMAIL_FROM]){
     assert.ok(!invoked.stdout.includes(secret),'secret value leaked to stdout');
     assert.ok(!invoked.stderr.includes(secret),'secret value leaked to stderr');
   }
