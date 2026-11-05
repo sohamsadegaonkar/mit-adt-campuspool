@@ -15,7 +15,7 @@ from pathlib import Path
 MAX_FILE_BYTES = 1024 * 1024
 MAX_ROWS = 5000
 MAX_SERVICES = 200
-SERVICE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 &.,()_+/-]{0,79}$")
+SERVICE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 &.,()_+-]{0,79}$")
 CENT = Decimal("0.01")
 
 
