@@ -7,7 +7,7 @@ const {validCloudPassFile} = require('./cloud-backup-runtime-security');
 
 const SECRET_NAME='campuspool-staging-pg-password';
 const TMPFS_MAGIC=0x01021994;
-const VAULT_HOST_RE=/^campuspool-backup-kv-[a-z0-9]{1,3}\\.vault\\.azure\\.net$/;
+const VAULT_HOST_RE=/^campuspool-backup-kv-[a-z0-9]{1,3}\.vault\.azure\.net$/;
 
 function vaultConfigOk(env){
   if(env.AZURE_AUTH_MODE!=='managed-identity' ||
