@@ -6,6 +6,10 @@ on:
       - 'scripts/azure-blob-backup.js'
       - 'scripts/cloud-backup-runtime-security.js'
       - 'scripts/cloud-backup-vault-bootstrap.js'
+      - 'scripts/age-ciphertext-guard.js'
+      - 'scripts/cloud-backup-tls-probe.js'
+      - 'test_cloud_backup_tls_probe.js'
+      - 'test_age_ciphertext_guard.js'
       - 'test_cloud_backup_vault_bootstrap.js'
       - 'scripts/verify-alpine-zlib-patch.js'
       - 'test_cloud_backup_auth.js'
@@ -59,6 +63,8 @@ jobs:
           node --check scripts/azure-blob-backup.js
           node --check test_cloud_backup_auth.js
           node --test test_cloud_backup_auth.js
+          node --test test_age_ciphertext_guard.js
+          node --test test_cloud_backup_tls_probe.js
           node --test test_cloud_backup_vault_bootstrap.js
           node --test test_cloud_worker_image_policy.js
       - name: Never package secrets in public worker image
@@ -78,7 +84,51 @@ jobs:
         run: |
           docker run --rm --network none --read-only \
             --entrypoint sh campuspool-backup-ci:local -c \
-            'node --version && pg_dump --version && age --version && ! command -v postgres && ! command -v npm && ! command -v npx'
+            'node --version && pg_dump --version && psql --version && age --version && ! command -v postgres && ! command -v npm && ! command -v npx'
+      - name: Check rootless tmpfs passfile materialization in exact container (synthetic only)
+        run: |
+          cat <<'NODE' | docker run --rm -i --network none --read-only \
+            --entrypoint node campuspool-backup-ci:local -
+          const fs=require('node:fs');
+          const {withProtectedPgpass}=require('./scripts/cloud-backup-vault-bootstrap');
+          const host='aws-0-ap-southeast-1.pooler.supabase.com';
+          const secretName='campuspool-staging-pg-password';
+          const base='https://campuspool-backup-kv-01.vault.azure.net';
+          const env={
+            AZURE_AUTH_MODE:'managed-identity',
+            CAMPUSPOOL_CLOUD_WORKER:'YES',
+            AZURE_KEYVAULT_URL:base,AZURE_PG_SECRET_NAME:secretName,
+            PGHOST:host,PGPORT:'5432',PGDATABASE:'postgres',
+            PGUSER:'postgres.tnitksrlntrdxbvznxzf'
+          };
+          const response={
+            ok:true,headers:{get:()=>null},
+            body:new ReadableStream({start(controller){
+              const value=JSON.stringify({
+                id:base+'/secrets/'+secretName+'/abcdef0123456789abcdef0123456789',
+                attributes:{enabled:true},
+                value:'SYNTHETIC_NEVER_A_REAL_SECRET'
+              });
+              controller.enqueue(new TextEncoder().encode(value));
+              controller.close();
+            }})
+          };
+          (async()=>{
+            let created;
+            await withProtectedPgpass(env,async e=>{
+              created=e.PGPASSFILE;
+              const st=fs.statSync(created);
+              if((st.mode&0o777)!==0o600||st.uid!==process.getuid())
+                throw Error('TMPFS_MODE_OR_UID_UNSAFE');
+              if(!created.startsWith('/dev/shm/'))throw Error('WRONG_SECRET_MOUNT');
+            },{
+              getToken:async()=>({token:'SYNTHETIC_CONTAINER_TEST_TOKEN'}),
+              fetchImpl:async()=>response
+            });
+            if(fs.existsSync(created))throw Error('TMPFS_CLEANUP_FAILED');
+            process.stdout.write('ROOTLESS_TMPFS_SECRET_BOOTSTRAP_PASS\\n');
+          })().catch(()=>{process.stderr.write('TMPFS_BOOTSTRAP_BLOCKED\\n');process.exitCode=1;});
+          NODE
       - name: Verify unused privileged gosu helper is absent
         run: |
           docker run --rm --network none --read-only \

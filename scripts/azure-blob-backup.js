@@ -9,6 +9,7 @@ const {Transform,Readable}=require('node:stream');
 const {pipeline}=require('node:stream/promises');
 const {STAGING_REF}=require('./staging-backup-guard');
 const {validCaFile,validCloudPassFile}=require('./cloud-backup-runtime-security');
+const {ageCiphertextGuard}=require('./age-ciphertext-guard');
 const ACCOUNT='011campuspoolbackup';
 const CONTAINER='campuspool-staging-backups';
 function validate(env){
@@ -146,7 +147,9 @@ async function run(env,{spawnImpl=spawn,loadSdkImpl=loadSdk,now=new Date(),
   }});
   const pDump=exit(dump),pAge=exit(age);
   const pPipe=pipeline(dump.stdout,verifyArchiveHeader,age.stdin);
-  const pEncrypt=pipeline(age.stdout,encrypted);
+  // Hold all output until the age v1 X25519 envelope and MAC line are present.
+  // A plaintext PGDMP stream or malformed output must never reach Blob upload.
+  const pEncrypt=pipeline(age.stdout,ageCiphertextGuard(),encrypted);
   const upload=blob.uploadStream(encrypted,4*1024*1024,2,{
     conditions:{ifNoneMatch:'*'},
     blobHTTPHeaders:{blobContentType:'application/octet-stream'}
@@ -162,6 +165,9 @@ async function run(env,{spawnImpl=spawn,loadSdkImpl=loadSdk,now=new Date(),
     if(outcomes[2].status==='rejected' &&
       outcomes[2].reason?.message==='POSTGRES_ARCHIVE_HEADER_INVALID')
       throw Error('POSTGRES_ARCHIVE_HEADER_INVALID');
+    if(outcomes[3].status==='rejected' &&
+      outcomes[3].reason?.message==='AGE_CIPHERTEXT_HEADER_INVALID')
+      throw Error('AGE_CIPHERTEXT_HEADER_INVALID');
     if(outcomes[4].status==='rejected')throw Error(stages[4]);
     const index=outcomes.findIndex((r,i)=>r.status==='rejected'||(i<2&&r.value!==0));
     if(index>=0)throw Error(stages[index]);
@@ -185,8 +191,8 @@ async function run(env,{spawnImpl=spawn,loadSdkImpl=loadSdk,now=new Date(),
     objectKey:key,bytes,ciphertextSHA256:digest};
 }
 async function main(argv=process.argv.slice(2),env=process.env,overrides={}){
-  if(argv.length!==1||!['--preflight','--execute'].includes(argv[0])){
-    process.stderr.write('Usage: node scripts/azure-blob-backup.js --preflight|--execute\n');return 2;
+  if(argv.length!==1||!['--preflight','--execute','--check-tls'].includes(argv[0])){
+    process.stderr.write('Usage: node scripts/azure-blob-backup.js --preflight|--check-tls|--execute\n');return 2;
   }
   // In cloud Key Vault mode, --preflight remains OFFLINE and never reads a
   // secret. Only --execute with explicit approval may fetch it into tmpfs.
@@ -208,7 +214,11 @@ async function main(argv=process.argv.slice(2),env=process.env,overrides={}){
       process.stdout.write('AZURE_VAULT_PREFLIGHT_PASS; no vault, database or blob contacted\n');
       return 0;
     }
-    if(env.AZURE_EXPORT_APPROVED!=='YES'){
+    if(argv[0]==='--check-tls' && env.AZURE_TLS_CHECK_APPROVED!=='YES'){
+      process.stderr.write('STAGING_TLS_BLOCKED EXPLICIT_TLS_APPROVAL_REQUIRED\n');
+      return 1;
+    }
+    if(argv[0]==='--execute' && env.AZURE_EXPORT_APPROVED!=='YES'){
       process.stderr.write('AZURE_BACKUP_BLOCKED EXPLICIT_OPERATOR_APPROVAL_REQUIRED\n');
       return 1;
     }
@@ -218,7 +228,10 @@ async function main(argv=process.argv.slice(2),env=process.env,overrides={}){
         new ManagedIdentityCredential({clientId:env.AZURE_CLIENT_ID}):
         new ManagedIdentityCredential();
       const result=await withProtectedPgpass(env,
-        protectedEnv=>run(protectedEnv,overrides.runOptions||{}),
+        protectedEnv=>argv[0]==='--check-tls'?
+          (overrides.tlsProbe||require('./cloud-backup-tls-probe').stagingTlsProbe)
+            (protectedEnv,overrides.tlsProbeOptions||{}):
+          run(protectedEnv,overrides.runOptions||{}),
         {getToken:scope=>cred.getToken(scope),fetchImpl:overrides.fetchImpl||globalThis.fetch});
       process.stdout.write(JSON.stringify(result)+'\n');return 0;
     }catch(error){
@@ -227,10 +240,15 @@ async function main(argv=process.argv.slice(2),env=process.env,overrides={}){
         'VAULT_PGPASS_VALIDATION_BLOCKED','BACKUP_CONFIGURATION_BLOCKED',
         'EXPLICIT_OPERATOR_APPROVAL_REQUIRED','AZURE_UPLOAD_FAILED',
         'AZURE_READBACK_FAILED','AZURE_CIPHERTEXT_SHA256_MISMATCH']);
-      const category=known.has(error?.message)?error.message:'CLOUD_VAULT_EXPORT_BLOCKED';
-      process.stderr.write('AZURE_BACKUP_BLOCKED '+category+'; restore not verified\n');
+      const category=known.has(error?.message)?error.message:
+        argv[0]==='--check-tls'?'STAGING_TLS_HANDSHAKE_BLOCKED':'CLOUD_VAULT_EXPORT_BLOCKED';
+      process.stderr.write((argv[0]==='--check-tls'?'STAGING_TLS_BLOCKED ':'AZURE_BACKUP_BLOCKED ')+
+        category+'; restore not verified\n');
       return 1;
     }
+  }
+  if(argv[0]==='--check-tls'){
+    process.stderr.write('STAGING_TLS_BLOCKED VAULT_MODE_REQUIRED\n');return 1;
   }
   const p=preflight(env,overrides);
   if(!p.ok){
@@ -248,7 +266,7 @@ async function main(argv=process.argv.slice(2),env=process.env,overrides={}){
     const allowed=new Set(['BACKUP_CONFIGURATION_BLOCKED','EXPLICIT_OPERATOR_APPROVAL_REQUIRED',
       'BACKUP_CHILD_LAUNCH_FAILED','POSTGRES_DUMP_FAILED','AGE_ENCRYPTION_FAILED',
       'POSTGRES_STREAM_FAILED','POSTGRES_ARCHIVE_HEADER_INVALID',
-      'AGE_STREAM_FAILED','AZURE_UPLOAD_FAILED',
+      'AGE_STREAM_FAILED','AGE_CIPHERTEXT_HEADER_INVALID','AZURE_UPLOAD_FAILED',
       'ENCRYPTED_STREAM_TOO_SMALL','AZURE_READBACK_FAILED',
       'AZURE_CIPHERTEXT_SHA256_MISMATCH']);
     const code=allowed.has(error?.message)?error.message:'UNCLASSIFIED_FAILURE';

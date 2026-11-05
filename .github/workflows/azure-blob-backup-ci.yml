@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'scripts/azure-blob-backup.js'
+      - 'scripts/age-ciphertext-guard.js'
+      - 'test_age_ciphertext_guard.js'
       - 'test_azure_blob_backup.js'
       - 'test_azure_blob_real_tools.js'
       - 'scripts/staging-backup-guard.js'

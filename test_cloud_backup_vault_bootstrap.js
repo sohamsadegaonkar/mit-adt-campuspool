@@ -1,6 +1,8 @@
 'use strict';
 // No Azure, Supabase or network calls. All credentials/CA values are synthetic.
 const test=require('node:test');
+const AGE_HEADER='age-encryption.org/v1\n-> X25519 '+'A'.repeat(43)+'\n'+'B'.repeat(43)+'\n--- '+'C'.repeat(43)+'\n';
+
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const tls=require('node:tls');
@@ -46,8 +48,24 @@ const fetchImpl=async (url,request)=>{
   assert.equal(request.method,'GET');
   assert.equal(request.redirect,'error');
   assert.equal(request.headers.Authorization,'Bearer SYNTHETIC_TEST_TOKEN_ONLY');
-  return {ok:true,text:async()=>JSON.stringify({value:PASSWORD})};
+  return secretResponse({value:PASSWORD});
 };
+
+function secretResponse(fields){
+  const payload=JSON.stringify({
+    id:'https://campuspool-backup-kv-01.vault.azure.net/secrets/'+SECRET_NAME+'/'+
+      'abcdef0123456789abcdef0123456789',
+    attributes:{enabled:true},
+    ...fields
+  });
+  return {
+    ok:true,headers:{get:()=>null},
+    body:new ReadableStream({start(controller){
+      controller.enqueue(new TextEncoder().encode(payload));
+      controller.close();
+    }})
+  };
+}
 
 test('cloud URL is precisely restricted to expected staging Key Vault host',()=>{
   assert.equal(vaultConfigOk(env),true);
@@ -100,6 +118,35 @@ test('Vault API failures are sanitized with no token, URI or body leakage',async
     e=>e.message==='VAULT_SECRET_READ_BLOCKED');
 });
 
+test('rejects mismatched or disabled Key Vault secret identity',async()=>{
+  for(const fields of [
+    {id:'https://other-vault.vault.azure.net/secrets/'+SECRET_NAME+'/abcdef0123456789abcdef0123456789'},
+    {id:'https://campuspool-backup-kv-01.vault.azure.net/secrets/other/abcdef0123456789abcdef0123456789'},
+    {attributes:{enabled:false}},
+    {attributes:{enabled:true,exp:1}}
+  ]){
+    await assert.rejects(
+      ()=>fetchPassword(env,{getToken,fetchImpl:async()=>secretResponse({...fields,value:PASSWORD})}),
+      e=>e.message==='VAULT_SECRET_READ_BLOCKED');
+  }
+});
+
+test('rejects oversized Key Vault response without allocating unbounded text',async()=>{
+  let cancelCalled=false;
+  const big=new Uint8Array(20000).fill(65);
+  const response={
+    ok:true,headers:{get:()=>null},
+    body:new ReadableStream({
+      start(controller){controller.enqueue(big);},
+      cancel(){cancelCalled=true;}
+    })
+  };
+  await assert.rejects(
+    ()=>fetchPassword(env,{getToken,fetchImpl:async()=>response}),
+    e=>e.message==='VAULT_SECRET_READ_BLOCKED');
+  assert.equal(cancelCalled,true);
+});
+
 test('offline preflight does not request token, Key Vault, staging or Blob',async()=>{
   const code=await main(['--preflight'],env,{
     versionOk:()=>true,
@@ -139,7 +186,7 @@ test('approved synthetic end-to-end stream uses protected passfile, never plaint
       const chunks=[];
       child.stdin.on('data',part=>chunks.push(part));
       child.stdin.on('end',()=>{
-        child.stdout.end(Buffer.concat([Buffer.from('AGE_SYNTHETIC_CIPHERTEXT'),...chunks]));
+        child.stdout.end(Buffer.concat([Buffer.from(AGE_HEADER),...chunks]));
         child.emit('close',0);
       });
     }else throw Error('Unexpected subprocess');

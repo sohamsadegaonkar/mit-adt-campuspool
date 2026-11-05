@@ -40,6 +40,29 @@ function formatPgpass(env,secret){
   return vals.join(':')+':'+password+'\n';
 }
 
+async function readBoundedSecretResponse(response){
+  if(!response.body||typeof response.body.getReader!=='function')
+    throw Error('VAULT_RESPONSE_NOT_STREAMING');
+  const contentLength=response.headers?.get?.('content-length');
+  if(contentLength && (!/^\\d+$/.test(contentLength)||Number(contentLength)>16384))
+    throw Error('VAULT_RESPONSE_OVERSIZED');
+  const reader=response.body.getReader();
+  const chunks=[];let total=0;
+  try{
+    while(true){
+      const {done,value}=await reader.read();
+      if(done)break;
+      total+=value.byteLength;
+      if(total>16384)throw Error('VAULT_RESPONSE_OVERSIZED');
+      chunks.push(Buffer.from(value));
+    }
+  }finally{
+    if(total>16384)await reader.cancel().catch(()=>{});
+    reader.releaseLock();
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
 async function fetchPassword(env,{getToken,fetchImpl=globalThis.fetch}){
   if(!vaultConfigOk(env))throw Error('VAULT_CONFIGURATION_BLOCKED');
   if(typeof getToken!=='function'||typeof fetchImpl!=='function')
@@ -56,9 +79,15 @@ async function fetchPassword(env,{getToken,fetchImpl=globalThis.fetch}){
       signal:AbortSignal.timeout(10000)
     });
     if(!response?.ok)throw Error('BAD_HTTP');
-    const body=await response.text();
-    if(body.length>16384)throw Error('OVERSIZED_BODY');
-    const json=JSON.parse(body);
+    const json=JSON.parse(await readBoundedSecretResponse(response));
+    const expectedId=vault+'/secrets/'+SECRET_NAME+'/';
+    if(typeof json.id!=='string'||!json.id.startsWith(expectedId)||
+      !/^[0-9a-f]{32}$/i.test(json.id.slice(expectedId.length)))
+      throw Error('UNEXPECTED_SECRET_ID');
+    if(json.attributes?.enabled!==true||
+      (json.attributes?.nbf&&json.attributes.nbf*1000>Date.now())||
+      (json.attributes?.exp&&json.attributes.exp*1000<=Date.now()))
+      throw Error('SECRET_NOT_ACTIVE');
     if(typeof json.value!=='string'||json.value.length===0)
       throw Error('NO_VALUE');
     return json.value;

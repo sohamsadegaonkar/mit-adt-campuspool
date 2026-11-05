@@ -1,6 +1,8 @@
 'use strict';
 // Cloud managed identity tests use only synthetic data and fake SDK clients.
 const test=require('node:test');
+const AGE_HEADER='age-encryption.org/v1\n-> X25519 '+'A'.repeat(43)+'\n'+'B'.repeat(43)+'\n--- '+'C'.repeat(43)+'\n';
+
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const tls=require('node:tls');
@@ -105,7 +107,7 @@ function mock(){
   }else if(program==='age'){
    const buffers=[];
    c.stdin.on('data',b=>buffers.push(b));
-   c.stdin.on('end',()=>{c.stdout.end(Buffer.concat([Buffer.from('CIPHERTEXT'),...buffers]));c.emit('close',0);});
+   c.stdin.on('end',()=>{c.stdout.end(Buffer.concat([Buffer.from(AGE_HEADER),...buffers]));c.emit('close',0);});
   }else throw Error('Unexpected synthetic program');
   return c;
  }
