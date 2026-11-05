@@ -93,7 +93,7 @@ function reviewCompiled(template){
    Object.hasOwn(c||{},'command'),'COMPILED_EXECUTION_NOT_PREFLIGHT');
  const cpu=c?.resources?.cpu;
  // Bicep may keep json('0.5') as an ARM runtime expression rather than folding it.
- const fixedCpu=cpu===0.5||(typeof cpu==='string' && /^\\[json\\('0\\.5'\\)\\]$/.test(cpu));
+ const fixedCpu=cpu===0.5||(typeof cpu==='string' && /^\[json\('0\.5'\)\]$/.test(cpu));
  fail(!fixedCpu||c?.resources?.memory!=='1Gi','COMPILED_RESOURCES_UNREVIEWED');
  const mounts=c?.volumeMounts;
  const volumes=tpl?.volumes;
