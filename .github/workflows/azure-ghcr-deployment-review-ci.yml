@@ -5,6 +5,7 @@ on:
     paths:
       - 'ops/cloud-backup/containerapp-job.private-ghcr.review.bicep'
       - 'scripts/azure-malaysiawest-retail-meters.js'
+      - 'ops/cloud-backup/azure-subscription-cost-readonly.sh'
       - 'scripts/review-private-ghcr-azure-job.js'
       - 'test_azure_malaysiawest_retail_meters.js'
       - 'test_private_ghcr_azure_job_review.js'
@@ -27,6 +28,7 @@ jobs:
         run: |
           node --check scripts/azure-malaysiawest-retail-meters.js
           node --check scripts/review-private-ghcr-azure-job.js
+          bash -n ops/cloud-backup/azure-subscription-cost-readonly.sh
           node --test test_azure_malaysiawest_retail_meters.js
           node --test test_private_ghcr_azure_job_review.js
           node scripts/review-private-ghcr-azure-job.js \
