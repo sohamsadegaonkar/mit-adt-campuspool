@@ -73,3 +73,9 @@ Close the **recovery gate only when all three independent proofs exist**: (a) cl
 - Branch: `ops/recovery-gate-evidence-audit-2026-11-05`
 - Operator [cloud worker runbook](../../ops/CLOUD_AZURE_BACKUP_WORKER.md) and [evidence manifest](../../ops/RECOVERY_EVIDENCE_MANIFEST.md)
 - Current production pinned SHA `1020e2e4a6d4`, staging pinned SHA `cceadbf6251f`.
+
+## Owner-provided Azure provisioning checkpoint — 2026-11-05 UTC
+
+- Owner approved and ran the restricted **empty Container Apps environment** creation using Azure Cloud Shell. Azure CLI returned `campuspool-backup-env` in `campuspool-backup-rg`, `Malaysia West`, with `State: Succeeded`. The connected agent did not perform this Azure operation and has not independently re-read the Azure resource.
+- Updated scope distinction: the **empty environment is created**; a *manual-only backup job*, workload image, Key Vault, scoped identity grants, safe secret distribution, database access, actual encrypted export and independent restore have not been created/verified.
+- Next review: read-only inspection of environment workload profiles, logging configuration and network settings; perform image/dependency hardening and obtain a separate approval for job/vault/image registry/possible costs before provisioning or data access. Keep migration and release **NO-GO**.
