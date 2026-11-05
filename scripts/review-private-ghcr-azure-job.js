@@ -91,8 +91,10 @@ function reviewCompiled(template){
    !image.includes('ghcrImageSha256'),'COMPILED_IMAGE_NOT_FIXED');
  fail(!Array.isArray(c?.args)||c.args.length!==1||c.args[0]!=='--preflight'||
    Object.hasOwn(c||{},'command'),'COMPILED_EXECUTION_NOT_PREFLIGHT');
- fail(!c?.resources||c.resources.cpu!==0.5||c.resources.memory!=='1Gi',
-   'COMPILED_RESOURCES_UNREVIEWED');
+ const cpu=c?.resources?.cpu;
+ // Bicep may keep json('0.5') as an ARM runtime expression rather than folding it.
+ const fixedCpu=cpu===0.5||(typeof cpu==='string' && /^\\[json\\('0\\.5'\\)\\]$/.test(cpu));
+ fail(!fixedCpu||c?.resources?.memory!=='1Gi','COMPILED_RESOURCES_UNREVIEWED');
  const mounts=c?.volumeMounts;
  const volumes=tpl?.volumes;
  fail(!Array.isArray(mounts)||mounts.length!==1||
