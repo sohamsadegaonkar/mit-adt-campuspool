@@ -189,3 +189,54 @@ jobs:
           ignore-unfixed: false
           exit-code: '1'
           skip-setup-trivy: true
+
+  signed-oci-candidate:
+    # PR-local, keyless candidate signing only. Not a registry release or Azure push.
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    needs:
+      - dependency-supply-chain
+      - zlib-source-provenance
+      - managed-identity-guards
+      - worker-image
+      - image-os-vulnerability-scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install review-pinned Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6
+      - name: Build standalone linux/amd64 OCI image archive (no registry push)
+        run: |
+          docker buildx create --use
+          docker buildx build --platform linux/amd64 \
+            -f ops/cloud-backup/Dockerfile \
+            --output type=oci,dest=campuspool-backup-worker-linux-amd64.oci.tar .
+          sha256sum campuspool-backup-worker-linux-amd64.oci.tar \
+            > campuspool-backup-worker-linux-amd64.oci.tar.sha256
+      - name: Sign the exact OCI archive with GitHub OIDC and verify its signer
+        env:
+          COSIGN_YES: "true"
+        run: |
+          cosign sign-blob --yes \
+            --bundle campuspool-backup-worker-linux-amd64.sigstore.json \
+            campuspool-backup-worker-linux-amd64.oci.tar
+          cosign verify-blob \
+            --bundle campuspool-backup-worker-linux-amd64.sigstore.json \
+            --certificate-identity-regexp '^https://github\.com/sohamsadegaonkar/mit-adt-campuspool/\.github/workflows/cloud-backup-worker-ci\.yml@refs/pull/[0-9]+/merge$' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            campuspool-backup-worker-linux-amd64.oci.tar
+          sha256sum --check campuspool-backup-worker-linux-amd64.oci.tar.sha256
+          echo "CANDIDATE_OCI_ARCHIVE_SIGSTORE_VERIFIED; NOT_A_REGISTRY_IMAGE_SIGNATURE"
+      - name: Preserve signed review image archive and exact integrity evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: campuspool-cloud-worker-signed-oci-review
+          path: |
+            campuspool-backup-worker-linux-amd64.oci.tar
+            campuspool-backup-worker-linux-amd64.oci.tar.sha256
+            campuspool-backup-worker-linux-amd64.sigstore.json
+          retention-days: 1
+          if-no-files-found: error
