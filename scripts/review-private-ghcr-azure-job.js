@@ -36,7 +36,7 @@ function review(source){
  const criticalKeys=['triggerType','replicaTimeout','replicaRetryLimit',
    'parallelism','replicaCompletionCount','image','args','passwordSecretRef'];
  for(const name of criticalKeys){
-   const hits=(source.match(new RegExp('\\\\b'+name+'\\\\s*:', 'g'))||[]);
+   const hits=(source.match(new RegExp('\\b'+name+'\\s*:', 'g'))||[]);
    if(hits.length!==1)reasons.push('DUPLICATE_OR_MISSING_CRITICAL_FIELD_'+name);
  }
  const resources=source.match(/\bresource\s+[A-Za-z0-9_]+\s+'Microsoft\.[^']+'/g)||[];
