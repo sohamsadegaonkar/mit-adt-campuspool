@@ -21,7 +21,7 @@ if(!publicCa)throw Error('TEST_PUBLIC_CA_NOT_AVAILABLE');
 fs.writeFileSync(ca,publicCa,{mode:0o600});
 const passfile=tmp+'/pgpass';
 fs.writeFileSync(passfile,
-  'aws-0-ap-southeast-1.pooler.supabase.com:5432:postgres:postgres.tnitksrlntrdxbvznxzf:NOT_A_REAL_PASSWORD\\n',
+  'aws-0-ap-southeast-1.pooler.supabase.com:5432:postgres:postgres.tnitksrlntrdxbvznxzf:NOT_A_REAL_PASSWORD\n',
   {mode:0o600});
 process.on('exit',()=>fs.rmSync(tmp,{recursive:true,force:true}));
 const env={
@@ -61,7 +61,7 @@ test('runtime CA and secret files fail closed on fake PEM, loose permissions and
   assert.ok(validate(env).errors.includes('CLOUD_TMPFS_PGPASS_REQUIRED'));
   fs.chmodSync(passfile,0o600);
   const badPass=tmp+'/badpass';
-  fs.writeFileSync(badPass,'other.pooler.supabase.com:5432:postgres:postgres.tnitksrlntrdxbvznxzf:PASSWORD\\n',
+  fs.writeFileSync(badPass,'other.pooler.supabase.com:5432:postgres:postgres.tnitksrlntrdxbvznxzf:PASSWORD\n',
     {mode:0o600});
   assert.ok(validate({...env,PGPASSFILE:badPass}).errors.includes('CLOUD_TMPFS_PGPASS_REQUIRED'));
   assert.equal(validate(env).ok,true);
