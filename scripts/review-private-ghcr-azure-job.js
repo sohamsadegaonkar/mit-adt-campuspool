@@ -17,7 +17,7 @@ function review(source){
  need(/passwordSecretRef:\s*'ghcr-pull-token'/,'PRIVATE_GHCR_SECRET_REQUIRED');
  need(/server:\s*'ghcr\.io'/,'REGISTRY_SERVER_MISMATCH');
  need(/keyVaultUrl:\s*ghcrPullTokenKeyVaultSecretUrl/,'REGISTRY_TOKEN_VAULT_REF_REQUIRED');
- need(/identity:\s*registrySecretReaderIdentityResourceId/,'VAULT_READER_IDENTITY_REQUIRED');
+ need(/identity:\s*registryPullVaultReaderIdentityResourceId/,'VAULT_READER_IDENTITY_REQUIRED');
  need(/type:\s*'SystemAssigned,UserAssigned'/,'ISOLATED_JOB_IDENTITIES_REQUIRED');
  need(/args:\s*\[\s*'--preflight'\s*\]/,'DEFAULT_PRE_FLIGHT_REQUIRED');
  need(/name:\s*'PGSSLMODE',\s*value:\s*'verify-full'/,'TLS_VERIFY_FULL_REQUIRED');
