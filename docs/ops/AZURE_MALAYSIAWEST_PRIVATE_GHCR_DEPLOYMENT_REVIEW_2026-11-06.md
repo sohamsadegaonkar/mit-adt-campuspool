@@ -1,0 +1,51 @@
+# CampusPool — Malaysia West costs and private GHCR Azure backup job review
+
+**Date:** 2026-11-06 IST. **Owner policy:** ₹500/month **aggregate maximum**, including registry, Vault, private Blob, manual job compute, logging, network/restore transfers, existing charges, applicable taxes/FX, and ₹50/15% reserve. **Status: DESIGN FOR REVIEW; NO CLOUD PROVISIONING OR LIVE DATA.**
+
+## Research and what is actually verified
+
+1. **Subscription-specific actual bill, rates and credit: NOT VERIFIED.** GitHub/Notion connectivity does **not** grant access to the owner's Azure for Students Cost Management tenant. Microsoft explicitly says the [Retail Prices API](https://learn.microsoft.com/en-us/rest/api/cost-management/retail-prices/azure-retail-prices) is *unauthenticated retail* and its non-USD rates are indicative rather than contracted invoicing. The owner's region, tax/FX, student credit, current Blob spend and any plan-specific free grants must be checked using the authenticated subscription billing account. Do **not** certify a ₹500 cap from generic retail numbers.
+2. **Current registry pricing:** [GitHub's container-registry billing documentation](https://docs.github.com/en/billing/concepts/product-billing/github-packages) currently says container image storage and bandwidth for GHCR are free (subject to future policy changes with notice), including private images; confirm actual policy and organization restrictions before adoption. [Microsoft](https://learn.microsoft.com/en-us/azure/container-apps/github-actions) supports private GHCR containers but requires pull credentials.
+3. **ACR comparison:** Azure Container Registry Basic incurs a fixed **daily** charge even when idle. The exact Malaysia West **INR** rate is queried in source-only GitHub CI from Microsoft's public retail API using the `Basic Registry Unit` meter (`1/Day` × 31). This rate must not be mistaken for owner's invoiced rate and must be combined with Vault, Blob, logs, data transfer, taxes and contingency. Do not create ACR if the total cannot reliably fit ₹500.
+4. **Public retail collection:** `node scripts/azure-malaysiawest-retail-meters.js` retrieves current public meter samples for Container Registry, Key Vault, Azure Container Apps, Storage and Monitor, records `NOT_SUBSCRIPTION_BILLING` and never accesses the user's subscription. If the official API is unreachable or returns incomplete meters, it **fails/flags UNVERIFIED** rather than inventing a number. No Azure credentials.
+5. **Owner-specific actual charge:** In the [Azure portal](https://portal.azure.com), open **Cost Management + Billing → Cost analysis**, choose the correct Azure for Students subscription and the existing `campuspool-backup-rg` scope, review current month and daily costs by Resource/Service and forecast. Confirm remaining sponsorship credit in [Azure Education Hub](https://learn.microsoft.com/en-us/azure/education-hub/navigate-costs). Use the [signed-in Azure Pricing Calculator](https://learn.microsoft.com/en-us/azure/cost-management-billing/costs/pricing-calculator) for a subscription-aware 31-day itemized configuration. The portal should be used directly by an authorized owner; **no account IDs, payment cards, full invoices, secrets or student data should be copied to GitHub/Notion/chat**. Record only dated sanitized cost evidence IDs and line-item upper bounds privately.
+6. The aggregate [₹500 budget gate](AZURE_BACKUP_500_INR_BUDGET_GATE.md) must return **`COST_REVIEW_ELIGIBLE`** on genuine reviewed evidence, but *always* returns `provisioningAuthorized:false`. Azure Cost Management budget alerts at ₹250/₹400/₹500 are **warnings**, not hard spend limits.
+
+## Registry choice: PRIVATE GHCR is the budget-first candidate, NOT approved/public
+
+**Recommended candidate:** `ghcr.io/sohamsadegaonkar/campuspool-backup-worker@sha256:<verified manifest digest>` as a **private** GitHub Container Registry package. Do not create/publish it or alter visibility until the owner agrees to the package name and policy.
+
+Why: GHCR's current container-image billing avoids ACR Basic's standing rate while retaining private package authorization; signed OCI digest release and immutable references can preserve supply-chain quality. ACR remains an acceptable **stronger managed-identity pull option** if total owner-billing evidence fits the budget, or if the human security review judges a long-lived GHCR credential unacceptable. Do not save ₹400 by losing rollback/recovery, retention, credential monitoring or independent restore.
+
+**GHCR private controls that are non-negotiable:**
+
+- Build with approved GitHub workflow on reviewed main after PRs #38–#41 are accepted. Re-run full Trivy OS+app and SBOM, **sign and verify the exact GHCR-pushed image manifest digest**, verify issuer + specific trusted release-workflow identity; an earlier signed OCI *archive* isn't the same digest.
+- Generate a separate minimal **read:packages-only** GHCR pull credential; no `write:packages`, broad `repo` or administrator scope unless explicitly justified/approved. Confirm classic PAT lifetime, package visibility, read availability/owner identity and documented revocation + rotation. Do not place it in GitHub logs, shell history, Bicep param files, image layers or worker environment.
+- Keep GHCR token only in an explicitly permitted **Key Vault secret**, referenced by Container Apps Job `configuration.secrets`, with distinct scoped **user-assigned Vault-reader identity**. The Vault data identity and registry secret identity must be reviewed separately; the job's system-assigned identity should only receive staging database password Vault access and private Blob container add/read/write (prefer no-delete custom role).
+- Register **no public ingress** and no scheduled or event trigger. Limit who may create/update/**start** jobs because job starters can override commands and potentially access identities or secret data. Lock logs to safe status and redacted error codes. Keep at least two proven recovery points and a separately protected AGE **private** key.
+- A GHCR provider outage, package deletion, account suspension or token expiry can block recovery runs; explicitly approve a fallback distribution and preserve a verifiable signed OCI archive **outside GHCR** with costed, private retention before treating this as production reliable.
+
+## Prepared Azure configuration (not deployed)
+
+`ops/cloud-backup/containerapp-job.private-ghcr.review.bicep` targets an **existing** Container Apps environment and declares **only one manual Job** for review, not any registry, Vault, log workspace or role assignment:
+
+- Malaysia West, manual trigger, one replica/completion, **zero automatic retries**, 1,800-second timeout, 0.5 vCPU/1 GiB, **`--preflight` default**.
+- Mandatory parameters: existing environment Resource ID, GHCR image digest, GHCR username, previously created user-assigned Vault-reader identity, GHCR pull-token and CA **Key Vault secret URLs**, approved stage Vault URL, source PG host/user, and AGE **public** recipient.
+- Pull token referenced via `configuration.registries[].passwordSecretRef` to a Key Vault secret, **never inline token value**. Public CA PEM is mounted via reviewed Container Apps Secret volume. `PGSSLMODE=verify-full`, protected DB secret bootstrap, existing private Blob, and no `AZURE_EXPORT_APPROVED` or `AZURE_TLS_CHECK_APPROVED` flag present.
+- A job system identity must be separately granted restricted staging Vault-secret read and container-scoped Blob read/add/write **without delete**. Registry/CA reader identity must have narrow independent Key Vault scopes. Roles are neither generated nor applied by this template.
+- **Deployment blocker:** the actual Container Apps Job support for private GHCR Key Vault secret references, CA secret file behavior, non-symlink CA guard, nonroot `/dev/shm` tmpfs, GHCR pull token rotation, log collection, egress and all permissions **must be verified in the target subscription before any job start**. Static Bicep compilation is *not* a live runtime proof.
+
+**No deploy command is provided as an instruction to run now.** `az bicep build --file ops/cloud-backup/containerapp-job.private-ghcr.review.bicep` is **local compilation only**, not provisioning. `scripts/review-private-ghcr-azure-job.js` rejects extra resources, schedules, unapproved retries, insecure secrets, mutable image tag and live export flags. The actual image-ref parameter must be verified against the exact manifest SHA-256 **and** Cosign signature before any authorized deployment.
+
+## Controlled staging TLS and recovery — still blocked
+
+1. Final owner-billing review and independent human security signoff, approved named identities/roles/limits, logs and registry availability.
+2. After explicit **staging-only** approval, run worker `--preflight` in the approved manual job, verify real CA file + TLS chain, target `/dev/shm` mode/ownership, managed identity and private Blob/RBAC; no dump.
+3. Separately authorize `AZURE_TLS_CHECK_APPROVED=YES` plus `--check-tls`; fixed `pg_stat_ssl` query proves only connection TLS 1.2/1.3 with `verify-full`, reading no student tables.
+4. Only after separately approved export, AGE-encrypted PG17 consistent dump to private Blob and full remote SHA-256 readback. **No plaintext PGDMP in cloud logs or files.**
+5. Independent download/decrypt and real protected PG17/PostGIS cold restore, compare schema/ledger, roles, RLS/privileges, counts/content digests and evidence; verify retained Render rollback and synthetic login. Follow existing [PR #37 recovery manifest](https://github.com/sohamsadegaonkar/mit-adt-campuspool/blob/ops/recovery-gate-evidence-audit-2026-11-05/docs/ops/RECOVERY_EVIDENCE_MANIFEST.md).
+6. Only then separately approve OTP staging release, and much later production. All PRs remain drafts; **no actual Azure resource, identity, secret, image, job, data connection or backup was created here**.
+
+## Release decision
+
+**PUBLIC RETAIL REVIEW ≠ SUBSCRIPTION COST.** Authenticated owner billing prices, taxes and other usage remain unknown, so ₹500 budget feasibility is **NOT VERIFIED**. **PRIVATE GHCR is the preferred configuration candidate, not approval to publish or run.** Azure/Render production release and real staging backup/restore stay **NO-GO**.
