@@ -307,3 +307,10 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 2. Generate/commit reproducible `ops/cloud-backup/package-lock.json`, replace `npm install` with `npm ci`, run dependency and container vulnerability scanning, sign and retain final immutable image digest.
 3. Plan owner-approved private registry, minimal job-scoped identity, vault-backed secrets/CA and privacy-safe execution logging. The owner has so far only approved the **empty environment** in Malaysia West; no separate approval for a job/vault/registry/privilege grants or a real export.
 4. Continue gate: independent encrypted staging recovery to separate protected PG17/PostGIS and verified Render rollback before migration/deployment. [Image task](tasks/2026-11-05-cloud-worker-image-hardening.md).
+
+## Following locked cloud worker dependency CI — 2026-11-05 UTC
+
+1. **Completed in draft PR #38:** reproducible `package-lock.json` (66 package entries), `npm ci` image build and blocking npm audit (0 advisories on 2026-11-05). Keep exact-commit CI green after handoff updates.
+2. **Next code/security work:** trusted OS/base image scanner and SBOM, review pinned parent CVEs and final signed image digest; review privacy-safe Container Apps logs, managed identity, CA, vault secrets, outbound network and scoped Azure Blob RBAC.
+3. **Owner approval required:** private registry, job, Key Vault, privilege grants, any resource cost and real staging export. Only an *empty* Consumption Container Apps environment `campuspool-backup-env` in Malaysia West has been approved/verified by owner CLI, with no log sink or jobs.
+4. **Still NO-GO:** actual offsite encrypted staging backup, independently restored protected PG17/PostGIS archive, Render retained rollback; only then staging OTP rollout and subsequently production with real providers. [PR #36](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/36) is not live.
