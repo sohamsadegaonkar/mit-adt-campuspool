@@ -23,7 +23,7 @@ const env={
  AGE_RECIPIENT:'age1'+'a'.repeat(58),
  AZURE_CONFIG_DIR:dir,AZURE_EXPORT_APPROVED:'YES'
 };
-function mock({corrupt=false,uploadError=false,pgFailed=false,ageFailed=false,
+function mock({corrupt=false,uploadError=false,pgFailed=false,ageFailed=false,agePlaintext=false,
   downloadError=false,pgBytes=Buffer.from('PGDMP'+'.'.repeat(120))}={}){
  let stored,opts;
  const commands=[];
@@ -44,7 +44,7 @@ function mock({corrupt=false,uploadError=false,pgFailed=false,ageFailed=false,
      const finish=code=>{
        if(finished)return;
        finished=true;
-       c.stdout.end(Buffer.concat([Buffer.from(AGE_HEADER),...chunks]));
+       c.stdout.end(Buffer.concat([Buffer.from(agePlaintext?'PGDMP':AGE_HEADER),...chunks]));
        c.emit('close',code);
      };
      c.stdin.on('end',()=>finish(ageFailed?1:0));
@@ -115,7 +115,7 @@ test('encrypted streaming upload uses a consistent two-schema PostgreSQL snapsho
  const result=await run(env,{spawnImpl:m.spawnImpl,loadSdkImpl:m.loadSdkImpl,
    now:new Date('2026-11-04T12:00:00Z'),nonce:Buffer.alloc(16,1)});
  assert.equal(result.status,'AZURE_CIPHERTEXT_READBACK_MATCH_RESTORE_NOT_TESTED');
- assert.ok(m.getStored().toString().startsWith('CIPHERTEXT:'));
+ assert.ok(m.getStored().toString().startsWith('age-encryption.org/v1\n'));
  assert.equal(result.ciphertextSHA256,crypto.createHash('sha256').update(m.getStored()).digest('hex'));
  const pg=m.commands.find(x=>x.program==='pg_dump');
  assert.deepEqual(pg.args,['--format=custom','--schema=public',
@@ -131,6 +131,12 @@ test('empty or malformed pg_dump stdout cannot be verified as an encrypted backu
    await assert.rejects(run(env,{spawnImpl:m.spawnImpl,loadSdkImpl:m.loadSdkImpl}),
      e=>e.message==='POSTGRES_ARCHIVE_HEADER_INVALID');
  }
+});
+test('a misleading age process returning plaintext is rejected before remote upload',async()=>{
+ const m=mock({agePlaintext:true});
+ await assert.rejects(run(env,{spawnImpl:m.spawnImpl,loadSdkImpl:m.loadSdkImpl}),
+   e=>e.message==='AGE_CIPHERTEXT_HEADER_INVALID');
+ assert.equal(m.getStored(),undefined,'no object should be successfully uploaded');
 });
 test('tampered Azure readback fails; the upload does not approve any restore',async()=>{
  await assert.rejects(run(env,{...mock({corrupt:true})}),/AZURE_CIPHERTEXT_SHA256_MISMATCH/);
