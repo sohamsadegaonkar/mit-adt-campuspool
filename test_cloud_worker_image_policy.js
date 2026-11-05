@@ -30,6 +30,7 @@ test('worker defaults to non-root, preflight-only and copies allowlisted files',
     assert.doesNotMatch(line, /(?:^|\s)(?:\.|\.\.\/|\/)(?:\s|$)/, 'no broad/unrestricted COPY');
   }
   assert.doesNotMatch(docker, /^(?:ARG|ENV)\s+(?:PGPASSWORD|AGE_IDENTITY|AZURE_STORAGE_KEY)\s*=/mi);
+  assert.match(docker, /^COPY scripts\/cloud-backup-runtime-security\.js \.\/scripts\/cloud-backup-runtime-security\.js$/m);
 });
 
 test('runtime uses pinned Alpine client-only packages without Debian, curl or server', () => {
