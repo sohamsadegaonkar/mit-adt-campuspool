@@ -1,6 +1,6 @@
 # Agent task — GHCR-default, ACR-ready Azure backup image pull
 
-**Date:** 2026-11-06 IST. **Status:** source-only draft; CI and human review pending. **Base:** draft PR #42 `ops/azure-private-ghcr-deployment-review-2026-11-06`. **Branch:** `ops/azure-ghcr-acr-portability-review-2026-11-06`.
+**Date:** 2026-11-06 IST. **Status:** source-only draft; new portability CI PASS at `45e2674aa531888dca10d073d12bb14ffd2e4f3d`; independent security and cloud review pending. **Base:** draft PR #42 `ops/azure-private-ghcr-deployment-review-2026-11-06`. **Branch:** `ops/azure-ghcr-acr-portability-review-2026-11-06`.
 
 ## Decision and constraints
 
