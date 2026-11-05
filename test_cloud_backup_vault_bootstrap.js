@@ -1,6 +1,8 @@
 'use strict';
 // No Azure, Supabase or network calls. All credentials/CA values are synthetic.
 const test=require('node:test');
+const AGE_HEADER='age-encryption.org/v1\n-> X25519 '+'A'.repeat(43)+'\n'+'B'.repeat(43)+'\n--- '+'C'.repeat(43)+'\n';
+
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const tls=require('node:tls');
@@ -139,7 +141,7 @@ test('approved synthetic end-to-end stream uses protected passfile, never plaint
       const chunks=[];
       child.stdin.on('data',part=>chunks.push(part));
       child.stdin.on('end',()=>{
-        child.stdout.end(Buffer.concat([Buffer.from('AGE_SYNTHETIC_CIPHERTEXT'),...chunks]));
+        child.stdout.end(Buffer.concat([Buffer.from(AGE_HEADER),...chunks]));
         child.emit('close',0);
       });
     }else throw Error('Unexpected subprocess');
