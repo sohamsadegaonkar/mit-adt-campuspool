@@ -29,6 +29,12 @@ jobs:
         working-directory: ops/cloud-backup
         run: |
           node -e "const x=require('./package-lock.json'); if(x.lockfileVersion!==3 || !x.packages || !x.packages['']) process.exit(1)"
+      - name: Export the nonsecret npm lockfile for PR authoring
+        working-directory: ops/cloud-backup
+        run: |
+          echo "LOCKFILE_B64_BEGIN"
+          base64 -w 400 package-lock.json
+          echo "LOCKFILE_B64_END"
       - uses: actions/upload-artifact@v4
         with:
           name: cloud-worker-package-lock
