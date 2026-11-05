@@ -1,0 +1,83 @@
+name: Azure Malaysia West retail rates and private GHCR configuration review
+
+on:
+  pull_request:
+    paths:
+      - 'ops/cloud-backup/containerapp-job.private-ghcr.review.bicep'
+      - 'scripts/azure-malaysiawest-retail-meters.js'
+      - 'ops/cloud-backup/azure-subscription-cost-readonly.sh'
+      - 'scripts/review-private-ghcr-azure-job.js'
+      - 'test_azure_malaysiawest_retail_meters.js'
+      - 'test_private_ghcr_azure_job_review.js'
+      - '.github/workflows/azure-ghcr-deployment-review-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  no-cloud-deployment-configuration-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.2'
+      - name: Validate all source-only vendor-price and config tests
+        run: |
+          node --check scripts/azure-malaysiawest-retail-meters.js
+          node --check scripts/review-private-ghcr-azure-job.js
+          bash -n ops/cloud-backup/azure-subscription-cost-readonly.sh
+          node --test test_azure_malaysiawest_retail_meters.js
+          node --test test_private_ghcr_azure_job_review.js
+          node scripts/review-private-ghcr-azure-job.js \
+            ops/cloud-backup/containerapp-job.private-ghcr.review.bicep
+      - name: Compile Bicep job to ARM JSON, no Azure subscription access
+        run: |
+          command -v az
+          az bicep build --file ops/cloud-backup/containerapp-job.private-ghcr.review.bicep --stdout > /tmp/campuspool-job-review-arm.json
+          node scripts/review-private-ghcr-azure-job.js --compiled /tmp/campuspool-job-review-arm.json
+          echo "ARM_SCHEMA_COMPILE_PASS; NO_AZURE_RESOURCES_MODIFIED"
+
+  public-pricing-evidence-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.2'
+      - name: Fetch official unauthenticated Malaysia West INR retail meters
+        id: prices
+        continue-on-error: true
+        run: |
+          node scripts/azure-malaysiawest-retail-meters.js > /tmp/campuspool-public-retail-rates.json
+      - name: Print official ACR daily-rate evidence (public only)
+        if: steps.prices.outcome == 'success'
+        run: |
+          node <<'NODE'
+          const x=require('/tmp/campuspool-public-retail-rates.json');
+          const meter=x.details?.['Container Registry']?.basicRegistry;
+          if(meter?.status==='PUBLIC_RETAIL_RATE_ONLY'){
+            console.log('MALAYSIA_WEST_PUBLIC_ACR_BASIC_INR_DAY '+meter.rateInrPerDay);
+            console.log('MALAYSIA_WEST_PUBLIC_ACR_BASIC_INR_31_DAYS '+meter.thirtyOneDayInr);
+          }else{
+            console.log('MALAYSIA_WEST_PUBLIC_ACR_BASIC_UNVERIFIED '+(meter?.reason||'UNKNOWN'));
+          }
+          console.log('NOT_SUBSCRIPTION_BILLING; TAXES_OTHER_SERVICES_AND_CREDITS_UNVERIFIED');
+          NODE
+      - name: Preserve only public retail-rate sample if Microsoft responded
+        if: steps.prices.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: campuspool-azure-malaysiawest-public-retail-rates
+          path: /tmp/campuspool-public-retail-rates.json
+          retention-days: 7
+          if-no-files-found: error
+      - name: Make clear account billing/pricing remains unverified
+        run: |
+          echo "PUBLIC_RETAIL_NOT_SUBSCRIPTION_COST; ALL_PROVISIONING_DISABLED"
+          echo "Owner-specific Malaysia West actual costs, taxes and credit must be reviewed privately."
