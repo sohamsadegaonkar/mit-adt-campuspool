@@ -22,7 +22,9 @@ RUN set -eux; \
     apt-get purge -y --auto-remove curl; \
     rm -rf /var/lib/apt/lists/*; \
     pg_dump --version | grep '^pg_dump (PostgreSQL) 17\.'; \
-    age --version
+    age --version; \
+    rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack; \
+    rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 
 WORKDIR /opt/campuspool
 COPY --from=deps /deps/node_modules ./node_modules
