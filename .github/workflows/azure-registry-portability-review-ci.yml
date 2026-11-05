@@ -30,5 +30,18 @@ jobs:
         run: |
           command -v az
           az bicep build --file ops/cloud-backup/containerapp-job.registry-portable.review.bicep --stdout > /tmp/campuspool-portable-job.json
+          node <<'NODE'
+          const x=require('/tmp/campuspool-portable-job.json');
+          const job=x.resources?.[0]||{};
+          const cfg=job.properties?.configuration||{};
+          const c=job.properties?.template?.containers?.[0]||{};
+          console.log(JSON.stringify({
+            armVariableNames:Object.keys(x.variables||{}),
+            branchVariable:x.variables?.isAcr,
+            registryExpression:JSON.stringify(cfg.registries).slice(0,1000),
+            secretsExpression:JSON.stringify(cfg.secrets).slice(0,1000),
+            imageExpression:String(c.image||'').slice(0,600)
+          },null,2));
+          NODE
           node scripts/review-registry-portability.js --compiled /tmp/campuspool-portable-job.json
           echo 'GHCR_DEFAULT_AND_ACR_READY_COMPILE_PASS_NO_AZURE_CHANGES'
