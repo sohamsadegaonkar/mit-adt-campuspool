@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const docker = fs.readFileSync(path.join(__dirname, 'ops/cloud-backup/Dockerfile'), 'utf8');
 const deps = JSON.parse(fs.readFileSync(path.join(__dirname, 'ops/cloud-backup/package.json'), 'utf8'));
+const lock = JSON.parse(fs.readFileSync(path.join(__dirname, 'ops/cloud-backup/package-lock.json'), 'utf8'));
 
 test('all base images reference immutable 64-character SHA256 digests', () => {
   const images = [...docker.matchAll(/^FROM\s+([^\s]+)(?:\s+AS\s+\w+)?\s*$/gmi)].map(m => m[1]);
@@ -29,6 +30,14 @@ test('worker defaults to non-root, preflight-only and copies allowlisted files',
     assert.doesNotMatch(line, /(?:^|\s)(?:\.|\.\.\/|\/)(?:\s|$)/, 'no broad/unrestricted COPY');
   }
   assert.doesNotMatch(docker, /^(?:ARG|ENV)\s+(?:PGPASSWORD|AGE_IDENTITY|AZURE_STORAGE_KEY)\s*=/mi);
+});
+
+test('Azure dependency graph is locked and Docker uses reproducible npm ci', () => {
+  assert.equal(lock.lockfileVersion, 3);
+  assert.deepEqual(lock.packages[''].dependencies, deps.dependencies);
+  assert.match(docker, /^COPY ops\/cloud-backup\/package\.json ops\/cloud-backup\/package-lock\.json \.\/$/m);
+  assert.match(docker, /^RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund$/m);
+  assert.doesNotMatch(docker, /^RUN npm install\b/m);
 });
 
 test('Azure dependencies are exact and the image cannot launch an automatic export', () => {
