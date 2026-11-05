@@ -49,3 +49,10 @@ Why: GHCR's current container-image billing avoids ACR Basic's standing rate whi
 ## Release decision
 
 **PUBLIC RETAIL REVIEW ≠ SUBSCRIPTION COST.** Authenticated owner billing prices, taxes and other usage remain unknown, so ₹500 budget feasibility is **NOT VERIFIED**. **PRIVATE GHCR is the preferred configuration candidate, not approval to publish or run.** Azure/Render production release and real staging backup/restore stay **NO-GO**.
+
+
+## Review hardening — 2026-11-06 (source-only, post-checkpoint)
+
+- The Bicep template no longer accepts an unconstrained full image-reference string. It fixes `ghcr.io/sohamsadegaonkar/campuspool-backup-worker@sha256:` in the resource definition and accepts only `ghcrImageSha256` with ARM-enforced string length **exactly 64**. The operator must still independently verify that all 64 characters are lowercase hexadecimal, then confirm the **published manifest** SHA-256 and trusted release signature. Parameter length alone does **not** establish authenticity.
+- The CI source guard now validates the fixed repository and digest shape. After offline Bicep compilation, a separate compiled-ARM guard checks one resource, **one non-init worker container**, restricted manual execution, one private registry, Vault-backed secret refs, CA secret mount, approved environment variable allowlist, CPU/memory and preflight-only arguments. Adversarial synthetic tests cover extra containers, inline secrets, unexpected registries, mutable images and approval bypasses.
+- This closes a **review-time configuration ambiguity**, not a live runtime, cost, IAM, GHCR availability, key rotation or disaster recovery gate. Exact-head CI must pass before the source hardening is considered verified. No cloud resources or data were accessed or changed.
