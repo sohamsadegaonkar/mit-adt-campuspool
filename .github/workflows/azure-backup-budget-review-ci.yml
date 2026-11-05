@@ -1,0 +1,41 @@
+name: Azure backup monthly budget evidence gate (source-only)
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/check-azure-backup-budget.js'
+      - 'test_azure_backup_budget.js'
+      - 'ops/cloud-backup/azure-cost-review.template.json'
+      - '.github/workflows/azure-backup-budget-review-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  monthly-budget-evidence-policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.2'
+      - name: Validate budget checker and tests
+        run: |
+          node --check scripts/check-azure-backup-budget.js
+          node --check test_azure_backup_budget.js
+          node --test test_azure_backup_budget.js
+      - name: Ensure the unknown-price template remains a provisioning NO-GO
+        run: |
+          if node scripts/check-azure-backup-budget.js ops/cloud-backup/azure-cost-review.template.json; then
+            echo "ERROR: unpriced Azure template was incorrectly accepted"
+            exit 1
+          fi
+          echo "EXPECTED: unknown Azure spending blocks financial review"
+      - name: Confirm this CI uses no Azure credentials, role grants, jobs or resources
+        run: |
+          test ! -d .azure
+          ! grep -Eq 'az (group create|acr create|keyvault create|containerapp job (create|start)|role assignment create)' \
+            scripts/check-azure-backup-budget.js
+          echo "READ_ONLY_SOURCE_AND_SYNTHETIC_CI_PASS; NO_PROVISIONING"
