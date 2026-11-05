@@ -300,3 +300,10 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 - **First priority:** manual-only approved cloud backup worker, protected identity/Key Vault/TLS/recipient, nonleaking logs, pinned image/dependencies, verified ciphertext, **independently** decrypted and restored protected PG17/PostGIS with row-content, roles/RLS/grants/migration ledger comparisons and retained Render rollback proof. Existing 200-byte Azure object is not a usable backup; preserve it for reviewed disposition.
 - **Then Render:** check protected OTP_SECRET is fresh 32+ characters; inspect production data persistence/SQLite fallback, real OTP delivery, health, staged migration plan and exact approved deployment SHA. Both Render services autoDeploy OFF. Do not initiate deployment or migration 008 before independent backup/restore and owner sign-off.
 - Do not delete local WSL `-` file via Git clean or assume encryption/secure erasure. Branch deletion is not available in current connected GitHub tools; only review/anonymize/delete redundant heads later with authenticated GitHub UI/CLI and keep divergent history.
+
+## Cloud worker image release blockers — 2026-11-05 UTC
+
+1. Review new digest-pinned worker image and policy CI on `security/cloud-backup-worker-image-2026-11-05`. Do not presume pinned digest means vulnerability-free.
+2. Generate/commit reproducible `ops/cloud-backup/package-lock.json`, replace `npm install` with `npm ci`, run dependency and container vulnerability scanning, sign and retain final immutable image digest.
+3. Plan owner-approved private registry, minimal job-scoped identity, vault-backed secrets/CA and privacy-safe execution logging. The owner has so far only approved the **empty environment** in Malaysia West; no separate approval for a job/vault/registry/privilege grants or a real export.
+4. Continue gate: independent encrypted staging recovery to separate protected PG17/PostGIS and verified Render rollback before migration/deployment. [Image task](tasks/2026-11-05-cloud-worker-image-hardening.md).
