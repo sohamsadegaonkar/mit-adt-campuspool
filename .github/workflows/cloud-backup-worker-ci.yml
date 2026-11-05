@@ -6,6 +6,8 @@ on:
       - 'scripts/azure-blob-backup.js'
       - 'test_cloud_backup_auth.js'
       - 'test_cloud_worker_image_policy.js'
+      - 'test_cloud_worker_critical_triage.js'
+      - 'scripts/assess-cloud-worker-critical.js'
       - 'ops/cloud-backup/**'
       - '.github/workflows/cloud-backup-worker-ci.yml'
   workflow_dispatch:
@@ -43,6 +45,7 @@ jobs:
           node --check test_cloud_backup_auth.js
           node --test test_cloud_backup_auth.js
           node --test test_cloud_worker_image_policy.js
+          node --test test_cloud_worker_critical_triage.js
       - name: Never package secrets in public worker image
         run: |
           ! grep -Eq 'COPY[[:space:]]+(\\.|/|\.\./)' ops/cloud-backup/Dockerfile
@@ -117,6 +120,18 @@ jobs:
           process.stdout.write(report.join('\n')+'\n');
           if(process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,report.join('\n')+'\n');
           NODE
+      - name: Verify Bookworm zlib package does not contain the vulnerable MiniZip code
+        run: |
+          set -o pipefail
+          docker run --rm -i --network none --read-only \
+            --entrypoint sh campuspool-backup-security:ci -s \
+            < ops/cloud-backup/verify-bookworm-zlib-minizip.sh \
+            | tee zlib-minizip-proof.txt
+          grep -Fxq 'BOOKWORM_ZLIB_MINIZIP_NOT_BUILT_PASS' zlib-minizip-proof.txt
+      - name: Classify only the exact vendor-confirmed MiniZip scanner match
+        run: |
+          node scripts/assess-cloud-worker-critical.js \
+            trivy-backup-image.json zlib-minizip-proof.txt
       - name: Generate CycloneDX SBOM for exact image
         uses: aquasecurity/trivy-action@v0.36.0
         with:
