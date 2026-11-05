@@ -73,6 +73,11 @@ function reviewCompiled(arm) {
    trigger?.replicaCompletionCount!==1)
    errors.push('COMPILED_EXECUTION_POLICY_CHANGED');
  if(job?.identity?.type!=='SystemAssigned,UserAssigned')errors.push('COMPILED_IDENTITY_POLICY_CHANGED');
+ const identityBranches=JSON.stringify(job?.identity?.userAssignedIdentities||null);
+ if(!identityBranches.includes("variables('isAcr')")||
+   !identityBranches.includes('acrPullIdentityResourceId')||
+   !identityBranches.includes('registryPullVaultReaderIdentityResourceId'))
+   errors.push('COMPILED_ACR_IDENTITY_ISOLATION_UNVERIFIED');
  const modeExpression=arm?.variables?.isAcr;
  if(modeExpression!=="[equals(parameters('registryProvider'), 'acr')]")
    errors.push('COMPILED_PROVIDER_CONDITION_CHANGED');
@@ -137,6 +142,10 @@ function reviewTransition(input) {
      errors.push('ACR_USER_ASSIGNED_IDENTITY_REQUIRED');
    if(input.ghcrPullToken||input.ghcrPullTokenKeyVaultSecretUrl||input.ghcrReadOnlyUsername)
      errors.push('GHCR_AUTH_MUST_NOT_LEAK_IN_ACR_MODE');
+   if(!/^\\/subscriptions\\/[0-9a-f-]{36}\\/resourceGroups\\/[a-zA-Z0-9._()-]+\\/providers\\/Microsoft\\.ManagedIdentity\\/userAssignedIdentities\\/[a-zA-Z0-9._-]+$/.test(input.registryPullVaultReaderIdentityResourceId||''))
+     errors.push('CA_VAULT_READER_IDENTITY_REQUIRED');
+   if(input.acrPullIdentityResourceId===input.registryPullVaultReaderIdentityResourceId)
+     errors.push('ACR_PULL_IDENTITY_MUST_DIFFER_FROM_CA_READER');
  } else if(input.registryProvider==='ghcr') {
    if(input.acrRegistryName||input.acrPullIdentityResourceId)
      errors.push('ACR_SETTINGS_NOT_USED_IN_GHCR_MODE');
