@@ -4,7 +4,9 @@ targetScope = 'resourceGroup'
 @allowed(['malaysiawest'])
 param location string = 'malaysiawest'
 param containerAppsEnvironmentResourceId string
-param signedGhcrImageDigest string
+@minLength(64)
+@maxLength(64)
+param ghcrImageSha256 string
 param ghcrReadOnlyUsername string
 param registryPullVaultReaderIdentityResourceId string
 param ghcrPullTokenKeyVaultSecretUrl string
@@ -62,7 +64,7 @@ resource manualBackupJob 'Microsoft.App/jobs@2024-03-01' = {
       containers: [
         {
           name: 'backup-worker'
-          image: signedGhcrImageDigest
+          image: 'ghcr.io/sohamsadegaonkar/campuspool-backup-worker@sha256:${ghcrImageSha256}'
           args: [
             '--preflight'
           ]
