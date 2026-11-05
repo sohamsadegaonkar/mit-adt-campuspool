@@ -80,7 +80,7 @@ jobs:
       - name: Build exact review image (no credentials)
         run: docker build -f ops/cloud-backup/Dockerfile -t campuspool-backup-security:ci .
       - name: Scan all OS and application packages (full severity report)
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: image
           image-ref: campuspool-backup-security:ci
@@ -111,7 +111,7 @@ jobs:
           if(process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,report.join('\n')+'\n');
           NODE
       - name: Generate CycloneDX SBOM for exact image
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: image
           image-ref: campuspool-backup-security:ci
@@ -130,7 +130,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - name: Block deployable image if any high or critical fixed vulnerabilities remain
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: image
           image-ref: campuspool-backup-security:ci
