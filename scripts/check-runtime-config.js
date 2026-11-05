@@ -63,14 +63,12 @@ function checkRuntime({target,env=process.env,fsImpl=fs}={}){
     check('LEGACY_AUTH_BACKEND',!env.AUTH_OTP_BACKEND || env.AUTH_OTP_BACKEND==='sqlite');
     check('LEGACY_RIDES_BACKEND',!env.RIDES_BACKEND || env.RIDES_BACKEND==='sqlite');
     check('MOBILITY_FLAG_OFF',env.MOBILITY_MATCHING_ENABLED!=='true');
-    check('SMTP_SENDER_CONFIGURED',emailLike(env.SMTP_USER) && hasValue(env.SMTP_PASS)
-      && hasValue(env.SMTP_FROM) && emailLike(env.SMTP_FROM.match(/<([^<>]+)>/)?.[1]||env.SMTP_FROM));
-    check('SMTP_HOST_CONFIGURED',hasValue(env.SMTP_HOST)&&!/\s/.test(env.SMTP_HOST));
-    const port=env.SMTP_PORT||'465',secure=env.SMTP_SECURE||'true';
-    check('SMTP_PORT_TLS_CONSISTENT',(port==='465' && secure==='true')||
-      (port==='587' && secure==='false'));
+    const verifiedSender=emailLike((env.EMAIL_FROM||'').match(/<([^<>]+)>/)?.[1]||env.EMAIL_FROM);
+    check('TRANSACTIONAL_EMAIL_PROVIDER_CONFIGURED',verifiedSender && (
+      (env.EMAIL_PROVIDER==='resend' && hasValue(env.RESEND_API_KEY)) ||
+      (env.EMAIL_PROVIDER==='brevo' && hasValue(env.BREVO_API_KEY))));
     manual.push('LEGACY_SQLITE_DATA_PERSISTENCE_NOT_PRODUCTION_DURABILITY');
-    manual.push('SMTP_PASSWORD_ROTATION_AND_REAL_DELIVERY_UNVERIFIED');
+    manual.push('PRODUCTION_HTTPS_EMAIL_DELIVERY_AND_SENDER_VERIFICATION_UNVERIFIED');
   }else{
     check('STAGING_ISOLATED_APP_ENV',env.APP_ENV==='staging');
     check('STAGING_BASIC_AUTH_PRIVATE',hasValue(env.STAGING_BASIC_AUTH_PASSWORD) &&
@@ -83,8 +81,10 @@ function checkRuntime({target,env=process.env,fsImpl=fs}={}){
     check('OTP_HMAC_KEY_PRIVATE_AND_DISTINCT',privateSecret(env.OTP_HMAC_KEY) &&
       env.OTP_HMAC_KEY!==env.OTP_SECRET);
     const mail=env.EMAIL_PROVIDER;
-    check('TRANSACTIONAL_EMAIL_PROVIDER_CONFIGURED',mail==='resend' &&
-      hasValue(env.RESEND_API_KEY) && emailLike(env.EMAIL_FROM));
+    check('TRANSACTIONAL_EMAIL_PROVIDER_CONFIGURED',
+      emailLike((env.EMAIL_FROM||'').match(/<([^<>]+)>/)?.[1]||env.EMAIL_FROM) &&
+      ((mail==='resend' && hasValue(env.RESEND_API_KEY)) ||
+       (mail==='brevo' && hasValue(env.BREVO_API_KEY))));
     const sms=env.SMS_PROVIDER||'disabled';
     check('SMS_PROVIDER_EXPLICITLY_SAFE',sms==='disabled' ||
       (sms==='msg91' && hasValue(env.MSG91_AUTHKEY) && hasValue(env.MSG91_FLOW_TEMPLATE_ID)));
