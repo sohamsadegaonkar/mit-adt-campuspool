@@ -3,12 +3,11 @@
 // Never prints secrets, driver errors, token strings or sensitive request bodies.
 const fs = require('node:fs');
 const path = require('node:path');
-const crypto = require('node:crypto');
 const {validCloudPassFile} = require('./cloud-backup-runtime-security');
 
 const SECRET_NAME='campuspool-staging-pg-password';
 const TMPFS_MAGIC=0x01021994;
-const VAULT_RE=/^campuspool-backup-kv-[a-z0-9]{1,3}$/;
+const VAULT_HOST_RE=/^campuspool-backup-kv-[a-z0-9]{1,3}\\.vault\\.azure\\.net$/;
 
 function vaultConfigOk(env){
   if(env.AZURE_AUTH_MODE!=='managed-identity' ||
@@ -19,8 +18,7 @@ function vaultConfigOk(env){
     const u=new URL(env.AZURE_KEYVAULT_URL);
     return u.protocol==='https:' && !u.username && !u.password &&
       !u.search && !u.hash && (u.pathname===''||u.pathname==='/') &&
-      !u.port && VAULT_RE.test(u.hostname.split('.vault.azure.net')[0]) &&
-      u.hostname.endsWith('.vault.azure.net');
+      !u.port && VAULT_HOST_RE.test(u.hostname);
   }catch{return false;}
 }
 
