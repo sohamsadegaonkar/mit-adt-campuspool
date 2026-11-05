@@ -9,6 +9,7 @@ const {Transform,Readable}=require('node:stream');
 const {pipeline}=require('node:stream/promises');
 const {STAGING_REF}=require('./staging-backup-guard');
 const {validCaFile,validCloudPassFile}=require('./cloud-backup-runtime-security');
+const {ageCiphertextGuard}=require('./age-ciphertext-guard');
 const ACCOUNT='011campuspoolbackup';
 const CONTAINER='campuspool-staging-backups';
 function validate(env){
@@ -146,7 +147,9 @@ async function run(env,{spawnImpl=spawn,loadSdkImpl=loadSdk,now=new Date(),
   }});
   const pDump=exit(dump),pAge=exit(age);
   const pPipe=pipeline(dump.stdout,verifyArchiveHeader,age.stdin);
-  const pEncrypt=pipeline(age.stdout,encrypted);
+  // Hold all output until the age v1 X25519 envelope and MAC line are present.
+  // A plaintext PGDMP stream or malformed output must never reach Blob upload.
+  const pEncrypt=pipeline(age.stdout,ageCiphertextGuard(),encrypted);
   const upload=blob.uploadStream(encrypted,4*1024*1024,2,{
     conditions:{ifNoneMatch:'*'},
     blobHTTPHeaders:{blobContentType:'application/octet-stream'}
@@ -162,6 +165,9 @@ async function run(env,{spawnImpl=spawn,loadSdkImpl=loadSdk,now=new Date(),
     if(outcomes[2].status==='rejected' &&
       outcomes[2].reason?.message==='POSTGRES_ARCHIVE_HEADER_INVALID')
       throw Error('POSTGRES_ARCHIVE_HEADER_INVALID');
+    if(outcomes[3].status==='rejected' &&
+      outcomes[3].reason?.message==='AGE_CIPHERTEXT_HEADER_INVALID')
+      throw Error('AGE_CIPHERTEXT_HEADER_INVALID');
     if(outcomes[4].status==='rejected')throw Error(stages[4]);
     const index=outcomes.findIndex((r,i)=>r.status==='rejected'||(i<2&&r.value!==0));
     if(index>=0)throw Error(stages[index]);
@@ -248,7 +254,7 @@ async function main(argv=process.argv.slice(2),env=process.env,overrides={}){
     const allowed=new Set(['BACKUP_CONFIGURATION_BLOCKED','EXPLICIT_OPERATOR_APPROVAL_REQUIRED',
       'BACKUP_CHILD_LAUNCH_FAILED','POSTGRES_DUMP_FAILED','AGE_ENCRYPTION_FAILED',
       'POSTGRES_STREAM_FAILED','POSTGRES_ARCHIVE_HEADER_INVALID',
-      'AGE_STREAM_FAILED','AZURE_UPLOAD_FAILED',
+      'AGE_STREAM_FAILED','AGE_CIPHERTEXT_HEADER_INVALID','AZURE_UPLOAD_FAILED',
       'ENCRYPTED_STREAM_TOO_SMALL','AZURE_READBACK_FAILED',
       'AZURE_CIPHERTEXT_SHA256_MISMATCH']);
     const code=allowed.has(error?.message)?error.message:'UNCLASSIFIED_FAILURE';
