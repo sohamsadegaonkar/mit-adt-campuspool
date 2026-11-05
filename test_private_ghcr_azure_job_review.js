@@ -43,7 +43,7 @@ test('rejects hardcoded cloud secret env values, unattended approvals or a secon
 });
 
 test('Bicep must construct a fixed GHCR repository and a constrained 64-character digest',()=>{
- assert.match(base,/@minLength\\(64\\)\\s*@maxLength\\(64\\)\\s*param ghcrImageSha256 string/);
+ assert.match(base,/@minLength\(64\)\s*@maxLength\(64\)\s*param ghcrImageSha256 string/);
  assert.equal(review(base.replace('@maxLength(64)','@maxLength(200)')).status,'BLOCKED');
  assert.equal(review(base.replace('campuspool-backup-worker@sha256:', 'some-other-worker@sha256:')).status,'BLOCKED');
  assert.equal(review(base.replace('ghcrImageSha256','arbitraryImage')).status,'BLOCKED');
@@ -70,7 +70,7 @@ function compiledFixture(){
     args:['--preflight'],resources:{cpu:0.5,memory:'1Gi'},env,
     volumeMounts:[{volumeName:'staging-pg-ca',mountPath:'/mnt/staging-ca'}]}],
     volumes:[{name:'staging-pg-ca',storageType:'Secret',
-     secrets:[{secretRef:'staging-pg-root-ca',path:'ca.pem'}]}]}}]};
+     secrets:[{secretRef:'staging-pg-root-ca',path:'ca.pem'}]}]}}}]};
 }
 test('compiled ARM has exactly one bounded manual backup container',()=>{
  const good=compiledFixture();
