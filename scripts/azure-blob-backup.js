@@ -195,21 +195,21 @@ async function main(argv=process.argv.slice(2),env=process.env,overrides={}){
   if(vaultMode){
     const {vaultConfigOk,withProtectedPgpass}=require('./cloud-backup-vault-bootstrap');
     if(!vaultConfigOk(env)){
-      process.stderr.write('BLOCK VAULT_CONFIGURATION_BLOCKED\\n');return 1;
+      process.stderr.write('BLOCK VAULT_CONFIGURATION_BLOCKED\n');return 1;
     }
     const initial=preflight(env,overrides);
     // Preflight checks all guards except the not-yet-created ephemeral pgpass.
     const remaining=initial.errors.filter(code=>code!=='CLOUD_TMPFS_PGPASS_REQUIRED');
     if(remaining.length){
-      for(const code of remaining)process.stderr.write('BLOCK '+code+'\\n');
+      for(const code of remaining)process.stderr.write('BLOCK '+code+'\n');
       return 1;
     }
     if(argv[0]==='--preflight'){
-      process.stdout.write('AZURE_VAULT_PREFLIGHT_PASS; no vault, database or blob contacted\\n');
+      process.stdout.write('AZURE_VAULT_PREFLIGHT_PASS; no vault, database or blob contacted\n');
       return 0;
     }
     if(env.AZURE_EXPORT_APPROVED!=='YES'){
-      process.stderr.write('AZURE_BACKUP_BLOCKED EXPLICIT_OPERATOR_APPROVAL_REQUIRED\\n');
+      process.stderr.write('AZURE_BACKUP_BLOCKED EXPLICIT_OPERATOR_APPROVAL_REQUIRED\n');
       return 1;
     }
     try{
@@ -220,7 +220,7 @@ async function main(argv=process.argv.slice(2),env=process.env,overrides={}){
       const result=await withProtectedPgpass(env,
         protectedEnv=>run(protectedEnv,overrides.runOptions||{}),
         {getToken:scope=>cred.getToken(scope),fetchImpl:overrides.fetchImpl||globalThis.fetch});
-      process.stdout.write(JSON.stringify(result)+'\\n');return 0;
+      process.stdout.write(JSON.stringify(result)+'\n');return 0;
     }catch(error){
       const known=new Set(['VAULT_CONFIGURATION_BLOCKED','PRIVATE_TMPFS_UNAVAILABLE',
         'VAULT_SECRET_READ_BLOCKED','VAULT_PASSWORD_INVALID','VAULT_DB_IDENTITY_INVALID',
@@ -228,7 +228,7 @@ async function main(argv=process.argv.slice(2),env=process.env,overrides={}){
         'EXPLICIT_OPERATOR_APPROVAL_REQUIRED','AZURE_UPLOAD_FAILED',
         'AZURE_READBACK_FAILED','AZURE_CIPHERTEXT_SHA256_MISMATCH']);
       const category=known.has(error?.message)?error.message:'CLOUD_VAULT_EXPORT_BLOCKED';
-      process.stderr.write('AZURE_BACKUP_BLOCKED '+category+'; restore not verified\\n');
+      process.stderr.write('AZURE_BACKUP_BLOCKED '+category+'; restore not verified\n');
       return 1;
     }
   }
