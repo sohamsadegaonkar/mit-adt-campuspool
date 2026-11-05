@@ -5,6 +5,7 @@ on:
     paths:
       - 'scripts/azure-blob-backup.js'
       - 'test_cloud_backup_auth.js'
+      - 'test_cloud_worker_image_policy.js'
       - 'ops/cloud-backup/**'
       - '.github/workflows/cloud-backup-worker-ci.yml'
   workflow_dispatch:
@@ -26,10 +27,12 @@ jobs:
           node --check scripts/azure-blob-backup.js
           node --check test_cloud_backup_auth.js
           node --test test_cloud_backup_auth.js
+          node --test test_cloud_worker_image_policy.js
       - name: Never package secrets in public worker image
         run: |
           ! grep -Eq 'COPY[[:space:]]+(\\.|/|\.\./)' ops/cloud-backup/Dockerfile
           ! grep -Eq 'PGPASSWORD=|AZURE_STORAGE_KEY=|AGE_IDENTITY=' ops/cloud-backup/Dockerfile
+          test -n "$(grep -E '^FROM .*@sha256:[0-9a-f]{64}' ops/cloud-backup/Dockerfile)"
 
   worker-image:
     runs-on: ubuntu-24.04
