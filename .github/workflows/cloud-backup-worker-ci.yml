@@ -60,7 +60,7 @@ jobs:
         run: |
           docker run --rm --network none --read-only \
             --entrypoint sh campuspool-backup-ci:local -c \
-            'node --version && pg_dump --version && age --version'
+            'node --version && pg_dump --version && age --version && ! command -v postgres && ! command -v npm && ! command -v npx'
       - name: Verify unused privileged gosu helper is absent
         run: |
           docker run --rm --network none --read-only \
