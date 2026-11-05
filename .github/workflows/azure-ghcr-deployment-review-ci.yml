@@ -37,7 +37,7 @@ jobs:
         run: |
           command -v az
           az bicep build --file ops/cloud-backup/containerapp-job.private-ghcr.review.bicep --stdout > /tmp/campuspool-job-review-arm.json
-          node -e "const x=require('/tmp/campuspool-job-review-arm.json'); if(x.resources?.length!==1||x.resources[0].type!=='Microsoft.App/jobs')process.exit(1)"
+          node scripts/review-private-ghcr-azure-job.js --compiled /tmp/campuspool-job-review-arm.json
           echo "ARM_SCHEMA_COMPILE_PASS; NO_AZURE_RESOURCES_MODIFIED"
 
   public-pricing-evidence-only:
