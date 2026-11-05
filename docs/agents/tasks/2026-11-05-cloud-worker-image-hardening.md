@@ -14,7 +14,7 @@
 ## Current state
 
 - The user's Azure Cloud Shell reports a newly provisioned empty Consumption environment at Malaysia West, with no jobs and null log destination.
-- The existing Dockerfile contained mutable base references and `npm install` without a committed lockfile. This task addresses base digest identity and policy CI only.
+- The former Dockerfile had mutable base references and `npm install` without a committed lockfile. The branch now pins both base images, commits an npm lockfile and uses `npm ci`; OS/base-image vulnerability assessment and release attestation remain outstanding.
 
 ## Plan
 
@@ -32,10 +32,12 @@ The worker's initial Dockerfile referenced mutable parent tags and installed dep
 1. Pin two base images to Docker Hub-published multi-platform SHA-256 **index digests** (Node 22.23.2 bookworm-slim and PostgreSQL 17 bookworm) while retaining human-readable version tags. Verify the image actually resolves at the pinned digests in CI.
 2. Add an offline `node:test` policy for immutable bases, exact Azure SDK direct versions, non-root user, scoped COPYs, no secrets in Dockerfile, and entrypoint default `--preflight`.
 3. Wire the policy into the existing cloud worker GitHub workflow. No job/image publishing, Azure IAM changes or data exports.
+4. Generated a v3 lockfile from GitHub CI's npm resolution, validated 66 resolved package entries and committed `ops/cloud-backup/package-lock.json`. The Dockerfile now uses `npm ci --omit=dev --ignore-scripts --no-audit --no-fund` and the policy CI checks it.
+5. Added a blocking `npm audit --omit=dev --audit-level=high` job. GitHub Actions reported `found 0 vulnerabilities` for the locked dependency tree on 2026-11-05 UTC. The locked image build, auth guards and offline smoke all passed on implementation SHA `7f30dcce51d727f85c06489ea244911761e807df`.
 
 ## Important remaining blockers before any image release
 
-- **Transitive dependency reproducibility:** `ops/cloud-backup/package-lock.json` is not in source yet. Current Docker build still uses `npm install`; generate and commit the lockfile with trusted npm tooling, then use `npm ci --omit=dev --ignore-scripts` and run audit + image vulnerability scan. Do not claim fully reproducible image or production-ready provenance until this is done.
+- **Transitive dependency reproducibility: COMPLETED in source.** CI-generated `package-lock.json` committed; `npm ci` and `npm audit --omit=dev --audit-level=high` passed with no reported npm advisories on 2026-11-05. Do not interpret this as an operating-system/base-image vulnerability scan or final production provenance.
 - Verify vulnerability findings for pinned image digests and updated releases; a digest guarantees content identity **not** absence of vulnerabilities. Prefer updated, reviewed digest if scanner reports unacceptable findings.
 - Sign/attest exact final image digest, choose a reviewed private registry and authorize its possible charges and retention policies. Avoid publishing the image automatically merely because CI passes.
 - Design log destination, monitored executions, container read-only filesystem, scoped managed identity, Key Vault/CA/AGE recipient handling, and Supabase staging outbound access. Do not store credentials in GitHub Secrets merely for CI.
@@ -43,7 +45,8 @@ The worker's initial Dockerfile referenced mutable parent tags and installed dep
 
 ## Verification
 
-- Existing project CI (prior to these edits): Docker smoke and synthetic auth tests passed; this change will be assessed on new PR commit and GitHub checks.
+- On SHA `7f30dcce51d727f85c06489ea244911761e807df`, GitHub jobs `managed-identity-guards`, `worker-image`, and `dependency-supply-chain` all PASS. The latter reports `found 0 vulnerabilities` from npm audit. The exact finished PR SHA requires post-docs CI verification.
+- Synthetic-only CI: no Azure/Supabase credentials or network calls were supplied to the worker. Current environment has no job.
 - No live cloud operation performed.
 
 ## Progress log
@@ -51,10 +54,10 @@ The worker's initial Dockerfile referenced mutable parent tags and installed dep
 - 2026-11-05 UTC — Owner confirmed empty Azure environment, no job and no logging sink.
 - 2026-11-05 UTC — Pinned Node/PostgreSQL parent indexes; added offline image-policy tests and GitHub workflow coverage.
 - 2026-11-05 UTC — First docs CI found missing canonical task headings. Added required structured handoff; no secrets or Azure resource writes.
+- 2026-11-05 UTC — Generated locked transitive npm graph via PR CI, committed it, switched Docker build to `npm ci`, removed temporary artifact/bootstrap step, added blocking npm audit and lockfile policy checks. All cloud CI jobs passed on SHA `7f30dcc`; no image published.
 
 ## Next steps
 
-1. Verify all GitHub workflow checks at the latest PR implementation SHA and resolve build/test failures before independent review.
-2. Generate and commit worker npm lockfile, switch Docker build to npm ci, perform vulnerability review and immutable image release attestation.
-3. Separately authorize private registry, secure log destination, Key Vault/identity and manual job; do not create or execute before security design.
-4. Independently verify actual protected staging ciphertext recovery/restore and Render rollback before migration or release.
+1. Verify exact final PR SHA CI and independent code review, including release-container OS/base-image CVE scanning, SBOM and final image digest signing/attestation. `npm audit` passing is not a full image scan.
+2. Review a private image registry, secure privacy-safe logging destination, least-privilege job identity, Key Vault/CA/AGE recipient and Supabase pooler network path. Obtain explicit authorization for any additional cost or permissions.
+3. Only then provision a manual-only job with `--preflight` default. Real staging export needs a separate explicit approval, and independent off-site restore plus Render rollback proof before migrations/deployment.
