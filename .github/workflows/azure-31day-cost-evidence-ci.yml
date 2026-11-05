@@ -1,0 +1,44 @@
+name: Azure 31-day account-cost evidence (OFFLINE guard)
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/azure_31day_cost_evidence.py'
+      - 'test_azure_31day_cost_evidence.py'
+      - 'ops/cloud-backup/azure-31day-owner-readonly.sh'
+      - '.github/workflows/azure-31day-cost-evidence-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-only-cost-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax and malicious-command guard (no Azure account connected)
+        run: |
+          bash -n ops/cloud-backup/azure-31day-owner-readonly.sh
+          python3 -m py_compile scripts/azure_31day_cost_evidence.py
+          python3 -m unittest -v test_azure_31day_cost_evidence.py
+          node --test test_azure_backup_budget.js
+      - name: Keep all Azure operations strictly read-only
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path("ops/cloud-backup/azure-31day-owner-readonly.sh").read_text()
+          assert "EXPECTED_SUBSCRIPTION_NAME=\"Azure for Students\"" in src
+          assert "RG=\"campuspool-backup-rg\"" in src
+          assert "python3 \"$PARSER\"" in src
+          assert "az rest --method post" in src
+          assert "--output json" in src
+          for bad in ("az deployment", "az group create", "az group delete",
+                      "az containerapp job create", "az storage blob upload",
+                      "az role assignment create", "az keyvault secret set",
+                      "az rest --method put", "az rest --method delete",
+                      "az rest --method patch"):
+              assert bad not in src, bad
+          print("READ_ONLY_COST_EVIDENCE_SOURCE_PASS_NO_AZURE_AUTH")
+          PY
