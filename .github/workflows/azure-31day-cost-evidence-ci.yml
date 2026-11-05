@@ -1,6 +1,14 @@
 name: Azure 31-day account-cost evidence (OFFLINE guard)
 
 on:
+  push:
+    branches:
+      - ops/backup-three-gates-evidence-2026-11-06
+    paths:
+      - 'scripts/azure_31day_cost_evidence.py'
+      - 'test_azure_31day_cost_evidence.py'
+      - 'ops/cloud-backup/azure-31day-owner-readonly.sh'
+      - '.github/workflows/azure-31day-cost-evidence-ci.yml'
   pull_request:
     paths:
       - 'scripts/azure_31day_cost_evidence.py'
