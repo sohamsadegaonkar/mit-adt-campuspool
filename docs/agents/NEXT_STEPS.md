@@ -300,3 +300,55 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 - **First priority:** manual-only approved cloud backup worker, protected identity/Key Vault/TLS/recipient, nonleaking logs, pinned image/dependencies, verified ciphertext, **independently** decrypted and restored protected PG17/PostGIS with row-content, roles/RLS/grants/migration ledger comparisons and retained Render rollback proof. Existing 200-byte Azure object is not a usable backup; preserve it for reviewed disposition.
 - **Then Render:** check protected OTP_SECRET is fresh 32+ characters; inspect production data persistence/SQLite fallback, real OTP delivery, health, staged migration plan and exact approved deployment SHA. Both Render services autoDeploy OFF. Do not initiate deployment or migration 008 before independent backup/restore and owner sign-off.
 - Do not delete local WSL `-` file via Git clean or assume encryption/secure erasure. Branch deletion is not available in current connected GitHub tools; only review/anonymize/delete redundant heads later with authenticated GitHub UI/CLI and keep divergent history.
+
+## Cloud worker image release blockers — 2026-11-05 UTC
+
+1. Review new digest-pinned worker image and policy CI on `security/cloud-backup-worker-image-2026-11-05`. Do not presume pinned digest means vulnerability-free.
+2. Generate/commit reproducible `ops/cloud-backup/package-lock.json`, replace `npm install` with `npm ci`, run dependency and container vulnerability scanning, sign and retain final immutable image digest.
+3. Plan owner-approved private registry, minimal job-scoped identity, vault-backed secrets/CA and privacy-safe execution logging. The owner has so far only approved the **empty environment** in Malaysia West; no separate approval for a job/vault/registry/privilege grants or a real export.
+4. Continue gate: independent encrypted staging recovery to separate protected PG17/PostGIS and verified Render rollback before migration/deployment. [Image task](tasks/2026-11-05-cloud-worker-image-hardening.md).
+
+## Following locked cloud worker dependency CI — 2026-11-05 UTC
+
+1. **Completed in draft PR #38:** reproducible `package-lock.json` (66 package entries), `npm ci` image build and blocking npm audit (0 advisories on 2026-11-05). Keep exact-commit CI green after handoff updates.
+2. **Next code/security work:** trusted OS/base image scanner and SBOM, review pinned parent CVEs and final signed image digest; review privacy-safe Container Apps logs, managed identity, CA, vault secrets, outbound network and scoped Azure Blob RBAC.
+3. **Owner approval required:** private registry, job, Key Vault, privilege grants, any resource cost and real staging export. Only an *empty* Consumption Container Apps environment `campuspool-backup-env` in Malaysia West has been approved/verified by owner CLI, with no log sink or jobs.
+4. **Still NO-GO:** actual offsite encrypted staging backup, independently restored protected PG17/PostGIS archive, Render retained rollback; only then staging OTP rollout and subsequently production with real providers. [PR #36](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/36) is not live.
+
+## Cloud worker Trivy vulnerability NO-GO and infrastructure approval — 2026-11-05 UTC
+
+1. Evaluate isolated `postgres:17.11-trixie` PG17 candidate scan; re-pin the best accepted image by exact index digest, preserve non-root and `--preflight`, rerun complete Trivy scan, and remediate/review remaining Debian OS high/critical CVEs. Strict CI release gate **fails** at 397 findings with 3 CRITICAL, 47 HIGH after removing unused `gosu`; no image push before owner security sign-off.
+2. From [Azure provisioning preparation](../ops/AZURE_BACKUP_REGISTRY_VAULT_JOB_PREPARATION.md), obtain owner approval on *actual* Azure for Students costs/limits and least-privilege permission boundaries. Only empty `campuspool-backup-env` Consumption environment exists; new ACR, Key Vault, identity, RBAC, secure logs and manual job are **not authorized yet**. Basic ACR is auth-private but not private-endpoint capable.
+3. Perform independent staging encrypted backup and cold restore only after separate explicit approval, protected source credentials/CA, safe logs, pinned signed release image and rollback. Render and OTP production release remain NO-GO.
+
+## Image OS CVE remediation choice — 2026-11-05 UTC
+
+- A Debian 13 Trixie candidate did build and scan, but yields 1 CRITICAL and 63 HIGH vs Bookworm 3 CRITICAL and 47 HIGH. Do not pick either just on total counts; review vendor status/exploitability and consider a minimal Node + PostgreSQL 17 client + AGE image to reduce needless OS dependencies. Keep strict high/critical gate active; no release image/push before reviewed evidence.
+
+## After promotion of minimal client-only backup runtime — 2026-11-05 UTC
+
+1. **Completed source-only:** Node slim + signed PGDG PG17 *client* + AGE, no server/runtime npm; committed lockfile; 262 final-image CVE findings versus initial 458, with zero scanner-fixable HIGH/CRITICAL after Debian patch updates. Worker build, fail-closed auth/smoke and npm audit checks pass, but strict Trivy gate intentionally **FAILS** (1 CRITICAL + 37 HIGH). Exact source [PR #38](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/38); [CVE triage](../ops/CLOUD_WORKER_CVE_TRIAGE_2026-11-05.md).
+2. **Next independent security review:** verify actual runtime has no affected MiniZip binary/code for `CVE-2023-45853`, evaluate [Debian source guidance](https://security-tracker.debian.org/tracker/CVE-2023-45853) for potential targeted VEX and triage the remaining HIGH issues; don't globally suppress scanner alerts. Review signed PGDG key/package provenance, SBOM and final immutable signed image digest. No registry push until accepted.
+3. **Owner billable-resource authorization still missing:** read-only Azure cost/credit proof and named tier/network approval for ACR, Standard Vault, secure logging, identity/role grants and manual-only job. Azure for Students credits are limited and should not be treated as an authorized commercial production hosting offer. [Azure plan](../ops/AZURE_BACKUP_REGISTRY_VAULT_JOB_PREPARATION.md).
+4. Then protected owner-approved manual backup and separate independent PG17/PostGIS cold restore, secure Render OTP rollout with provider test and verified rollback. **No production deploy or migration 008 before gates.**
+
+## Following verified MiniZip critical triage — 2026-11-05 UTC
+
+1. **Critical CVE evidence obtained, not a source-code patch:** exact Debian 12 zlib package and absence of vulnerable MiniZip code checked in isolated image; one-CVE assessment passes, **raw Trivy is preserved**. [CI 42062150091](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/42062150091) and [CVE note](../ops/CLOUD_WORKER_CVE_TRIAGE_2026-11-05.md).
+2. **No release yet:** 37 HIGH OS advisories still trigger the strict Trivy release CI fail. Have a reviewer inspect individual Debian statuses and runtime relevance, document any package-specific fixes or VEX with source evidence. Do not introduce a global `--ignore-unfixed` or publish image before review. Obtain image signature/SBOM provenance.
+3. **Azure:** confirm owner-approved monthly cost ceiling, Azure for Students eligibility, ACR/Key Vault/logging/RBAC permission decisions before creating any resources. Empty Consumption environment only.
+4. **OTP:** no deploy until secure staging backup, independent restore, provider readiness and Render rollback are verified.
+
+## After final Alpine runtime CVE remediation — 2026-11-05 UTC (CURRENT)
+
+1. **Completed source-only:** Exact image digest-pinned Node 22 Alpine 3.23.7 + PG17 client + AGE, no runtime npm or PG server, current full Trivy reported **0 CVEs**, with scanner package/SBOM coverage gate (29 Alpine OS, 78 Node records) and HIGH/CRITICAL policy, [CI 42065551826](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/42065551826) PASS. All prior 37 HIGH Debian rows grouped and vendor-assessed [here](../ops/CLOUD_WORKER_HIGH_CVE_REMEDIATION_2026-11-05.md). Previous Bookworm vulnerability counts remain historical, not current.
+2. Review Alpine `zlib=1.3.2-r1` [vendor security update](https://security.alpinelinux.org/vuln/CVE-2026-85091) versus distinct upstream `CVE-2026-76844` (same `df84af2` patch reportedly fixes both) as additional independent source-level assurance; scan silence alone is not a source patch proof. Obtain independent review of final source/image/SBOM, sign built image digest and verify protected CA/PG17 TLS client behavior before authorized first export.
+3. Owner-approved Azure budget/tier/networking and privileges are still missing. Review authenticated public ACR Basic vs Premium private endpoint, Standard Key Vault, safe logs, user-assigned AcrPull identity, container-scoped Blob no-delete role and manual-only job, then seek explicit approval before provisioning ANY additional resource. [Owner-gated Azure plan](../ops/AZURE_BACKUP_REGISTRY_VAULT_JOB_PREPARATION.md).
+4. Real offsite encrypted staging export, independent protected PG17/PostGIS restore/content/RLS/grants proof, Render rollback and OTP provider checks still **NO-GO**; [OTP PR #36](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/36) not live. No production migration/deploy without those gates.
+
+## After signed OCI review candidate and protected libpq secret guard — 2026-11-05 UTC (CURRENT)
+
+1. **Source and synthetic CI complete:** exact Alpine zlib 1.3.2-r1 patch SHA-512 and upstream `df84af2` independently verified; the same fix is reported for distinct CVE-2026-76844 in Debian bug #1153063. X.509 CA validation and non-symlink 0600 owner-only RAM-based PGPASSFILE cloud mode PASS synthetic guard tests. Full image Trivy and Sigstore **OCI archive** signature verification PASS [CI 42069719355](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/42069719355). [Security review](../ops/CLOUD_BACKUP_TLS_SECRET_SIGNING_REVIEW_2026-11-05.md).
+2. **Owner approval and runtime validation:** validate the real Azure Key Vault secret-volume bootstrap to protected /dev/shm file owned by UID 65532; CA fingerprint/trust and real Supabase pooler PG17 TLS verify-full handshake with staging-only credentials; design/redact operational logs. These are **not** yet verified or authorized.
+3. **Image distribution:** require approved ACR tier/cost and scoped pull/push roles, sign and verify the **actual pushed registry manifest digest** with a trusted release identity and compare to exact reviewed source/SBOM. The CI OIDC-signed tar archive is only a short-lived PR review artifact.
+4. **Recovery gate:** after separate approval, real staging encrypted export with remote readback, AGE decrypt and independent protected PG17/PostGIS restore including roles/RLS/grants/content parity and Render rollback. Only then stage and deploy OTP PR #36 with real provider testing. **No migration or production deploy yet.**
