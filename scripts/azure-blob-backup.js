@@ -8,6 +8,7 @@ const {spawn,spawnSync}=require('node:child_process');
 const {Transform,Readable}=require('node:stream');
 const {pipeline}=require('node:stream/promises');
 const {STAGING_REF}=require('./staging-backup-guard');
+const {validCaFile,validCloudPassFile}=require('./cloud-backup-runtime-security');
 const ACCOUNT='011campuspoolbackup';
 const CONTAINER='campuspool-staging-backups';
 function validate(env){
@@ -16,12 +17,15 @@ function validate(env){
   check(/^[a-z0-9-]+\.pooler\.supabase\.com$/.test(env.PGHOST||''),'STAGING_PGHOST');
   check(env.PGPORT==='5432' && env.PGDATABASE==='postgres','STAGING_PG_DATABASE');
   check(env.PGSSLMODE==='verify-full','VERIFIED_TLS_REQUIRED');
-  check(!!env.PGPASSWORD,'PGPASSWORD_REQUIRED');
+  const mode=env.AZURE_AUTH_MODE||'azure-cli';
+  if(mode==='managed-identity'){
+    check(!env.PGPASSWORD,'CLOUD_INLINE_PGPASSWORD_FORBIDDEN');
+    check(validCloudPassFile(env.PGPASSFILE,env),'CLOUD_TMPFS_PGPASS_REQUIRED');
+  }else check(!!env.PGPASSWORD,'PGPASSWORD_REQUIRED');
   check(env.AZURE_STORAGE_ACCOUNT===ACCOUNT,'AZURE_ACCOUNT_ALLOWLIST');
   check(env.AZURE_BACKUP_CONTAINER===CONTAINER,'PRIVATE_CONTAINER_ALLOWLIST');
   check(env.AZURE_PRIVATE_CONTAINER_CONFIRMED==='YES','PRIVATE_CONTAINER_NOT_VERIFIED');
   check(/^age1[0-9a-z]{45,90}$/.test(env.AGE_RECIPIENT||''),'AGE_PUBLIC_RECIPIENT');
-  const mode=env.AZURE_AUTH_MODE||'azure-cli';
   check(['azure-cli','managed-identity'].includes(mode),'AZURE_AUTH_MODE_NOT_ALLOWED');
   if(mode==='managed-identity'){
     check(env.CAMPUSPOOL_CLOUD_WORKER==='YES','CLOUD_WORKER_GUARD_REQUIRED');
@@ -29,11 +33,7 @@ function validate(env){
     if(env.AZURE_CLIENT_ID)
       check(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
         .test(env.AZURE_CLIENT_ID),'AZURE_CLIENT_ID_INVALID');
-    let ca=false;
-    try{
-      const file=fs.realpathSync(env.PGSSLROOTCERT||'');
-      ca=path.isAbsolute(env.PGSSLROOTCERT||'')&&fs.statSync(file).isFile();
-    }catch(_){}
+    const ca=validCaFile(env.PGSSLROOTCERT);
     check(ca,'CLOUD_PG_TLS_CA_REQUIRED');
   }else{
     // Azure CLI token cache must stay private on Linux RAM, never local SSD.
@@ -53,9 +53,11 @@ function limitedEnv(env,kind){
   const result={};
   for(const k of ['PATH','HOME','LANG','SSL_CERT_FILE','SSL_CERT_DIR'])
     if(typeof env[k]==='string')result[k]=env[k];
-  if(kind==='pg')for(const k of ['PGHOST','PGPORT','PGDATABASE','PGUSER','PGPASSWORD',
-    'PGSSLMODE','PGSSLROOTCERT','PGCONNECT_TIMEOUT'])
+  if(kind==='pg')for(const k of ['PGHOST','PGPORT','PGDATABASE','PGUSER',
+    'PGSSLMODE','PGSSLROOTCERT','PGPASSFILE','PGCONNECT_TIMEOUT'])
     if(typeof env[k]==='string')result[k]=env[k];
+  if(kind==='pg' && (env.AZURE_AUTH_MODE||'azure-cli')==='azure-cli' &&
+    typeof env.PGPASSWORD==='string')result.PGPASSWORD=env.PGPASSWORD;
   return result;
 }
 function keyAt(now=new Date(),nonce=crypto.randomBytes(16)){
