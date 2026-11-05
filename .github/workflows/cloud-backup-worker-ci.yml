@@ -69,3 +69,74 @@ jobs:
             exit 1
           fi
           echo "EXPECTED: no live export without secrets and explicit approval"
+
+  image-os-vulnerability-scan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build exact review image (no credentials)
+        run: docker build -f ops/cloud-backup/Dockerfile -t campuspool-backup-security:ci .
+      - name: Scan all OS and application packages (full severity report)
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          scan-type: image
+          image-ref: campuspool-backup-security:ci
+          format: json
+          output: trivy-backup-image.json
+          vuln-type: os,library
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          ignore-unfixed: false
+          exit-code: '0'
+      - name: Summarize vulnerability evidence and fail if report is absent
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');
+          const scan=JSON.parse(fs.readFileSync('trivy-backup-image.json','utf8'));
+          if(!Array.isArray(scan.Results)) throw Error('Trivy Results missing');
+          const results=scan.Results.filter(x=>Array.isArray(x.Vulnerabilities));
+          const all=results.flatMap(x=>x.Vulnerabilities.map(v=>({...v,Target:x.Target,Class:x.Class})));
+          const by={};for(const v of all)by[v.Severity]=(by[v.Severity]||0)+1;
+          const fixed=all.filter(v=>v.FixedVersion&&['CRITICAL','HIGH'].includes(v.Severity));
+          const report=[
+            '# Cloud backup worker: complete container vulnerability scan',
+            'Image built from this PR; scan covers OS and application dependencies.',
+            'Scan results: '+all.length+' advisories; severity counts '+JSON.stringify(by),
+            'High/critical with a documented fix: '+fixed.length,
+            'Do not interpret a scan pass as a production release approval.',
+          ];
+          process.stdout.write(report.join('\n')+'\n');
+          if(process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,report.join('\n')+'\n');
+          NODE
+      - name: Generate CycloneDX SBOM for exact image
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          scan-type: image
+          image-ref: campuspool-backup-security:ci
+          format: cyclonedx
+          output: trivy-backup-sbom.cdx.json
+          skip-setup-trivy: true
+          exit-code: '0'
+      - name: Upload vulnerability report and SBOM for audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: campuspool-cloud-backup-image-scan
+          path: |
+            trivy-backup-image.json
+            trivy-backup-sbom.cdx.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Block deployable image if any high or critical fixed vulnerabilities remain
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          scan-type: image
+          image-ref: campuspool-backup-security:ci
+          format: table
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          skip-setup-trivy: true
