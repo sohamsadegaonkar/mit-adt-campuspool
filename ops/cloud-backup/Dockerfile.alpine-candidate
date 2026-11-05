@@ -1,0 +1,26 @@
+# EXPERIMENT ONLY: Alpine 3.23 alternative to Debian Bookworm for CVE remediation.
+# No Azure publish or run; pin immutable multi-arch base digest and review results
+# before promoting. Source is official node:22-alpine3.23 (moving tag for trial).
+FROM node:22-alpine3.23 AS deps
+WORKDIR /deps
+COPY ops/cloud-backup/package.json ops/cloud-backup/package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+
+FROM node:22-alpine3.23
+RUN set -eux; \
+    apk add --no-cache ca-certificates postgresql17-client age; \
+    pg_dump --version | grep '^pg_dump (PostgreSQL) 17\\.'; \
+    age --version; \
+    rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack; \
+    rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
+
+WORKDIR /opt/campuspool
+COPY --from=deps /deps/node_modules ./node_modules
+COPY scripts/staging-backup-guard.js ./scripts/staging-backup-guard.js
+COPY scripts/azure-blob-backup.js ./scripts/azure-blob-backup.js
+ENV NODE_ENV=production \
+    AZURE_AUTH_MODE=managed-identity \
+    CAMPUSPOOL_CLOUD_WORKER=YES
+USER 65532:65532
+ENTRYPOINT ["node","scripts/azure-blob-backup.js"]
+CMD ["--preflight"]
