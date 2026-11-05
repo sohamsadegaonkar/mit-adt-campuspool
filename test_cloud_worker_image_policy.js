@@ -15,7 +15,7 @@ test('all base images reference immutable 64-character SHA256 digests', () => {
   for (const image of images) {
     assert.match(image, /^\S+@sha256:[a-f0-9]{64}$/i);
   }
-  assert.match(images[0], /^node:22\.23\.2-bookworm-slim@/);
+  assert.match(images[0], /^node:22-alpine3\.23@/);
   assert.equal(images[1], images[0], 'runtime must be same pinned Node slim base, not full PostgreSQL server');
 });
 
@@ -32,14 +32,12 @@ test('worker defaults to non-root, preflight-only and copies allowlisted files',
   assert.doesNotMatch(docker, /^(?:ARG|ENV)\s+(?:PGPASSWORD|AGE_IDENTITY|AZURE_STORAGE_KEY)\s*=/mi);
 });
 
-test('runtime contains only PG17 client tools, signed PGDG source and no npm tools', () => {
-  assert.match(docker, /postgresql-client-17/);
-  assert.match(docker, /bookworm-pgdg/);
-  assert.match(docker, /Signed-By:/);
-  assert.match(docker, /https:\/\/www\.postgresql\.org\/media\/keys\/ACCC4CF8\.asc/);
+test('runtime uses pinned Alpine client-only packages without Debian, curl or server', () => {
+  assert.match(docker, /apk add --no-cache ca-certificates=20261020-r0 postgresql17-client=17\.11-r0 age=1\.2\.1-r15;/);
+  assert.match(docker, /pg_dump --version \| grep -F 'pg_dump \(PostgreSQL\) 17\.'/);
   assert.match(docker, /rm -rf \/usr\/local\/lib\/node_modules\/npm/);
   assert.match(docker, /rm -f \/usr\/local\/bin\/npm \/usr\/local\/bin\/npx/);
-  assert.doesNotMatch(docker, /apt-get install[^\n]*postgresql-17(?:\s|;|$)/, 'must not install PostgreSQL server');
+  assert.doesNotMatch(docker, /(?:apt-get|postgresql-17|curl|Signed-By:)/);
 });
 
 test('Azure dependency graph is locked and Docker uses reproducible npm ci', () => {
