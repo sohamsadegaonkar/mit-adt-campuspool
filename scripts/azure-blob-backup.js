@@ -184,11 +184,55 @@ async function run(env,{spawnImpl=spawn,loadSdkImpl=loadSdk,now=new Date(),
   return {status:'AZURE_CIPHERTEXT_READBACK_MATCH_RESTORE_NOT_TESTED',
     objectKey:key,bytes,ciphertextSHA256:digest};
 }
-async function main(argv=process.argv.slice(2),env=process.env){
+async function main(argv=process.argv.slice(2),env=process.env,overrides={}){
   if(argv.length!==1||!['--preflight','--execute'].includes(argv[0])){
     process.stderr.write('Usage: node scripts/azure-blob-backup.js --preflight|--execute\n');return 2;
   }
-  const p=preflight(env);
+  // In cloud Key Vault mode, --preflight remains OFFLINE and never reads a
+  // secret. Only --execute with explicit approval may fetch it into tmpfs.
+  const vaultMode=env.AZURE_AUTH_MODE==='managed-identity' &&
+    (env.AZURE_KEYVAULT_URL!==undefined||env.AZURE_PG_SECRET_NAME!==undefined);
+  if(vaultMode){
+    const {vaultConfigOk,withProtectedPgpass}=require('./cloud-backup-vault-bootstrap');
+    if(!vaultConfigOk(env)){
+      process.stderr.write('BLOCK VAULT_CONFIGURATION_BLOCKED\n');return 1;
+    }
+    const initial=preflight(env,overrides);
+    // Preflight checks all guards except the not-yet-created ephemeral pgpass.
+    const remaining=initial.errors.filter(code=>code!=='CLOUD_TMPFS_PGPASS_REQUIRED');
+    if(remaining.length){
+      for(const code of remaining)process.stderr.write('BLOCK '+code+'\n');
+      return 1;
+    }
+    if(argv[0]==='--preflight'){
+      process.stdout.write('AZURE_VAULT_PREFLIGHT_PASS; no vault, database or blob contacted\n');
+      return 0;
+    }
+    if(env.AZURE_EXPORT_APPROVED!=='YES'){
+      process.stderr.write('AZURE_BACKUP_BLOCKED EXPLICIT_OPERATOR_APPROVAL_REQUIRED\n');
+      return 1;
+    }
+    try{
+      const {ManagedIdentityCredential}=(overrides.loadSdk||loadSdk)();
+      const cred=env.AZURE_CLIENT_ID?
+        new ManagedIdentityCredential({clientId:env.AZURE_CLIENT_ID}):
+        new ManagedIdentityCredential();
+      const result=await withProtectedPgpass(env,
+        protectedEnv=>run(protectedEnv,overrides.runOptions||{}),
+        {getToken:scope=>cred.getToken(scope),fetchImpl:overrides.fetchImpl||globalThis.fetch});
+      process.stdout.write(JSON.stringify(result)+'\n');return 0;
+    }catch(error){
+      const known=new Set(['VAULT_CONFIGURATION_BLOCKED','PRIVATE_TMPFS_UNAVAILABLE',
+        'VAULT_SECRET_READ_BLOCKED','VAULT_PASSWORD_INVALID','VAULT_DB_IDENTITY_INVALID',
+        'VAULT_PGPASS_VALIDATION_BLOCKED','BACKUP_CONFIGURATION_BLOCKED',
+        'EXPLICIT_OPERATOR_APPROVAL_REQUIRED','AZURE_UPLOAD_FAILED',
+        'AZURE_READBACK_FAILED','AZURE_CIPHERTEXT_SHA256_MISMATCH']);
+      const category=known.has(error?.message)?error.message:'CLOUD_VAULT_EXPORT_BLOCKED';
+      process.stderr.write('AZURE_BACKUP_BLOCKED '+category+'; restore not verified\n');
+      return 1;
+    }
+  }
+  const p=preflight(env,overrides);
   if(!p.ok){
     for(const e of p.errors)process.stderr.write('BLOCK '+e+'\n');
     return 1;

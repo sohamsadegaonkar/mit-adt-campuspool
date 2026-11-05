@@ -5,6 +5,8 @@ on:
     paths:
       - 'scripts/azure-blob-backup.js'
       - 'scripts/cloud-backup-runtime-security.js'
+      - 'scripts/cloud-backup-vault-bootstrap.js'
+      - 'test_cloud_backup_vault_bootstrap.js'
       - 'scripts/verify-alpine-zlib-patch.js'
       - 'test_cloud_backup_auth.js'
       - 'test_cloud_worker_image_policy.js'
@@ -57,6 +59,7 @@ jobs:
           node --check scripts/azure-blob-backup.js
           node --check test_cloud_backup_auth.js
           node --test test_cloud_backup_auth.js
+          node --test test_cloud_backup_vault_bootstrap.js
           node --test test_cloud_worker_image_policy.js
       - name: Never package secrets in public worker image
         run: |
