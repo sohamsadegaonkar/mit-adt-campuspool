@@ -41,7 +41,7 @@ test('both registry previews require a lowercase 64-hex digest and never authori
  }
 });
 test('ACR transition cannot reuse or leak GHCR secret and needs reader identity',()=>{
- const base={registryProvider:'acr',imageSha256:digest,acrRegistryName:'campuspoolregistry01',acrPullIdentityResourceId:acrId};
+ const base={registryProvider:'acr',imageSha256:digest,acrRegistryName:'campuspoolregistry01',acrPullIdentityResourceId:acrId,registryPullVaultReaderIdentityResourceId:caId};
  for(const change of [
   {acrRegistryName:'bad.example.com'},
   {acrPullIdentityResourceId:''},
