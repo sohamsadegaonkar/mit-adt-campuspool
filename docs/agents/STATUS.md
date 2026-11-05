@@ -306,3 +306,9 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 - 25 remote branch refs remain. 17 non-main branches verified ancestral to main; 7 still have uniquely divergent commits. Old stacked PRs were closed only after source integration verification; alternative R2 was explicitly not merged. No refs deleted because connector lacks safe deletion; preserve for controlled cleanup.
 - Tracked repository main tree: 190 files before this audit note, no filename matching `-`/archive/private-key patterns. Local WSL accidental archive remains untracked and not securely erased; history secret revocation remains unverified.
 - Render production/staging auto deploy **OFF**. Actual production running `63ae551` with failed newer OTP secret startup; staging `cceadbf`. **NO new deployment or migration**. Encrypted staging backup/independent recovery/rollback/credential gates still **NO-GO**. See [consolidation task](tasks/2026-11-05-mainline-consolidation-audit.md).
+
+## Cloud worker image supply-chain review — 2026-11-05 UTC (draft code only)
+
+- Owner's Cloud Shell verified the Azure `campuspool-backup-env` **Succeeded** in Malaysia West with Consumption workload profile, no job and null log destination. This is externally supplied output; no connected Azure write or resource readback.
+- Source branch `security/cloud-backup-worker-image-2026-11-05` pins Node/PostgreSQL base images to published SHA-256 indexes and introduces CI guards for immutable bases, non-root execution, allowlisted files and default preflight. **No image published**; future CI checks must be reviewed.
+- Full dependency lockfile, secure logging, image scan/attestation and a separately approved manual job are still pending. Actual encrypted staging backup and independently verified restore/Render rollback remain **NO-GO**. [Image-hardening task](tasks/2026-11-05-cloud-worker-image-hardening.md).
