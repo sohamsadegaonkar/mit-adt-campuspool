@@ -1,5 +1,7 @@
 'use strict';
 const test=require('node:test');
+const AGE_HEADER='age-encryption.org/v1\n-> X25519 '+'A'.repeat(43)+'\n'+'B'.repeat(43)+'\n--- '+'C'.repeat(43)+'\n';
+
 const assert=require('node:assert/strict');
 const crypto=require('node:crypto');
 const fs=require('node:fs');
@@ -42,7 +44,7 @@ function mock({corrupt=false,uploadError=false,pgFailed=false,ageFailed=false,
      const finish=code=>{
        if(finished)return;
        finished=true;
-       c.stdout.end(Buffer.concat([Buffer.from('CIPHERTEXT:'),...chunks]));
+       c.stdout.end(Buffer.concat([Buffer.from(AGE_HEADER),...chunks]));
        c.emit('close',code);
      };
      c.stdin.on('end',()=>finish(ageFailed?1:0));
