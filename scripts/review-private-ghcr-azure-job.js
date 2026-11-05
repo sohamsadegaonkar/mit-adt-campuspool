@@ -13,7 +13,8 @@ function review(source){
  need(/replicaRetryLimit:\s*0/,'JOB_RETRIES_MUST_BE_ZERO');
  need(/parallelism:\s*1/,'JOB_MUST_BE_ONE_REPLICA');
  need(/replicaCompletionCount:\s*1/,'JOB_COMPLETION_MUST_BE_ONE');
- need(/image:\s*signedGhcrImageDigest/,'IMMUTABLE_IMAGE_PARAMETER_REQUIRED');
+ need(/@minLength\(64\)\s*@maxLength\(64\)\s*param ghcrImageSha256 string/,'SHA256_PARAMETER_LENGTH_REQUIRED');
+ need(/image:\s*'ghcr\.io\/sohamsadegaonkar\/campuspool-backup-worker@sha256:\$\{ghcrImageSha256\}'/,'FIXED_DIGEST_IMAGE_REFERENCE_REQUIRED');
  need(/passwordSecretRef:\s*'ghcr-pull-token'/,'PRIVATE_GHCR_SECRET_REQUIRED');
  need(/server:\s*'ghcr\.io'/,'REGISTRY_SERVER_MISMATCH');
  need(/keyVaultUrl:\s*ghcrPullTokenKeyVaultSecretUrl/,'REGISTRY_TOKEN_VAULT_REF_REQUIRED');
@@ -33,6 +34,7 @@ function review(source){
  ban(/(?:ingress:|external:|targetPort:)/,'JOB_INGRESS_FORBIDDEN');
  ban(/\bvalue:\s*'(?:ghp_|github_pat_|pk_[a-z]|age-secret-key-)/i,'CREDENTIAL_LITERAL_FORBIDDEN');
  ban(/(?:'latest'|:[Ll][Aa][Tt][Ee][Ss][Tt]')/,'MUTABLE_IMAGE_TAG_FORBIDDEN');
+ ban(/\bparam\s+signedGhcrImageDigest\b/,'RAW_IMAGE_REFERENCE_PARAMETER_FORBIDDEN');
  const criticalKeys=['triggerType','replicaTimeout','replicaRetryLimit',
    'parallelism','replicaCompletionCount','image','args','passwordSecretRef'];
  for(const name of criticalKeys){
@@ -50,13 +52,81 @@ function review(source){
 }
 function reviewedImageDigest(value){
  return typeof value==='string' &&
-  /^ghcr\.io\/sohamsadegaonkar\/[a-z0-9._-]+@sha256:[0-9a-f]{64}$/.test(value);
+  /^ghcr\.io\/sohamsadegaonkar\/campuspool-backup-worker@sha256:[0-9a-f]{64}$/.test(value);
 }
+
+function reviewCompiled(template){
+ const reasons=[];
+ const fail=(when,code)=>{if(when)reasons.push(code);};
+ const resources=template?.resources;
+ const job=Array.isArray(resources)&&resources.length===1?resources[0]:null;
+ fail(!job||job.type!=='Microsoft.App/jobs','COMPILED_RESOURCE_SCOPE_UNREVIEWED');
+ const digest=template?.parameters?.ghcrImageSha256;
+ fail(!digest||digest.type!=='string'||digest.minLength!==64||digest.maxLength!==64,
+   'COMPILED_DIGEST_LENGTH_UNBOUNDED');
+ fail(job?.identity?.type!=='SystemAssigned,UserAssigned','COMPILED_IDENTITIES_CHANGED');
+ const cfg=job?.properties?.configuration;
+ const run=cfg?.manualTriggerConfig;
+ fail(cfg?.triggerType!=='Manual'||cfg?.replicaTimeout!==1800||cfg?.replicaRetryLimit!==0||
+   run?.parallelism!==1||run?.replicaCompletionCount!==1,
+   'COMPILED_MANUAL_SINGLE_ATTEMPT_REQUIRED');
+ const registries=cfg?.registries;
+ fail(!Array.isArray(registries)||registries.length!==1||
+   registries[0].server!=='ghcr.io'||registries[0].passwordSecretRef!=='ghcr-pull-token',
+   'COMPILED_REGISTRY_AUTH_CHANGED');
+ const secrets=cfg?.secrets;
+ fail(!Array.isArray(secrets)||secrets.length!==2||
+   !secrets.some(x=>x.name==='ghcr-pull-token'&&x.keyVaultUrl&&x.identity)||
+   !secrets.some(x=>x.name==='staging-pg-root-ca'&&x.keyVaultUrl&&x.identity)||
+   secrets.some(x=>Object.hasOwn(x,'value')),
+   'COMPILED_SECRETS_UNREVIEWED');
+ const tpl=job?.properties?.template;
+ const containers=tpl?.containers;
+ fail(!Array.isArray(containers)||containers.length!==1,'COMPILED_EXTRA_CONTAINER_FORBIDDEN');
+ fail(Array.isArray(tpl?.initContainers)&&tpl.initContainers.length>0,
+   'COMPILED_INIT_CONTAINER_FORBIDDEN');
+ const c=Array.isArray(containers)?containers[0]:null;
+ const image=typeof c?.image==='string'?c.image:'';
+ fail(c?.name!=='backup-worker'||!image.includes('ghcr.io/sohamsadegaonkar/campuspool-backup-worker@sha256:')||
+   !image.includes('ghcrImageSha256'),'COMPILED_IMAGE_NOT_FIXED');
+ fail(!Array.isArray(c?.args)||c.args.length!==1||c.args[0]!=='--preflight'||
+   Object.hasOwn(c||{},'command'),'COMPILED_EXECUTION_NOT_PREFLIGHT');
+ fail(!c?.resources||c.resources.cpu!==0.5||c.resources.memory!=='1Gi',
+   'COMPILED_RESOURCES_UNREVIEWED');
+ const mounts=c?.volumeMounts;
+ const volumes=tpl?.volumes;
+ fail(!Array.isArray(mounts)||mounts.length!==1||
+   mounts[0].volumeName!=='staging-pg-ca'||mounts[0].mountPath!=='/mnt/staging-ca'||
+   !Array.isArray(volumes)||volumes.length!==1||
+   volumes[0].name!=='staging-pg-ca'||volumes[0].storageType!=='Secret'||
+   !Array.isArray(volumes[0].secrets)||volumes[0].secrets.length!==1||
+   volumes[0].secrets[0].secretRef!=='staging-pg-root-ca'||volumes[0].secrets[0].path!=='ca.pem',
+   'COMPILED_VOLUME_UNREVIEWED');
+ const env=c?.env;
+ const expected=new Set(['AZURE_AUTH_MODE','CAMPUSPOOL_CLOUD_WORKER',
+  'AZURE_KEYVAULT_URL','AZURE_PG_SECRET_NAME','PGHOST','PGPORT',
+  'PGDATABASE','PGUSER','PGSSLMODE','PGSSLROOTCERT','AGE_RECIPIENT',
+  'AZURE_STORAGE_ACCOUNT','AZURE_BACKUP_CONTAINER','AZURE_PRIVATE_CONTAINER_CONFIRMED']);
+ fail(!Array.isArray(env)||env.length!==expected.size||
+  env.some(e=>!expected.has(e.name)||!Object.hasOwn(e,'value')||Object.hasOwn(e,'secretRef'))||
+  new Set(env.map(e=>e.name)).size!==expected.size,'COMPILED_ENV_ALLOWLIST_CHANGED');
+ fail(!Array.isArray(env)||!env.some(e=>e.name==='PGSSLMODE'&&e.value==='verify-full')||
+   !env.some(e=>e.name==='PGSSLROOTCERT'&&e.value==='/mnt/staging-ca/ca.pem')||
+   !env.some(e=>e.name==='AZURE_PRIVATE_CONTAINER_CONFIRMED'&&e.value==='YES'),
+   'COMPILED_SECURITY_ENV_MISSING');
+ return {status:reasons.length?'BLOCKED':'COMPILED_STRUCTURE_ELIGIBLE_FOR_REVIEW',
+  reasons,deployAuthorized:false,mayConnectToStaging:false};
+}
+
 if(require.main===module){
  let output;
- try{output=review(fs.readFileSync(process.argv[2]||file,'utf8'));}
+ try{
+  if(process.argv[2]==='--compiled')
+    output=reviewCompiled(JSON.parse(fs.readFileSync(process.argv[3],'utf8')));
+  else output=review(fs.readFileSync(process.argv[2]||file,'utf8'));
+ }
  catch{output={status:'BLOCKED',reasons:['CONFIGURATION_UNREADABLE'],deployAuthorized:false};}
  process.stdout.write(JSON.stringify(output,null,2)+'\n');
  if(output.status==='BLOCKED')process.exitCode=1;
 }
-module.exports={review,reviewedImageDigest};
+module.exports={review,reviewCompiled,reviewedImageDigest};
