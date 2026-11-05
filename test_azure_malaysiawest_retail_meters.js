@@ -11,7 +11,7 @@ test('public rate API URI is anchored to Malaysia West and INR without secrets',
  const u=new URL(queryUrl('Container Registry'));
  assert.equal(u.hostname,'prices.azure.com');
  assert.ok(u.searchParams.get('$filter').includes("armRegionName eq 'malaysiawest'"));
- assert.equal(u.searchParams.get('currencyCode'),'INR');
+ assert.equal(u.searchParams.get('currencyCode'),"'INR'");
  assert.throws(()=>queryUrl('OtherService'),/SERVICE_NOT_ALLOWLISTED/);
 });
 test('pagination cannot redirect pricing retrieval or change region/currency',()=>{
