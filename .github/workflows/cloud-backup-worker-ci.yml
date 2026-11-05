@@ -147,3 +147,55 @@ jobs:
           ignore-unfixed: false
           exit-code: '1'
           skip-setup-trivy: true
+
+  trixie-candidate-experiment:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build isolated PostgreSQL 17 Trixie candidate (NOT DEPLOYABLE)
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          p=Path('ops/cloud-backup/Dockerfile')
+          text=p.read_text()
+          old=next(line for line in text.splitlines() if line.startswith('FROM postgres:17-bookworm@sha256:'))
+          assert len(old.rsplit(':',1)[-1])==64
+          Path('/tmp/campuspool-trixie-candidate.Dockerfile').write_text(text.replace(old,'FROM postgres:17.11-trixie'))
+          PY
+          docker build -f /tmp/campuspool-trixie-candidate.Dockerfile -t campuspool-backup-trixie-candidate:ci .
+      - name: Inspect trial source tag digest for reproducibility assessment
+        run: docker buildx imagetools inspect postgres:17.11-trixie | head -n 15
+      - name: Assess complete candidate OS and library vulnerabilities
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: campuspool-backup-trixie-candidate:ci
+          format: json
+          output: trivy-backup-trixie-experiment.json
+          vuln-type: os,library
+          ignore-unfixed: false
+          exit-code: '0'
+      - name: Summarize Trixie experiment only, not a release approval
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');
+          const report=JSON.parse(fs.readFileSync('trivy-backup-trixie-experiment.json'));
+          if(!Array.isArray(report.Results))throw Error('Trivy Results missing');
+          for(const r of report.Results) {
+            const v=r.Vulnerabilities||[];
+            const counts={};
+            for(const x of v)counts[x.Severity]=(counts[x.Severity]||0)+1;
+            process.stdout.write('EXPERIMENT_TARGET '+r.Target+' CLASS '+r.Class+' ADVISORIES '+v.length+' '+JSON.stringify(counts)+'\n');
+          }
+          NODE
+      - name: Preserve experiment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: campuspool-trixie-candidate-scan
+          path: trivy-backup-trixie-experiment.json
+          retention-days: 7
+          if-no-files-found: warn
