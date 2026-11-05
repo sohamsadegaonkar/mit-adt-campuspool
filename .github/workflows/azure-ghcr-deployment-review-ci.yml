@@ -53,6 +53,20 @@ jobs:
         continue-on-error: true
         run: |
           node scripts/azure-malaysiawest-retail-meters.js > /tmp/campuspool-public-retail-rates.json
+      - name: Print official ACR daily-rate evidence (public only)
+        if: steps.prices.outcome == 'success'
+        run: |
+          node <<'NODE'
+          const x=require('/tmp/campuspool-public-retail-rates.json');
+          const meter=x.details?.['Container Registry']?.basicRegistry;
+          if(meter?.status==='PUBLIC_RETAIL_RATE_ONLY'){
+            console.log('MALAYSIA_WEST_PUBLIC_ACR_BASIC_INR_DAY '+meter.rateInrPerDay);
+            console.log('MALAYSIA_WEST_PUBLIC_ACR_BASIC_INR_31_DAYS '+meter.thirtyOneDayInr);
+          }else{
+            console.log('MALAYSIA_WEST_PUBLIC_ACR_BASIC_UNVERIFIED '+(meter?.reason||'UNKNOWN'));
+          }
+          console.log('NOT_SUBSCRIPTION_BILLING; TAXES_OTHER_SERVICES_AND_CREDITS_UNVERIFIED');
+          NODE
       - name: Preserve only public retail-rate sample if Microsoft responded
         if: steps.prices.outcome == 'success'
         uses: actions/upload-artifact@v4
