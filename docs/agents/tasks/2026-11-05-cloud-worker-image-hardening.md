@@ -6,6 +6,23 @@
 - **Sources:** [Main worker runbook](../../ops/CLOUD_AZURE_BACKUP_WORKER.md) and [recovery evidence checklist](../../ops/RECOVERY_EVIDENCE_MANIFEST.md) (draft PR #37).
 - **Status:** source security improvement for review; no publish/execute permission.
 
+## Goal and acceptance criteria
+
+- Establish immutable parent image digest pinning and enforce fail-closed worker properties through CI without contacting Azure or PostgreSQL.
+- Acceptance: GitHub cloud backup worker CI builds the image successfully, policy tests and existing synthetic auth/smoke pass, source handoff is valid, and deployment is still explicitly gated.
+
+## Current state
+
+- The user's Azure Cloud Shell reports a newly provisioned empty Consumption environment at Malaysia West, with no jobs and null log destination.
+- The existing Dockerfile contained mutable base references and `npm install` without a committed lockfile. This task addresses base digest identity and policy CI only.
+
+## Plan
+
+1. Replace mutable base references with Docker Hub verified index digests and keep original readable tags.
+2. Add offline static policy tests and wire into GitHub cloud-worker CI.
+3. Record human/security review blockers for npm lockfile, vulnerability scans, image signature, secrets, run logging and approved release.
+4. Re-run CI after every edit and stop if image build or security checks fail.
+
 ## Why
 
 The worker's initial Dockerfile referenced mutable parent tags and installed dependencies using unpinned transitive npm resolution. Creating an empty Azure environment does not justify publishing or executing this image. Protect against unexpected base image changes and ensure the worker defaults to `--preflight`.
@@ -28,3 +45,16 @@ The worker's initial Dockerfile referenced mutable parent tags and installed dep
 
 - Existing project CI (prior to these edits): Docker smoke and synthetic auth tests passed; this change will be assessed on new PR commit and GitHub checks.
 - No live cloud operation performed.
+
+## Progress log
+
+- 2026-11-05 UTC — Owner confirmed empty Azure environment, no job and no logging sink.
+- 2026-11-05 UTC — Pinned Node/PostgreSQL parent indexes; added offline image-policy tests and GitHub workflow coverage.
+- 2026-11-05 UTC — First docs CI found missing canonical task headings. Added required structured handoff; no secrets or Azure resource writes.
+
+## Next steps
+
+1. Verify all GitHub workflow checks at the latest PR implementation SHA and resolve build/test failures before independent review.
+2. Generate and commit worker npm lockfile, switch Docker build to npm ci, perform vulnerability review and immutable image release attestation.
+3. Separately authorize private registry, secure log destination, Key Vault/identity and manual job; do not create or execute before security design.
+4. Independently verify actual protected staging ciphertext recovery/restore and Render rollback before migration or release.
