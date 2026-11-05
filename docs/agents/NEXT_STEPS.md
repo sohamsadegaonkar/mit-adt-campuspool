@@ -308,3 +308,9 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 3. **Independent recovery operator:** Re-download ciphertext and independently AGE-decrypt/cold-restore to a different isolated PG17/PostGIS target. Compare source-consistent migration ledger, schema, roles/RLS/grants and content digests. Handle omitted global roles/Supabase-managed auth and storage explicitly. Record sanitized evidence only.
 4. **Render release owner:** Open [staging Render dashboard](https://dashboard.render.com/web/srv-dbjof8fb9u1s73eks0bg); independently confirm that a known previous successful build offers a valid Rollback action **without executing it**. Code rollback cannot undo a data migration. Record artifact and dependency evidence.
 5. **Gate:** Source PR #36 for OTP can be reviewed independently, but **no staging migration 008, deploy or production promotion** until actual recovery evidence and rollback proof are verified. See [audited task](tasks/2026-11-05-recovery-gate-evidence-audit.md).
+
+## Next cloud worker milestone after owner-created environment — 2026-11-05 UTC
+
+1. Read-only validate `campuspool-backup-env` managed environment provisioning, region, workload profile, logs destination and networking; confirm the owner approval was only for the empty environment.
+2. Harden the cloud worker Dockerfile before publishing: immutable parent image digests, reproducible lockfile and vulnerable dependency checks; identify cost/permissions for private registry, secure logs and Key Vault. Do not configure sensitive `PGPASSWORD` in CLI history or use unreviewed secrets.
+3. Obtain explicit **separate** authorization before creating a manual-only job, Key Vault, access grants, registry or performing stage export. Distinct independent PG17/PostGIS restore and retained Render rollback still required before rollout. [Audit](tasks/2026-11-05-recovery-gate-evidence-audit.md).
