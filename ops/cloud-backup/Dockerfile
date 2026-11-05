@@ -1,12 +1,12 @@
 # Purpose-built worker: Node 22, PostgreSQL 17 client and AGE.
 # Explicit file COPY avoids ever packaging accidental local dumps or secrets.
 # No production workload starts on image launch: default command is --preflight.
-FROM node:22.23.2-bookworm-slim AS deps
+FROM node:22.23.2-bookworm-slim@sha256:48e4b67d85f87bd551df43704e24d252f56cc5f8e9718841aace50f19948f0f9 AS deps
 WORKDIR /deps
 COPY ops/cloud-backup/package.json ./package.json
 RUN npm install --omit=dev --ignore-scripts --no-audit --no-fund
 
-FROM postgres:17-bookworm
+FROM postgres:17-bookworm@sha256:665dc7b37ac52a17e298511414c21d23ffa4e6a6ef6225b3e5d59c7afb35e994
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
  && apt-get install -y --no-install-recommends age ca-certificates \
