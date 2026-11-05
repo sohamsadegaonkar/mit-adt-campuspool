@@ -120,18 +120,33 @@ jobs:
           process.stdout.write(report.join('\n')+'\n');
           if(process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,report.join('\n')+'\n');
           NODE
-      - name: Verify Bookworm zlib package does not contain the vulnerable MiniZip code
+      - name: Validate Alpine OS and Node scanning coverage, exact package versions
         run: |
-          set -o pipefail
-          docker run --rm -i --network none --read-only \
-            --entrypoint sh campuspool-backup-security:ci -s \
-            < ops/cloud-backup/verify-bookworm-zlib-minizip.sh \
-            | tee zlib-minizip-proof.txt
-          grep -Fxq 'BOOKWORM_ZLIB_MINIZIP_NOT_BUILT_PASS' zlib-minizip-proof.txt
-      - name: Classify only the exact vendor-confirmed MiniZip scanner match
-        run: |
-          node scripts/assess-cloud-worker-critical.js \
-            trivy-backup-image.json zlib-minizip-proof.txt
+          node <<'NODE'
+          const fs=require('node:fs');
+          const scan=JSON.parse(fs.readFileSync('trivy-backup-image.json','utf8'));
+          if(scan?.Metadata?.OS?.Family!=='alpine'||scan?.Metadata?.OS?.Name!=='3.23.7')
+            throw Error('Unexpected or missing Alpine OS identity');
+          const os=scan.Results?.find(r=>r.Class==='os-pkgs'&&r.Type==='alpine');
+          const node=scan.Results?.find(r=>r.Class==='lang-pkgs'&&r.Type==='node-pkg');
+          if(!os||!node||!Array.isArray(os.Packages)||os.Packages.length<25||
+             !Array.isArray(node.Packages)||node.Packages.length<60)
+            throw Error('Image vulnerability scanner coverage incomplete');
+          const packages=new Map(os.Packages.map(p=>[p.Name,p.Version]));
+          for(const [name,version] of [
+            ['age','1.2.1-r15'],
+            ['postgresql17-client','17.11-r0'],
+            ['ca-certificates','20261020-r0'],
+            ['zlib','1.3.2-r1']
+          ]){
+            if(packages.get(name)!==version)
+              throw Error('Unexpected scanned package '+name);
+          }
+          if(packages.has('postgresql17')||packages.has('npm'))
+            throw Error('Excess server or runtime npm dependencies present');
+          process.stdout.write('SCANNER_COVERAGE_PASS AlpineOS='+os.Packages.length+
+            ' NodePackages='+node.Packages.length+'\n');
+          NODE
       - name: Generate CycloneDX SBOM for exact image
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -162,80 +177,3 @@ jobs:
           ignore-unfixed: false
           exit-code: '1'
           skip-setup-trivy: true
-
-  alpine-candidate-cve-remediation:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build isolated Alpine 3.23 candidate (NOT APPROVED)
-        run: docker build -f ops/cloud-backup/Dockerfile.alpine-candidate -t campuspool-backup-alpine-candidate:ci .
-      - name: Capture official parent digest for immutable release planning
-        run: docker buildx imagetools inspect node:22-alpine3.23 | head -n 14
-      - name: Verify minimum runtime and remove all npm/PG server commands
-        run: |
-          docker run --rm --network none --read-only \
-            --entrypoint sh campuspool-backup-alpine-candidate:ci -c \
-            'node --version && pg_dump --version && age --version && ! command -v npm && ! command -v npx && ! command -v postgres'
-      - name: Assert missing secrets cannot initiate export
-        run: |
-          if docker run --rm --network none --read-only \
-            campuspool-backup-alpine-candidate:ci --execute; then
-            echo "UNEXPECTED: candidate permitted export without credentials"; exit 1
-          fi
-          echo "PASS: candidate cannot export without protected config"
-      - name: Scan full Alpine image OS and app packages
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          scan-type: image
-          image-ref: campuspool-backup-alpine-candidate:ci
-          format: json
-          output: trivy-backup-alpine-candidate.json
-          vuln-type: os,library
-          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
-          ignore-unfixed: false
-          exit-code: '0'
-      - name: Show vendor-related vulnerabilities without suppressing findings
-        run: |
-          node <<'NODE'
-          const fs=require('node:fs');
-          const data=JSON.parse(fs.readFileSync('trivy-backup-alpine-candidate.json','utf8'));
-          if(!Array.isArray(data.Results))throw Error('Alpine Trivy Results missing');
-          const all=data.Results.flatMap(r=>(r.Vulnerabilities||[]).map(v=>({...v,kind:r.Class})));
-          const count={};for(const v of all)count[v.Severity]=(count[v.Severity]||0)+1;
-          const high=all.filter(v=>['HIGH','CRITICAL'].includes(v.Severity));
-          const lines=[
-            'ALPINE_CANDIDATE_TOTAL '+all.length,
-            'ALPINE_CANDIDATE_SEVERITIES '+JSON.stringify(count),
-            'ALPINE_CANDIDATE_HIGH_CRITICAL '+high.length,
-            'ALPINE_CANDIDATE_UNIQUE_HIGH_CRITICAL '+new Set(high.map(v=>v.VulnerabilityID)).size,
-            'ALPINE_CANDIDATE_DETAILS '+JSON.stringify(high.map(v=>({
-              cve:v.VulnerabilityID,package:v.PkgName,installed:v.InstalledVersion,
-              fixed:v.FixedVersion||'',status:v.Status||'',severity:v.Severity
-            }))),
-            'NOT_DEPLOYABLE; REVIEW_AND_PIN_FINAL_DIGEST_FIRST'
-          ];
-          console.log(lines.join('\n'));
-          if(process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,lines.join('\n')+'\n');
-          NODE
-      - name: Generate Alpine exact-image CycloneDX SBOM
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          scan-type: image
-          image-ref: campuspool-backup-alpine-candidate:ci
-          format: cyclonedx
-          output: trivy-backup-alpine-candidate-sbom.json
-          skip-setup-trivy: true
-          exit-code: '0'
-      - name: Preserve candidate scan and SBOM
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: campuspool-alpine-cve-candidate
-          path: |
-            trivy-backup-alpine-candidate.json
-            trivy-backup-alpine-candidate-sbom.json
-          if-no-files-found: warn
-          retention-days: 14
