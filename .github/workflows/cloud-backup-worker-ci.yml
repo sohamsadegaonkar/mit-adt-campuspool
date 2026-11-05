@@ -7,6 +7,8 @@ on:
       - 'scripts/cloud-backup-runtime-security.js'
       - 'scripts/cloud-backup-vault-bootstrap.js'
       - 'scripts/age-ciphertext-guard.js'
+      - 'scripts/cloud-backup-tls-probe.js'
+      - 'test_cloud_backup_tls_probe.js'
       - 'test_age_ciphertext_guard.js'
       - 'test_cloud_backup_vault_bootstrap.js'
       - 'scripts/verify-alpine-zlib-patch.js'
@@ -62,6 +64,7 @@ jobs:
           node --check test_cloud_backup_auth.js
           node --test test_cloud_backup_auth.js
           node --test test_age_ciphertext_guard.js
+          node --test test_cloud_backup_tls_probe.js
           node --test test_cloud_backup_vault_bootstrap.js
           node --test test_cloud_worker_image_policy.js
       - name: Never package secrets in public worker image
