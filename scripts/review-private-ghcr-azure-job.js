@@ -33,6 +33,12 @@ function review(source){
  ban(/(?:ingress:|external:|targetPort:)/,'JOB_INGRESS_FORBIDDEN');
  ban(/\bvalue:\s*'(?:ghp_|github_pat_|pk_[a-z]|age-secret-key-)/i,'CREDENTIAL_LITERAL_FORBIDDEN');
  ban(/(?:'latest'|:[Ll][Aa][Tt][Ee][Ss][Tt]')/,'MUTABLE_IMAGE_TAG_FORBIDDEN');
+ const criticalKeys=['triggerType','replicaTimeout','replicaRetryLimit',
+   'parallelism','replicaCompletionCount','image','args','passwordSecretRef'];
+ for(const name of criticalKeys){
+   const hits=(source.match(new RegExp('\\\\b'+name+'\\\\s*:', 'g'))||[]);
+   if(hits.length!==1)reasons.push('DUPLICATE_OR_MISSING_CRITICAL_FIELD_'+name);
+ }
  const resources=source.match(/\bresource\s+[A-Za-z0-9_]+\s+'Microsoft\.[^']+'/g)||[];
  if(resources.length!==1)reasons.push('ADDITIONAL_AZURE_RESOURCES_NOT_REVIEWED');
  return {status:reasons.length?'BLOCKED':'CONFIG_STRUCTURE_ELIGIBLE_FOR_REVIEW',
