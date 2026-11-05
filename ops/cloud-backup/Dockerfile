@@ -16,6 +16,7 @@ RUN set -eux; \
 WORKDIR /opt/campuspool
 COPY --from=deps /deps/node_modules ./node_modules
 COPY scripts/staging-backup-guard.js ./scripts/staging-backup-guard.js
+COPY scripts/cloud-backup-runtime-security.js ./scripts/cloud-backup-runtime-security.js
 COPY scripts/azure-blob-backup.js ./scripts/azure-blob-backup.js
 ENV NODE_ENV=production \
     AZURE_AUTH_MODE=managed-identity \
