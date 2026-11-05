@@ -103,7 +103,7 @@ test('Vault API failures are sanitized with no token, URI or body leakage',async
 test('offline preflight does not request token, Key Vault, staging or Blob',async()=>{
   const code=await main(['--preflight'],env,{
     versionOk:()=>true,
-    loadSdk:()=>({ManagedIdentityCredential:class{constructor(){throw Error('SHOULD_NOT_CONSTRUCT')}}),
+    loadSdk:()=>({ManagedIdentityCredential:class{constructor(){throw Error('SHOULD_NOT_CONSTRUCT')}}}),
     fetchImpl:()=>{throw Error('SHOULD_NOT_FETCH')}
   });
   assert.equal(code,0);
@@ -112,7 +112,7 @@ test('offline preflight does not request token, Key Vault, staging or Blob',asyn
 test('no explicit export approval means zero Key Vault requests',async()=>{
   const code=await main(['--execute'],env,{
     versionOk:()=>true,
-    loadSdk:()=>({ManagedIdentityCredential:class{constructor(){throw Error('SHOULD_NOT_CONSTRUCT')}}),
+    loadSdk:()=>({ManagedIdentityCredential:class{constructor(){throw Error('SHOULD_NOT_CONSTRUCT')}}}),
     fetchImpl:()=>{throw Error('SHOULD_NOT_FETCH')}
   });
   assert.equal(code,1);
