@@ -8,7 +8,7 @@ const SERVICES=['Container Registry','Key Vault','Azure Container Apps','Storage
 function queryUrl(service){
   if(!SERVICES.includes(service))throw Error('SERVICE_NOT_ALLOWLISTED');
   const u=new URL(API);
-  u.searchParams.set('currencyCode','INR');
+  u.searchParams.set('currencyCode',"'INR'");
   u.searchParams.set('$filter',"serviceName eq '"+service+"' and armRegionName eq '"+REGION+"' and priceType eq 'Consumption'");
   return u.toString();
 }
@@ -16,7 +16,7 @@ function safeNextPage(url){
   const u=new URL(url);
   if(u.protocol!=='https:'||u.hostname!=='prices.azure.com'||
      u.pathname!=='/api/retail/prices'||u.username||u.password||u.hash||
-     u.searchParams.get('currencyCode')!=='INR')
+     !['INR',"'INR'"].includes(u.searchParams.get('currencyCode')))
     throw Error('UNTRUSTED_RETAIL_API_PAGE');
   const f=u.searchParams.get('$filter')||'';
   if(!f.includes("armRegionName eq 'malaysiawest'"))throw Error('REGION_FILTER_DROPPED');
