@@ -19,6 +19,7 @@ COPY scripts/staging-backup-guard.js ./scripts/staging-backup-guard.js
 COPY scripts/cloud-backup-runtime-security.js ./scripts/cloud-backup-runtime-security.js
 COPY scripts/cloud-backup-vault-bootstrap.js ./scripts/cloud-backup-vault-bootstrap.js
 COPY scripts/age-ciphertext-guard.js ./scripts/age-ciphertext-guard.js
+COPY scripts/cloud-backup-tls-probe.js ./scripts/cloud-backup-tls-probe.js
 COPY scripts/azure-blob-backup.js ./scripts/azure-blob-backup.js
 ENV NODE_ENV=production \
     AZURE_AUTH_MODE=managed-identity \
