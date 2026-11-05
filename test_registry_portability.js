@@ -6,6 +6,7 @@ const {checkSource,reviewTransition}=require('./scripts/review-registry-portabil
 const config=fs.readFileSync('ops/cloud-backup/containerapp-job.registry-portable.review.bicep','utf8');
 const digest='a'.repeat(64);
 const acrId='/subscriptions/11111111-1111-4111-8111-111111111111/resourceGroups/rg-example/providers/Microsoft.ManagedIdentity/userAssignedIdentities/acr-reader';
+const caId='/subscriptions/11111111-1111-4111-8111-111111111111/resourceGroups/rg-example/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ca-reader';
 
 test('GHCR stays the default and same worker configuration is used for both registry modes',()=>{
  const r=checkSource(config);
@@ -32,7 +33,7 @@ test('both registry previews require a lowercase 64-hex digest and never authori
  for(const config of [
   {registryProvider:'ghcr',imageSha256:digest},
   {registryProvider:'acr',imageSha256:digest,acrRegistryName:'campuspoolregistry01',
-   acrPullIdentityResourceId:acrId}
+   acrPullIdentityResourceId:acrId,registryPullVaultReaderIdentityResourceId:caId}
  ]) {
   const r=reviewTransition(config);
   assert.equal(r.status,'REVIEW_ELIGIBLE',JSON.stringify(r.reasons));
@@ -44,6 +45,8 @@ test('ACR transition cannot reuse or leak GHCR secret and needs reader identity'
  for(const change of [
   {acrRegistryName:'bad.example.com'},
   {acrPullIdentityResourceId:''},
+  {registryPullVaultReaderIdentityResourceId:''},
+  {registryPullVaultReaderIdentityResourceId:acrId},
   {ghcrPullTokenKeyVaultSecretUrl:'https://example.vault.azure.net/secrets/ghcr'},
   {ghcrReadOnlyUsername:'gh-user'},
   {imageSha256:'Z'.repeat(64)},
