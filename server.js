@@ -189,195 +189,18 @@ const pgIdempotency = pgRidesStore ? new PgIdempotencyStore(pgOtpStore.pool) : n
 const sqliteIdempotency = !pgRidesStore ? new SqliteIdempotencyStore(db.db) : null;
 
 // -------------------------------------------------------------------------
-// Native Multi-Channel Email Dispatcher (HTTPS REST APIs + TLS SMTP Sockets)
-// Bypasses cloud platform firewall blocks (e.g. Render Free Tier Port 465 block)
+// Transactional email delivery: HTTPS-only, fail closed on provider rejection.
 // -------------------------------------------------------------------------
-async function sendViaResend(apiKey, { to, subject, htmlContent }) {
-  return new Promise((resolve, reject) => {
-    const payload = JSON.stringify({
-      from: 'MIT ADT CampusPool <onboarding@resend.dev>',
-      to: [to],
-      subject: subject,
-      html: htmlContent
-    });
-    const req = https.request('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(payload)
-      }
-    }, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          resolve({ delivered: true, provider: 'Resend-HTTPS-443' });
-        } else {
-          reject(new Error(`Resend Error [${res.statusCode}]: ${data}`));
-        }
-      });
-    });
-    req.on('error', reject);
-    req.write(payload);
-    req.end();
-  });
-}
-
-async function sendViaBrevo(apiKey, { to, subject, htmlContent }) {
-  return new Promise((resolve, reject) => {
-    const payload = JSON.stringify({
-      sender: { name: 'MIT ADT CampusPool', email: SMTP_USER || 'sadegaonkarsg@gmail.com' },
-      to: [{ email: to }],
-      subject: subject,
-      htmlContent: htmlContent
-    });
-    const req = https.request('https://api.brevo.com/v3/smtp/email', {
-      method: 'POST',
-      headers: {
-        'api-key': apiKey,
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(payload)
-      }
-    }, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          resolve({ delivered: true, provider: 'Brevo-HTTPS-443' });
-        } else {
-          reject(new Error(`Brevo Error [${res.statusCode}]: ${data}`));
-        }
-      });
-    });
-    req.on('error', reject);
-    req.write(payload);
-    req.end();
-  });
-}
-
-function sendSmtpSocket({ to, subject, htmlContent, textContent }) {
-  return new Promise((resolve, reject) => {
-    // Check if real SMTP credentials are provided or still placeholder
-    const isPlaceholder = !SMTP_PASS || SMTP_PASS.includes('your_') || SMTP_PASS === 'your_16_character_app_password';
-    if (!SMTP_USER || isPlaceholder) {
-      return resolve({ delivered: false, simulated: true, reason: 'PLACEHOLDER_CREDENTIALS' });
-    }
-
-    const host = SMTP_HOST;
-    const port = SMTP_PORT;
-
-    console.log(`[SMTP] Connecting to ${host}:${port} for ${to}...`);
-
-    const options = {
-      host: host,
-      port: port,
-      rejectUnauthorized: false
-    };
-
-    const client = tls.connect(options, () => {
-      // Handle TLS SMTP handshake
-      let stage = 0;
-      let buffer = '';
-
-      function send(cmd) {
-        client.write(cmd + '\r\n');
-      }
-
-      client.on('data', (chunk) => {
-        buffer += chunk.toString();
-        const lines = buffer.split('\r\n');
-        buffer = lines.pop(); // keep remainder
-
-        for (const line of lines) {
-          const code = line.slice(0, 3);
-          if (line[3] === '-') continue; // multiline response
-
-          if (code === '220' && stage === 0) {
-            stage = 1;
-            send(`EHLO ${host}`);
-          } else if (code === '250' && stage === 1) {
-            stage = 2;
-            send('AUTH LOGIN');
-          } else if (code === '334' && stage === 2) {
-            stage = 3;
-            send(Buffer.from(SMTP_USER).toString('base64'));
-          } else if (code === '334' && stage === 3) {
-            stage = 4;
-            send(Buffer.from(SMTP_PASS).toString('base64'));
-          } else if (code === '235' && stage === 4) {
-            stage = 5;
-            send(`MAIL FROM:<${SMTP_USER}>`);
-          } else if (code === '250' && stage === 5) {
-            stage = 6;
-            send(`RCPT TO:<${to}>`);
-          } else if (code === '250' && stage === 6) {
-            stage = 7;
-            send('DATA');
-          } else if (code === '354' && stage === 7) {
-            stage = 8;
-            const message = [
-              `From: ${SMTP_FROM}`,
-              `To: ${to}`,
-              `Subject: ${subject}`,
-              'MIME-Version: 1.0',
-              'Content-Type: text/html; charset=UTF-8',
-              '',
-              htmlContent,
-              '.'
-            ].join('\r\n');
-            send(message);
-          } else if (code === '250' && stage === 8) {
-            stage = 9;
-            send('QUIT');
-            client.end();
-            resolve({ delivered: true, provider: 'Gmail-TLS-SMTP-465' });
-          } else if (parseInt(code, 10) >= 400) {
-            client.end();
-            reject(new Error(`SMTP Error [${code}]: ${line}`));
-          }
-        }
-      });
-    });
-
-    client.on('error', (err) => {
-      console.warn('[SMTP Connection Error]:', err.message);
-      reject(err);
-    });
-
-    client.setTimeout(6000, () => {
-      client.destroy();
-      reject(new Error('SMTP Connection Timeout'));
-    });
-  });
-}
-
-async function dispatchEmail({ to, subject, htmlContent, textContent }) {
-  // 1. Check HTTPS REST APIs first if keys configured (Port 443 - Never Blocked)
-  const resendKey = process.env.RESEND_API_KEY || envConfig.RESEND_API_KEY;
-  if (resendKey && !resendKey.includes('your_')) {
-    try {
-      return await sendViaResend(resendKey, { to, subject, htmlContent });
-    } catch (e) {
-      console.warn('[EMAIL-DISPATCH] Resend HTTPS failed, trying next:', e.message);
-    }
-  }
-
-  const brevoKey = process.env.BREVO_API_KEY || envConfig.BREVO_API_KEY;
-  if (brevoKey && !brevoKey.includes('your_')) {
-    try {
-      return await sendViaBrevo(brevoKey, { to, subject, htmlContent });
-    } catch (e) {
-      console.warn('[EMAIL-DISPATCH] Brevo HTTPS failed, trying next:', e.message);
-    }
-  }
-
-  // 2. Direct TLS Socket (Port 465)
-  return await sendSmtpSocket({ to, subject, htmlContent, textContent });
+const transactionalMail = require('./stage1-otp/email-provider');
+async function dispatchEmail(message) {
+  // Process environment overrides a local developer config; never log either.
+  const env = {...envConfig,...process.env};
+  const result = await transactionalMail.sendEmail(message,{env});
+  return {delivered:result.accepted===true,provider:result.provider};
 }
 
 // -------------------------------------------------------------------------
-// Cryptographic Token and OTP Utilities
+// // Cryptographic Token and OTP Utilities
 // -------------------------------------------------------------------------
 function generateOtpCode() {
   return crypto.randomInt(100000, 1000000).toString();
@@ -951,14 +774,15 @@ const server = http.createServer(async (req, res) => {
         htmlContent: emailHtml,
         textContent: `MIT ADT CampusPool: Your sign-in code is ${otp}. Valid for 10 minutes.`
       });
-      if (emailStatus.delivered) {
-        console.log(`[SIGN-IN-OTP] ✅ Email successfully delivered to ${user.email} (via ${emailStatus.provider || 'SMTP'})`);
-      }
+      if (emailStatus.delivered) console.log('[SIGN-IN-OTP] Provider accepted sign-in email');
     } catch (err) {
-      console.warn(`[SIGN-IN-OTP] ⚠️ Email dispatch warning: ${err.message}`);
+      console.warn('[SIGN-IN-OTP] Provider unavailable or rejected sign-in email');
     }
 
     const isRealDelivery = emailStatus.delivered === true;
+    // Keep an explicit developer-only OTP hint path, but never leave a
+    // production-verifiable challenge or cooldown after provider failure.
+    if (!isRealDelivery && !ALLOW_DEV_OTP) db.deleteOtp(otpRecord.id);
     if (IS_PRODUCTION && !isRealDelivery) {
       return sendJson(503, { success: false, error: 'EMAIL_DELIVERY_UNAVAILABLE', message: 'Email verification is temporarily unavailable. Please try later.' });
     }
@@ -1067,19 +891,19 @@ const server = http.createServer(async (req, res) => {
         htmlContent: emailHtml,
         textContent: `Your MIT ADT CampusPool verification code is ${otp}. Valid for 10 minutes.`
       });
-      if (emailStatus.delivered) {
-        console.log(`[AUTH-EMAIL-SENT] ✅ Email successfully delivered to ${email} (via ${emailStatus.provider || 'SMTP'})`);
-      }
+      if (emailStatus.delivered) console.log('[AUTH-EMAIL] Provider accepted registration email');
     } catch (err) {
-      console.warn(`[AUTH-EMAIL-DISPATCH-WARNING] Email dispatch to ${email} failed: ${err.message}`);
+      console.warn('[AUTH-EMAIL-DISPATCH-WARNING] Provider unavailable or rejected registration email');
       emailStatus.delivered = false;
-      emailStatus.error = err.message;
     }
 
     // Avoid emitting OTP values or personal identifiers in application logs.
     console.log('[AUTH-EMAIL] Verification delivery attempt complete; delivered=' + Boolean(emailStatus.delivered));
 
     const isRealDelivery = emailStatus.delivered === true;
+    // Keep an explicit developer-only OTP hint path, but never leave a
+    // production-verifiable challenge or cooldown after provider failure.
+    if (!isRealDelivery && !ALLOW_DEV_OTP) db.deleteOtp(otpRecord.id);
     if (IS_PRODUCTION && !isRealDelivery) {
       return sendJson(503, { success: false, error: 'EMAIL_DELIVERY_UNAVAILABLE', message: 'Email verification is temporarily unavailable. Please try later.' });
     }
