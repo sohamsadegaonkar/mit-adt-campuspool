@@ -313,3 +313,8 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 - Connected Render shows staging live `dep-dbke9uo8v5cc738cpnd0` at `cceadbf6251f`, prior successful but deactivated `dep-dbkdr5qjnfac738p2heg` at `fe93c6be16b4`; production live `dep-dbloou4ipgvc73cb7n90` at `1020e2e4a6d4`, older successful `dep-dbj5auss728c738sa94g` at `63ae5510bbe2`. Both services auto-deploy **OFF**. Historical records are not proof of retained build eligibility.
 - The source-only Azure worker and synthetic restore CI do **not** prove an actual protected Azure staging backup or independent PG17/PostGIS recovery. No connected Azure Container Apps/Blob interface exposes owner resource/job/object state; no separate recovery destination visible through connected Supabase. Do not claim objects do not exist—**not verified**.
 - **NO-GO** remains for migration/deploy. Audit task [recovery-gate-evidence-audit](tasks/2026-11-05-recovery-gate-evidence-audit.md) and [sanitized operator evidence manifest](../ops/RECOVERY_EVIDENCE_MANIFEST.md). No cloud resource, database or Render writes occurred.
+
+## Owner-confirmed empty Azure environment provisioned — 2026-11-05 UTC
+
+- Azure Cloud Shell owner output reports `campuspool-backup-env` **Succeeded** in `campuspool-backup-rg`, **Malaysia West**, after explicit limited owner approval. This is owner-supplied output, not connector-verified creation.
+- Container Apps **Job not created**; no protected secrets, image, identity permissions, true staging backup, cold recovery or rollback evidence yet. The 200-byte prior blob is not valid restore proof. Staging/production **NO-GO** is unchanged. [Recovery audit](tasks/2026-11-05-recovery-gate-evidence-audit.md).
