@@ -3,8 +3,8 @@
 # No production workload starts on image launch: default command is --preflight.
 FROM node:22.23.2-bookworm-slim@sha256:48e4b67d85f87bd551df43704e24d252f56cc5f8e9718841aace50f19948f0f9 AS deps
 WORKDIR /deps
-COPY ops/cloud-backup/package.json ./package.json
-RUN npm install --omit=dev --ignore-scripts --no-audit --no-fund
+COPY ops/cloud-backup/package.json ops/cloud-backup/package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 
 FROM postgres:17-bookworm@sha256:665dc7b37ac52a17e298511414c21d23ffa4e6a6ef6225b3e5d59c7afb35e994
 ENV DEBIAN_FRONTEND=noninteractive
