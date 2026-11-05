@@ -73,13 +73,16 @@ function reviewCompiled(arm) {
    trigger?.replicaCompletionCount!==1)
    errors.push('COMPILED_EXECUTION_POLICY_CHANGED');
  if(job?.identity?.type!=='SystemAssigned,UserAssigned')errors.push('COMPILED_IDENTITY_POLICY_CHANGED');
+ const modeExpression=arm?.variables?.isAcr;
+ if(modeExpression!=="[equals(parameters('registryProvider'), 'acr')]")
+   errors.push('COMPILED_PROVIDER_CONDITION_CHANGED');
  const reg=JSON.stringify(config?.registries||null);
- if(!reg.includes('registryProvider')||!reg.includes('ghcr.io')||
+ if(!reg.includes("variables('isAcr')")||!reg.includes('ghcr.io')||
    !reg.includes('azurecr.io')||!reg.includes('acrPullIdentityResourceId')||
    !reg.includes('ghcr-pull-token'))
    errors.push('COMPILED_REGISTRY_SWITCH_MISSING');
  const secrets=JSON.stringify(config?.secrets||null);
- if(!secrets.includes('registryProvider')||!secrets.includes('staging-pg-root-ca')||
+ if(!secrets.includes("variables('isAcr')")||!secrets.includes('staging-pg-root-ca')||
    !secrets.includes('ghcr-pull-token')||!secrets.includes('keyVaultUrl')||
    secrets.includes('age-secret-key-'))
    errors.push('COMPILED_REGISTRY_SECRETS_UNSAFE');
@@ -94,7 +97,7 @@ function reviewCompiled(arm) {
    Object.hasOwn(container||{},'command'))
    errors.push('COMPILED_WORKER_COMMAND_CHANGED');
  const image=String(container?.image||'');
- if(!image.includes('registryProvider')||!image.includes('campuspool-backup-worker@sha256:')||
+ if(!image.includes("variables('isAcr')")||!image.includes('campuspool-backup-worker@sha256:')||
    !image.includes('ghcr.io')||!image.includes('azurecr.io')||!image.includes('imageSha256'))
    errors.push('COMPILED_IMAGE_BRANCH_CHANGED');
  if(container?.resources?.memory!=='1Gi'||
