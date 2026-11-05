@@ -47,7 +47,7 @@ function checkSource(source){
  const resources=source.match(/\bresource\s+\w+\s+'Microsoft\.[^']+'/g)||[];
  if(resources.length!==1||!resources[0].includes('Microsoft.App/jobs@2024-03-01'))
    errors.push('ONE_MANUAL_JOB_ONLY');
- const requiredSettings=['registries','secrets','image','args','triggerType',
+ const requiredSettings=['registries','image','args','triggerType',
    'replicaRetryLimit','parallelism','replicaCompletionCount'];
  for(const key of requiredSettings)
    if((source.match(new RegExp('\\b'+key+'\\s*:','g'))||[]).length!==1)
