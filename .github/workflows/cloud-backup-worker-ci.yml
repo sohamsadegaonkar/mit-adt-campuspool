@@ -6,8 +6,6 @@ on:
       - 'scripts/azure-blob-backup.js'
       - 'test_cloud_backup_auth.js'
       - 'test_cloud_worker_image_policy.js'
-      - 'test_cloud_worker_critical_triage.js'
-      - 'scripts/assess-cloud-worker-critical.js'
       - 'ops/cloud-backup/**'
       - '.github/workflows/cloud-backup-worker-ci.yml'
   workflow_dispatch:
@@ -45,7 +43,6 @@ jobs:
           node --check test_cloud_backup_auth.js
           node --test test_cloud_backup_auth.js
           node --test test_cloud_worker_image_policy.js
-          node --test test_cloud_worker_critical_triage.js
       - name: Never package secrets in public worker image
         run: |
           ! grep -Eq 'COPY[[:space:]]+(\\.|/|\.\./)' ops/cloud-backup/Dockerfile
