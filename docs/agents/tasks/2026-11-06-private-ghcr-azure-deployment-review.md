@@ -30,3 +30,10 @@ Quality-first CampusPool 2.0; **₹500/month total Azure staging-backup cost cei
 - OTP and production migration remain **NO-GO** until genuine backup and independent restore pass, and staging provider testing/rollback are approved.
 
 **No account resources, paid subscriptions, GitHub image visibility, Azure jobs, identities, secrets, real staging connections or exports were changed by this task.**
+
+
+## Source-only continuation — 2026-11-06 IST
+
+The original template accepted `signedGhcrImageDigest` as an unrestricted entire image reference; the independent `reviewedImageDigest()` test helper did not enforce a parameter constraint at deployment time. The review branch now pins the **GHCR host and exact worker repository** directly in Bicep, exposes only `ghcrImageSha256` as a **length-64** parameter, restricts the test helper to the same repository, and checks the compiled ARM model for a single allowed workload, no init/extra containers, no inline secrets and unchanged Vault/CA/manual-job restrictions. This is source and CI hardening only. Lowercase hex, signer identity and pushed manifest still need operator/human verification. CI on the new head is pending; the earlier run evidence relates to the previous head and cannot approve this one.
+
+**Release gate unchanged:** do not run owner Azure Cost Management query on an agent's behalf, deploy the Bicep file, create GHCR tokens, connect to staging, execute backups, migrate or deploy Render without the separately required cost/security/restore approvals.
