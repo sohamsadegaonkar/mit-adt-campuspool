@@ -1,6 +1,6 @@
 # CampusPool staging — cloud-operated encrypted backup worker (proposed)
 
-**Status (2026-11-05): IMPLEMENTATION BRANCH ONLY.** No cloud job, staging export, production deploy, migration or restore has been run by this milestone. This document does **not** authorize execution. The release gate remains NO-GO.
+**Status (2026-11-05): SOURCE PRESENT ON MAIN; EMPTY AZURE ENVIRONMENT CREATED BY OWNER.** The owner verified `campuspool-backup-env` as Succeeded in Malaysia West (Consumption), no jobs and null log destination. No staging export, production deploy, migration or restore has been run. The worker's OS scan in draft PR #38 is **NOT PASSING**; no image registry/job/Key Vault is provisioned. This document does **not** authorize execution. The release gate remains NO-GO.
 
 ## Objective
 
@@ -31,14 +31,14 @@ A **separate** recovery job/environment must retrieve and AGE-decrypt ciphertext
 ## Files
 
 - `ops/cloud-backup/Dockerfile`: non-root minimal image based on the PostgreSQL 17 Debian image, Node 22 binary and AGE. Copies only two allowlisted scripts, not the repository or `-` files.
-- `ops/cloud-backup/package.json`: Azure SDK dependencies used by the dedicated worker.
+- `ops/cloud-backup/package.json` and `ops/cloud-backup/package-lock.json`: locked Azure SDK production dependencies installed with `npm ci` (draft PR #38).
 - `scripts/azure-blob-backup.js`: auth mode `managed-identity` (no Azure CLI/token cache), cloud worker guard, TLS CA presence guard, existing source allowlist, AGE stream and ciphertext readback.
 - `test_cloud_backup_auth.js`: identity selection, CA and scope guards, synthetic readback without remote calls.
 - `.github/workflows/cloud-backup-worker-ci.yml`: synthetic auth CI and container build/smoke test, no Azure/Supabase secrets.
 
 ## Manual rollout preparation — NOT execution instructions
 
-1. **Security review:** Ensure PR #27's stdout fix and new cloud-worker PR are reviewed and passing. Scan dependencies/image for vulnerabilities; generate and commit a production lockfile, pin base images to audited digests, and sign the resulting worker image/digest. Verify minimal non-root runtime, ephemeral filesystem, log redaction, no plaintext to disk/swap and job execution error monitoring.
+1. **Security review:** Existing source fixes were integrated to main; draft PR #38 pins image bases, commits production lockfile and adds full Trivy OS/library scans and SBOM. **The complete image scan FAILS with Debian OS high/critical advisories** (details below). Do not sign/publish/deploy until an updated acceptable runtime image and verified fixes (or explicit documented risk decision). Verify minimal non-root runtime, ephemeral filesystem, log redaction, no plaintext to disk/swap and job execution error monitoring.
 2. **Azure environment/cost:** Identify a supported Container Apps region and confirm storage region mismatch, cross-region transfer, Key Vault, registry, monitoring, network egress and consumption charges. Azure Container Apps Consumption has a per-subscription free allowance, but Azure Blob storage, logs, egress and related resources may incur charges. **Do not create resources without owner approval.**
 3. **Isolation:** Create a dedicated, **manual-only**, one-execution-at-a-time Container Apps Job (replica count/parallelism 1, retry limit 0, finite timeout). Disallow schedules and remove network ingress. Choose network policy allowing only the intended staging PostgreSQL pooler and Azure identity/storage endpoints. Review IP allowlists for Supabase; protect compute and any attached volumes at rest.
 4. **Managed identity:** Enable a system-assigned managed identity (or explicitly chosen user-assigned `AZURE_CLIENT_ID`). Assign the minimum Azure Storage Blob Data Contributor role on the **specific private container scope**. Verify its public access remains disabled, container key isolation, encryption at rest and soft-delete/retention or immutability strategy. Do **not** provide storage account keys or SAS tokens.
@@ -73,3 +73,11 @@ A 48,600-byte potential plaintext staging archive named `-` was found on an olde
 - [PostgreSQL 17 pg_dump](https://www.postgresql.org/docs/17/app-pgdump.html)
 - [Prior Azure backup runbook](AZURE_BLOB_BACKUP.md)
 - [Cloud worker task](../agents/tasks/2026-11-05-cloud-backup-worker.md)
+
+## Image scan and provisioning design checkpoint — 2026-11-05 UTC
+
+- [PR #38](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/38) generated [GitHub Actions Trivy scan](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/42050254779) of the *complete image* (Debian 12 OS packages and application dependencies). Initial report: **458** findings, **4 CRITICAL / 72 HIGH**; **26** fixable HIGH/CRITICAL stemmed from an unused inherited `/usr/local/bin/gosu` binary compiled with outdated Go stdlib. Its removal was verified by an isolated container smoke test.
+- [Post-removal CI scan](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/42050852283) reports **397 Debian 12 OS findings**: **3 CRITICAL, 47 HIGH, 173 MEDIUM, 168 LOW, 6 UNKNOWN**, **zero scanner-documented fixes** for the high/critical set at that scan time. The stricter vulnerability check **FAILS** by policy, and **release is blocked**. This is a dated Trivy vendor-database assessment, not proof of exploitation or absence of all risks.
+- The OS and library scan JSON and CycloneDX SBOM are kept as GitHub Actions artifacts (14-day retention) for review. npm production dependency audit is clean, but does **not** cover Debian vulnerabilities.
+- Prepared a separate [ACR, Key Vault, managed-identity and manual-job cost/permissions design](AZURE_BACKUP_REGISTRY_VAULT_JOB_PREPARATION.md) and read-only `ops/cloud-backup/azure-readonly-preflight.sh`. Neither is a deploy authorization. No new Azure resource or RBAC changes were performed.
+- Next technical gate: evaluate updated/patched PostgreSQL 17 runtime base or minimized runtime image and re-run complete scanner; do **not** waive critical/high by automatically setting ignore-unfixed. Only then submit exact owner cost/tier/permission request for ACR, vault, identity and job.
