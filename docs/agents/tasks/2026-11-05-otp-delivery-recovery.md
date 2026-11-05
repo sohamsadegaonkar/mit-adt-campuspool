@@ -1,7 +1,7 @@
 # Task: Restore OTP delivery and safe account-registration path
 
 - **Task ID / file:** `2026-11-05-otp-delivery-recovery`
-- **Status:** in review — source fixes only; live integration blocked
+- **Status:** in review — 10/10 CI workflows passed on `bb45bbf`; live integration blocked
 - **Agent / owner:** ChatGPT engineering agent; external provider/production approval owner unassigned
 - **Last updated:** 2026-11-05 UTC
 - **Baseline:** `main@1020e2e4a6d446b6b8b7b3bcedd188d02ef142fb`; `fix/otp-api-delivery-and-retry-2026-11-05`
@@ -35,16 +35,16 @@
 
 - 2026-11-05 UTC — Confirmed outbound legacy Gmail SMTP failure in Render logs and legacy SQLite account durability risk.
 - 2026-11-05 UTC — Implemented transactional HTTPS-only email provider (Resend/Brevo), legacy dispatch routing, SQLite failed OTP cleanup, PostgreSQL failed delivery cooldown release, updated preflight and Blueprint. No real provider calls or live deployments.
-- 2026-11-05 UTC — Added mocked provider/retry tests and a dedicated CI workflow. Awaiting GitHub PR checks and external provider/account recovery evidence.
+- 2026-11-05 UTC — Added mocked provider/retry tests and dedicated CI. PR #36 at `bb45bbf27263` passed all ten reported GitHub Actions workflows, including `OTP HTTPS delivery regression`, `Stage 1 PostgreSQL OTP tests`, credential/secret hygiene, runtime preflight, security smoke, docs and mobility browser E2E. Real provider and recovery gates remain blocked.
 
 ## Verification
 
 | Test/check | Environment and command/evidence | Result / limitations |
 |---|---|---|
 | Render signup delivery incident | Read-only production log: `/api/auth/send-email-otp` HTTP 503 (2026-11-04T19:54:49Z) | FAIL pre-fix; root issue identified |
-| Syntax + HTTPS tests | GitHub Actions `otp-https`, `npm run test:otp-delivery` | Pending CI |
-| Runtime, production-auth, legacy auth | GitHub Actions `otp-https` | Pending CI |
-| PostgreSQL failed resend integration | `node --test test_stage1_otp.js` with isolated disposable Postgres | Pending CI |
+| Syntax + HTTPS tests | GitHub Actions `otp-https`, `npm run test:otp-delivery` | PASS on PR #36 at `bb45bbf` (GitHub CI) |
+| Runtime, production-auth, legacy auth | GitHub Actions `otp-https` | PASS on PR #36 at `bb45bbf` (GitHub CI) |
+| PostgreSQL failed resend integration | `node --test test_stage1_otp.js` with isolated disposable Postgres | PASS on PR #36 at `bb45bbf` (GitHub CI) |
 | Real provider email and SMS | Staging account-owner-led E2E; never include OTP/phone/email in public evidence | NOT RUN |
 | Data persistence/rollback | Independent cold restore + restart/session tests | BLOCKED |
 
@@ -65,6 +65,7 @@
 
 ## Links and files changed
 
+- PR: [#36 OTP HTTPS delivery repair](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/36)
 - Branch: [OTP delivery fix](https://github.com/sohamsadegaonkar/mit-adt-campuspool/tree/fix/otp-api-delivery-and-retry-2026-11-05)
 - Runbook: [OTP recovery release](../../docs/ops/OTP_RECOVERY_RELEASE.md)
 - Code: `stage1-otp/email-provider.js`, `server.js`, `database.js`, `stage1-otp/pg-store.js`, `scripts/check-runtime-config.js`, `render.yaml`
