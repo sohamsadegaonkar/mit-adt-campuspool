@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "currency": "INR",
+  "region": "malaysiawest",
+  "periodDays": 31,
+  "budgetInr": 500,
+  "quoteDate": null,
+  "billingScopeConfirmed": false,
+  "taxesAndFxIncluded": false,
+  "studentCreditDeducted": false,
+  "items": [
+    {
+      "category": "image_registry",
+      "monthlyUpperBoundInr": null,
+      "sourceUrl": null,
+      "evidenceDate": null,
+      "evidenceId": null,
+      "assumptions": null
+    },
+    {
+      "category": "key_vault",
+      "monthlyUpperBoundInr": null,
+      "sourceUrl": null,
+      "evidenceDate": null,
+      "evidenceId": null,
+      "assumptions": null
+    },
+    {
+      "category": "container_job",
+      "monthlyUpperBoundInr": null,
+      "sourceUrl": null,
+      "evidenceDate": null,
+      "evidenceId": null,
+      "assumptions": null
+    },
+    {
+      "category": "blob_storage",
+      "monthlyUpperBoundInr": null,
+      "sourceUrl": null,
+      "evidenceDate": null,
+      "evidenceId": null,
+      "assumptions": null
+    },
+    {
+      "category": "blob_transactions",
+      "monthlyUpperBoundInr": null,
+      "sourceUrl": null,
+      "evidenceDate": null,
+      "evidenceId": null,
+      "assumptions": null
+    },
+    {
+      "category": "monitoring_and_alerts",
+      "monthlyUpperBoundInr": null,
+      "sourceUrl": null,
+      "evidenceDate": null,
+      "evidenceId": null,
+      "assumptions": null
+    },
+    {
+      "category": "network_and_egress",
+      "monthlyUpperBoundInr": null,
+      "sourceUrl": null,
+      "evidenceDate": null,
+      "evidenceId": null,
+      "assumptions": null
+    },
+    {
+      "category": "existing_backup_charges",
+      "monthlyUpperBoundInr": null,
+      "sourceUrl": null,
+      "evidenceDate": null,
+      "evidenceId": null,
+      "assumptions": null
+    },
+    {
+      "category": "taxes_and_fx",
+      "monthlyUpperBoundInr": null,
+      "sourceUrl": null,
+      "evidenceDate": null,
+      "evidenceId": null,
+      "assumptions": null
+    }
+  ],
+  "contingencyInr": null
+}
