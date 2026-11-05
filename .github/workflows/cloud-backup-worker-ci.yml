@@ -213,7 +213,7 @@ jobs:
         run: |
           docker run --rm --network none --read-only \
             --entrypoint sh campuspool-backup-client-candidate:ci -c \
-            'node --version && pg_dump --version && age --version && ! command -v postgres'
+            'node --version && pg_dump --version && age --version && ! command -v postgres && ! command -v npm && ! command -v npx'
       - name: Ensure trial image blocks real export without secrets
         run: |
           if docker run --rm --network none --read-only campuspool-backup-client-candidate:ci --execute; then
