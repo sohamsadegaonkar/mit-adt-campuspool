@@ -10,7 +10,8 @@ FROM postgres:17-bookworm@sha256:665dc7b37ac52a17e298511414c21d23ffa4e6a6ef6225b
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
  && apt-get install -y --no-install-recommends age ca-certificates \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
+ && rm -f /usr/local/bin/gosu
 COPY --from=deps /usr/local/bin/node /usr/local/bin/node
 WORKDIR /opt/campuspool
 COPY --from=deps /deps/node_modules ./node_modules
