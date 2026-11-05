@@ -17,9 +17,9 @@ test('No local credential or runtime data files are tracked', () => {
   assert.deepEqual(denied, [], 'Tracked secrets/runtime data found (file paths only)');
 });
 
-test('Render Blueprint uses dashboard secret inputs, not literal SMTP credentials', () => {
+test('Render Blueprint uses HTTPS email sender/API key as private inputs', () => {
   const yaml = fs.readFileSync('render.yaml', 'utf8');
-  for (const key of ['SMTP_USER', 'SMTP_PASS', 'SMTP_FROM']) {
+  for (const key of ['RESEND_API_KEY', 'EMAIL_FROM']) {
     const pattern = new RegExp('- key:\\s*' + key + '\\s*\\n([\\s\\S]*?)(?=\\n\\s*- key:|$)');
     const section = yaml.match(pattern);
     assert.ok(section, key + ' missing from Blueprint');
@@ -27,6 +27,8 @@ test('Render Blueprint uses dashboard secret inputs, not literal SMTP credential
     assert.doesNotMatch(section[1], /(?:^|\n)\s*value:/, key + ' still includes a literal value');
   }
   assert.match(yaml, /- key:\s*OTP_SECRET\s*\n\s*generateValue:\s*true/);
+  assert.match(yaml, /- key:\s*EMAIL_PROVIDER\s*\n\s*value:\s*resend/);
+  assert.doesNotMatch(yaml, /- key:\s*SMTP_PASS/);
 });
 
 test('Vercel configuration has no plaintext SMTP account or password', () => {

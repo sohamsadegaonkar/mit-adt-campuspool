@@ -156,6 +156,30 @@ test('Stage 1 PostgreSQL OTP lifecycle', {skip:!connectionString?'OTP_DATABASE_U
   await Promise.all(stores.map(s=>s.close()));
 });
 
+test('provider failure releases pending PostgreSQL OTP retry without bypassing rate limits',{
+  skip:!connectionString?'OTP_DATABASE_URL test database required':false
+},async()=>{
+  const store=await makeStore();
+  const target=unique('provider-failed');
+  const ip='203.0.113.119';
+  await assert.rejects(store.issue({purpose:'signup_email',channel:'email',target,ip,
+    deliver:async()=>{throw Error('synthetic provider outage');}
+  }),error=>error.code==='DELIVERY_UNAVAILABLE');
+  const failed=await store.pool.query(
+    'SELECT state FROM otp_challenges WHERE target_hash=$1',[store.targetDigest('email',target)]);
+  assert.equal(failed.rows[0].state,'failed');
+  const captureCode=capture();
+  const issued=await store.issue({purpose:'signup_email',channel:'email',target,ip,
+    deliver:captureCode.deliver
+  });
+  assert.equal(issued.ok,true);
+  assert.equal(captureCode.sent.length,1);
+  const good=await store.verify({purpose:'signup_email',channel:'email',target,
+    code:captureCode.sent[0].code,ip});
+  assert.equal(good.ok,true);
+  await store.close();
+});
+
 test('Transactional email adapter requires credentials and validates response',async()=>{
   assert.equal(configured({}),false);
   const env={EMAIL_PROVIDER:'resend',RESEND_API_KEY:'test-only',EMAIL_FROM:'CampusPool <verified@example.org>'};

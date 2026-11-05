@@ -47,7 +47,8 @@
     "check:azure-blob-backup": "node scripts/azure-blob-backup.js --preflight",
     "backup:azure-operator": "node scripts/azure-blob-backup.js --execute",
     "test:mobility-ui": "node --test test_mobility_ui.js",
-    "test:e2e:mobility": "playwright test --config=playwright.mobility.config.cjs"
+    "test:e2e:mobility": "playwright test --config=playwright.mobility.config.cjs",
+    "test:otp-delivery": "node --test test_otp_delivery_recovery.js"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
