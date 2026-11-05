@@ -6,7 +6,7 @@ param location string = 'malaysiawest'
 param containerAppsEnvironmentResourceId string
 param signedGhcrImageDigest string
 param ghcrReadOnlyUsername string
-param registrySecretReaderIdentityResourceId string
+param registryPullVaultReaderIdentityResourceId string
 param ghcrPullTokenKeyVaultSecretUrl string
 param postgresCaKeyVaultSecretUrl string
 param stagingKeyVaultUrl string
@@ -25,7 +25,7 @@ resource manualBackupJob 'Microsoft.App/jobs@2024-03-01' = {
   identity: {
     type: 'SystemAssigned,UserAssigned'
     userAssignedIdentities: {
-      '${registrySecretReaderIdentityResourceId}': {}
+      '${registryPullVaultReaderIdentityResourceId}': {}
     }
   }
   properties: {
@@ -49,12 +49,12 @@ resource manualBackupJob 'Microsoft.App/jobs@2024-03-01' = {
         {
           name: 'ghcr-pull-token'
           keyVaultUrl: ghcrPullTokenKeyVaultSecretUrl
-          identity: registrySecretReaderIdentityResourceId
+          identity: registryPullVaultReaderIdentityResourceId
         }
         {
           name: 'staging-pg-root-ca'
           keyVaultUrl: postgresCaKeyVaultSecretUrl
-          identity: registrySecretReaderIdentityResourceId
+          identity: registryPullVaultReaderIdentityResourceId
         }
       ]
     }
@@ -67,7 +67,7 @@ resource manualBackupJob 'Microsoft.App/jobs@2024-03-01' = {
             '--preflight'
           ]
           resources: {
-            cpu: 0.5
+            cpu: json('0.5')
             memory: '1Gi'
           }
           env: [
