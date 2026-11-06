@@ -80,7 +80,8 @@ if ! printf '%s' "$GHCR_PAT" | docker --config "$DOCKER_CONFIG" login ghcr.io \
     --username sohamsadegaonkar --password-stdin >/dev/null; then
   echo "STOP_GHCR_AUTH_FAILED"; exit 4;
 fi
-unset GHCR_PAT
+# Keep the credential solely as an in-memory shell variable until the
+# authenticated post-sign privacy check. Trap destroys the RAM config on exit.
 
 if [[ "$mode" == "--sign" ]]; then
   echo "START_KEYLESS_SIGNING_GITHUB_OIDC_ONLY"
@@ -100,11 +101,10 @@ if ! cosign verify \
     "$IMAGE" >/dev/null 2>&1; then
   echo "STOP_SIGNED_DIGEST_IDENTITY_VERIFICATION_FAILED"; exit 6;
 fi
-if ! python3 scripts/ghcr_private_package_check.py after < /dev/null >/dev/null 2>&1; then
-  # The first authenticated privacy test above already succeeded. We cannot
-  # repeat it here because the token was cleared and must not persist.
-  :
+if ! printf '%s\n' "$GHCR_PAT" | python3 scripts/ghcr_private_package_check.py after; then
+  echo "STOP_POST_SIGN_PACKAGE_NOT_PRIVATE"; exit 7;
 fi
+unset GHCR_PAT
 echo "SIGNATURE_CRYPTOGRAPHICALLY_VERIFIED=YES"
 echo "VERIFIED_IMAGE=$IMAGE"
 echo "EXPECTED_SIGNER_ISSUER=$EXPECTED_ISSUER"
