@@ -97,7 +97,7 @@ unset confirmation
 if [[ "$vault_present" == NO ]]; then
   if ! az keyvault create \
     --name "$VAULT" --resource-group "$RG" --location "$REGION" \
-    --sku standard --enable-rbac-authorization true \
+    --sku standard --enable-rbac-authorization true --no-self-perms true \
     --enable-purge-protection true --retention-days 90 \
     --public-network-access Enabled --default-action Allow --bypass None \
     --tags project=campuspool stage=staging purpose=manual-encrypted-backup \
