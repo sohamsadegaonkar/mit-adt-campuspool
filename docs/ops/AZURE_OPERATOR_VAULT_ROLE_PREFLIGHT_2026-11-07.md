@@ -58,3 +58,22 @@ If Graph lookup or scoped role enumeration fails, it reports a `STOP_...` code; 
 - [Azure CLI role assignment list — `--all --include-inherited --include-groups`](https://learn.microsoft.com/en-us/cli/azure/role/assignment)
 - [Azure Container Apps Key Vault references](https://learn.microsoft.com/en-us/azure/container-apps/manage-secrets)
 - [Azure Blob role definitions](https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/storage)
+
+
+## Correction — operator role enumeration uses Azure ARM REST
+
+**This section supersedes the old CLI enumeration instructions above.** The owner ran the operator role Bash script three times and observed `STOP_OPERATOR_ROLE_ENUMERATION_DENIED`, `STOP_OPERATOR_DIRECT_ROLE_LOOKUP_FAILED`, and then `ROLE_LOOKUP_ERROR_CATEGORY=UNCLASSIFIED`. We verified from official Azure CLI docs that `--assignee-object-id` is documented for `az role assignment create` but is **not a supported documented `az role assignment list` argument**; treating the CLI errors as proof of denied IAM was incorrect.
+
+The same Bash command now dispatches to `scripts/azure-vault-operator-arm-readonly.py`. This uses the documented Azure Authorization REST API (2022-04-01), `az rest --method get` with `$filter=atScope()`, to query Vault-scope and inherited role assignments. It matches the authenticated operator's GUID **in memory**, performs GET-only role-definition lookup for matching direct assignments, and outputs **only** counts and potential role classifications. No Microsoft Graph display-name enrichment; never emits raw ARM JSON, tokens, emails, principal or subscription IDs. Azure still requires `Microsoft.Authorization/roleAssignments/read`, so an actual 403 remains possible and is reported categorically. Transitive group memberships, PIM, deny assignments, conditional/custom role effective access remain **not verified**, regardless of output.
+
+New owner read-only command:
+
+```bash
+cd ~/campuspool-vault-setup
+git pull --ff-only
+bash ops/cloud-backup/azure-vault-operator-role-readonly.sh
+```
+
+Expected success starts `AZURE_OPERATOR_ROLE_ARM_REST_AUDIT=PASS` and includes `DIRECT_OPERATOR_ROLE_ASSIGNMENTS=<integer>`, `DIRECT_ROLE_ASSIGNMENT_ADMIN_CANDIDATE=YES|NO_OR_UNKNOWN`, `DIRECT_SECRET_WRITER_CANDIDATE=YES|NO_OR_UNKNOWN`, `CANDIDATES_NOT_EFFECTIVE_PERMISSION_PROOF=YES`. A read denial reports `STOP_AZURE_API_AZURE_RBAC_DENIED`. Do not claim all access checked or grant broad roles automatically.
+
+Sources: [Azure role assignment CLI parameters](https://learn.microsoft.com/en-us/cli/azure/role/assignment) and [Azure ARM ListForScope GET requires roleAssignments/read](https://learn.microsoft.com/en-us/rest/api/authorization/role-assignments/list-for-scope?view=rest-authorization-2022-04-01).
