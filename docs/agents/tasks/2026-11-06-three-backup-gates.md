@@ -46,3 +46,26 @@
 - **Immediate concrete next step:** owner executes the existing read-only Cloud Shell inventory `bash ops/cloud-backup/azure-readonly-preflight.sh` from the existing checked-out branch and reports **sanitized resource inventory/status only**. This does not create/delete resources, grant IAM, access the database or trigger jobs. Do not share account IDs, storage keys, private secret values or full connection endpoints.
 - **Private-package security caution:** GitHub documents nuanced GHCR package visibility and repository inheritance for packages created by `GITHUB_TOKEN`. Because the CampusPool GitHub repository is public, do **not** assume workflow-created package is private. Inspect/ensure initial package's privacy **before any confidential image distribution**, and verify access after publishing. Never make a private package public; keep image content free of secrets regardless.
 - Next prerequisites after inventory: independent PR #38–#43 security review; private image signed **pushed manifest** digest; narrow GHCR pull token scoped in Vault, identity and no-delete Blob roles; trusted CA and `/dev/shm` on the target runtime. Only then stage-only TLS, first genuine encrypted Blob readback, and independent PG17/PostGIS cold restore. No schedule/production rollout.
+
+
+## Authenticated Azure inventory — 2026-11-06 IST (confirmed by owner Cloud Shell)
+
+Source: owner executed `bash ops/cloud-backup/azure-readonly-preflight.sh` from reviewed branch; no Azure writes. Output was sanitized (no credentials/tenant IDs shared).
+
+| Item | Observed |
+| --- | --- |
+| Subscription | Azure for Students confirmed |
+| Resource group | `campuspool-backup-rg`, Malaysia West |
+| Container Apps environment | `campuspool-backup-env` in Malaysia West, `Succeeded`, Consumption workload profile, **Logs=null** |
+| Storage account | `011campuspoolbackup`, Malaysia West, `AllowBlobPublicAccess=false`, `PublicNetwork=Enabled` |
+| Provider Microsoft.App | Registered |
+| Provider Microsoft.ContainerRegistry | NotRegistered; **intentionally leave it**, using GHCR not ACR |
+| Provider Microsoft.KeyVault | NotRegistered; needed for planned Vault secret references |
+| Provider Microsoft.ManagedIdentity | NotRegistered; needed for planned user-assigned CA/GHCR Vault reader identity |
+| Resource inventory | **No ACR, Vault, user-assigned identity, or Container Apps backup job returned** within this RG |
+
+**Security interpretation:** `AllowBlobPublicAccess=false` disallows anonymous blob data access; `PublicNetwork=Enabled` does **not** mean the Storage endpoint is network-private. Storage container properties, identity-based Blob roles, Key Vault, secrets, CA file behavior and the actual encryption/recovery path remain unverified. No active backup job exists. No need to register Container Registry in the GHCR design.
+
+**Least-change next step (owner Azure Cloud Shell, subscription-level change; NOT an Azure resource creation or job start):** after verifying the selected subscription, register **only** `Microsoft.KeyVault` and `Microsoft.ManagedIdentity` with `az provider register --namespace ... --wait --output none` and read their `registrationState` with `az provider show`. An operator needs the Azure provider `/register/action` permission. Do not register ACR, create a Vault/identity or role assignments, publish images, enable logs or start a job in the same step. Azure resource-provider registration can add a service app in Entra; owner authorizes these two required namespace registrations explicitly.
+
+**Then:** review exact GHCR package visibility and signed pushed image digest; select reviewed Key Vault configuration and least-privilege secret access; confirm the CA, Cloud worker nonroot `/dev/shm`, Blob private container write/read/no-delete and safe logs using a non-data test before staging TLS/AGE export. Cost confirmation remains deferred/unverified; no claim of ₹500 budget PASS. Further resource creation might incur charges and requires owner-specific go-ahead.
