@@ -22,8 +22,11 @@ if args[:3]==["ad","signed-in-user","show"]:
  if state.get("graph_denied"):sys.exit(1)
  out("11111111-1111-1111-1111-111111111111")
 if args[:3]==["role","assignment","list"]:
- if state.get("roles_denied"):sys.exit(1)
- out(json.dumps(state.get("roles",[])))
+ is_group="--include-groups" in args
+ if state.get("roles_denied") or (is_group and state.get("group_denied")) or (not is_group and state.get("direct_denied")):
+  sys.exit(1)
+ roles=state.get("group_roles",state.get("roles",[])) if is_group else state.get("roles",[])
+ out(json.dumps(roles, indent=2))
 sys.exit(97)
 """
 class OperatorAuditTests(unittest.TestCase):
@@ -66,7 +69,29 @@ class OperatorAuditTests(unittest.TestCase):
  def test_role_denied_fail_closed(self):
   self.config({"roles_denied":True})
   x=self.run_cli()
-  self.assertIn("STOP_OPERATOR_ROLE_ENUMERATION_DENIED",x.stderr)
+  self.assertIn("STOP_OPERATOR_DIRECT_ROLE_LOOKUP_FAILED",x.stderr)
+ def test_group_graph_denial_degrades_to_explicit_direct_only_evidence(self):
+  self.config({"group_denied":True, "roles":[{"scope":"/subscriptions/00000000",
+       "roleDefinitionName":"Owner"}]})
+  x=self.run_cli()
+  self.assertEqual(x.returncode,0,x.stderr)
+  self.assertIn("AZURE_OPERATOR_DIRECT_ROLE_ASSIGNMENTS=1",x.stdout)
+  self.assertIn("DIRECT_ROLE_ASSIGNMENT_ADMIN_CANDIDATE=YES",x.stdout)
+  self.assertIn("OPERATOR_GROUP_ROLE_LOOKUP=UNAVAILABLE_GRAPH_OR_CLI",x.stdout)
+  self.assertIn("AUDIT_LIMITATION=GROUP_INHERITED_PERMISSION_NOT_VERIFIED",x.stdout)
+  self.assertNotIn("AZURE_OPERATOR_RELATED_ROLE_ASSIGNMENTS=",x.stdout)
+ def test_direct_lookup_denial_is_a_real_stop(self):
+  self.config({"direct_denied":True})
+  x=self.run_cli()
+  self.assertIn("STOP_OPERATOR_DIRECT_ROLE_LOOKUP_FAILED",x.stderr)
+ def test_pretty_printed_multiline_json_includes_group_roles(self):
+  self.config({"roles":[],"group_roles":[{"scope":"/subscriptions/FAKE",
+       "roleDefinitionName":"Owner"}]})
+  x=self.run_cli()
+  self.assertEqual(x.returncode,0,x.stderr)
+  self.assertIn("OPERATOR_GROUP_ROLE_LOOKUP=SUCCESS",x.stdout)
+  self.assertIn("ROLE_ASSIGNMENT_ADMIN_CANDIDATE=YES",x.stdout)
+  self.assertNotIn("/subscriptions/FAKE",x.stdout)
  def test_missing_object_fields_fail_closed(self):
   self.config({"roles":[{"scope":"x"}]})
   x=self.run_cli()
@@ -79,4 +104,6 @@ class OperatorAuditTests(unittest.TestCase):
    self.assertNotIn(forbidden,log)
   self.assertIn("role assignment list",log)
   self.assertIn("ad signed-in-user show",log)
+  self.assertIn("--assignee-object-id",log)
+  self.assertIn("--include-groups",log)
 if __name__=="__main__":unittest.main()
