@@ -1,3 +1,14 @@
+
+## CURRENT NEXT STEP — Nov 7 Azure operator IAM via ARM REST
+
+Owner verified live Key Vault `campuspool-backup-kv-01` + user-assigned identity `campuspool-ghcr-vault-reader` creation in Azure for Students, Malaysia West, and passed the Vault/Blob read-only audit (backup container exists, UAI has 0 reported role assignments, no Container Apps Job). Private GHCR image `ghcr.io/sohamsadegaonkar/campuspool-backup-worker@sha256:697feb0cf43a434dcf1afead5968b30d56fa4420edb16892b259894c710b03a2` was **published Private and keyless signed/verified**; short-lived write PAT owner reported deleted. Earlier outdated blocks below describe PREVIOUS checkpoint and do not supersede this one.
+
+Owner operator permissions query failed three times because `az role assignment list` was supplied unsupported `--assignee-object-id` (documented for CREATE only). New **read-only** Azure ARM role scope API query with mocked CI tests is now at `scripts/azure-vault-operator-arm-readonly.py`, accessed via original Bash wrapper.
+
+**Next owner Cloud Shell action:** `cd ~/campuspool-vault-setup && git pull --ff-only && bash ops/cloud-backup/azure-vault-operator-role-readonly.sh`. Share only sanitized counts/candidate status. If ARM reports lack of `Microsoft.Authorization/roleAssignments/read`, inspect Access control (IAM) in Azure Portal privately and obtain appropriately scoped authorization through normal admin review—**no broad privilege grant to work around a diagnostic**.
+
+Then review exact secret-scoped GHCR + CA access (reader UAI), operator temporary writer, separate future job system identity for staging DB password, container-specific Blob read/add/write without delete, protected source credential ingestion and root CA/tmpfs runtime before manual-only job and separately approved genuine AGE backup/independent PG17/PostGIS restore. ₹500 monthly spend verification was owner-deferred, not waived or passed. No recurring job, staging export, restore or production OTP rollout is live.
+
 # CampusPool — prioritized next steps and ownership
 
 **Last prioritized:** 2026-11-03 UTC. **Baseline:** `main@0345b6aeff86`. Items are an actionable backlog, **not authorizations** to alter Render production, student data, SMS/email accounts or payment systems.
