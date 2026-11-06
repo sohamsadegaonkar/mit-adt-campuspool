@@ -23,6 +23,10 @@ if args[:3]==["ad","signed-in-user","show"]:
  out("11111111-1111-1111-1111-111111111111")
 if args[:3]==["role","assignment","list"]:
  is_group="--include-groups" in args
+ if "--fill-principal-name" not in args or args[args.index("--fill-principal-name")+1]!="false":
+  # Simulate Azure for Students / restricted Microsoft Graph: any implicit
+  # principal-name enrichment will fail, even for --assignee-object-id.
+  sys.exit(1)
  if state.get("roles_denied") or (is_group and state.get("group_denied")) or (not is_group and state.get("direct_denied")):
   sys.exit(1)
  roles=state.get("group_roles",state.get("roles",[])) if is_group else state.get("roles",[])
@@ -105,5 +109,6 @@ class OperatorAuditTests(unittest.TestCase):
   self.assertIn("role assignment list",log)
   self.assertIn("ad signed-in-user show",log)
   self.assertIn("--assignee-object-id",log)
+  self.assertGreaterEqual(log.count("--fill-principal-name false"),2)
   self.assertIn("--include-groups",log)
 if __name__=="__main__":unittest.main()
