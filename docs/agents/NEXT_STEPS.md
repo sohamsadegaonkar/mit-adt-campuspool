@@ -1,4 +1,11 @@
 
+## LATEST: Operator ARM REST PASS; Vault secret-import admin plan ONLY
+
+2026-11-07 owner-run `az rest` operator Vault RBAC audit passed with **one direct assignment** and `DIRECT_ROLE_ASSIGNMENT_ADMIN_CANDIDATE=YES`, `DIRECT_SECRET_WRITER_CANDIDATE=NO_OR_UNKNOWN`; these are potential authorizations, **not** verified effective rights (group/PIM/deny/custom unknown). No Azure writes, secret reads, roles or backup jobs were created. Prior CLI errors were from unsupported `--assignee-object-id` on `az role assignment list`, resolved by ARM REST GET.
+
+**Next owner Cloud Shell action is read-only only:** `cd ~/campuspool-vault-setup && git pull --ff-only && python3 scripts/azure-vault-temporary-operator-secrets-officer.py --plan`. [Security runbook](../ops/AZURE_VAULT_TEMP_OPERATOR_WRITER_2026-11-07.md). The optional reviewed `--grant` creates one **Vault-only Key Vault Secrets Officer** assignment for the current operator with explicit typed confirmation and no automatic expiry; `--revoke` deletes only that exact assignment and verifies absence. **No grant performed yet.** Must explain all-Vault secret read/update/delete power until revoked, and require explicit owner acceptance before grant or GHCR token generation. No secret-ingestion path approved yet. Do not turn on job or export.
+
+
 ## CURRENT NEXT STEP — Nov 7 Azure operator IAM via ARM REST
 
 Owner verified live Key Vault `campuspool-backup-kv-01` + user-assigned identity `campuspool-ghcr-vault-reader` creation in Azure for Students, Malaysia West, and passed the Vault/Blob read-only audit (backup container exists, UAI has 0 reported role assignments, no Container Apps Job). Private GHCR image `ghcr.io/sohamsadegaonkar/campuspool-backup-worker@sha256:697feb0cf43a434dcf1afead5968b30d56fa4420edb16892b259894c710b03a2` was **published Private and keyless signed/verified**; short-lived write PAT owner reported deleted. Earlier outdated blocks below describe PREVIOUS checkpoint and do not supersede this one.
