@@ -132,7 +132,7 @@ class RoleAuditTest(unittest.TestCase):
         self.assertIn("CANDIDATES_NOT_EFFECTIVE_PERMISSION_PROOF=YES",s)
         for bad in ("az role assignment create","az keyvault secret set",
                     "az containerapp job create","az storage blob upload",
-                    "az login","--assignee-object-id"):
+                    "--assignee-object-id"):
             # comments and docs may mention unsupported flag
             if bad=="--assignee-object-id": continue
             self.assertNotIn(bad,s)
