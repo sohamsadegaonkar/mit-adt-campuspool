@@ -6,12 +6,16 @@ on:
       - ops/backup-three-gates-evidence-2026-11-06
     paths:
       - 'scripts/azure_31day_cost_evidence.py'
+      - 'scripts/azure_cost_error_sanitize.py'
+      - 'test_azure_cost_error_sanitize.py'
       - 'test_azure_31day_cost_evidence.py'
       - 'ops/cloud-backup/azure-31day-owner-readonly.sh'
       - '.github/workflows/azure-31day-cost-evidence-ci.yml'
   pull_request:
     paths:
       - 'scripts/azure_31day_cost_evidence.py'
+      - 'scripts/azure_cost_error_sanitize.py'
+      - 'test_azure_cost_error_sanitize.py'
       - 'test_azure_31day_cost_evidence.py'
       - 'ops/cloud-backup/azure-31day-owner-readonly.sh'
       - '.github/workflows/azure-31day-cost-evidence-ci.yml'
@@ -29,8 +33,8 @@ jobs:
       - name: Syntax and malicious-command guard (no Azure account connected)
         run: |
           bash -n ops/cloud-backup/azure-31day-owner-readonly.sh
-          python3 -m py_compile scripts/azure_31day_cost_evidence.py
-          python3 -m unittest -v test_azure_31day_cost_evidence.py
+          python3 -m py_compile scripts/azure_31day_cost_evidence.py scripts/azure_cost_error_sanitize.py
+          python3 -m unittest -v test_azure_31day_cost_evidence.py test_azure_cost_error_sanitize.py
           node --test test_azure_backup_budget.js
       - name: Keep all Azure operations strictly read-only
         run: |
