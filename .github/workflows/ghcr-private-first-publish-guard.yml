@@ -1,0 +1,60 @@
+name: Private GHCR First-Publish Guard (offline)
+
+on:
+  pull_request:
+    paths:
+      - 'ops/cloud-backup/ghcr-private-first-publish.sh'
+      - 'scripts/ghcr_private_package_check.py'
+      - 'test_ghcr_private_package_check.py'
+      - '.github/workflows/ghcr-private-first-publish-guard.yml'
+  push:
+    branches:
+      - ops/backup-three-gates-evidence-2026-11-06
+    paths:
+      - 'ops/cloud-backup/ghcr-private-first-publish.sh'
+      - 'scripts/ghcr_private_package_check.py'
+      - 'test_ghcr_private_package_check.py'
+      - '.github/workflows/ghcr-private-first-publish-guard.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-private-ghcr:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Guarded CLI checks (no GHCR credentials)
+        run: |
+          bash -n ops/cloud-backup/ghcr-private-first-publish.sh
+          python3 -m py_compile scripts/ghcr_private_package_check.py
+          python3 -m unittest -v test_ghcr_private_package_check.py
+      - name: Verify only explicit owner interactive publication can push
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          source=Path("ops/cloud-backup/ghcr-private-first-publish.sh").read_text()
+          p=Path("scripts/ghcr_private_package_check.py").read_text()
+          assert "--build-check" in source and "--publish-private" in source
+          assert "git status --porcelain" in source
+          assert "docker build --platform linux/amd64" in source
+          assert "docker --config \"$DOCKER_CONFIG\" push \"$ref\"" in source
+          assert "read -r -s -p" in source
+          assert "/dev/shm/campuspool-private-ghcr-" in source
+          assert "mktemp -d /dev/shm" in source
+          assert "password-stdin" in source
+          assert "REMOTE_GHCR_PRIVATE_VERIFIED" in source
+          assert "REGISTRY_MANIFEST_NOT_YET_SIGNED_OR_APPROVED_FOR_AZURE" in source
+          assert "data.get(\"visibility\") != \"private\"" in p
+          assert "/user/packages/container/" in p
+          for banned in (
+              "ghp_", "github_pat_", "docker run --privileged", "docker build --secret",
+              "az provider register", "az containerapp job start", "az role assignment create",
+              "--execute --approved", "docker login -p", "docker login --password ",
+              "docker push ghcr.io/sohamsadegaonkar/campuspool-backup-worker:latest",
+          ):
+              assert banned not in source, banned
+          print("PRIVATE_GHCR_SOURCE_GUARD_PASS_NO_LOGIN_NO_PUSH")
+          PY
