@@ -1,0 +1,30 @@
+name: Azure Vault/Identity RBAC Read-Only Audit (offline)
+
+on:
+  pull_request:
+    paths:
+      - 'ops/cloud-backup/azure-vault-rbac-readonly-audit.sh'
+      - 'test_azure_vault_rbac_readonly_audit.py'
+      - '.github/workflows/azure-vault-rbac-readonly-audit.yml'
+  push:
+    branches:
+      - ops/backup-three-gates-evidence-2026-11-06
+    paths:
+      - 'ops/cloud-backup/azure-vault-rbac-readonly-audit.sh'
+      - 'test_azure_vault_rbac_readonly_audit.py'
+      - '.github/workflows/azure-vault-rbac-readonly-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mock-readonly-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Azure CLI audit negative tests with fake in-memory CLI
+        run: |
+          bash -n ops/cloud-backup/azure-vault-rbac-readonly-audit.sh
+          python3 -m unittest -v test_azure_vault_rbac_readonly_audit.py

@@ -1,0 +1,59 @@
+name: Azure Vault/Identity Minimal Foundation (offline guard)
+
+on:
+  pull_request:
+    paths:
+      - 'ops/cloud-backup/azure-vault-identity-foundation.sh'
+      - 'test_azure_vault_identity_foundation.py'
+      - '.github/workflows/azure-vault-identity-foundation-ci.yml'
+  push:
+    branches:
+      - ops/backup-three-gates-evidence-2026-11-06
+    paths:
+      - 'ops/cloud-backup/azure-vault-identity-foundation.sh'
+      - 'test_azure_vault_identity_foundation.py'
+      - '.github/workflows/azure-vault-identity-foundation-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-guarded-foundation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax / simulated owner Cloud Shell / RBAC safety (NO AZURE LOGIN)
+        run: |
+          bash -n ops/cloud-backup/azure-vault-identity-foundation.sh
+          python3 -m unittest -v test_azure_vault_identity_foundation.py
+      - name: Confirm script never creates permissions or starts backups
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path("ops/cloud-backup/azure-vault-identity-foundation.sh").read_text()
+          assert 'EXPECTED_SUBSCRIPTION="Azure for Students"' in s
+          assert 'RG="campuspool-backup-rg"' in s
+          assert 'REGION="malaysiawest"' in s
+          assert 'VAULT="campuspool-backup-kv-01"' in s
+          assert 'READER="campuspool-ghcr-vault-reader"' in s
+          assert '--enable-rbac-authorization true' in s
+          assert '--no-self-perms true' in s
+          assert '--enable-purge-protection true' in s
+          assert '--retention-days 90' in s
+          assert '--public-network-access Enabled' in s
+          assert '--default-action Allow' in s
+          assert 'PLAN_MODE_NO_AZURE_WRITES=YES' in s
+          assert 'NO_SECRETS_OR_AZURE_RBAC_GRANTS_CREATED=YES' in s
+          assert 'NO_JOB_CREATED_OR_STARTED=YES' in s
+          for forbidden in (
+            'az role assignment create','az role definition create',
+            'az keyvault secret set','az keyvault secret download',
+            'az containerapp job create','az containerapp job start',
+            'az storage blob upload','az storage blob delete',
+            'az acr create','--execute','--enable-purge-protection false'
+          ):
+              assert forbidden not in s, forbidden
+          print("VAULT_IDENTITY_SOURCE_ONLY_NO_CLOUD_CREDENTIALS_PASS")
+          PY

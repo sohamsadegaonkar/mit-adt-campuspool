@@ -1,0 +1,39 @@
+name: Azure Vault Operator Role Audit (mocked/read only)
+
+on:
+  pull_request:
+    paths:
+      - 'ops/cloud-backup/azure-vault-operator-role-readonly.sh'
+      - 'scripts/azure-vault-operator-arm-readonly.py'
+      - 'test_azure_vault_operator_arm_readonly.py'
+      - 'scripts/azure-vault-temporary-operator-secrets-officer.py'
+      - 'test_azure_vault_temporary_operator_writer.py'
+      - '.github/workflows/azure-vault-operator-role-readonly.yml'
+  push:
+    branches:
+      - ops/backup-three-gates-evidence-2026-11-06
+    paths:
+      - 'ops/cloud-backup/azure-vault-operator-role-readonly.sh'
+      - 'scripts/azure-vault-operator-arm-readonly.py'
+      - 'test_azure_vault_operator_arm_readonly.py'
+      - 'scripts/azure-vault-temporary-operator-secrets-officer.py'
+      - 'test_azure_vault_temporary_operator_writer.py'
+      - '.github/workflows/azure-vault-operator-role-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mocked-operator-roles:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate no Azure writes and simulated operator role audit
+        run: |
+          bash -n ops/cloud-backup/azure-vault-operator-role-readonly.sh
+          python3 -m py_compile scripts/azure-vault-operator-arm-readonly.py
+          python3 -m unittest -v test_azure_vault_operator_arm_readonly.py
+          python3 -m py_compile scripts/azure-vault-temporary-operator-secrets-officer.py
+          python3 -m unittest -v test_azure_vault_temporary_operator_writer.py
