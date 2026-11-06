@@ -21,10 +21,13 @@ operator_object_id="$(az ad signed-in-user show --query id -o tsv 2>/dev/null)" 
 # Direct identity RBAC lookup intentionally avoids group expansion. The previous
 # --assignee-object-id + --include-groups combination is not consistently
 # supported by Azure CLI and Graph permissions. Failure is not automatically
-# evidence that the operator lacks RBAC privileges.
+# evidence that the operator lacks RBAC privileges. The role list CLI defaults
+# to --fill-principal-name true, which queries Graph even with --assignee-object-id;
+# disable principal-name enrichment for both queries so only the optional
+# --include-groups path needs Graph.
 direct_roles_json="$(az role assignment list --assignee-object-id "$operator_object_id" \
   --scope "$vaultid" --all --include-inherited \
-  --only-show-errors -o json 2>/dev/null)" || fail OPERATOR_DIRECT_ROLE_LOOKUP_FAILED
+  --fill-principal-name false --only-show-errors -o json 2>/dev/null)" || fail OPERATOR_DIRECT_ROLE_LOOKUP_FAILED
 
 # Check transitive Entra group membership separately and without changing roles.
 # The group lookup can require Microsoft Graph permissions not available to
@@ -33,7 +36,7 @@ group_lookup="UNAVAILABLE_GRAPH_OR_CLI"
 group_roles_json=""
 if group_roles_json="$(az role assignment list --assignee "$operator_object_id" \
   --scope "$vaultid" --all --include-inherited --include-groups \
-  --only-show-errors -o json 2>/dev/null)"; then
+  --fill-principal-name false --only-show-errors -o json 2>/dev/null)"; then
   group_lookup="SUCCESS"
 fi
 export group_lookup
