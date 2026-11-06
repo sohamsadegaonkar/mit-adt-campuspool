@@ -42,8 +42,14 @@ if [[ "$group_lookup" == "SUCCESS" ]]; then
   { printf '%s\n' "$direct_roles_json"; printf '%s\n' "$group_roles_json"; } | python3 -c '
 import json,sys
 try:
-    direct=json.loads(sys.stdin.readline())
-    expanded=json.loads(sys.stdin.readline())
+    # Azure CLI pretty-prints JSON across multiple lines; decode two values
+    # from one stream without assuming each result fits on a single line.
+    blob=sys.stdin.read().lstrip()
+    decoder=json.JSONDecoder()
+    direct, end=decoder.raw_decode(blob)
+    remainder=blob[end:].lstrip()
+    expanded, second_end=decoder.raw_decode(remainder)
+    if remainder[second_end:].strip(): raise ValueError("extra data")
     for roles in (direct,expanded):
         if not isinstance(roles,list): raise ValueError("not list")
     names=[]
