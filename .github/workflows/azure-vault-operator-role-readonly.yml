@@ -6,6 +6,8 @@ on:
       - 'ops/cloud-backup/azure-vault-operator-role-readonly.sh'
       - 'scripts/azure-vault-operator-arm-readonly.py'
       - 'test_azure_vault_operator_arm_readonly.py'
+      - 'scripts/azure-vault-temporary-operator-secrets-officer.py'
+      - 'test_azure_vault_temporary_operator_writer.py'
       - '.github/workflows/azure-vault-operator-role-readonly.yml'
   push:
     branches:
@@ -14,6 +16,8 @@ on:
       - 'ops/cloud-backup/azure-vault-operator-role-readonly.sh'
       - 'scripts/azure-vault-operator-arm-readonly.py'
       - 'test_azure_vault_operator_arm_readonly.py'
+      - 'scripts/azure-vault-temporary-operator-secrets-officer.py'
+      - 'test_azure_vault_temporary_operator_writer.py'
       - '.github/workflows/azure-vault-operator-role-readonly.yml'
   workflow_dispatch:
 
@@ -31,3 +35,5 @@ jobs:
           bash -n ops/cloud-backup/azure-vault-operator-role-readonly.sh
           python3 -m py_compile scripts/azure-vault-operator-arm-readonly.py
           python3 -m unittest -v test_azure_vault_operator_arm_readonly.py
+          python3 -m py_compile scripts/azure-vault-temporary-operator-secrets-officer.py
+          python3 -m unittest -v test_azure_vault_temporary_operator_writer.py
