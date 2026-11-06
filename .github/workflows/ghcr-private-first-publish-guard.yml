@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'ops/cloud-backup/ghcr-private-first-publish.sh'
+      - 'ops/cloud-backup/ghcr-owner-sign-digest.sh'
       - 'scripts/ghcr_private_package_check.py'
       - 'test_ghcr_private_package_check.py'
       - '.github/workflows/ghcr-private-first-publish-guard.yml'
@@ -12,6 +13,7 @@ on:
       - ops/backup-three-gates-evidence-2026-11-06
     paths:
       - 'ops/cloud-backup/ghcr-private-first-publish.sh'
+      - 'ops/cloud-backup/ghcr-owner-sign-digest.sh'
       - 'scripts/ghcr_private_package_check.py'
       - 'test_ghcr_private_package_check.py'
       - '.github/workflows/ghcr-private-first-publish-guard.yml'
@@ -29,6 +31,7 @@ jobs:
       - name: Guarded CLI checks (no GHCR credentials)
         run: |
           bash -n ops/cloud-backup/ghcr-private-first-publish.sh
+          bash -n ops/cloud-backup/ghcr-owner-sign-digest.sh
           python3 -m py_compile scripts/ghcr_private_package_check.py
           python3 -m unittest -v test_ghcr_private_package_check.py
       - name: Verify only explicit owner interactive publication can push
@@ -37,6 +40,20 @@ jobs:
           from pathlib import Path
           source=Path("ops/cloud-backup/ghcr-private-first-publish.sh").read_text()
           p=Path("scripts/ghcr_private_package_check.py").read_text()
+          signing=Path("ops/cloud-backup/ghcr-owner-sign-digest.sh").read_text()
+          assert "697feb0cf43a434dcf1afead5968b30d56fa4420edb16892b259894c710b03a2" in signing
+          assert "https://github.com/login/oauth" in signing
+          assert "cosign sign --yes" in signing
+          assert "cosign verify" in signing
+          assert '--certificate-identity "$signer"' in signing
+          assert '--certificate-oidc-issuer "$EXPECTED_ISSUER"' in signing
+          assert "I CONSENT TO PUBLIC SIGNER IDENTITY" in signing
+          assert "stat -f -c %T /dev/shm" in signing
+          assert "ghcr_private_package_check.py after" in signing
+          assert "DOCKER_CONFIG" in signing
+          assert "--publish-private" not in signing
+          assert "az containerapp" not in signing
+          assert "pg_dump --" not in signing
           assert "--build-check" in source and "--publish-private" in source
           assert "git status --porcelain" in source
           assert "docker build --platform linux/amd64" in source
