@@ -43,3 +43,23 @@ bash ops/cloud-backup/ghcr-owner-sign-digest.sh --sign
 Key Vault and `Microsoft.ManagedIdentity` providers are **Registered**, but no Key Vault, user-assigned registry/CA reader, system-assigned job/data role, no-delete container-scoped Blob permissions, manually approved zero-retry Container Apps job or tested root CA mount has yet been verified. The ₹500 aggregate spending review was deferred rather than passed. First genuine AGE-encrypted staging `pg_dump` to private Blob and **independent** PG17/PostGIS cold restore remain **OPEN/NO-GO**.
 
 Sources: [existing GHCR first publish plan](GHCR_PRIVATE_FIRST_PUBLISH_2026-11-06.md), [Sigstore image signing](https://docs.sigstore.dev/cosign/signing/signing_with_containers/), [Cosign verifying signer identity](https://docs.sigstore.dev/cosign/verifying/verify/), [GitHub granular package access](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility).
+
+
+## Confirmed keyless signature — owner-run, 2026-11-07 IST
+
+The owner executed `bash ops/cloud-backup/ghcr-owner-sign-digest.sh --sign` and supplied the exact sanitized terminal result:
+
+```text
+Successfully verified SCT...
+tlog entry created with index: 3723930561
+Pushing signature to: ghcr.io/sohamsadegaonkar/campuspool-backup-worker
+GHCR_PERSONAL_CONTAINER_PACKAGE_PRIVATE_VERIFIED
+SIGNATURE_CRYPTOGRAPHICALLY_VERIFIED=YES
+VERIFIED_IMAGE=ghcr.io/sohamsadegaonkar/campuspool-backup-worker@sha256:697feb0cf43a434dcf1afead5968b30d56fa4420edb16892b259894c710b03a2
+EXPECTED_SIGNER_ISSUER=https://github.com/login/oauth
+FINAL_RELEASE_WORKFLOW_ATTESTATION_AND_INDEPENDENT_SECURITY_SIGNOFF_STILL_REQUIRED=YES
+```
+
+**Acceptance:** cryptographic image signing and personal GitHub OIDC issuer/owner-expected identity check for the exact published digest is **PASS (owner execution evidence)**, and private GHCR package visibility remained **PASS**. No personal signer address, registry token or authorization code retained. Public tlog index is not a recovery private key.
+
+**Do not confuse this with release admission:** independent reviewer still needs to accept personal signer trust or require a protected release workflow identity, review exact-image scan/SBOM and private package access, and ensure identity/Key Vault/Blob/CA protections. Revoke ephemeral `write:packages` PAT now; use a different least-privilege `read:packages` pull PAT for Azure. No Azure job, staging export/restore or spending authorization executed by signing.
