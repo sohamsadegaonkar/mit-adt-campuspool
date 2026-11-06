@@ -25,9 +25,22 @@ operator_object_id="$(az ad signed-in-user show --query id -o tsv 2>/dev/null)" 
 # to --fill-principal-name true, which queries Graph even with --assignee-object-id;
 # disable principal-name enrichment for both queries so only the optional
 # --include-groups path needs Graph.
-direct_roles_json="$(az role assignment list --assignee-object-id "$operator_object_id" \
+# Fail closed but classify Azure CLI errors using fixed labels. Raw errors may
+# contain subscription, tenant, principal and endpoint identifiers; never print
+# or persist their contents. On success, the captured output is solely JSON.
+if ! direct_roles_json="$(az role assignment list --assignee-object-id "$operator_object_id" \
   --scope "$vaultid" --all --include-inherited \
-  --fill-principal-name false --only-show-errors -o json 2>/dev/null)" || fail OPERATOR_DIRECT_ROLE_LOOKUP_FAILED
+  --fill-principal-name false --only-show-errors -o json 2>&1)"; then
+  case "${direct_roles_json,,}" in
+    *"unrecognized arguments"*|*"unrecognized parameter"*) echo "ROLE_LOOKUP_ERROR_CATEGORY=CLI_ARGUMENT_UNSUPPORTED";;
+    *"authorizationfailed"*|*"roleassignments/read"*|*"does not have authorization"*|*"forbidden"*) echo "ROLE_LOOKUP_ERROR_CATEGORY=AZURE_RBAC_DENIED";;
+    *"graph.microsoft.com"*|*"graph.windows.net"*|*"insufficient privileges to complete the operation"*) echo "ROLE_LOOKUP_ERROR_CATEGORY=GRAPH_ACCESS_RESTRICTED";;
+    *"expired"*|*"interactionrequired"*|*"please run az login"*) echo "ROLE_LOOKUP_ERROR_CATEGORY=AZURE_LOGIN_REQUIRED";;
+    *) echo "ROLE_LOOKUP_ERROR_CATEGORY=UNCLASSIFIED";;
+  esac
+  unset direct_roles_json
+  fail OPERATOR_DIRECT_ROLE_LOOKUP_FAILED
+fi
 
 # Check transitive Entra group membership separately and without changing roles.
 # The group lookup can require Microsoft Graph permissions not available to
