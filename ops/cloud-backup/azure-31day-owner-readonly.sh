@@ -9,8 +9,9 @@ EXPECTED_SUBSCRIPTION_NAME="Azure for Students"
 API_VERSION="2025-03-01"
 HERE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PARSER="${HERE}/../../scripts/azure_31day_cost_evidence.py"
+ERROR_SANITIZER="${HERE}/../../scripts/azure_cost_error_sanitize.py"
 
-[[ -f "$PARSER" ]] || { echo "STOP: cost parser unavailable" >&2; exit 2; }
+[[ -f "$PARSER" && -f "$ERROR_SANITIZER" ]] || { echo "STOP: cost review utilities unavailable" >&2; exit 2; }
 command -v az >/dev/null && command -v python3 >/dev/null || {
   echo "STOP: Azure CLI and Python 3 required" >&2
   exit 2
@@ -80,13 +81,23 @@ echo "WINDOW_FORECAST=NEXT_31_FULL_UTC_DAYS"
 echo "NO_AZURE_WRITES_OR_RESOURCE_CREATION"
 
 if ! az rest --method post --url "$actual_url" --headers Content-Type=application/json \
-  --body "$actual_body" --output json >"$private_dir/actual.json" 2>/dev/null; then
+  --body "$actual_body" --output json >"$private_dir/actual.json" 2>"$private_dir/actual-error.txt"; then
   echo "COST_ACCESS_BLOCKED: historical Cost Management query unavailable" >&2
+  python3 "$ERROR_SANITIZER" "$private_dir/actual-error.txt" || true
+  exit 4
+fi
+if [[ ! -s "$private_dir/actual.json" ]]; then
+  echo "COST_ACCESS_BLOCKED: historical response empty (possibly HTTP 204; NOT proof of zero cost)" >&2
   exit 4
 fi
 if ! az rest --method post --url "$forecast_url" --headers Content-Type=application/json \
-  --body "$forecast_body" --output json >"$private_dir/forecast.json" 2>/dev/null; then
+  --body "$forecast_body" --output json >"$private_dir/forecast.json" 2>"$private_dir/forecast-error.txt"; then
   echo "COST_ACCESS_BLOCKED: 31-day forecast unavailable" >&2
+  python3 "$ERROR_SANITIZER" "$private_dir/forecast-error.txt" || true
+  exit 4
+fi
+if [[ ! -s "$private_dir/forecast.json" ]]; then
+  echo "COST_ACCESS_BLOCKED: forecast response empty (NOT proof of zero cost)" >&2
   exit 4
 fi
 
