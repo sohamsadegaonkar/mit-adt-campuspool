@@ -56,6 +56,46 @@ def activity_classification(properties):
             return name
     return "NOT_CLASSIFIED"
 
+# Strictly bounded structural metadata for cases where the Activity Log contains
+# a generic BadRequest but no recognized explanation. Never relay provider text.
+SAFE_PROVIDER_ERROR_CODES={
+    "BadRequest":"GENERIC_BAD_REQUEST",
+    "InvalidParameter":"INVALID_PARAMETER",
+    "InvalidParameterValue":"INVALID_PARAMETER",
+    "InvalidResource":"INVALID_RESOURCE",
+    "InvalidTemplate":"INVALID_TEMPLATE",
+    "InvalidTemplateDeployment":"INVALID_TEMPLATE",
+    "InvalidRequestContent":"INVALID_REQUEST_CONTENT",
+    "UnsupportedApiVersion":"UNSUPPORTED_API_VERSION",
+    "InvalidApiVersionParameter":"UNSUPPORTED_API_VERSION",
+    "AuthorizationFailed":"AUTHORIZATION",
+    "ResourceNotFound":"RESOURCE_NOT_FOUND",
+    "ContainerAppOperationError":"GENERIC_CONTAINER_APP_ERROR",
+    "ManagedIdentityNotConfigured":"MANAGED_IDENTITY",
+    "MissingSubscriptionRegistration":"PROVIDER_NOT_REGISTERED",
+    "QuotaExceeded":"QUOTA",
+}
+
+def safe_error_detail(properties):
+    """Return only fixed safe enum values; no provider message, IDs or tokens."""
+    if not isinstance(properties,dict):
+        return "NO_PROPERTIES","NO_CODE"
+    message=properties.get("statusMessage")
+    if message is None:
+        return "ABSENT","NO_CODE"
+    parsed=message
+    if isinstance(message,str):
+        try: parsed=json.loads(message)
+        except (ValueError,TypeError): return "TEXT","NO_CODE"
+    if not isinstance(parsed,dict):
+        return "OTHER","NO_CODE"
+    error=parsed.get("error")
+    if not isinstance(error,dict): error=parsed
+    code=error.get("code")
+    if not isinstance(code,str):
+        return "JSON_OBJECT","NO_CODE"
+    return "JSON_OBJECT",SAFE_PROVIDER_ERROR_CODES.get(code,"UNRECOGNIZED_CODE")
+
 def main():
     if sys.argv[1:]!=["--inspect"]:
         raise Stop("USAGE_INSPECT_ONLY")
@@ -125,16 +165,19 @@ def main():
         if status not in SAFE_ACTIVITY_STATUS:status="OTHER"
         if substatus not in SAFE_SUBSTATUS:substatus="OTHER"
         classification=activity_classification(e.get("properties",{}))
-        matched.append((status,substatus,classification))
+        detail_shape,provider_code=safe_error_detail(e.get("properties",{}))
+        matched.append((status,substatus,classification,detail_shape,provider_code))
     print("RECENT_PROOF_JOB_WRITE_EVENTS="+str(len(matched)))
     if len(matched)==0:
         print("ACTIVITY_LOG_CAUSE=NOT_YET_AVAILABLE")
     else:
         # Never relay raw Azure event contents or correlation IDs.
-        for i,(status,substatus,reason) in enumerate(matched[:5],1):
+        for i,(status,substatus,reason,detail_shape,provider_code) in enumerate(matched[:5],1):
             print(f"WRITE_EVENT_{i}_STATUS="+status.upper())
             print(f"WRITE_EVENT_{i}_SUBSTATUS="+substatus.upper())
             print(f"WRITE_EVENT_{i}_CLASSIFICATION="+reason)
+            print(f"WRITE_EVENT_{i}_DETAIL_SHAPE="+detail_shape)
+            print(f"WRITE_EVENT_{i}_PROVIDER_ERROR_CODE_CATEGORY="+provider_code)
     print("RAW_AZURE_ERRORS_SECRET_VALUES_IDS_AND_TOKENS_PRINTED=NO")
     print("NO_AZURE_WRITE_OR_JOB_START=YES")
     print("GHCR_PULL_PROOF_CREATE_FAILURE_DIAGNOSTIC_COMPLETE=YES")
