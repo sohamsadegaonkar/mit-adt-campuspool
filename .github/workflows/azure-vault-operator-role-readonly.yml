@@ -10,6 +10,8 @@ on:
       - 'test_azure_vault_temporary_operator_writer.py'
       - 'scripts/azure-vault-ghcr-token-one-shot-import.py'
       - 'test_azure_vault_ghcr_one_shot_import.py'
+      - 'scripts/azure-ghcr-secret-scope-rbac-plan.py'
+      - 'test_azure_ghcr_secret_scope_rbac_plan.py'
       - '.github/workflows/azure-vault-operator-role-readonly.yml'
   push:
     branches:
@@ -22,6 +24,8 @@ on:
       - 'test_azure_vault_temporary_operator_writer.py'
       - 'scripts/azure-vault-ghcr-token-one-shot-import.py'
       - 'test_azure_vault_ghcr_one_shot_import.py'
+      - 'scripts/azure-ghcr-secret-scope-rbac-plan.py'
+      - 'test_azure_ghcr_secret_scope_rbac_plan.py'
       - '.github/workflows/azure-vault-operator-role-readonly.yml'
   workflow_dispatch:
 
@@ -43,3 +47,5 @@ jobs:
           python3 -m unittest -v test_azure_vault_temporary_operator_writer.py
           python3 -m py_compile scripts/azure-vault-ghcr-token-one-shot-import.py
           python3 -m unittest -v test_azure_vault_ghcr_one_shot_import.py
+          python3 -m py_compile scripts/azure-ghcr-secret-scope-rbac-plan.py
+          python3 -m unittest -v test_azure_ghcr_secret_scope_rbac_plan.py
