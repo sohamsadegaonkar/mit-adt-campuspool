@@ -117,6 +117,42 @@ class Tests(unittest.TestCase):
         self.assertEqual(code,"PASS")
         self.assertIn("NOT_CLASSIFIED",out)
         self.assertNotIn(sensitive,out)
+    def test_structured_provider_code_is_allowlisted(self):
+        f=Fake()
+        payload={"error":{"code":"InvalidParameterValue","message":"confidential foo ghp_SECRET_123"}}
+        f.log_events=[f.event(message=json.dumps(payload))]
+        code,out=self.do(f)
+        self.assertEqual(code,"PASS")
+        self.assertIn("WRITE_EVENT_1_DETAIL_SHAPE=JSON_OBJECT",out)
+        self.assertIn("WRITE_EVENT_1_PROVIDER_ERROR_CODE_CATEGORY=INVALID_PARAMETER",out)
+        self.assertNotIn("ghp_SECRET_123",out)
+        self.assertNotIn("confidential",out)
+    def test_unrecognized_provider_code_is_not_repeated(self):
+        f=Fake()
+        payload={"error":{"code":"secret:ghp_BUT_NOT_SAFE","message":"owner email or secret"}}
+        f.log_events=[f.event(message=json.dumps(payload))]
+        code,out=self.do(f)
+        self.assertEqual(code,"PASS")
+        self.assertIn("WRITE_EVENT_1_PROVIDER_ERROR_CODE_CATEGORY=UNRECOGNIZED_CODE",out)
+        self.assertNotIn("ghp_BUT_NOT_SAFE",out)
+        self.assertNotIn("owner email",out)
+    def test_provider_message_text_never_rendered(self):
+        f=Fake()
+        f.log_events=[f.event(message="Bearer secret-cannot-print")]
+        code,out=self.do(f)
+        self.assertEqual(code,"PASS")
+        self.assertIn("WRITE_EVENT_1_DETAIL_SHAPE=TEXT",out)
+        self.assertIn("WRITE_EVENT_1_PROVIDER_ERROR_CODE_CATEGORY=NO_CODE",out)
+        self.assertNotIn("secret-cannot-print",out)
+    def test_missing_provider_detail_is_safe(self):
+        f=Fake()
+        event=f.event()
+        event["properties"]={}
+        f.log_events=[event]
+        code,out=self.do(f)
+        self.assertEqual(code,"PASS")
+        self.assertIn("WRITE_EVENT_1_DETAIL_SHAPE=ABSENT",out)
+        self.assertIn("WRITE_EVENT_1_PROVIDER_ERROR_CODE_CATEGORY=NO_CODE",out)
     def test_refuse_mutating_flags(self):
         f=Fake()
         self.assertEqual(self.do(f,"--create")[0],"USAGE_INSPECT_ONLY")
