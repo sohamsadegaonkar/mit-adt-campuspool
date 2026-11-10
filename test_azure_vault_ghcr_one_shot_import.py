@@ -154,7 +154,7 @@ class OnceTests(unittest.TestCase):
                                        "https://vault.azure.net","--query",
                                        "accessToken","-o","tsv")
     def test_noninteractive_terminal_refused(self):
-        with patch.object(sys.stdin,"isatty",return_value=False):
+        with patch.object(m.sys,"stdin",type("FakeTerminal",(),{"isatty":lambda self: False})()):
             with self.assertRaisesRegex(m.Block,"INTERACTIVE_TERMINAL_REQUIRED"):
                 m.hidden_pat()
     def test_source_no_secret_cli_set(self):
