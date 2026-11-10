@@ -188,13 +188,21 @@ def run_once():
         # Attempt exact-role cleanup even if grant or secret import failed.
         if granted_or_ambiguous:
             try:
-                writer.arm("DELETE",assignment+"?api-version=2022-04-01")
+                # Re-read before DELETE: when Azure rejects the initial PUT,
+                # an unconditional DELETE produces misleading cleanup errors.
+                # If role lookup is uncertain, do not presume the role absent.
+                *_,current=writer.prepare()
+                if current is not None:
+                    writer.check_assignment(current,scope,principal,assignment)
+                    writer.arm("DELETE",assignment+"?api-version=2022-04-01")
                 *_,current=writer.prepare()
                 if current is not None:
                     raise Block("TEMP_WRITER_STILL_ASSIGNED")
                 revoke_ok=True
                 print("TEMP_VAULT_WRITER_REVOKED_AND_READBACK_VERIFIED=YES")
             except (Block,writer.Stop):
+                # Assignment might have been created despite an ambiguous PUT.
+                # Do not claim cleanup if RBAC status cannot be verified.
                 print("STOP_VAULT_WRITER_REVOKE_NOT_VERIFIED")
                 print("RECOVERY=RUN_PYTHON_TEMP_OPERATOR_WRITER_REVOKE_AND_VERIFY")
     if not revoke_ok:
