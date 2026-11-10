@@ -14,6 +14,8 @@ on:
       - 'test_azure_ghcr_secret_scope_rbac_plan.py'
       - 'scripts/azure-ghcr-secret-scope-rbac-operator.py'
       - 'test_azure_ghcr_secret_scope_rbac_operator.py'
+      - 'scripts/azure-ghcr-pull-proof-readonly-plan.py'
+      - 'test_azure_ghcr_pull_proof_readonly_plan.py'
       - '.github/workflows/azure-vault-operator-role-readonly.yml'
   push:
     branches:
@@ -30,6 +32,8 @@ on:
       - 'test_azure_ghcr_secret_scope_rbac_plan.py'
       - 'scripts/azure-ghcr-secret-scope-rbac-operator.py'
       - 'test_azure_ghcr_secret_scope_rbac_operator.py'
+      - 'scripts/azure-ghcr-pull-proof-readonly-plan.py'
+      - 'test_azure_ghcr_pull_proof_readonly_plan.py'
       - '.github/workflows/azure-vault-operator-role-readonly.yml'
   workflow_dispatch:
 
@@ -55,3 +59,5 @@ jobs:
           python3 -m unittest -v test_azure_ghcr_secret_scope_rbac_plan.py
           python3 -m py_compile scripts/azure-ghcr-secret-scope-rbac-operator.py
           python3 -m unittest -v test_azure_ghcr_secret_scope_rbac_operator.py
+          python3 -m py_compile scripts/azure-ghcr-pull-proof-readonly-plan.py
+          python3 -m unittest -v test_azure_ghcr_pull_proof_readonly_plan.py
