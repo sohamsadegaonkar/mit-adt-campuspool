@@ -17,6 +17,7 @@ import importlib.util
 import json
 import re
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -34,6 +35,9 @@ API="7.4"
 RESOURCE="https://vault.azure.net"
 MAX_RESPONSE=65536
 MAX_TOKEN=256
+RBAC_RETRY_ATTEMPTS=16
+RBAC_RETRY_INTERVAL_SECONDS=20
+MAX_ERROR_BYTES=8192
 VERSION_ID=re.compile(rf"^{re.escape(BASE)}/secrets/{SECRET_NAME}/[0-9a-f]{{32}}$",re.I)
 META_ID=re.compile(rf"^{re.escape(BASE)}/secrets/[A-Za-z0-9-]+$",re.I)
 
@@ -76,8 +80,29 @@ def kv_request(method,path,access_token,payload=None):
                 raise Block("VAULT_NON_SUCCESS_STATUS")
             return read_json_response(response)
     except urllib.error.HTTPError as error:
-        if error.code==403: raise Block("VAULT_ACCESS_DENIED_OR_PROPAGATION")
-        if error.code in (401,): raise Block("VAULT_AAD_LOGIN_REQUIRED")
+        if error.code==403:
+            # Azure error messages can contain principal IDs, IP addresses,
+            # and resource paths. Read bounded JSON but emit only fixed codes.
+            try:
+                raw=error.read(MAX_ERROR_BYTES+1)
+                if len(raw)>MAX_ERROR_BYTES: raise ValueError("oversized")
+                envelope=json.loads(raw)
+                detail=envelope.get("error",{})
+                codes=[]
+                if isinstance(detail,dict):
+                    codes.append(detail.get("code"))
+                    inner=detail.get("innererror",detail.get("innerError",{}))
+                    if isinstance(inner,dict): codes.append(inner.get("code"))
+                if "ForbiddenByFirewall" in codes or "ForbiddenByConnection" in codes:
+                    raise Block("VAULT_FIREWALL_DENIED")
+                if "ForbiddenByRbac" in codes:
+                    raise Block("VAULT_RBAC_PROPAGATION_PENDING")
+            except Block:
+                raise
+            except (ValueError,TypeError,UnicodeDecodeError,OSError,AttributeError):
+                pass
+            raise Block("VAULT_403_UNCLASSIFIED_NO_RETRY")
+        if error.code==401: raise Block("VAULT_AAD_LOGIN_REQUIRED")
         if error.code==429: raise Block("VAULT_RATE_LIMITED")
         raise Block("VAULT_HTTP_ERROR")
     except (urllib.error.URLError,TimeoutError,ValueError,OSError):
@@ -106,6 +131,22 @@ def assert_secret_absent(token):
         if sid.casefold()==(BASE+"/secrets/"+SECRET_NAME).casefold():
             raise Block("GHCR_TOKEN_SECRET_ALREADY_PRESENT")
     return len(items)
+
+def wait_for_secret_inventory(access):
+    """Retry only metadata LIST on explicit RBAC propagation, never secret PUT."""
+    for attempt in range(RBAC_RETRY_ATTEMPTS):
+        try:
+            count=assert_secret_absent(access)
+            print("VAULT_SECRET_METADATA_READ_AUTHORIZED=YES")
+            print("GHCR_TOKEN_SECRET_PREEXISTING=NO")
+            return count
+        except Block as error:
+            if str(error)!="VAULT_RBAC_PROPAGATION_PENDING": raise
+            if attempt==0: print("VAULT_RBAC_PROPAGATION_WAIT_BOUNDED=YES")
+            if attempt==RBAC_RETRY_ATTEMPTS-1:
+                raise Block("VAULT_RBAC_PROPAGATION_TIMEOUT")
+            time.sleep(RBAC_RETRY_INTERVAL_SECONDS)
+    raise Block("VAULT_RBAC_PROPAGATION_TIMEOUT")
 
 def validate_ghcr_token(value):
     # GitHub Packages requires a classic PAT, not fine-grained github_pat_*.
@@ -179,7 +220,7 @@ def run_once():
         writer.check_assignment(reply,scope,principal,assignment)
         print("TEMP_VAULT_WRITER_GRANT_ACCEPTED=YES")
         vault_token=access_token()
-        assert_secret_absent(vault_token)
+        wait_for_secret_inventory(vault_token)
         import_secret(vault_token,ghcr)
         print("GHCR_PULL_TOKEN_IMPORTED_TO_KEY_VAULT=YES")
         print("GHCR_TOKEN_SCOPE_NOT_INDEPENDENTLY_VERIFIED=YES")
