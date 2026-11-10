@@ -93,6 +93,15 @@ def kv_request(method,path,access_token,payload=None):
                     codes.append(detail.get("code"))
                     inner=detail.get("innererror",detail.get("innerError",{}))
                     if isinstance(inner,dict): codes.append(inner.get("code"))
+                    # Some Key Vault 403 responses place InnerError text
+                    # within the message instead of a structured field.
+                    # Inspect for fixed codes only. Never print the message,
+                    # which may include IP addresses or Azure object IDs.
+                    message=detail.get("message","")
+                    if isinstance(message,str):
+                        for code in ("ForbiddenByFirewall","ForbiddenByConnection",
+                                     "ForbiddenByRbac"):
+                            if code in message: codes.append(code)
                 if "ForbiddenByFirewall" in codes or "ForbiddenByConnection" in codes:
                     raise Block("VAULT_FIREWALL_DENIED")
                 if "ForbiddenByRbac" in codes:
