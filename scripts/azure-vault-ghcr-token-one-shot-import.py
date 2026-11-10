@@ -164,6 +164,7 @@ def run_once():
     # Obtain token before granting powerful role, minimizing grant duration.
     ghcr=hidden_pat()
     granted_or_ambiguous=False
+    grant_acknowledged=False
     outcome=None
     revoke_ok=False
     try:
@@ -174,6 +175,7 @@ def run_once():
             "properties":{"roleDefinitionId":role,"principalId":principal,
                           "principalType":"User"}
         })
+        grant_acknowledged=True
         writer.check_assignment(reply,scope,principal,assignment)
         print("TEMP_VAULT_WRITER_GRANT_ACCEPTED=YES")
         vault_token=access_token()
@@ -188,13 +190,18 @@ def run_once():
         # Attempt exact-role cleanup even if grant or secret import failed.
         if granted_or_ambiguous:
             try:
-                # Re-read before DELETE: when Azure rejects the initial PUT,
-                # an unconditional DELETE produces misleading cleanup errors.
-                # If role lookup is uncertain, do not presume the role absent.
-                *_,current=writer.prepare()
-                if current is not None:
-                    writer.check_assignment(current,scope,principal,assignment)
+                # A successful PUT is authoritative even if list is briefly
+                # stale. Always DELETE that deterministic role when PUT ACKs.
+                # If PUT failed, read IAM state before deciding to DELETE.
+                if grant_acknowledged:
                     writer.arm("DELETE",assignment+"?api-version=2022-04-01")
+                else:
+                    *_,current=writer.prepare()
+                    if current is not None:
+                        writer.check_assignment(current,scope,principal,assignment)
+                        writer.arm("DELETE",assignment+"?api-version=2022-04-01")
+                    elif outcome not in ("STOP_AZURE_RBAC_DENIED",):
+                        raise Block("AMBIGUOUS_ROLE_CREATE_NEEDS_MANUAL_REVIEW")
                 *_,current=writer.prepare()
                 if current is not None:
                     raise Block("TEMP_WRITER_STILL_ASSIGNED")
