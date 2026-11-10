@@ -202,6 +202,19 @@ class OnceTests(unittest.TestCase):
         with patch.object(m,"kv_request",return_value={"value":[],"nextLink":"https://evil.example/?"}):
             with self.assertRaisesRegex(m.Block,"VAULT_SECRET_INVENTORY_INCOMPLETE"):
                 m.assert_secret_absent(TOKEN)
+    def test_unstructured_error_message_rbac_code_is_safe_and_retryable(self):
+        import urllib.error
+        message="Caller resource /subscriptions/SENSITIVE InnerError: ForbiddenByRbac"
+        body=json.dumps({"error":{"code":"Forbidden","message":message}}).encode("utf-8")
+        err=urllib.error.HTTPError(m.BASE+"/secrets",403,"Forbidden",{},io.BytesIO(body))
+        class FakeOpener:
+            def open(self,request,timeout):
+                raise err
+        with patch.object(m.urllib.request,"build_opener",return_value=FakeOpener()):
+            with self.assertRaises(m.Block) as raised:
+                m.kv_request("GET","/secrets?api-version=7.4",TOKEN)
+        self.assertEqual(str(raised.exception),"VAULT_RBAC_PROPAGATION_PENDING")
+        self.assertNotIn("SENSITIVE",str(raised.exception))
     def test_aad_token_command_has_no_secret_arguments(self):
         with patch.object(m.writer,"az",return_value=TOKEN) as az:
             self.assertEqual(m.access_token(),TOKEN)
