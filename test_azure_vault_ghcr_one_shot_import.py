@@ -28,6 +28,7 @@ class FakeCloud:
         self.reject_revoke=False
         self.uploaded=False
         self.access_denied=False
+        self.pending_count=0
         self.calls=[]
     def prepare(self):
         self.calls.append("prepare")
@@ -54,7 +55,10 @@ class FakeCloud:
     def kv(self,method,path,token,payload=None):
         self.calls.append("KV_"+method)
         assert token==TOKEN
-        if self.access_denied:raise m.Block("VAULT_ACCESS_DENIED_OR_PROPAGATION")
+        if self.access_denied:raise m.Block("VAULT_403_UNCLASSIFIED_NO_RETRY")
+        if method=="GET" and self.pending_count>0:
+            self.pending_count-=1
+            raise m.Block("VAULT_RBAC_PROPAGATION_PENDING")
         if method=="GET":
             assert payload is None
             return {"value":[{"id":m.BASE+"/secrets/ghcr-pull-token"}] if self.existing else []}
@@ -77,6 +81,7 @@ class OnceTests(unittest.TestCase):
              patch.object(m,"hidden_pat",return_value=PAT),\
              patch.object(m,"access_token",return_value=TOKEN),\
              patch.object(m,"kv_request",side_effect=cloud.kv),\
+             patch.object(m.time,"sleep",return_value=None),\
              contextlib.redirect_stdout(stdout):
             try:
                 m.run_once()
@@ -113,9 +118,59 @@ class OnceTests(unittest.TestCase):
     def test_data_plane_denial_still_revokes(self):
         cloud=FakeCloud();cloud.access_denied=True
         status,out=self.run_once(cloud)
-        self.assertEqual(status,"STOP_VAULT_ACCESS_DENIED_OR_PROPAGATION")
+        self.assertEqual(status,"STOP_VAULT_403_UNCLASSIFIED_NO_RETRY")
         self.assertFalse(cloud.granted)
         self.assertEqual(cloud.calls.count("DELETE"),1)
+    def test_rbac_propagation_retries_metadata_only_then_writes_once(self):
+        cloud=FakeCloud();cloud.pending_count=3
+        status,out=self.run_once(cloud)
+        self.assertEqual(status,"PASS",out)
+        self.assertIn("VAULT_RBAC_PROPAGATION_WAIT_BOUNDED=YES",out)
+        self.assertIn("VAULT_SECRET_METADATA_READ_AUTHORIZED=YES",out)
+        self.assertEqual(cloud.calls.count("KV_GET"),4)
+        self.assertEqual(cloud.calls.count("KV_PUT"),1)
+        self.assertEqual(cloud.calls.count("DELETE"),1)
+        self.assertFalse(cloud.granted)
+    def test_rbac_delay_exhaustion_does_not_write_token_and_revokes(self):
+        cloud=FakeCloud();cloud.pending_count=m.RBAC_RETRY_ATTEMPTS+3
+        status,out=self.run_once(cloud)
+        self.assertEqual(status,"STOP_VAULT_RBAC_PROPAGATION_TIMEOUT")
+        self.assertFalse(cloud.granted)
+        self.assertFalse(cloud.uploaded)
+        self.assertEqual(cloud.calls.count("KV_GET"),m.RBAC_RETRY_ATTEMPTS)
+        self.assertEqual(cloud.calls.count("KV_PUT"),0)
+        self.assertEqual(cloud.calls.count("DELETE"),1)
+        self.assertIn("TEMP_VAULT_WRITER_REVOKED_AND_READBACK_VERIFIED=YES",out)
+    def test_firewall_403_fails_immediately_and_revokes(self):
+        cloud=FakeCloud()
+        def deny(method,path,token,payload=None):
+            if method=="GET":raise m.Block("VAULT_FIREWALL_DENIED")
+            raise AssertionError("No PUT after 403")
+        with patch.object(cloud,"kv",side_effect=deny):
+            status,out=self.run_once(cloud)
+        self.assertEqual(status,"STOP_VAULT_FIREWALL_DENIED")
+        self.assertFalse(cloud.granted)
+        self.assertFalse(cloud.uploaded)
+        self.assertEqual(cloud.calls.count("DELETE"),1)
+    def test_http_error_json_is_classified_without_leaks(self):
+        import urllib.error
+        for code,expected in [
+            ("ForbiddenByRbac","VAULT_RBAC_PROPAGATION_PENDING"),
+            ("ForbiddenByFirewall","VAULT_FIREWALL_DENIED"),
+            ("OtherCode","VAULT_403_UNCLASSIFIED_NO_RETRY")
+        ]:
+            secret="SENSITIVE-tenant-principal-and-token"
+            body=json.dumps({"error":{"code":"Forbidden",
+                "message":secret,"innererror":{"code":code}}}).encode("utf-8")
+            err=urllib.error.HTTPError(m.BASE+"/secrets",403,"Forbidden",{},io.BytesIO(body))
+            class FakeOpener:
+                def open(self,request,timeout):
+                    raise err
+            with patch.object(m.urllib.request,"build_opener",return_value=FakeOpener()):
+                with self.assertRaises(m.Block) as raised:
+                    m.kv_request("GET","/secrets?api-version=7.4",TOKEN)
+                self.assertEqual(str(raised.exception),expected)
+                self.assertNotIn(secret,str(raised.exception))
     def test_rejected_grant_verifies_absence_without_delete(self):
         cloud=FakeCloud();cloud.reject_grant=True
         status,out=self.run_once(cloud)
