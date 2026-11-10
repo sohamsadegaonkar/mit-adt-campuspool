@@ -7,6 +7,7 @@ error messages, Key Vault values, job secrets, writes or job starts.
 """
 import importlib.util
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -75,6 +76,46 @@ SAFE_PROVIDER_ERROR_CODES={
     "MissingSubscriptionRegistration":"PROVIDER_NOT_REGISTERED",
     "QuotaExceeded":"QUOTA",
 }
+
+# Azure's machine-readable error.code is usually a static symbolic identifier.
+# When our fixed taxonomy misses it, disclose ONLY a tightly validated symbol,
+# never error.message, property paths, JSON objects, runtime IDs or arbitrary text.
+# Reject the whole value if it looks remotely like credential/user metadata.
+SAFE_SYMBOL_PATTERN=re.compile(r"^[A-Z][A-Za-z0-9]{2,63}$")
+SAFE_SYMBOL_PREFIXES=(
+    "Invalid", "ContainerApp", "ContainerApps", "ManagedEnvironment",
+    "ManagedIdentity", "Resource", "Deployment", "Authorization",
+    "Operation", "Registry", "KeyVault", "Quota", "Unsupported",
+    "Missing", "Environment", "Subscription", "Job", "BadRequest",
+)
+SENSITIVE_SYMBOL_FRAGMENTS=(
+    "ghp", "github_pat", "token", "password", "credential", "bearer",
+    "connectionstring", "secretvalue", "privatekey", "apikey",
+    "accesskey", "sas", "email", "principalid", "tenantid", "userid",
+)
+def safe_error_symbol(code):
+    if not isinstance(code,str) or not SAFE_SYMBOL_PATTERN.fullmatch(code):
+        return "SUPPRESSED"
+    if not code.startswith(SAFE_SYMBOL_PREFIXES):
+        return "SUPPRESSED"
+    lower=code.casefold()
+    if any(part in lower for part in SENSITIVE_SYMBOL_FRAGMENTS):
+        return "SUPPRESSED"
+    return code
+
+def safe_error_symbol_from_properties(properties):
+    if not isinstance(properties,dict):
+        return "SUPPRESSED"
+    raw=properties.get("statusMessage")
+    try:
+        parsed=json.loads(raw) if isinstance(raw,str) else raw
+    except (ValueError,TypeError):
+        return "SUPPRESSED"
+    if not isinstance(parsed,dict):
+        return "SUPPRESSED"
+    err=parsed.get("error")
+    if not isinstance(err,dict): err=parsed
+    return safe_error_symbol(err.get("code"))
 
 def safe_error_detail(properties):
     """Return only fixed safe enum values; no provider message, IDs or tokens."""
@@ -166,18 +207,20 @@ def main():
         if substatus not in SAFE_SUBSTATUS:substatus="OTHER"
         classification=activity_classification(e.get("properties",{}))
         detail_shape,provider_code=safe_error_detail(e.get("properties",{}))
-        matched.append((status,substatus,classification,detail_shape,provider_code))
+        symbol=safe_error_symbol_from_properties(e.get("properties",{}))
+        matched.append((status,substatus,classification,detail_shape,provider_code,symbol))
     print("RECENT_PROOF_JOB_WRITE_EVENTS="+str(len(matched)))
     if len(matched)==0:
         print("ACTIVITY_LOG_CAUSE=NOT_YET_AVAILABLE")
     else:
         # Never relay raw Azure event contents or correlation IDs.
-        for i,(status,substatus,reason,detail_shape,provider_code) in enumerate(matched[:5],1):
+        for i,(status,substatus,reason,detail_shape,provider_code,symbol) in enumerate(matched[:5],1):
             print(f"WRITE_EVENT_{i}_STATUS="+status.upper())
             print(f"WRITE_EVENT_{i}_SUBSTATUS="+substatus.upper())
             print(f"WRITE_EVENT_{i}_CLASSIFICATION="+reason)
             print(f"WRITE_EVENT_{i}_DETAIL_SHAPE="+detail_shape)
             print(f"WRITE_EVENT_{i}_PROVIDER_ERROR_CODE_CATEGORY="+provider_code)
+            print(f"WRITE_EVENT_{i}_SAFE_PROVIDER_ERROR_SYMBOL="+symbol)
     print("RAW_AZURE_ERRORS_SECRET_VALUES_IDS_AND_TOKENS_PRINTED=NO")
     print("NO_AZURE_WRITE_OR_JOB_START=YES")
     print("GHCR_PULL_PROOF_CREATE_FAILURE_DIAGNOSTIC_COMPLETE=YES")
