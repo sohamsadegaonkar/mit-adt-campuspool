@@ -1,4 +1,13 @@
 
+## LATEST Nov 10: GHCR Key Vault import PASS, human role revoked, next UAI single-secret read-only PLAN
+
+Owner **live Azure** success: `GHCR_PULL_TOKEN_IMPORTED_TO_KEY_VAULT=YES`, `GHCR_TOKEN_SCOPE_NOT_INDEPENDENTLY_VERIFIED=YES`, `TEMP_VAULT_WRITER_REVOKED_AND_READBACK_VERIFIED=YES`, `ONE_SHOT_GHCR_IMPORT_AND_ROLE_REVOCATION_PASS=YES`. GHCR token now stored under `ghcr-pull-token` in `campuspool-backup-kv-01`, and temporary human Secrets Officer exact-Vault IAM grant removed. No user-assigned identity reader role, staging CA/PG password, Blob writer, backup Job or offsite recovery proof yet.
+
+**NEXT OWNER AZURE CLOUD SHELL IS READ-ONLY:** `cd ~/campuspool-vault-setup && git pull --ff-only && python3 scripts/azure-ghcr-secret-scope-rbac-plan.py --plan`. The new script checks exact ARM token **metadata only, never a secret value**, `campuspool-ghcr-vault-reader` principal and inherited role inventory. [Security runbook](../ops/AZURE_GHCR_SECRET_SCOPE_RBAC_PLAN_2026-11-10.md). Only after a successful plan and explicit scoped permission review may prepare `Key Vault Secrets User` access at **the GHCR token secret scope only**. Neither Vault-wide secret read nor DB password read allowed for UAI.
+
+**Source-level zlib provenance CI gate now PASS:** Alpine stable updated zlib to `1.4-r0` and deleted old patch; pinned 1.4 upstream fixed source SHA evidence validated without waiver. Still no full independent release acceptance, worker deployment, staging AGE encrypted backup or PG17/PostGIS cold restore; budget ₹500/month evidence remains owner-deferred.
+
+
 ## November 10 2026 — first live GHCR secret import blocked; writer cleanup verified
 
 - User ran `python3 scripts/azure-vault-ghcr-token-one-shot-import.py --run-once` in real Azure Cloud Shell after explicitly authorizing the temporary Vault-only role and entering a hidden classic GHCR `read:packages` token. Observed `VAULT_SCOPE_AND_OPERATOR_VERIFIED=YES`, `TEMP_WRITER_INITIAL_STATUS=ABSENT`, `TEMP_VAULT_WRITER_GRANT_ACCEPTED=YES`, **`TEMP_VAULT_WRITER_REVOKED_AND_READBACK_VERIFIED=YES`**, then `STOP_VAULT_ACCESS_DENIED_OR_PROPAGATION`. Failure happened during Key Vault **metadata GET before any secret PUT**, so the token **was NOT imported**. The temporary operator assignment is confirmed removed via ARM readback. No token value was transmitted to chat. Treat the unused GitHub PAT as subject to revocation unless a securely stored controlled retry is intended.
