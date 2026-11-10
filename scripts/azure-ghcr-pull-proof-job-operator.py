@@ -143,7 +143,7 @@ def assemble(uai,env,username):
 def verify_document(doc,uai,env,sub):
     if not isinstance(doc,dict) or str(doc.get("id","")).casefold()!=job_id(sub).casefold():
         raise Stop("WRONG_JOB_ID")
-    if str(doc.get("location","")).casefold()!=LOCATION:
+    if re.sub(r"\s+","",str(doc.get("location",""))).casefold()!=LOCATION:
         raise Stop("WRONG_JOB_LOCATION")
     ident=doc.get("identity",{})
     if not isinstance(ident,dict) or ident.get("type")!="UserAssigned" or \
@@ -202,14 +202,25 @@ def verify_document(doc,uai,env,sub):
         raise Stop("JOB_GUARD_TAGS_MISSING")
     return True
 
-def execution_count():
+def execution_history():
     raw=az("containerapp","job","execution","list","-n",JOB,"-g",RG,"-o","json")
     try:
         entries=json.loads(raw)
         if not isinstance(entries,list):raise ValueError("nonlist")
-        return len(entries)
+        for item in entries:
+            if not isinstance(item,dict):raise ValueError("bad item")
+        return entries
     except (ValueError,TypeError):
         raise Stop("JOB_EXECUTIONS_UNVERIFIED")
+
+def ensure_not_running(entries):
+    # Used only for owner-approved cleanup after the smoke proof run. Never
+    # delete a running or unknown-status execution.
+    for item in entries:
+        props=item.get("properties",{})
+        if not isinstance(props,dict):raise Stop("JOB_EXECUTION_STATE_UNVERIFIED")
+        if props.get("status") not in ("Succeeded","Failed","Stopped"):
+            raise Stop("ACTIVE_OR_UNKNOWN_JOB_EXECUTION_REVIEW")
 
 def confirm(text):
     try:response=input("Type "+text+" to authorize exact Azure operation: ").strip()
@@ -261,15 +272,17 @@ def main():
         raise Stop("JOB_INVENTORY_CHANGED_REVIEW")
     doc=job_resource("get",path)
     verify_document(doc,uai,env,sub)
-    count=execution_count()
-    if count:raise Stop("JOB_ALREADY_EXECUTED_OR_EXECUTION_PRESENT_REVIEW")
+    entries=execution_history()
     print("GHCR_PROOF_JOB_EXACT_MANUAL_CONFIG_VERIFIED=YES")
-    print("GHCR_PROOF_JOB_EXECUTIONS=0")
+    print("GHCR_PROOF_JOB_EXECUTIONS="+str(len(entries)))
     print("NO_GHCR_SECRET_VALUES_QUERIED=YES")
     if action=="--verify":
+        if entries:raise Stop("JOB_ALREADY_EXECUTED_OR_EXECUTION_PRESENT_REVIEW")
         print("NO_AZURE_CHANGES_OR_JOB_START=YES")
         print("GHCR_PULL_PROOF_READY_FOR_SEPARATE_MANUAL_START_REVIEW=YES")
         return
+    # Cleanup is intentionally possible after a completed proof execution.
+    ensure_not_running(entries)
     print("WARNING=DELETE_REMOVES_ONLY_PROOF_JOB_NOT_VAULT_TOKEN_OR_IAM")
     confirm(CONFIRM_DELETE)
     try: job_resource("delete",path)
