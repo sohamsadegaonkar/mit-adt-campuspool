@@ -67,3 +67,38 @@ python3 scripts/azure-vault-temporary-operator-secrets-officer.py --plan
 - Existing Vault public endpoint protected by TLS/RBAC is **not** private-network, aggregate Azure cost ceiling ₹500/month remains unverified/deferred; production OTP release remains gated.
 
 Sources: [Microsoft Set Secret REST](https://learn.microsoft.com/en-us/rest/api/keyvault/secrets/set-secret/set-secret?view=rest-keyvault-secrets-2025-07-01), [List Secrets metadata only](https://learn.microsoft.com/en-us/rest/api/keyvault/secrets/get-secrets/get-secrets?view=rest-keyvault-secrets-2025-07-01), [GitHub GHCR authentication](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry), [Key Vault secret-level RBAC limitations](https://learn.microsoft.com/en-us/azure/key-vault/general/rbac-guide).
+
+
+## Live Azure result and bounded RBAC propagation repair — November 10, 2026
+
+**Owner executed the one-shot import in live Azure Cloud Shell** after creating a new hidden GitHub classic `read:packages` PAT (not shared in chat). It printed:
+
+```text
+VAULT_SCOPE_AND_OPERATOR_VERIFIED=YES
+TEMP_WRITER_INITIAL_STATUS=ABSENT
+TEMP_VAULT_WRITER_GRANT_ACCEPTED=YES
+TEMP_VAULT_WRITER_REVOKED_AND_READBACK_VERIFIED=YES
+STOP_VAULT_ACCESS_DENIED_OR_PROPAGATION
+```
+
+This confirms the helper-owned **Key Vault Secrets Officer role assignment was removed and its absence re-read through ARM**, but does **NOT** prove GHCR token import. Based on source call order, `assert_secret_absent` makes a metadata-only Key Vault `GET /secrets` **before** `PUT /secrets/ghcr-pull-token`; this failure occurred at GET. Thus the program did not invoke the token write and `GHCR_PULL_TOKEN_IMPORTED_TO_KEY_VAULT=YES` was never emitted. The original Vault role PUT happened only seconds before GET; Microsoft explicitly notes 1–5 minutes for RBAC data-plane access propagation, and says an immediate Forbidden may be expected. A 403 may alternatively reflect a firewall or different authorization problem; do not claim a proven root cause. **The token value was not logged or shared.** If no longer needed, revoke the unused GitHub PAT; retain it only if securely managed for a carefully controlled retry.
+
+**Repair on the same draft branch:** `scripts/azure-vault-ghcr-token-one-shot-import.py` now safely classifies Key Vault 403 **from a bounded JSON error response, never printing raw Azure error bodies**. It retries only metadata GET on the explicit `ForbiddenByRbac` code, with at most 16 attempts separated by 20 seconds (hard bounded; no secret PUT before permission is effective). It never retries a secret PUT, and never retries explicit `ForbiddenByFirewall`/connection errors or unclassified 403s. On success it checks the metadata inventory and writes only the exact `ghcr-pull-token` once; on timeout it emits `STOP_VAULT_RBAC_PROPAGATION_TIMEOUT`, attempts the same exact role deletion/readback in `finally`, and refuses to proceed without verified absence. **An interruption can still leave a temporary assignment**; run standalone `python3 scripts/azure-vault-temporary-operator-secrets-officer.py --plan` and if present `--revoke` with typed authorization.
+
+Tests: `test_azure_vault_ghcr_one_shot_import.py` now simulates transient RBAC denial followed by success, retry exhaustion, never overwriting existing secrets, rejecting firewall and ambiguous errors, revoking only helper-owned assignment under both success and failure, and sanitizing 403 error bodies. CI `mocked-operator-roles` is passing. Source-only CI is **not live Azure test proof**.
+
+**Next Azure operator command after confirming `TEMP_SECRET_WRITER_MANAGED_ASSIGNMENT_PRESENT=NO` in `--plan` and reviewing the new script:**
+
+```bash
+cd ~/campuspool-vault-setup
+git pull --ff-only
+python3 scripts/azure-vault-temporary-operator-secrets-officer.py --plan
+# Only if role is ABSENT and the user explicitly approves a temporary wider role:
+python3 scripts/azure-vault-ghcr-token-one-shot-import.py --run-once
+```
+
+The new script again requires `IMPORT_GHCR_TOKEN_AND_REVOKE_VAULT_WRITER` and the new or securely retained classic `read:packages` PAT through hidden TTY only. **If the script prints any STOP, do not repeat until actual Vault role absence is checked.** Successful import requires **all three** `GHCR_PULL_TOKEN_IMPORTED_TO_KEY_VAULT=YES`, `TEMP_VAULT_WRITER_REVOKED_AND_READBACK_VERIFIED=YES`, and `ONE_SHOT_GHCR_IMPORT_AND_ROLE_REVOCATION_PASS=YES`.
+
+**Separate release gate:** `zlib-source-provenance` remains blocked by upstream `SOURCE_HTTP_STATUS_INVALID`; no backup worker/job/data export can start merely because token import succeeds.
+
+Official references: [Azure Key Vault RBAC propagation guidance](https://learn.microsoft.com/en-us/azure/key-vault/general/howto-abac-conditions-cli), [Azure Key Vault REST 403 diagnostics](https://learn.microsoft.com/en-us/azure/key-vault/general/rest-error-codes).
