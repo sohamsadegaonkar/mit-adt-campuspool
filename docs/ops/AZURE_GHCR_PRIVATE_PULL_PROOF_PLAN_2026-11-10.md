@@ -137,3 +137,38 @@ Expected: `GHCR_PROOF_JOB_EXACT_MANUAL_CONFIG_VERIFIED=YES`, `GHCR_PROOF_JOB_EXE
 **Do NOT start it yet.** A start will need another explicit owner permission and a reviewed script that checks the exact proof configuration and avoids overriding the template with malicious environment/command changes. After any later successful or failed controlled execution, use separate explicit `--delete` to remove the proof job. **Do not merge PR into main, run staging backup, or enable OTP production just because creation succeeded.**
 
 Sources: [Azure Container Apps billing](https://learn.microsoft.com/en-us/azure/container-apps/billing), [Container Apps job start permission warning](https://learn.microsoft.com/en-us/azure/container-apps/jobs#permissions), [Jobs API schema](https://learn.microsoft.com/en-us/azure/templates/microsoft.app/2026-01-01/jobs).
+
+
+## November 11, 2026 — first live create returned unknown; do not retry
+
+Owner executed `python3 scripts/azure-ghcr-pull-proof-job-operator.py --create` in **real Azure for Students Cloud Shell** after successful plan and explicit typed consent `CREATE_MANUAL_GHCR_PULL_PROOF_JOB_NO_START`; owner correctly entered GitHub PAT owner **username `sohamsadegaonkar`** (not token). The helper confirmed `GHCR_SECRET_ONLY_UAI_ROLE_VERIFIED=YES`, `PROOF_JOB_NAME=campuspool-ghcr-pull-proof`, `PROOF_JOB_REGISTRY_SECRET=KEY_VAULT_REFERENCE_NO_RAW_PAT`, `PROOF_JOB_NO_DB_OR_BLOB_ACCESS_CONFIGURED=YES`, then printed:
+
+```text
+STOP_JOB_CREATE_OUTCOME_UNKNOWN_REVIEW_WITH_VERIFY_BEFORE_RETRY
+```
+
+**Important**: The script catches any `Stop` from the ARM `PUT`, including Azure reject/permission failure, timeout, invalid manifest or normalized parse failure, and deliberately suppresses raw Azure error details because they might include confidential resource metadata. This **does not show** if the job was created. It did **not call job start**, but no release readiness or private GHCR image pull has been proven. **Never blindly repeat `--create`.**
+
+**Next existing read-only commands on owner's Cloud Shell:**
+
+```bash
+python3 scripts/azure-ghcr-pull-proof-job-operator.py --verify
+az containerapp job list -g campuspool-backup-rg \
+  --query "[].{Name:name,State:properties.provisioningState}" -o table
+```
+
+`--verify` may STOP if absent, still provisioning, or Azure reformats the job manifest; the inventory distinguishes the first question (**exists vs absent**) regardless. Do **not** print the full job document, raw activity logs, `--debug`, secret values, or tokens.
+
+**Additional tested read-only diagnostic**, added after the incident:
+
+```bash
+cd ~/campuspool-vault-setup
+git pull --ff-only
+python3 scripts/azure-ghcr-pull-proof-create-failure-diagnostic.py --inspect
+```
+
+This only verifies the existing exact one-secret IAM role, reads job inventory, selected nonsecret job provisioning state/trigger if present, and calls the Azure Monitor **Activity Log** for job `Microsoft.App/jobs/write` events for the last 24 hours. It outputs fixed markers of success/failure statuses and **sanitized, whitelisted error classifications**, with no raw status messages/paths/identifiers/correlation IDs/secret values. No PUT, job start, token read, network database or Blob access. It can distinguish possible `AZURE_JOB_KEY_VAULT_REFERENCE_FETCH` / `AZURE_JOB_INVALID_CONTAINER_TEMPLATE` / authorization/quota categories only if the matching event contains corresponding text. If activity logs have no write event or no recognizable details, report **uncertain**, not a cause. Tested in mock CI on draft PR #44.
+
+An **Azure Container Apps Jobs platform issue** with exactly this class of managed-identity Key Vault-reference failure was publicly reported 11 August 2026: [microsoft/azure-container-apps#1804](https://github.com/microsoft/azure-container-apps/issues/1804). Microsoft also documents possible provisioning Key Vault reference failures and RBAC propagation up to 10 minutes: [troubleshooting](https://learn.microsoft.com/en-us/azure/container-apps/troubleshoot-deployment-errors). These are **hypotheses only**, not the proven cause of this owner's failed request. Do not grant Vault-wide permissions, reimport token, or copy token values inline to "fix" a 403/secret-sync issue. Need actual sanitized Azure evidence first.
+
+**Release and cost gates remain unchanged**: no GHCR private image pull proof, no staging backup, no AGE remote ciphertext, no independent PG17 restore. Do not start the smoke job; no repeat create until state and cause understood. The role `campuspool-ghcr-vault-reader` still has only `ghcr-pull-token` Secrets User access as of owner's previous readback. Whether a proof job exists after Azure request remains **unknown**.
