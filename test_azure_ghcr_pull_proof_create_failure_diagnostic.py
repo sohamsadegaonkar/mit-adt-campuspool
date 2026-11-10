@@ -153,6 +153,43 @@ class Tests(unittest.TestCase):
         self.assertEqual(code,"PASS")
         self.assertIn("WRITE_EVENT_1_DETAIL_SHAPE=ABSENT",out)
         self.assertIn("WRITE_EVENT_1_PROVIDER_ERROR_CODE_CATEGORY=NO_CODE",out)
+    def test_unrecognized_but_safe_azure_symbol_only(self):
+        f=Fake()
+        raw={"error":{"code":"InvalidParameterValueInContainerTemplate",
+            "message":"secret=ghp_fake should never appear"}}
+        f.log_events=[f.event(message=json.dumps(raw))]
+        code,out=self.do(f)
+        self.assertEqual(code,"PASS")
+        self.assertIn("WRITE_EVENT_1_PROVIDER_ERROR_CODE_CATEGORY=UNRECOGNIZED_CODE",out)
+        self.assertIn("WRITE_EVENT_1_SAFE_PROVIDER_ERROR_SYMBOL=InvalidParameterValueInContainerTemplate",out)
+        self.assertNotIn("ghp_fake",out)
+    def test_raw_token_like_identifier_is_suppressed(self):
+        f=Fake()
+        raw={"error":{"code":"InvalidBearerTokenHighlySensitiveValue",
+            "message":"not for output"}}
+        f.log_events=[f.event(message=json.dumps(raw))]
+        code,out=self.do(f)
+        self.assertEqual(code,"PASS")
+        self.assertIn("WRITE_EVENT_1_SAFE_PROVIDER_ERROR_SYMBOL=SUPPRESSED",out)
+        self.assertNotIn("InvalidBearerTokenHighlySensitiveValue",out)
+        self.assertNotIn("not for output",out)
+    def test_slashes_whitespace_lowercase_and_unknown_prefix_suppressed(self):
+        for bad in ("InvalidCode/tenantId", "Invalid Code", "invalidRequest",
+                    "ghpSecretValue", "Invalid"+"A"*160, "httpsSomething"):
+            f=Fake()
+            f.log_events=[f.event(message=json.dumps({"error":{"code":bad}}))]
+            code,out=self.do(f)
+            self.assertEqual(code,"PASS")
+            self.assertIn("WRITE_EVENT_1_SAFE_PROVIDER_ERROR_SYMBOL=SUPPRESSED",out)
+            self.assertNotIn(bad,out)
+    def test_json_missing_error_code_never_prints_message(self):
+        f=Fake()
+        f.log_events=[f.event(message=json.dumps({"error":{
+            "message":"raw-SECRET-shall-not-be-printed"}}))]
+        code,out=self.do(f)
+        self.assertEqual(code,"PASS")
+        self.assertIn("WRITE_EVENT_1_SAFE_PROVIDER_ERROR_SYMBOL=SUPPRESSED",out)
+        self.assertNotIn("raw-SECRET",out)
     def test_refuse_mutating_flags(self):
         f=Fake()
         self.assertEqual(self.do(f,"--create")[0],"USAGE_INSPECT_ONLY")
