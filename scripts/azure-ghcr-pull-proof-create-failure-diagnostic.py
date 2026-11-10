@@ -116,8 +116,8 @@ def main():
         if str(resource).casefold()!=job_resource.casefold() or \
            str(operation.get("value","")).casefold()!="microsoft.app/jobs/write":
             continue
-        stat=e.get("status",{})
-        substat=e.get("subStatus",{})
+        stat=e.get("status") or {}
+        substat=e.get("subStatus") or {}
         if not isinstance(stat,dict) or not isinstance(substat,dict):
             raise Stop("ACTIVITY_LOG_STATUS_INVALID")
         status=stat.get("value","")
