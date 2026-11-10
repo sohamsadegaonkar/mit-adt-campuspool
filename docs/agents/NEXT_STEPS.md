@@ -1,4 +1,13 @@
 
+## CURRENT Nov 10: owner Vault-only role PLAN passed; GHCR PAT one-shot protected import
+
+Owner's Azure Cloud Shell read-only `python3 scripts/azure-vault-temporary-operator-secrets-officer.py --plan` returned `ROLE_PLAN_COMPLETE=YES`, `TEMP_SECRET_WRITER_MANAGED_ASSIGNMENT_PRESENT=NO`, `OWNER_ACTION=PLAN_ONLY_NO_AZURE_WRITES`. Live Vault, UAI, backup Blob container, read-only IAM and ARM operator permission checks were previously green. **No Vault Secrets Officer, GHCR token, UAI secret-read role, job, backup or restore has been created from this plan.**
+
+New guarded **one-shot** human GHCR private image pull token import prepared (source/CI only): `scripts/azure-vault-ghcr-token-one-shot-import.py`, [runbook](../ops/AZURE_GHCR_ONE_SHOT_SECRET_IMPORT_2026-11-10.md). When consciously accepted by owner, it obtains hidden new GitHub classic `read:packages` token in Cloud Shell, grants Vault-only human Secrets Officer, uploads `ghcr-pull-token` via TLS to Key Vault REST without token shell arguments/env/files/logs, then immediately attempts to revoke helper-owned role and verify absence. Not automatically expiring or hard-crash-proof. **Next owner command after `git pull --ff-only`:** `python3 scripts/azure-vault-ghcr-token-one-shot-import.py --run-once`; typed phrase `IMPORT_GHCR_TOKEN_AND_REVOKE_VAULT_WRITER` and hidden token required. Never paste token in chat. If role revoke not verified run separate `--plan` then `--revoke`; do NOT proceed until confirmed absent.
+
+After verified import, grant GHCR reader UAI `Key Vault Secrets User` at individual GHCR token and staging root CA scopes only (CA not imported), separate job identity for PG password, no-delete Blob container writer, manual-only worker, genuine AGE encrypted staging backup and independent cold PG17/PostGIS restore. Budget ₹500 actual billing unverified/deferred, no production OTP rollout.
+
+
 ## LATEST: Operator ARM REST PASS; Vault secret-import admin plan ONLY
 
 2026-11-07 owner-run `az rest` operator Vault RBAC audit passed with **one direct assignment** and `DIRECT_ROLE_ASSIGNMENT_ADMIN_CANDIDATE=YES`, `DIRECT_SECRET_WRITER_CANDIDATE=NO_OR_UNKNOWN`; these are potential authorizations, **not** verified effective rights (group/PIM/deny/custom unknown). No Azure writes, secret reads, roles or backup jobs were created. Prior CLI errors were from unsupported `--assignee-object-id` on `az role assignment list`, resolved by ARM REST GET.
