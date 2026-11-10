@@ -147,7 +147,10 @@ class OperatorTests(unittest.TestCase):
         c=Cloud();self.assertEqual(self.run_job(c,"--create",m.CONFIRM_CREATE)[0],"PASS")
         c.executions=[{"name":"execution1"}]
         self.assertEqual(self.run_job(c,"--verify")[0],"JOB_ALREADY_EXECUTED_OR_EXECUTION_PRESENT_REVIEW")
-        self.assertEqual(self.run_job(c,"--delete",m.CONFIRM_DELETE)[0],"JOB_ALREADY_EXECUTED_OR_EXECUTION_PRESENT_REVIEW")
+        self.assertEqual(self.run_job(c,"--delete",m.CONFIRM_DELETE)[0],"ACTIVE_OR_UNKNOWN_JOB_EXECUTION_REVIEW")
+        c.executions=[{"name":"execution1","properties":{"status":"Succeeded"}}]
+        self.assertEqual(self.run_job(c,"--delete",m.CONFIRM_DELETE)[0],"PASS")
+        self.assertEqual(c.jobs,[])
     def test_wrong_identity_and_registry_fail(self):
         c=Cloud();self.assertEqual(self.run_job(c,"--create",m.CONFIRM_CREATE)[0],"PASS")
         c.doc["identity"]["type"]="SystemAssigned"
@@ -171,6 +174,7 @@ class OperatorTests(unittest.TestCase):
         self.assertNotIn('secret","show"',source)
         self.assertNotIn("ghp_",source)
         self.assertNotIn("az containerapp job start",source)
-        self.assertIn('require',source) if False else None
+        self.assertIn('confirm(CONFIRM_CREATE)',source)
+        self.assertIn('confirm(CONFIRM_DELETE)',source)
 
 if __name__=="__main__":unittest.main()
