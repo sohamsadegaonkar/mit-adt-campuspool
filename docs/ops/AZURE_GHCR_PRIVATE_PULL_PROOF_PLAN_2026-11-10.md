@@ -256,3 +256,42 @@ echo "STANDARD_ENVIRONMENT_CHECK_COMPLETE"
 ```
 
 `az containerapp env create --environment-mode WorkloadProfiles` is documented by [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/containerapp/env). The default Log Analytics destination can provision an additional workspace, which may incur charges, and is deliberate here so future job execution is auditable. **This runbook entry is a command proposal, NOT evidence of Azure creation.** There is no direct Azure ARM connector available in this agent session; owner executes in Cloud Shell and shares only selected verification fields. After a successful result, refresh environment name references in the existing job operator, then separately review and authorize GHCR-only manual proof job create. Do not start the job or perform database backup until distinct consent and required identity/registry/recovery checks. Preserve existing Express env.
+
+
+## 2026-11-11 — Cloud Shell strict-mode interruption: target absent, retry procedure revised
+
+**Latest owner evidence:** After an earlier copy-pasted `set -euo pipefail` creation attempt closed Cloud Shell, the owner reopened a new shell, disabled strict options and performed safe, read-only `az containerapp env list` / ARM target check. `ENV_LIST_EXIT_CODE=0`, no table entry, `STANDARD_ENV_NOT_FOUND_OR_NOT_YET_VISIBLE`. At this observation time the requested `campuspool-backup-standard-env` is **NOT confirmed created**; do not mark it ready or attempt GHCR proof.
+
+**Risk:** Bash `set -e` in an interactive Cloud Shell may terminate the session on any failing Azure command, hiding the useful exit code. The cause of the original `az containerapp env create` failure is **not known**. Per [Azure CLI docs](https://learn.microsoft.com/en-us/cli/azure/containerapp/env), `--no-wait` avoids a long-running client session, and omitting `--logs-destination` retains the default `log-analytics` with a generated workspace. The earlier explicit logging flag is not proven to be the cause of failure.
+
+**Replacement owner-executed, single-request, non-terminating procedure:**
+
+```bash
+set +e
+set +u
+set +o pipefail
+RG=campuspool-backup-rg
+NEW_ENV=campuspool-backup-standard-env
+FOUND=$(az containerapp env list -g "$RG" --query "[?name=='${NEW_ENV}'].name | [0]" -o tsv)
+LIST_RC=$?
+echo "ENV_INVENTORY_RC=$LIST_RC"
+if [ "$LIST_RC" -ne 0 ]; then
+  echo "STOP_INVENTORY_FAILED_NO_CREATE"
+elif [ -n "$FOUND" ]; then
+  echo "TARGET_ALREADY_EXISTS_NO_CREATE"
+else
+  echo "SUBMITTING_STANDARD_ENVIRONMENT_CREATE"
+  az containerapp env create \
+    -g "$RG" -n "$NEW_ENV" \
+    -l malaysiawest --environment-mode WorkloadProfiles \
+    --no-wait --only-show-errors -o none
+  CREATE_RC=$?
+  echo "CREATE_REQUEST_RC=$CREATE_RC"
+fi
+echo "=== READ_ONLY_STATUS ==="
+az containerapp env list -g "$RG" \
+  --query "[?name=='${NEW_ENV}'].{Name:name,State:properties.provisioningState}" -o table
+echo "ENV_STATUS_CHECK_COMPLETE"
+```
+
+If the request exits nonzero, stop and inspect the **redacted** Azure error and CLI version in Cloud Shell; do not blindly retry, switch subscription, relax IAM or remove the old Express environment. If exit code is zero, it means Azure **accepted the provisioning request**, not that the environment is `Succeeded`; verify later with selected-field ARM `GET 2026-07-01` and Consumption profile inventory. This procedure does not start jobs or perform backups; Azure resource creation may incur charges and was explicitly permitted by the owner.
