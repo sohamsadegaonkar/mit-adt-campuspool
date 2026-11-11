@@ -69,7 +69,10 @@ class ReadOnlyPlan(unittest.TestCase):
         self.assertIn("PROPOSED_CA_DB_BLOB_PERMISSIONS=NONE",out)
         self.assertNotIn(SUB,out)
         self.assertNotIn(IDENT,out)
-        self.assertTrue(all(args[0] in ("identity","containerapp") for args in c.calls))
+        self.assertTrue(all(args[0] in ("identity","containerapp") or
+                            (args[0]=="rest" and
+                             args[args.index("--method")+1]=="get")
+                            for args in c.calls))
         self.assertFalse(any("start" in args or "create" in args or "set" in args for args in c.calls))
     def test_no_role_stops_early(self):
         c=Cloud();c.secret_role=False
