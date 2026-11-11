@@ -196,3 +196,24 @@ az containerapp job list -g campuspool-backup-rg --query "length(@)" -o tsv
 These commands inspect only resource mode, state and counts (no secret values, identities or subscriptions). Before deciding whether to request an environment quota increase, create a second environment, or replace an unused Express environment, independently validate subscription quota (earlier `ManagedEnvironmentCount=0/1` before first environment), any existing apps/consumers, Malaysia West availability, network/logging constraints, current 31-day actual spend plus taxes and `₹500` cap, and explicit owner authorization. **Do not delete existing environment, create a new one, change its mode, alter IAM or reattempt proof job yet.** After a supported environment exists and a newly reviewed cost/security plan, recompute job manifest's environment ID and run the manual-only smoke proof under separate approval. Preserve no DB/CA/Blob permissions; stage backup, independent PG17/PostGIS restore and OTP release remain NO-GO.
 
 **Privacy:** raw Azure Activity Logs include caller email, IP address, subscription/tenant IDs and session claims. Never copy the raw event into repo/Notion or public issues; only the error code and resource capability conclusion are retained here.
+
+
+## 11 November 2026 — Confirm actual environment mode and regional quota via selected read-only ARM fields
+
+Owner's latest Azure CLI inventory: existing `campuspool-backup-env` is `Succeeded` in Malaysia West, but `properties.environmentMode` was **null in the CLI projection**; zero Container Apps and zero Jobs are present **in `campuspool-backup-rg`**. The earlier independent `ExpressEnvironmentResourceNotSupported` from the actual failed ARM create remains decisive. A `null` field is not evidence of a Standard environment; the updated job preflight intentionally fails closed on unknown mode.
+
+Use only named properties from ARM `GET` (avoid dumping the entire environment document), and retrieve subscription/ARM IDs into shell variables **without printing them**:
+
+```bash
+ENV_ID=$(az containerapp env show -g campuspool-backup-rg -n campuspool-backup-env --query id -o tsv)
+az rest --method get \
+  --url "https://management.azure.com${ENV_ID}?api-version=2026-07-01" \
+  --query "{Mode:properties.environmentMode,Kind:kind,State:properties.provisioningState}" -o json
+
+SUB_ID=$(az account show --query id -o tsv)
+az rest --method get \
+  --url "https://management.azure.com/subscriptions/${SUB_ID}/providers/Microsoft.App/locations/malaysiawest/usages?api-version=2026-01-01" \
+  --query "value[?name.value=='ManagedEnvironmentCount'].{Used:currentValue,Limit:limit}" -o table
+```
+
+Published sources: [managed environments GET 2026-07-01](https://learn.microsoft.com/en-us/rest/api/resource-manager/containerapps/managed-environments/get?view=rest-resource-manager-containerapps-2026-07-01), [regional usage quota GET 2026-01-01](https://learn.microsoft.com/en-us/rest/api/resource-manager/containerapps/usages/list?view=rest-resource-manager-containerapps-2026-01-01), and [Express FAQ](https://learn.microsoft.com/en-us/azure/container-apps/express-faq). If the newer read API is unavailable or returns null, record **mode unverified** rather than guessing. Quota `Used/Limit` may affect eligibility to create a separate replacement environment. Do **not** delete or convert Express, create a new environment, retry the GHCR job, grant IAM, incur new resources, perform staging backup or release OTP until owner gives separate explicit approval after cost/security review.
