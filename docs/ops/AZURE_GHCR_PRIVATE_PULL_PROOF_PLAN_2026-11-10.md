@@ -326,3 +326,27 @@ If the request exits nonzero, stop and inspect the **redacted** Azure error and 
 - [Microsoft Container Apps troubleshooting](https://learn.microsoft.com/en-us/azure/container-apps/troubleshooting) and [CLI quickstart](https://learn.microsoft.com/en-us/azure/container-apps/get-started) require installing/upgrading the `containerapp` extension, **enabling preview** for preview-only flags: `az extension add --name containerapp --upgrade --allow-preview true`. [CLI reference](https://learn.microsoft.com/en-us/cli/azure/containerapp/env) distinguishes **core** `env create` from **extension** `env create`, and only the extension advertises the preview `--environment-mode` flag and `WorkloadProfiles` explicit example.
 - Next step (owner Cloud Shell; environment cost consent already granted): `set +e; az extension add --name containerapp --upgrade --allow-preview true`, verify `az extension show -n containerapp --query version -o tsv`, then verify `az containerapp env create --help` contains `--environment-mode`. Only if both checks pass and a resource-group-scoped list confirms target absent, make **one** guarded `az containerapp env create -g campuspool-backup-rg -n campuspool-backup-standard-env -l malaysiawest --environment-mode WorkloadProfiles --logs-destination log-analytics --no-wait --only-show-errors -o none`. Report `CREATE_REQUEST_RC` and read-only status. No `set -e`, no deletion, no GHCR job. If `--environment-mode` still missing or Express quota recurs, stop and gather CLI/extension command selection diagnostics; consider separately reviewed ARM/Bicep explicit environment mode deployment, not repeated blind retries.
 - As before, a create request exit code zero is just **accepted**, not a ready environment. GET `properties.environmentMode=WorkloadProfiles` and `properties.provisioningState=Succeeded` using `api-version=2026-07-01` before any GHCR job plan. No actual Azure creation, backup or OTP release has been performed by this agent.
+
+
+## 2026-11-12 — Standard environment verified; Cloud Shell operator checkout absent
+
+- Owner returned an actual Azure ARM GET for `campuspool-backup-standard-env` showing `Mode=WorkloadProfiles`, `State=Succeeded`, and `Profiles=[Consumption]`. This satisfies the **environment creation and mode gate** only; it does not prove any GHCR pull, job creation, staging backup or recovery.
+- Attempt to run read-only GHCR preflight from `~/campuspool-vault-setup` failed because this directory did not exist in the current Azure Cloud Shell; resulting `git pull` failed outside a Git repository and `python3 scripts/azure-ghcr-pull-proof-readonly-plan.py --plan` could not find the script. These are **Cloud Shell checkout/path errors, not Azure environment failures**.
+- Verified the authoritative plan script exists in draft [PR #44](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/44) on branch `ops/backup-three-gates-evidence-2026-11-06` at `scripts/azure-ghcr-pull-proof-readonly-plan.py`. Recommended owner Cloud Shell checkout:
+
+```bash
+set +e
+git clone --depth 1 --single-branch \
+  --branch ops/backup-three-gates-evidence-2026-11-06 \
+  https://github.com/sohamsadegaonkar/mit-adt-campuspool.git \
+  "$HOME/campuspool-ghcr-preflight"
+if [ -f "$HOME/campuspool-ghcr-preflight/scripts/azure-ghcr-pull-proof-readonly-plan.py" ]; then
+  cd "$HOME/campuspool-ghcr-preflight" || return 1
+  python3 scripts/azure-ghcr-pull-proof-readonly-plan.py --plan
+  echo "PREFLIGHT_EXIT_CODE=$?"
+else
+  echo "STOP_REPOSITORY_CHECKOUT_MISSING"
+fi
+```
+
+- Do not run GHCR job create/start; this plan is read-only and can report `STOP_...` for missing scoped RBAC or unexpected job inventory. If clone fails due to GitHub authentication or network access, diagnose **without pasting credentials**. Do not infer a successful preflight until the actual output is seen.
