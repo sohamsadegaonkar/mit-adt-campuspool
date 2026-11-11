@@ -225,3 +225,34 @@ Published sources: [managed environments GET 2026-07-01](https://learn.microsoft
 - Current Microsoft guidance: [ACA quotas](https://learn.microsoft.com/en-us/azure/container-apps/quotas) covers separate Express constraints; [billing](https://learn.microsoft.com/en-us/azure/container-apps/billing) says Consumption jobs incur compute charges only while executions run and documents shared per-subscription free grants, but network, logging, storage and other resources can still cost money. [WorkloadProfiles v2](https://learn.microsoft.com/en-us/azure/container-apps/environment-type-consumption-only) with built-in Consumption is recommended over legacy ConsumptionOnly. No dedicated profile; avoid dedicated plan management charges and nonessential networking/infrastructure.
 - **Code correction:** new GHCR proof guard previously read `properties.environmentMode` via `az containerapp env show`, which returned `null` for this Express environment. On [draft PR #44](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/44), updated the read-only preflight and owner-gated operator to GET the selected canonical ARM `properties.environmentMode` using `2026-07-01`; fail closed unless `WorkloadProfiles` or `ConsumptionOnly`. Added and corrected offline tests ensuring no unsafe ARM PUT and GET-only mode lookup (latest source commit `b92ef5cb1b6bbae8b0786cc69583f84e617ad58f`). Check exact-head CI completion before claiming full pass.
 - **Next operational gate:** request owner to review current Azure spend/remaining credit and realistic 31-day budget including possible logs/network/Blob/Key Vault costs, ensure availability and subscription permission for a second non-Express environment, and approve exact resource name and config before creating. The Express environment has no listed workloads; **do not delete it**, broaden IAM, retry proof job, expose GHCR token, perform encrypted staging backup or enable production OTP. New standard environment requires independent creation consent; manual job create and job start each require separate consent.
+
+
+## 11 November 2026 — Owner authorizes cost-bearing standard environment creation (not job start)
+
+Owner explicitly stated charges are acceptable for now, allowing the next technical provisioning step without waiting for a ₹500 cost analysis. This authorizes **only the new standard environment** after the verified real ARM GET reported `campuspool-backup-env` is `Express/Succeeded` and Malaysia West `ManagedEnvironmentCount Used=0, Limit=1`. It is **not** approval for broader IAM, job execution, production OTP, data migration or payments.
+
+**Owner-operated Azure Cloud Shell command** (Bash; one create operation only, idempotent target check; no secrets printed):
+
+```bash
+set -euo pipefail
+RG=campuspool-backup-rg
+NEW_ENV=campuspool-backup-standard-env
+FOUND=$(az containerapp env list -g "$RG" --query "[?name=='${NEW_ENV}'].name | [0]" -o tsv)
+if [ -z "$FOUND" ]; then
+  az containerapp env create \
+    --name "$NEW_ENV" --resource-group "$RG" \
+    --location malaysiawest \
+    --environment-mode WorkloadProfiles \
+    --logs-destination log-analytics \
+    --query "{Name:name,Region:location,State:properties.provisioningState}" -o json
+else
+  echo "TARGET_ALREADY_EXISTS_VERIFYING_ONLY"
+fi
+ENV_ID=$(az containerapp env show -g "$RG" -n "$NEW_ENV" --query id -o tsv)
+az rest --method get \
+  --url "https://management.azure.com${ENV_ID}?api-version=2026-07-01" \
+  --query "{Mode:properties.environmentMode,State:properties.provisioningState,Profiles:properties.workloadProfiles[].{Name:name,Type:workloadProfileType}}" -o json
+echo "STANDARD_ENVIRONMENT_CHECK_COMPLETE"
+```
+
+`az containerapp env create --environment-mode WorkloadProfiles` is documented by [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/containerapp/env). The default Log Analytics destination can provision an additional workspace, which may incur charges, and is deliberate here so future job execution is auditable. **This runbook entry is a command proposal, NOT evidence of Azure creation.** There is no direct Azure ARM connector available in this agent session; owner executes in Cloud Shell and shares only selected verification fields. After a successful result, refresh environment name references in the existing job operator, then separately review and authorize GHCR-only manual proof job create. Do not start the job or perform database backup until distinct consent and required identity/registry/recovery checks. Preserve existing Express env.
