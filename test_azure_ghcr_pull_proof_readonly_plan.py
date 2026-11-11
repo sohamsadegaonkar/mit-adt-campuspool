@@ -99,6 +99,10 @@ class ReadOnlyPlan(unittest.TestCase):
                             for args in c.calls))
         self.assertFalse(any("properties.environmentMode" in args
                             for args in c.calls if args[:3]==("containerapp","env","show")))
+    def test_preflight_is_pinned_to_new_standard_backup_environment(self):
+        self.assertEqual(m.ENVIRONMENT,"campuspool-backup-standard-env")
+        self.assertNotEqual(m.ENVIRONMENT,"campuspool-backup-env")
+
     def test_express_mode_rejected_before_job_inventory(self):
         c=Cloud();c.env_mode="Express"
         status,out=self.run_plan(c)
