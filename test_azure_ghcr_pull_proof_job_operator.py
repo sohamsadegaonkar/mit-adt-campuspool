@@ -31,6 +31,7 @@ class Cloud:
         self.denied=False
         self.role=True
         self.return_wrong_id=False
+        self.env_mode="WorkloadProfiles"
         self.username="sohamsadegaonkar"
         self.manifest=None
     def az(self,*args):
@@ -38,7 +39,8 @@ class Cloud:
         if self.denied:raise m.plan.Stop("AZURE_RBAC_READ_DENIED")
         if args[:2]==("identity","show"):return UAI
         if args[:3]==("containerapp","env","show"):
-            return {"id":ENV,"location":"Malaysia West","properties.provisioningState":"Succeeded"}[args[args.index("--query")+1]]
+            return {"id":ENV,"location":"Malaysia West","properties.provisioningState":"Succeeded",
+                    "properties.environmentMode":self.env_mode}[args[args.index("--query")+1]]
         if args[:3]==("containerapp","job","list"):
             return json.dumps(self.jobs)
         if args[:4]==("containerapp","job","execution","list"):
@@ -158,6 +160,23 @@ class OperatorTests(unittest.TestCase):
         c.doc["identity"]["type"]="UserAssigned"
         c.doc["properties"]["configuration"]["registries"][0]["identity"]=UAI
         self.assertEqual(self.run_job(c,"--verify")[0],"JOB_REGISTRY_AUTH_METADATA_INVALID")
+    def test_express_env_blocks_create_before_arm_put(self):
+        c=Cloud();c.env_mode="Express"
+        state,out=self.run_job(c,"--create",m.CONFIRM_CREATE)
+        self.assertEqual(state,"CONTAINER_APPS_EXPRESS_JOBS_UNSUPPORTED")
+        self.assertIsNone(c.doc)
+        self.assertFalse(any(args[0]=="rest" for args in c.calls))
+        self.assertNotIn("GHCR_PROOF_JOB_CREATE_REQUEST_ACCEPTED",out)
+    def test_unverified_env_mode_blocks_create(self):
+        c=Cloud();c.env_mode="None"
+        state,out=self.run_job(c,"--create",m.CONFIRM_CREATE)
+        self.assertEqual(state,"CONTAINER_APPS_ENVIRONMENT_MODE_UNVERIFIED")
+        self.assertIsNone(c.doc)
+    def test_legacy_consumption_only_mode_allows_manual_manifest(self):
+        c=Cloud();c.env_mode="ConsumptionOnly"
+        state,out=self.run_job(c,"--create",m.CONFIRM_CREATE)
+        self.assertEqual(state,"PASS",out)
+        self.assertEqual(c.manifest["properties"]["configuration"]["triggerType"],"Manual")
     def test_existing_region_drift_fail_closed(self):
         c=Cloud()
         def drift(*args):
