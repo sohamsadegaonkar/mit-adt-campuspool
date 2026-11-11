@@ -49,3 +49,14 @@ Never paste keys, full addresses, live OTPs, student records, account screenshot
 5. Only after durable production database migration and security/privacy checks are signed off, plan a separate controlled production rollout and rollback window. Log status codes and sanitized failure classes only.
 
 If a send fails: do not continuously retry/loop; check provider's private delivery dashboard, sender/domain verification, account limits, quotas, and configured variables. The backend returns `503 EMAIL_DELIVERY_UNAVAILABLE` and must not leave a fresh unsent challenge locked under a resend cooldown. Keep independent rate limits active.
+
+
+## 11 November 2026 — Release candidate hardening, still NOT approved for production
+
+The owner chose to defer *cost review* while prioritizing code readiness. The engineering change is **source-only**, with no Azure/Render provisioning, GitHub main merge, service deploy or production database mutation.
+
+- Both production and staging Render services have auto-deploy OFF. Production's actual managed service is **Docker in Singapore**, despite the older `render.yaml` Node/Oregon template. Draft PR #36 now aligns the Blueprint to the verified Docker/Singapore service metadata without synchronizing it; no release configuration or secrets were changed in Render.
+- The **production** runtime preflight requires `APP_ENV=production`, `NODE_ENV=production`, `AUTH_OTP_BACKEND=postgres`, `RIDES_BACKEND=postgres`, trusted Supabase pooler connection + TLS/CA, independent signing/HMAC keys, verified HTTPS email provider settings (Resend or Brevo), and MSG91 credentials + template. This is a *presence and shape* check, **not** real provider/DB availability or compliance. Run `node scripts/check-runtime-config.js --target production --json` in a secured candidate environment only; it never prints secret values.
+- The production release checker also accepts Brevo HTTPS with sender validation and continues to require real delivery, independent backup/restore, legacy record reconciliation, production PostgreSQL readiness, and human release GO. `npm run test:release` and `npm run check:release-ci` are included in OTP regression CI. A separate CI Docker job builds `Dockerfile` via lockfile-based `npm ci` and requests `GET /healthz` on an isolated synthetic container without real keys.
+- **Do not sync the Blueprint or change live flags to Postgres before a separate production DB, migration plan, permissions, audited offsite backup and independent restore exist**. `sync:false` fields are only prompts on initial Blueprint creation; on existing services, configure/verify private values in Render directly. Never reuse the staging Supabase database or CA without provenance/authorization.
+- Actual registration, durable sessions, verified OTP inbox and handset delivery, real rollback and payments compliance remain outstanding. Production stays **NO-GO** even when CI is green.
