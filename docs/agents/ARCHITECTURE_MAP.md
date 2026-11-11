@@ -96,3 +96,8 @@ The separate Flutter UI branch introduces `lib/ride_feed.dart`: an opt-in HTTPS/
 ## Proposed destination autocomplete integration — branch-local (2026-11-04)
 
 Flutter `PlaceAutocompleteField` calls `HttpPlaceSearchSource` using the configured CampusPool origin. The Node server has two narrow optional, publicly readable JSON POST endpoints, `/api/places/suggest` and `/api/places/resolve`, behind `PLACES_AUTOCOMPLETE_ENABLED`. `places-autocomplete.js` calls fixed Google Places (New) endpoints using the **server-only** `GOOGLE_PLACES_API_KEY`. Google session token comes from the Flutter typing/selection session. Strict rate/budget limits are checked in the Node SQLite bucket; external provider quota must be configured separately. No user session, GPS, payment, rides data or production environment is changed by this unmerged branch. [Task](tasks/2026-11-04-flutter-place-autocomplete.md).
+
+
+## OTP provider recovery candidate — 2026-11-05 (unmerged)
+
+`fix/otp-api-delivery-and-retry-2026-11-05` proposes routing both legacy SQLite and PostgreSQL OTP email through `stage1-otp/email-provider.js` over an explicitly selected HTTPS Resend or Brevo adapter. No production SMTP fallback; `EMAIL_FROM` must be configured with an externally provider-verified sender; acceptance is not inbox delivery. SQLite invalidates a rejected send by exact challenge ID; PostgreSQL marks failed send immediately retryable with independent shared rate limits. Live configuration, real provider delivery, production PostgreSQL identity storage and recovery/rollbacks remain **unverified**. See [OTP recovery runbook](../ops/OTP_RECOVERY_RELEASE.md).

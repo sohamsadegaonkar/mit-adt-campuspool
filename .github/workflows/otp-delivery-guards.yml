@@ -1,0 +1,70 @@
+name: OTP HTTPS delivery regression
+on:
+  pull_request:
+    paths:
+      - 'server.js'
+      - 'database.js'
+      - 'stage1-otp/email-provider.js'
+      - 'stage1-otp/pg-store.js'
+      - 'scripts/check-runtime-config.js'
+      - 'test_otp_delivery_recovery.js'
+      - 'test_runtime_config.js'
+      - 'scripts/check-release-gates.js'
+      - 'test_release_gates.js'
+      - 'test_stage1_otp.js'
+      - 'package.json'
+      - 'render.yaml'
+      - 'Dockerfile'
+      - '.github/workflows/otp-delivery-guards.yml'
+  workflow_dispatch:
+
+jobs:
+  otp-https:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: node --check server.js
+      - run: node --check database.js
+      - run: node --check stage1-otp/email-provider.js
+      - run: node --check stage1-otp/pg-store.js
+      - run: npm run test:otp-delivery
+      - run: npm run test:runtime-config
+      - run: npm run test:release
+      - run: npm run check:release-ci
+      - run: npm run test:production-auth
+      - run: npm run test:auth
+
+  docker-health:
+    name: Docker image build and isolated health smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build production Dockerfile with locked dependencies
+        run: docker build --tag campuspool-release-smoke .
+      - name: Start isolated synthetic container and check health
+        run: |
+          docker run --detach --name campuspool-release-smoke \
+            --publish 127.0.0.1:18080:10000 \
+            --env NODE_ENV=development \
+            --env ENABLE_CLUSTER=false \
+            --env PORT=10000 \
+            --env AUTH_OTP_BACKEND=sqlite \
+            --env RIDES_BACKEND=sqlite \
+            campuspool-release-smoke
+          trap 'docker rm --force campuspool-release-smoke >/dev/null 2>&1 || true' EXIT
+          for attempt in $(seq 1 45); do
+            if curl --silent --fail http://127.0.0.1:18080/healthz >/dev/null; then
+              echo "DOCKER_SYNTHETIC_HEALTH_PASS"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "DOCKER_SYNTHETIC_HEALTH_FAILED"
+          exit 1

@@ -253,7 +253,9 @@ test('CampusPool pre-deploy security smoke tests (isolated local database)', { t
     await t.test('No committed environment file remains and Render uses secret inputs', () => {
       assert.equal(fs.existsSync(path.join(__dirname,'.env.production')),false);
       const yaml=fs.readFileSync(path.join(__dirname,'render.yaml'),'utf8');
-      assert.match(yaml,/key: SMTP_PASS\s+sync: false/);
+      assert.match(yaml,/key: RESEND_API_KEY\s+sync: false/);
+      assert.match(yaml,/key: EMAIL_FROM\s+sync: false/);
+      assert.doesNotMatch(yaml,/key: SMTP_PASS/);
     });
     await t.test('Throttled mutations can only read a bounded completed-key receipt', async () => {
       // Logout is verified first. A new valid session for the same actor must
