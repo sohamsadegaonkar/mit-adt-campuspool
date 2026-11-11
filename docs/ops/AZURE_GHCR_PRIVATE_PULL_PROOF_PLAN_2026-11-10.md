@@ -172,3 +172,27 @@ This only verifies the existing exact one-secret IAM role, reads job inventory, 
 An **Azure Container Apps Jobs platform issue** with exactly this class of managed-identity Key Vault-reference failure was publicly reported 11 August 2026: [microsoft/azure-container-apps#1804](https://github.com/microsoft/azure-container-apps/issues/1804). Microsoft also documents possible provisioning Key Vault reference failures and RBAC propagation up to 10 minutes: [troubleshooting](https://learn.microsoft.com/en-us/azure/container-apps/troubleshoot-deployment-errors). These are **hypotheses only**, not the proven cause of this owner's failed request. Do not grant Vault-wide permissions, reimport token, or copy token values inline to "fix" a 403/secret-sync issue. Need actual sanitized Azure evidence first.
 
 **Release and cost gates remain unchanged**: no GHCR private image pull proof, no staging backup, no AGE remote ciphertext, no independent PG17 restore. Do not start the smoke job; no repeat create until state and cause understood. The role `campuspool-ghcr-vault-reader` still has only `ghcr-pull-token` Secrets User access as of owner's previous readback. Whether a proof job exists after Azure request remains **unknown**.
+
+
+## 11 November 2026 — RESOLVED root cause: Express environment rejects Container Apps Jobs
+
+**Owner-provided Azure Activity Log evidence (redacted here; do not copy raw event):** the 2026-11-10T18:53Z `Microsoft.App/jobs/write` call failed HTTP 400 with `error.code=ExpressEnvironmentResourceNotSupported` and a provider explanation that Jobs cannot run in Express environments. The target proof job is absent; no job execution, encrypted staging backup or database read was performed. This is **an environment capability incompatibility**, not evidence of a failed GHCR PAT, missing Key Vault secret grant, image digest problem or database issue. The preceding `--plan` incorrectly marked the environment ready because it checked successful provisioning, Malaysia West, identity and role, but never checked `properties.environmentMode`. The event is sufficient to explain this attempted job creation.
+
+**Current Microsoft documentation:** [Express overview](https://learn.microsoft.com/en-us/azure/container-apps/express-overview) explicitly excludes Container Apps Jobs, Key Vault secret references and workload profiles. [Container Apps environments](https://learn.microsoft.com/en-us/azure/container-apps/environment) and [workload profiles](https://learn.microsoft.com/en-us/azure/container-apps/structure) recommend a standard WorkloadProfiles (v2) environment with the built-in Consumption profile for compatible on-demand jobs. [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/containerapp/env) documents `--environment-mode WorkloadProfiles` at new-environment creation. **Do not assume an active Express environment can be converted in place**; archived restore functionality is not proof of supported direct Express→WorkloadProfiles conversion.
+
+**Source safety fix on [draft PR #44](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/44):** both read-only GHCR job planning and the consent-gated create operator now query `properties.environmentMode`, reject `Express` with `STOP_CONTAINER_APPS_EXPRESS_JOBS_UNSUPPORTED`, and fail closed on unknown/archived modes. Acceptance is limited to `WorkloadProfiles` or legacy `ConsumptionOnly`. Added mock tests proving the check stops before any ARM PUT. Diagnostic also maps the precise `ExpressEnvironmentResourceNotSupported` code to a non-sensitive enum. Verify the latest CI status; mock tests do not prove quota or cloud mode.
+
+**Next owner step — read-only, no CLI writes:**
+
+```bash
+az containerapp env show -g campuspool-backup-rg -n campuspool-backup-env \
+  --query "{Mode:properties.environmentMode,State:properties.provisioningState,Region:location}" -o json
+az containerapp env list -g campuspool-backup-rg \
+  --query "[].{Name:name,Mode:properties.environmentMode}" -o table
+az containerapp list -g campuspool-backup-rg --query "length(@)" -o tsv
+az containerapp job list -g campuspool-backup-rg --query "length(@)" -o tsv
+```
+
+These commands inspect only resource mode, state and counts (no secret values, identities or subscriptions). Before deciding whether to request an environment quota increase, create a second environment, or replace an unused Express environment, independently validate subscription quota (earlier `ManagedEnvironmentCount=0/1` before first environment), any existing apps/consumers, Malaysia West availability, network/logging constraints, current 31-day actual spend plus taxes and `₹500` cap, and explicit owner authorization. **Do not delete existing environment, create a new one, change its mode, alter IAM or reattempt proof job yet.** After a supported environment exists and a newly reviewed cost/security plan, recompute job manifest's environment ID and run the manual-only smoke proof under separate approval. Preserve no DB/CA/Blob permissions; stage backup, independent PG17/PostGIS restore and OTP release remain NO-GO.
+
+**Privacy:** raw Azure Activity Logs include caller email, IP address, subscription/tenant IDs and session claims. Never copy the raw event into repo/Notion or public issues; only the error code and resource capability conclusion are retained here.
