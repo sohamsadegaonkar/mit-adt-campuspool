@@ -26,5 +26,16 @@ test('Even with all identity and provider config, production requires durable Ri
   const result=inspect({mode:'production',env:fake});
   assert.equal(result.ready,false);
   assert.ok(result.failed.some(x=>x.includes('Rides and bookings')));
+  assert.ok(result.passed.includes('Configured HTTPS Resend/Brevo email provider and sender present'));
+  const brevo=inspect({mode:'production',env:{
+    ...fake,EMAIL_PROVIDER:'brevo',RESEND_API_KEY:'',BREVO_API_KEY:'synthetic-brevo-key'
+  }});
+  assert.ok(brevo.passed.includes('Configured HTTPS Resend/Brevo email provider and sender present'));
+  const smtp=inspect({mode:'production',env:{
+    ...fake,EMAIL_PROVIDER:'smtp',RESEND_API_KEY:'',SMTP_PASS:'synthetic-legacy-only'
+  }});
+  assert.ok(smtp.failed.includes('Configured HTTPS Resend/Brevo email provider and sender present'));
+  const invalidSender=inspect({mode:'production',env:{...fake,EMAIL_FROM:'bad\\nBcc: x@example.org'}});
+  assert.ok(invalidSender.failed.includes('Configured HTTPS Resend/Brevo email provider and sender present'));
   assert.ok(result.manual.length>=4);
 });
