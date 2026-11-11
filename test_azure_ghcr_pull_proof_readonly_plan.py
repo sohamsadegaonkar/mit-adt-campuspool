@@ -24,6 +24,7 @@ class Cloud:
         self.secret_role=True
         self.env_state="Succeeded"
         self.env_region="Malaysia West"
+        self.env_mode="WorkloadProfiles"
         self.env_id=ENV
         self.uai_id=IDENT
         self.jobs=[]
@@ -36,7 +37,8 @@ class Cloud:
         if args[:3]==("containerapp","env","show"):
             query=args[args.index("--query")+1]
             return {"id":self.env_id,"location":self.env_region,
-                    "properties.provisioningState":self.env_state}[query]
+                    "properties.provisioningState":self.env_state,
+                    "properties.environmentMode":self.env_mode}[query]
         if args[:3]==("containerapp","job","list"):
             return "not json" if self.bad_jobs_json else json.dumps(self.jobs)
         raise AssertionError("Unexpected Azure CLI "+str(args))
@@ -81,6 +83,22 @@ class ReadOnlyPlan(unittest.TestCase):
     def test_not_ready_environment_stops(self):
         c=Cloud();c.env_state="Updating"
         self.assertEqual(self.run_plan(c)[0],"CONTAINER_APPS_ENVIRONMENT_NOT_READY")
+    def test_express_mode_rejected_before_job_inventory(self):
+        c=Cloud();c.env_mode="Express"
+        status,out=self.run_plan(c)
+        self.assertEqual(status,"CONTAINER_APPS_EXPRESS_JOBS_UNSUPPORTED")
+        self.assertNotIn("GHCR_PRIVATE_PULL_JOB_PLAN_COMPLETE=YES",out)
+        self.assertFalse(any(args[:3]==("containerapp","job","list") for args in c.calls))
+    def test_unknown_mode_is_fail_closed(self):
+        for value in ("", "None", "Archived", "Unknown"):
+            c=Cloud();c.env_mode=value
+            self.assertEqual(self.run_plan(c)[0],
+                             "CONTAINER_APPS_ENVIRONMENT_MODE_UNVERIFIED")
+    def test_legacy_consumption_only_mode_is_accepted(self):
+        c=Cloud();c.env_mode="ConsumptionOnly"
+        status,out=self.run_plan(c)
+        self.assertEqual(status,"PASS",out)
+        self.assertIn("CONTAINER_APPS_ENVIRONMENT_JOB_COMPATIBLE=YES",out)
     def test_existing_target_job_stops(self):
         c=Cloud();c.jobs=[{"name":m.TEST_JOB}]
         self.assertEqual(self.run_plan(c)[0],"GHCR_PULL_TEST_JOB_ALREADY_EXISTS_REVIEW")
