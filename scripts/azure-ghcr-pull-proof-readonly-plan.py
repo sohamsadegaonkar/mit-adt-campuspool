@@ -52,6 +52,15 @@ def az(*args):
     try:return operator.preflight.az(*args)
     except operator.preflight.Stop as err:raise Stop(str(err))
 
+def read_jobs_compatible_environment_mode(env_id):
+    # The containerapp CLI projection can report environmentMode=null for an
+    # Express environment. Read only the canonical ARM field via the API that
+    # the owner independently verified (2026-07-01); never guess from null.
+    value=az("rest","--method","get",
+             "--url",operator.preflight.ARM+env_id+"?api-version=2026-07-01",
+             "--query","properties.environmentMode","-o","tsv")
+    return require_jobs_compatible_environment_mode(value)
+
 def main():
     if sys.argv[1:]!=["--plan"]:
         raise Stop("USAGE_PLAN_ONLY")
@@ -82,9 +91,7 @@ def main():
     if state.casefold()!="succeeded":
         raise Stop("CONTAINER_APPS_ENVIRONMENT_NOT_READY")
 
-    mode=az("containerapp","env","show","-g",RG,"-n",ENVIRONMENT,
-            "--query","properties.environmentMode","-o","tsv")
-    require_jobs_compatible_environment_mode(mode)
+    read_jobs_compatible_environment_mode(env_id)
 
     jobs_raw=az("containerapp","job","list","-g",RG,"-o","json")
     try:
