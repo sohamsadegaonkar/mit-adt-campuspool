@@ -27,6 +27,7 @@ SAFE_SUBSTATUS={"OK","Created","Accepted","BadRequest","Forbidden","Unauthorized
                 "Conflict","TooManyRequests","InternalServerError",
                 "ServiceUnavailable","GatewayTimeout","NoContent"}
 CLASSIFIERS=(
+ ("AZURE_JOB_EXPRESS_ENVIRONMENT_UNSUPPORTED","expressenvironmentresourcenotsupported"),
  ("AZURE_JOB_KEY_VAULT_REFERENCE_FETCH","unable to get value using managed identity"),
  ("AZURE_JOB_KEY_VAULT_REFERENCE_FETCH","unable to fetch secret"),
  ("AZURE_JOB_INVALID_CONTAINER_TEMPLATE","invalidparametervalueincontainertemplate"),
@@ -60,6 +61,7 @@ def activity_classification(properties):
 # Strictly bounded structural metadata for cases where the Activity Log contains
 # a generic BadRequest but no recognized explanation. Never relay provider text.
 SAFE_PROVIDER_ERROR_CODES={
+    "ExpressEnvironmentResourceNotSupported":"EXPRESS_ENVIRONMENT_UNSUPPORTED",
     "BadRequest":"GENERIC_BAD_REQUEST",
     "InvalidParameter":"INVALID_PARAMETER",
     "InvalidParameterValue":"INVALID_PARAMETER",
