@@ -14,6 +14,7 @@ on:
       - 'test_stage1_otp.js'
       - 'package.json'
       - 'render.yaml'
+      - 'Dockerfile'
       - '.github/workflows/otp-delivery-guards.yml'
   workflow_dispatch:
 
@@ -38,3 +39,32 @@ jobs:
       - run: npm run check:release-ci
       - run: npm run test:production-auth
       - run: npm run test:auth
+
+  docker-health:
+    name: Docker image build and isolated health smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build production Dockerfile with locked dependencies
+        run: docker build --tag campuspool-release-smoke .
+      - name: Start isolated synthetic container and check health
+        run: |
+          docker run --detach --name campuspool-release-smoke \
+            --publish 127.0.0.1:18080:10000 \
+            --env NODE_ENV=development \
+            --env ENABLE_CLUSTER=false \
+            --env PORT=10000 \
+            --env AUTH_OTP_BACKEND=sqlite \
+            --env RIDES_BACKEND=sqlite \
+            campuspool-release-smoke
+          trap 'docker rm --force campuspool-release-smoke >/dev/null 2>&1 || true' EXIT
+          for attempt in $(seq 1 45); do
+            if curl --silent --fail http://127.0.0.1:18080/healthz >/dev/null; then
+              echo "DOCKER_SYNTHETIC_HEALTH_PASS"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "DOCKER_SYNTHETIC_HEALTH_FAILED"
+          exit 1
