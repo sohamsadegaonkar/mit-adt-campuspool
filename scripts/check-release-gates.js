@@ -58,8 +58,15 @@ function inspect({mode='ci',env=process.env,root=path.resolve(__dirname,'..')}={
         u.port==='5432';
     }catch(_){}
     check(urlIsSafe,'Private verified PostgreSQL session pooler configured');
-    check(env.EMAIL_PROVIDER==='resend'&&!!env.RESEND_API_KEY&&!!env.EMAIL_FROM,
-      'Verified transactional email settings present');
+    const httpsProvider=(env.EMAIL_PROVIDER==='resend' &&
+      typeof env.RESEND_API_KEY==='string' && env.RESEND_API_KEY.trim().length>0) ||
+      (env.EMAIL_PROVIDER==='brevo' && typeof env.BREVO_API_KEY==='string' &&
+       env.BREVO_API_KEY.trim().length>0);
+    const sender=typeof env.EMAIL_FROM==='string' &&
+      /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(
+        env.EMAIL_FROM.match(/<([^<>]+)>/)?.[1]||env.EMAIL_FROM);
+    check(httpsProvider && sender,
+      'Configured HTTPS Resend/Brevo email provider and sender present');
     check(env.SMS_PROVIDER==='msg91'&&!!env.MSG91_AUTHKEY&&!!env.MSG91_FLOW_TEMPLATE_ID,
       'Approved transactional SMS configuration present');
     // The feature exists but must be explicitly activated and data migrated
