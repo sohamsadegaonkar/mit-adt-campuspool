@@ -153,6 +153,17 @@ class Tests(unittest.TestCase):
         self.assertEqual(code,"PASS")
         self.assertIn("WRITE_EVENT_1_DETAIL_SHAPE=ABSENT",out)
         self.assertIn("WRITE_EVENT_1_PROVIDER_ERROR_CODE_CATEGORY=NO_CODE",out)
+    def test_real_express_environment_error_classifies_without_raw_activity(self):
+        f=Fake()
+        raw={"error":{"code":"ExpressEnvironmentResourceNotSupported",
+                      "message":"Job resources unsupported; private operator details hidden"}}
+        f.log_events=[f.event(message=json.dumps(raw))]
+        code,out=self.do(f)
+        self.assertEqual(code,"PASS",out)
+        self.assertIn("WRITE_EVENT_1_CLASSIFICATION=AZURE_JOB_EXPRESS_ENVIRONMENT_UNSUPPORTED",out)
+        self.assertIn("WRITE_EVENT_1_PROVIDER_ERROR_CODE_CATEGORY=EXPRESS_ENVIRONMENT_UNSUPPORTED",out)
+        self.assertIn("WRITE_EVENT_1_SAFE_PROVIDER_ERROR_SYMBOL=SUPPRESSED",out)
+        self.assertNotIn("private operator details",out)
     def test_unrecognized_but_safe_azure_symbol_only(self):
         f=Fake()
         raw={"error":{"code":"InvalidParameterValueInContainerTemplate",
