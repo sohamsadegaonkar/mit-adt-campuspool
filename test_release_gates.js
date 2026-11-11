@@ -12,7 +12,7 @@ test('Production promotion blocks disabled email/SMS, missing credentials and lo
   const result=inspect({mode:'production',env:{}});
   assert.equal(result.ready,false);
   assert.ok(result.failed.some(x=>x.includes('PostgreSQL')));
-  assert.ok(result.failed.some(x=>x.includes('transactional email')));
+  assert.ok(result.failed.some(x=>x.includes('HTTPS Resend/Brevo email provider')));
   assert.ok(result.failed.some(x=>x.includes('transactional SMS')));
   assert.ok(result.failed.some(x=>x.includes('Rides and bookings')));
 });
