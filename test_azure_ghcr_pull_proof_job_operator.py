@@ -39,8 +39,7 @@ class Cloud:
         if self.denied:raise m.plan.Stop("AZURE_RBAC_READ_DENIED")
         if args[:2]==("identity","show"):return UAI
         if args[:3]==("containerapp","env","show"):
-            return {"id":ENV,"location":"Malaysia West","properties.provisioningState":"Succeeded",
-                    "properties.environmentMode":self.env_mode}[args[args.index("--query")+1]]
+            return {"id":ENV,"location":"Malaysia West","properties.provisioningState":"Succeeded"}[args[args.index("--query")+1]]
         if args[:3]==("containerapp","job","list"):
             return json.dumps(self.jobs)
         if args[:4]==("containerapp","job","execution","list"):
@@ -48,6 +47,9 @@ class Cloud:
         if args[0]=="rest":
             method=args[args.index("--method")+1]
             url=args[args.index("--url")+1]
+            if method=="get" and url==m.REST+ENV+"?api-version=2026-07-01":
+                assert args[args.index("--query")+1]=="properties.environmentMode"
+                return self.env_mode
             assert url==m.REST+JOB_ID+"?api-version="+m.API
             if method=="put":
                 assert "--body" in args
@@ -160,6 +162,15 @@ class OperatorTests(unittest.TestCase):
         c.doc["identity"]["type"]="UserAssigned"
         c.doc["properties"]["configuration"]["registries"][0]["identity"]=UAI
         self.assertEqual(self.run_job(c,"--verify")[0],"JOB_REGISTRY_AUTH_METADATA_INVALID")
+    def test_mode_guard_uses_arm_get_and_never_cli_projection(self):
+        c=Cloud()
+        state,out=self.run_job(c,"--create",m.CONFIRM_CREATE)
+        self.assertEqual(state,"PASS",out)
+        self.assertTrue(any(args[0]=="rest" and args[args.index("--method")+1]=="get"
+                            and "2026-07-01" in args[args.index("--url")+1]
+                            for args in c.calls))
+        self.assertFalse(any("properties.environmentMode" in args
+                             for args in c.calls if args[:3]==("containerapp","env","show")))
     def test_express_env_blocks_create_before_arm_put(self):
         c=Cloud();c.env_mode="Express"
         state,out=self.run_job(c,"--create",m.CONFIRM_CREATE)
