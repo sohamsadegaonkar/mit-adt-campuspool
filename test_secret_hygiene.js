@@ -26,7 +26,8 @@ test('Render Blueprint uses HTTPS email sender/API key as private inputs', () =>
     assert.match(section[1], /sync:\s*false/, key + ' needs a private Render value');
     assert.doesNotMatch(section[1], /(?:^|\n)\s*value:/, key + ' still includes a literal value');
   }
-  assert.match(yaml, /- key:\s*OTP_SECRET\s*\n\s*generateValue:\s*true/);
+  assert.match(yaml, /- key:\s*OTP_SECRET\s*\n\s*(?:generateValue:\s*true|sync:\s*false)/,
+    'OTP_SECRET must be generated or supplied privately, not committed as plaintext');
   assert.match(yaml, /- key:\s*EMAIL_PROVIDER\s*\n\s*value:\s*resend/);
   assert.doesNotMatch(yaml, /- key:\s*SMTP_PASS/);
 });
