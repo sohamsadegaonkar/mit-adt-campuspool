@@ -32,15 +32,29 @@ const fakeFs={
     throw Error('not found');
   }
 };
+const candidate={...staging,APP_ENV:'production',
+  SMS_PROVIDER:'msg91',MSG91_AUTHKEY:'synthetic-msg91-only',
+  MSG91_FLOW_TEMPLATE_ID:'synthetic-template-only',
+  NODE_EXTRA_CA_CERTS:path.join(__dirname,'package.json')};
 const codes=result=>result.failed.slice().sort();
 
-test('valid legacy production config passes startup checks without granting release approval',()=>{
+test('legacy SQLite production config is blocked even with HTTPS email provider',()=>{
   const result=checkRuntime({target:'production',env:prod});
-  assert.equal(result.status,'CONFIG_CHECKS_PASSED_RELEASE_NOT_APPROVED');
-  assert.deepEqual(codes(result),[]);
-  assert.ok(result.manual.includes('LEGACY_SQLITE_DATA_PERSISTENCE_NOT_PRODUCTION_DURABILITY'));
+  assert.equal(result.status,'CONFIG_BLOCKED');
+  for(const code of ['PRODUCTION_APP_ENV_EXPLICIT','POSTGRES_IDENTITY_BACKEND',
+    'POSTGRES_RIDES_BACKEND','POSTGRES_TLS_ENABLED','SMS_MSG91_PROVIDER_CONFIGURED'])
+    assert.ok(result.failed.includes(code),code);
   assert.ok(result.manual.includes('CONFIRM_HISTORICAL_CREDENTIALS_REVOKED'));
   assert.doesNotMatch(JSON.stringify(result),/synthetic-app-password|synthetic-otp-private/);
+});
+
+test('synthetic production PostgreSQL candidate passes only config checks, never manual release',()=>{
+  const result=checkRuntime({target:'production',env:candidate});
+  assert.equal(result.status,'CONFIG_CHECKS_PASSED_RELEASE_NOT_APPROVED');
+  assert.deepEqual(codes(result),[]);
+  assert.ok(result.manual.includes('CONFIRM_ENCRYPTED_BACKUP_INDEPENDENT_RESTORE_AND_ROLLBACK'));
+  assert.ok(result.manual.includes('PRODUCTION_DATABASE_MIGRATION_AND_ROLLBACK_UNVERIFIED'));
+  assert.doesNotMatch(JSON.stringify(result),/synthetic-msg91|totally-fake|synthetic-hmac-private/);
 });
 
 test('missing, short or known compromised OTP secret cannot pass',()=>{
@@ -54,30 +68,43 @@ test('missing, short or known compromised OTP secret cannot pass',()=>{
   // The known-exposed value remains in no test fixture or log.
 });
 
-test('production legacy profile rejects staging switch, live mobility and unexpected Postgres mode',()=>{
+test('production rejects staging switch, SQLite fallback and early mobility enablement',()=>{
   const result=checkRuntime({target:'production',env:{
-    ...prod,APP_ENV:'staging',RIDES_BACKEND:'postgres',
-    AUTH_OTP_BACKEND:'postgres',MOBILITY_MATCHING_ENABLED:'true'
+    ...candidate,APP_ENV:'staging',RIDES_BACKEND:'sqlite',
+    AUTH_OTP_BACKEND:'sqlite',MOBILITY_MATCHING_ENABLED:'true'
   }});
-  for(const code of ['PRODUCTION_NOT_MARKED_STAGING','LEGACY_AUTH_BACKEND',
-    'LEGACY_RIDES_BACKEND','MOBILITY_FLAG_OFF'])assert.ok(result.failed.includes(code));
+  for(const code of ['PRODUCTION_APP_ENV_EXPLICIT','POSTGRES_IDENTITY_BACKEND',
+    'POSTGRES_RIDES_BACKEND','MOBILITY_FLAG_OFF_UNTIL_PRIVACY_REVIEW'])
+    assert.ok(result.failed.includes(code),code);
 });
 
-test('production requires HTTPS provider and sender instead of SMTP credentials',()=>{
+test('production requires HTTPS provider, verified sender metadata and not SMTP',()=>{
   const bad=checkRuntime({target:'production',env:{
-    ...prod,EMAIL_PROVIDER:'disabled',RESEND_API_KEY:'',EMAIL_FROM:''
+    ...candidate,EMAIL_PROVIDER:'disabled',RESEND_API_KEY:'',EMAIL_FROM:''
   }});
   assert.ok(bad.failed.includes('TRANSACTIONAL_EMAIL_PROVIDER_CONFIGURED'));
   const brevo=checkRuntime({target:'production',env:{
-    ...prod,EMAIL_PROVIDER:'brevo',BREVO_API_KEY:'synthetic-brevo-only',
+    ...candidate,EMAIL_PROVIDER:'brevo',BREVO_API_KEY:'synthetic-brevo-only',
     RESEND_API_KEY:''
   }});
   assert.deepEqual(brevo.failed,[]);
   const smtpOnly=checkRuntime({target:'production',env:{
-    ...prod,EMAIL_PROVIDER:'disabled',SMTP_USER:'test@example.org',SMTP_PASS:'fake',
+    ...candidate,EMAIL_PROVIDER:'disabled',SMTP_USER:'test@example.org',SMTP_PASS:'fake',
     SMTP_HOST:'smtp.gmail.com'
   }});
   assert.ok(smtpOnly.failed.includes('TRANSACTIONAL_EMAIL_PROVIDER_CONFIGURED'));
+});
+
+test('production rejects disabled SMS, insecure DB, missing CA and shared secrets',()=>{
+  const result=checkRuntime({target:'production',env:{
+    ...candidate,SMS_PROVIDER:'disabled',OTP_DB_SSL:'false',
+    OTP_DATABASE_URL:'postgresql://x:y@localhost:5432/postgres',
+    OTP_HMAC_KEY:otp,NODE_EXTRA_CA_CERTS:'/missing'
+  }});
+  for(const code of ['SMS_MSG91_PROVIDER_CONFIGURED','POSTGRES_TLS_ENABLED',
+    'POSTGRES_DATABASE_URL_PRIVATE_POOLER','OTP_HMAC_KEY_PRIVATE_AND_DISTINCT',
+    'POSTGRES_CA_SECRET_FILE_PRESENT'])
+    assert.ok(result.failed.includes(code),code);
 });
 
 test('valid staging Postgres configuration passes known checks but explicitly blocks promotion',()=>{
@@ -135,20 +162,20 @@ test('target flags are explicit and CLI JSON contains no secret values or URLs',
   assert.throws(()=>parseArgs([]),/TARGET_REQUIRED/);
   const file=path.join(__dirname,'scripts','check-runtime-config.js');
   const invoked=spawnSync(process.execPath,[file,'--target','production','--json'],
-    {encoding:'utf8',env:{...process.env,...prod}});
+    {encoding:'utf8',env:{...process.env,...candidate}});
   assert.equal(invoked.status,0,invoked.stderr);
   const data=JSON.parse(invoked.stdout);
   assert.equal(data.status,'CONFIG_CHECKS_PASSED_RELEASE_NOT_APPROVED');
-  for(const secret of [otp,prod.RESEND_API_KEY,prod.EMAIL_FROM]){
+  for(const secret of [otp,candidate.RESEND_API_KEY,candidate.EMAIL_FROM,candidate.OTP_HMAC_KEY]){
     assert.ok(!invoked.stdout.includes(secret),'secret value leaked to stdout');
     assert.ok(!invoked.stderr.includes(secret),'secret value leaked to stderr');
   }
   const blocked=spawnSync(process.execPath,[file,'--target','production','--json'],
-    {encoding:'utf8',env:{...process.env,...prod,OTP_SECRET:''}});
+    {encoding:'utf8',env:{...process.env,...candidate,OTP_SECRET:''}});
   assert.equal(blocked.status,1);
   assert.ok(JSON.parse(blocked.stdout).failed.includes('OTP_SECRET_STRONG_NOT_KNOWN_EXPOSED'));
   const bad=spawnSync(process.execPath,[file,'--target','unknown'],
-    {encoding:'utf8',env:{...process.env,...prod}});
+    {encoding:'utf8',env:{...process.env,...candidate}});
   assert.equal(bad.status,2);
   assert.doesNotMatch(bad.stderr,/synthetic-otp-private/);
 });
