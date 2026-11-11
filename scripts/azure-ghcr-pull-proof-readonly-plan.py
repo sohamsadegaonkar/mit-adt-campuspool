@@ -34,6 +34,20 @@ IDENT_RE=re.compile(
 
 class Stop(Exception):pass
 
+# Azure Express environments reject Microsoft.App/jobs/write regardless of
+# healthy provisioning state or an apparent Consumption profile in a CLI view.
+# Fail closed before claiming the GHCR proof job is deployable.
+def require_jobs_compatible_environment_mode(value):
+    if not isinstance(value,str):
+        raise Stop("CONTAINER_APPS_ENVIRONMENT_MODE_UNVERIFIED")
+    mode=value.strip().casefold()
+    if mode=="express":
+        raise Stop("CONTAINER_APPS_EXPRESS_JOBS_UNSUPPORTED")
+    if mode not in ("workloadprofiles","consumptiononly"):
+        raise Stop("CONTAINER_APPS_ENVIRONMENT_MODE_UNVERIFIED")
+    return mode
+
+
 def az(*args):
     try:return operator.preflight.az(*args)
     except operator.preflight.Stop as err:raise Stop(str(err))
@@ -68,6 +82,10 @@ def main():
     if state.casefold()!="succeeded":
         raise Stop("CONTAINER_APPS_ENVIRONMENT_NOT_READY")
 
+    mode=az("containerapp","env","show","-g",RG,"-n",ENVIRONMENT,
+            "--query","properties.environmentMode","-o","tsv")
+    require_jobs_compatible_environment_mode(mode)
+
     jobs_raw=az("containerapp","job","list","-g",RG,"-o","json")
     try:
         jobs=json.loads(jobs_raw)
@@ -84,6 +102,7 @@ def main():
     print("AZURE_STUDENT_GHCR_SECRET_SCOPED_ROLE_VERIFIED=YES")
     print("GHCR_READER_IDENTITY_ARM_RESOURCE_VERIFIED=YES")
     print("CONTAINER_APPS_ENVIRONMENT_READY=YES")
+    print("CONTAINER_APPS_ENVIRONMENT_JOB_COMPATIBLE=YES")
     print("ENVIRONMENT_REGION=MALAYSIA_WEST")
     print("EXISTING_CONTAINER_APPS_JOBS=0")
     print("PROPOSED_JOB=campuspool-ghcr-pull-proof")
