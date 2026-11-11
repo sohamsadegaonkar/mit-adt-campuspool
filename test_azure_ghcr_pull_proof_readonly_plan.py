@@ -37,8 +37,13 @@ class Cloud:
         if args[:3]==("containerapp","env","show"):
             query=args[args.index("--query")+1]
             return {"id":self.env_id,"location":self.env_region,
-                    "properties.provisioningState":self.env_state,
-                    "properties.environmentMode":self.env_mode}[query]
+                    "properties.provisioningState":self.env_state}[query]
+        if args[0]=="rest":
+            assert args[args.index("--method")+1]=="get"
+            assert args[args.index("--url")+1]==(
+                m.operator.preflight.ARM+self.env_id+"?api-version=2026-07-01")
+            assert args[args.index("--query")+1]=="properties.environmentMode"
+            return self.env_mode
         if args[:3]==("containerapp","job","list"):
             return "not json" if self.bad_jobs_json else json.dumps(self.jobs)
         raise AssertionError("Unexpected Azure CLI "+str(args))
@@ -83,6 +88,14 @@ class ReadOnlyPlan(unittest.TestCase):
     def test_not_ready_environment_stops(self):
         c=Cloud();c.env_state="Updating"
         self.assertEqual(self.run_plan(c)[0],"CONTAINER_APPS_ENVIRONMENT_NOT_READY")
+    def test_mode_read_is_arm_get_not_null_cli_projection(self):
+        c=Cloud()
+        status,out=self.run_plan(c)
+        self.assertEqual(status,"PASS",out)
+        self.assertTrue(any(args[0]=="rest" and args[args.index("--method")+1]=="get"
+                            for args in c.calls))
+        self.assertFalse(any("properties.environmentMode" in args
+                            for args in c.calls if args[:3]==("containerapp","env","show")))
     def test_express_mode_rejected_before_job_inventory(self):
         c=Cloud();c.env_mode="Express"
         status,out=self.run_plan(c)
