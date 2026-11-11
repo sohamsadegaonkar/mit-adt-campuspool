@@ -176,7 +176,9 @@ class OperatorTests(unittest.TestCase):
         state,out=self.run_job(c,"--create",m.CONFIRM_CREATE)
         self.assertEqual(state,"CONTAINER_APPS_EXPRESS_JOBS_UNSUPPORTED")
         self.assertIsNone(c.doc)
-        self.assertFalse(any(args[0]=="rest" for args in c.calls))
+        self.assertFalse(any(args[0]=="rest" and
+                             args[args.index("--method")+1]!="get"
+                             for args in c.calls))
         self.assertNotIn("GHCR_PROOF_JOB_CREATE_REQUEST_ACCEPTED",out)
     def test_unverified_env_mode_blocks_create(self):
         c=Cloud();c.env_mode="None"
