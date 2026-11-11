@@ -18,7 +18,7 @@ operator=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(operator)
 
 RG="campuspool-backup-rg"
-ENVIRONMENT="campuspool-backup-env"
+ENVIRONMENT="campuspool-backup-standard-env"
 MANAGED_IDENTITY="campuspool-ghcr-vault-reader"
 TEST_JOB="campuspool-ghcr-pull-proof"
 EXPECTED_IMAGE=("ghcr.io/sohamsadegaonkar/campuspool-backup-worker@"
