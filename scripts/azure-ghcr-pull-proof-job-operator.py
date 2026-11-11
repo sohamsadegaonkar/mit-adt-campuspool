@@ -64,6 +64,10 @@ def trusted_resources():
               "--query","properties.provisioningState","-o","tsv")
     if re.sub(r"\s+","",region).casefold()!=LOCATION or state.casefold()!="succeeded":
         raise Stop("ENVIRONMENT_NOT_READY")
+    mode=az("containerapp","env","show","-g",RG,"-n",plan.ENVIRONMENT,
+            "--query","properties.environmentMode","-o","tsv")
+    try: plan.require_jobs_compatible_environment_mode(mode)
+    except plan.Stop as err:raise Stop(str(err))
     return uai,env,im.group(1)
 
 def job_id(sub):
