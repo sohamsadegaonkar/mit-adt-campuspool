@@ -63,6 +63,7 @@ function inspect({mode='ci',env=process.env,root=path.resolve(__dirname,'..')}={
       (env.EMAIL_PROVIDER==='brevo' && typeof env.BREVO_API_KEY==='string' &&
        env.BREVO_API_KEY.trim().length>0);
     const sender=typeof env.EMAIL_FROM==='string' &&
+      env.EMAIL_FROM.length<=254 && !/[\r\n]/.test(env.EMAIL_FROM) &&
       /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(
         env.EMAIL_FROM.match(/<([^<>]+)>/)?.[1]||env.EMAIL_FROM);
     check(httpsProvider && sender,
