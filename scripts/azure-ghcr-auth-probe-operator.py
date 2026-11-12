@@ -147,6 +147,22 @@ def manifest(uai, env):
         }
     }
 
+def approved_resource_readback(actual, desired):
+    """Accept only CPU/memory exactly, with Azure's documented 0.25-vCPU 1Gi ephemeral default.
+
+    Fail closed for any other resource key, a changed size, an invalid type or
+    an unexpected ephemeralStorage value. This does not modify Azure.
+    """
+    if not isinstance(actual, dict):
+        return False
+    if actual == desired:
+        return True
+    return (set(actual) == {"cpu", "memory", "ephemeralStorage"}
+            and actual.get("cpu") == desired["cpu"]
+            and actual.get("memory") == desired["memory"]
+            and actual.get("ephemeralStorage") == "1Gi")
+
+
 def verify_doc(doc, uai, env, sub):
     expected = manifest(uai, env)
     if str(doc.get("id", "")).casefold() != path(sub).casefold():
@@ -173,9 +189,22 @@ def verify_doc(doc, uai, env, sub):
     if cfg.get("registries") not in ([], None) or cfg.get("scheduleTriggerConfig") or cfg.get("eventTriggerConfig"):
         raise Stop("PROBE_UNEXPECTED_REGISTRY_OR_TRIGGER")
     template = props.get("template", {})
-    if (template.get("containers") != target["template"]["containers"] or
-            template.get("initContainers") not in ([], None) or
-            template.get("volumes") not in ([], None)):
+    containers = template.get("containers") if isinstance(template, dict) else None
+    expected_containers = target["template"]["containers"]
+    if (not isinstance(containers, list) or len(containers) != 1
+            or not isinstance(containers[0], dict)):
+        raise Stop("PROBE_TEMPLATE_CHANGED")
+    actual_container, expected_container = containers[0], expected_containers[0]
+    resources_ok = approved_resource_readback(
+        actual_container.get("resources"), expected_container["resources"])
+    # Never overlook changed image, inline script, command, GHCR secretRef env
+    # or *any* other unexpected container field.
+    normalized_container = dict(actual_container)
+    if resources_ok:
+        normalized_container["resources"] = expected_container["resources"]
+    if (not resources_ok or normalized_container != expected_container
+            or template.get("initContainers") not in ([], None)
+            or template.get("volumes") not in ([], None)):
         raise Stop("PROBE_TEMPLATE_CHANGED")
 
 def diagnose_template(doc, uai, env):
@@ -202,7 +231,9 @@ def diagnose_template(doc, uai, env):
     if good_shape:
         got, want = got_containers[0], want_containers[0]
         for key in ("name", "image", "command", "args", "resources", "env"):
-            checks.append(("CONTAINER_" + key.upper(), got.get(key) == want[key]))
+            match = (approved_resource_readback(got.get(key), want[key])
+                     if key == "resources" else got.get(key) == want[key])
+            checks.append(("CONTAINER_" + key.upper(), match))
         # Fail closed on extra container properties until reviewed.
         checks.append(("CONTAINER_EXTRA_FIELDS", not bool(set(got) - set(want))))
         if isinstance(got.get("resources"), dict):
