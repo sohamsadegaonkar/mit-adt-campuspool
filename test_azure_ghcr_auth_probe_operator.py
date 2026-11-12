@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Offline guard tests for exact manual GHCR auth probe; no Azure or network calls."""
 import importlib.util
+import contextlib
+import io
 import json
 import os
 from pathlib import Path
@@ -68,6 +70,27 @@ class TestGhcrAuthProbe(unittest.TestCase):
         doc["properties"]["template"]["containers"][0]["command"] = ["sh"]
         with self.assertRaises(probe.Stop):
             probe.verify_doc(doc, self.uai, self.env, self.sub)
+
+    def test_diagnose_reports_only_boolean_field_checks_no_template_values(self):
+        doc = {"id": probe.path(self.sub), **probe.manifest(self.uai, self.env)}
+        # Simulate a tampered script and a secret-like extra value. Diagnostic
+        # must not display either the payload or its original template source.
+        secret = "SYNTHETIC_CREDENTIAL_MUST_NOT_APPEAR_IN_OUTPUT"
+        doc["properties"]["template"]["containers"][0]["args"] = [secret]
+        doc["properties"]["template"]["containers"][0]["env"] = [
+            {"name": "GHCR_PROBE_TOKEN", "value": secret}
+        ]
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            matched = probe.diagnose_template(doc, self.uai, self.env)
+        msg = output.getvalue()
+        self.assertFalse(matched)
+        self.assertIn("GHCR_AUTH_PROBE_DIAG_CONTAINER_ARGS_MATCH=NO", msg)
+        self.assertIn("GHCR_AUTH_PROBE_DIAG_CONTAINER_ENV_MATCH=NO", msg)
+        self.assertIn("NO_AZURE_WRITE_OR_JOB_START=YES", msg)
+        self.assertNotIn(secret, msg)
+        self.assertNotIn(probe.NODE_CODE, msg)
+        self.assertNotIn(probe.IMAGE, msg)
 
     def test_fixed_hosts_no_user_input_or_credential_log(self):
         node = probe.NODE_CODE
