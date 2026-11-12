@@ -50,6 +50,19 @@ class TestGhcrAuthProbe(unittest.TestCase):
         doc = {"id": probe.path(self.sub), **m}
         probe.verify_doc(doc, self.uai, self.env, self.sub)
 
+    def test_azure_arm_region_display_name_normalization(self):
+        doc = {"id": probe.path(self.sub), **probe.manifest(self.uai, self.env)}
+        # Azure ARM often returns the display spelling rather than the
+        # compact location name. Both should identify the exact same region.
+        doc["location"] = "Malaysia West"
+        probe.verify_doc(doc, self.uai, self.env, self.sub)
+        doc["location"] = "MALAYSIA WEST"
+        probe.verify_doc(doc, self.uai, self.env, self.sub)
+        # Do not broaden acceptance to any other region.
+        doc["location"] = "East US"
+        with self.assertRaisesRegex(probe.Stop, "WRONG_PROBE_REGION"):
+            probe.verify_doc(doc, self.uai, self.env, self.sub)
+
     def test_guard_detects_manifest_tampering(self):
         doc = {"id": probe.path(self.sub), **probe.manifest(self.uai, self.env)}
         doc["properties"]["template"]["containers"][0]["command"] = ["sh"]
