@@ -71,6 +71,31 @@ class TestGhcrAuthProbe(unittest.TestCase):
         with self.assertRaises(probe.Stop):
             probe.verify_doc(doc, self.uai, self.env, self.sub)
 
+    def test_azure_default_ephemeral_storage_one_gi_is_only_allowed_extra(self):
+        # The job requests 0.25 vCPU. Azure documents 1 GiB of available
+        # ephemeral storage for <=0.25 vCPU and may echo this back in ARM.
+        doc = {"id": probe.path(self.sub), **probe.manifest(self.uai, self.env)}
+        resources = doc["properties"]["template"]["containers"][0]["resources"]
+        resources["ephemeralStorage"] = "1Gi"
+        probe.verify_doc(doc, self.uai, self.env, self.sub)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertTrue(probe.diagnose_template(doc, self.uai, self.env))
+        self.assertIn("GHCR_AUTH_PROBE_DIAG_CONTAINER_RESOURCES_MATCH=YES", out.getvalue())
+        self.assertNotIn("1Gi", out.getvalue())
+
+        resources["ephemeralStorage"] = "2Gi"
+        with self.assertRaisesRegex(probe.Stop, "PROBE_TEMPLATE_CHANGED"):
+            probe.verify_doc(doc, self.uai, self.env, self.sub)
+        resources["ephemeralStorage"] = "1Gi"
+        resources["gpu"] = "1"
+        with self.assertRaisesRegex(probe.Stop, "PROBE_TEMPLATE_CHANGED"):
+            probe.verify_doc(doc, self.uai, self.env, self.sub)
+        resources.pop("gpu")
+        resources["cpu"] = 1
+        with self.assertRaisesRegex(probe.Stop, "PROBE_TEMPLATE_CHANGED"):
+            probe.verify_doc(doc, self.uai, self.env, self.sub)
+
     def test_diagnose_reports_only_boolean_field_checks_no_template_values(self):
         doc = {"id": probe.path(self.sub), **probe.manifest(self.uai, self.env)}
         # Simulate a tampered script and a secret-like extra value. Diagnostic
