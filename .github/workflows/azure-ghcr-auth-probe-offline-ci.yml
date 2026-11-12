@@ -43,8 +43,9 @@ jobs:
           assert 'ghcr-auth-probe-only' in script
           assert 'GHCR_PROBE_TOKEN' in script
           assert 'NO_AZURE_WRITE_OR_JOB_START=YES' in script
-          assert 'az containerapp job start' not in workflow
-          assert 'docker login' not in workflow
-          assert 'docker push' not in workflow
+          # Check actual shell command lines, not quoted text in these assertions.
+          forbidden_shell_starts=('az containerapp job start','docker login','docker push')
+          for line in workflow.splitlines():
+            assert not line.strip().startswith(forbidden_shell_starts), line
           print('GHCR_AUTH_PROBE_OFFLINE_GUARD_PASS')
           PY
