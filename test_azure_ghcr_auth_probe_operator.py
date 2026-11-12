@@ -96,6 +96,29 @@ class TestGhcrAuthProbe(unittest.TestCase):
         with self.assertRaisesRegex(probe.Stop, "PROBE_TEMPLATE_CHANGED"):
             probe.verify_doc(doc, self.uai, self.env, self.sub)
 
+    def test_observed_azure_empty_ephemeral_storage_is_allowed(self):
+        # The owner independently observed this exact ARM resource projection:
+        # {cpu: 0.25, ephemeralStorage: "", memory: "0.5Gi"}.
+        doc = {"id": probe.path(self.sub), **probe.manifest(self.uai, self.env)}
+        resources = doc["properties"]["template"]["containers"][0]["resources"]
+        resources["ephemeralStorage"] = ""
+        probe.verify_doc(doc, self.uai, self.env, self.sub)
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            self.assertTrue(probe.diagnose_template(doc, self.uai, self.env))
+        self.assertIn("GHCR_AUTH_PROBE_DIAG_CONTAINER_RESOURCES_MATCH=YES", output.getvalue())
+        self.assertNotIn("ephemeralStorage", output.getvalue())
+
+        for disallowed in (None, False, 0, "0Gi", "2Gi", "unknown", {}):
+            with self.subTest(disallowed=disallowed):
+                resources["ephemeralStorage"] = disallowed
+                with self.assertRaisesRegex(probe.Stop, "PROBE_TEMPLATE_CHANGED"):
+                    probe.verify_doc(doc, self.uai, self.env, self.sub)
+        resources["ephemeralStorage"] = ""
+        resources["disk"] = ""
+        with self.assertRaisesRegex(probe.Stop, "PROBE_TEMPLATE_CHANGED"):
+            probe.verify_doc(doc, self.uai, self.env, self.sub)
+
     def test_diagnose_reports_only_boolean_field_checks_no_template_values(self):
         doc = {"id": probe.path(self.sub), **probe.manifest(self.uai, self.env)}
         # Simulate a tampered script and a secret-like extra value. Diagnostic
