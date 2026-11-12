@@ -518,3 +518,22 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 - Owner explicitly waived the Azure cost-review prerequisite for now; provisioning may incur charges. Scope: create **`campuspool-backup-standard-env`** in Malaysia West with `--environment-mode WorkloadProfiles`, built-in Consumption compute and Log Analytics for future auditability. Existing `campuspool-backup-env` Express remains untouched. Regional managed-environment quota last verified **0/1**.
 - Exact idempotent owner Cloud Shell command and ARM verification (API `2026-07-01`) are in [GHCR proof runbook](../ops/AZURE_GHCR_PRIVATE_PULL_PROOF_PLAN_2026-11-10.md). No Azure connector available to this agent; **the environment has not been created by the agent**. Do not falsely mark provisioning as complete.
 - Next evidence: ARM `Mode=WorkloadProfiles`, `State=Succeeded`, Consumption workload profile. Do not start a GHCR job, export data, run production OTP or change permission scopes yet; first update the proof-job environment target, run preflight, and separately review manual-only create and execution.
+
+
+## 2026-11-13 — NEXT: ARM-only GHCR secret metadata check (do not repeat forbidden data-plane enumeration)
+
+- Current evidence: GitHub authenticated Packages UI shows **exact private image digest** `sha256:697feb0c...710b03a2` with tag `review-6c571396fff0`; Azure's single manual job pull failed with `MANIFEST_UNKNOWN`; Windows unauthenticated Buildx HEAD returned `403 Forbidden`; owner reports classic GHCR token's `read:packages` permission enabled; interactive Cloud Shell `az keyvault secret list-versions` returned `ForbiddenByRbac`. That last query used a different caller principal from the job's reader UAI and cannot diagnose registry auth.
+- **Next owner read-only command (no Key Vault data-plane permissions, no token)** in Azure Cloud Shell:
+  ```bash
+  set +e
+  KV_ID=$(az keyvault show -g campuspool-backup-rg -n campuspool-backup-kv-01 --query id -o tsv 2>/dev/null)
+  if [ -z "$KV_ID" ]; then
+    echo "STOP_VAULT_ARM_ID_UNAVAILABLE"
+  else
+    az rest --method get --url "https://management.azure.com${KV_ID}/secrets/ghcr-pull-token?api-version=2024-11-01" --query "{Enabled:properties.attributes.enabled,ExpiresEpoch:properties.attributes.exp,NotBeforeEpoch:properties.attributes.nbf}" -o json
+    echo "ARM_METADATA_RC=$?"
+  fi
+  unset KV_ID
+  ```
+- ARM `Microsoft.KeyVault/vaults/secrets@2024-11-01` metadata GET does not return `properties.value`; `attributes.exp` and `nbf` are Unix seconds when set. Source: [official Microsoft ARM schema](https://learn.microsoft.com/en-us/azure/templates/microsoft.keyvault/2024-11-01/vaults/secrets). A null/absent `exp` does not prove underlying GitHub PAT still works; do not mark authentication as PASS from this alone.
+- If enabled and dates valid, the remaining gate is **actual authorization of the Key Vault-stored PAT to private GHCR package**. Propose a reviewed owner-approved one-time credential validation or targeted replacement if existing token cannot be proven, preserving exclusive secret-scoped identity and avoiding plaintext token in chat/CLI/history or disk. No blanket IAM, Azure job restart, image change, secrets retrieval by interactive user, DB dump or production release until separately approved.
