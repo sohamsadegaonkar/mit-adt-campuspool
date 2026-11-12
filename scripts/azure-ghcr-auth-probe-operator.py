@@ -151,7 +151,9 @@ def verify_doc(doc, uai, env, sub):
     expected = manifest(uai, env)
     if str(doc.get("id", "")).casefold() != path(sub).casefold():
         raise Stop("WRONG_PROBE_ID")
-    if str(doc.get("location", "")).casefold() != proof.LOCATION:
+    # ARM can report the same region as "Malaysia West" or "malaysiawest".
+    # Normalize only whitespace/case, not the geographic value itself.
+    if "".join(str(doc.get("location", "")).split()).casefold() != proof.LOCATION.casefold():
         raise Stop("WRONG_PROBE_REGION")
     if (doc.get("identity", {}).get("type") != "UserAssigned" or
             list((doc.get("identity", {}).get("userAssignedIdentities") or {}).keys()) != [uai]):
