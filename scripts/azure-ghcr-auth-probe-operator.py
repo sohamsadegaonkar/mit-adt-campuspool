@@ -178,6 +178,51 @@ def verify_doc(doc, uai, env, sub):
             template.get("volumes") not in ([], None)):
         raise Stop("PROBE_TEMPLATE_CHANGED")
 
+def diagnose_template(doc, uai, env):
+    """Read-only comparison: fixed field names / booleans ONLY, never values.
+
+    Do not print container args, image, inline source, environment contents,
+    secret references or the raw Azure resource. This path cannot start a job.
+    """
+    target = manifest(uai, env)["properties"]["template"]
+    props = doc.get("properties", {})
+    actual = props.get("template", {}) if isinstance(props, dict) else {}
+    if not isinstance(actual, dict):
+        actual = {}
+    checks = []
+    for key in ("initContainers", "volumes"):
+        checks.append(("TEMPLATE_" + key.upper(), actual.get(key) in ([], None)))
+    want_containers = target["containers"]
+    got_containers = actual.get("containers")
+    good_shape = (
+        isinstance(got_containers, list) and len(got_containers) == 1
+        and isinstance(got_containers[0], dict)
+    )
+    checks.append(("CONTAINER_SHAPE", good_shape))
+    if good_shape:
+        got, want = got_containers[0], want_containers[0]
+        for key in ("name", "image", "command", "args", "resources", "env"):
+            checks.append(("CONTAINER_" + key.upper(), got.get(key) == want[key]))
+        # Fail closed on extra container properties until reviewed.
+        checks.append(("CONTAINER_EXTRA_FIELDS", not bool(set(got) - set(want))))
+        if isinstance(got.get("resources"), dict):
+            for key in ("cpu", "memory"):
+                checks.append(("RESOURCE_" + key.upper(),
+                               got["resources"].get(key) == want["resources"][key]))
+        else:
+            checks.append(("RESOURCE_SHAPE", False))
+        if isinstance(got.get("env"), list):
+            checks.append(("ENV_SHAPE", len(got["env"]) == 1))
+        else:
+            checks.append(("ENV_SHAPE", False))
+    for name, match in checks:
+        # Controlled static marker and yes/no only. No Azure content echoed.
+        print("GHCR_AUTH_PROBE_DIAG_" + name + "_MATCH=" + ("YES" if match else "NO"))
+    print("GHCR_AUTH_PROBE_DIAG_NO_SECRET_OR_TEMPLATE_VALUES_PRINTED=YES")
+    print("NO_AZURE_WRITE_OR_JOB_START=YES")
+    return all(matched for _, matched in checks)
+
+
 def job_get(resource):
     try:
         return proof.job_resource("get", resource)
@@ -186,8 +231,8 @@ def job_get(resource):
 
 def main():
     if len(sys.argv) != 2 or sys.argv[1] not in ("--plan", "--create", "--verify",
-                                                 "--start", "--status", "--delete"):
-        raise Stop("USAGE_PLAN_CREATE_VERIFY_START_STATUS_DELETE")
+                                                 "--diagnose", "--start", "--status", "--delete"):
+        raise Stop("USAGE_PLAN_CREATE_VERIFY_DIAGNOSE_START_STATUS_DELETE")
     action = sys.argv[1]
     uai, env, sub = trusted()
     names = inventory()
@@ -218,7 +263,11 @@ def main():
         return
     if JOB not in names:
         raise Stop("PROBE_NOT_CREATED")
-    verify_doc(job_get(path(sub)), uai, env, sub)
+    doc = job_get(path(sub))
+    if action == "--diagnose":
+        diagnose_template(doc, uai, env)
+        return
+    verify_doc(doc, uai, env, sub)
     ent = executions(JOB)
     print("GHCR_AUTH_PROBE_EXACT_CONFIG_VERIFIED=YES")
     print("GHCR_AUTH_PROBE_EXECUTIONS=" + str(len(ent)))
