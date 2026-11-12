@@ -148,10 +148,12 @@ def manifest(uai, env):
     }
 
 def approved_resource_readback(actual, desired):
-    """Accept only CPU/memory exactly, with Azure's documented 0.25-vCPU 1Gi ephemeral default.
+    """Require exact CPU/memory and strictly allow observed ARM ephemeral defaults.
 
-    Fail closed for any other resource key, a changed size, an invalid type or
-    an unexpected ephemeralStorage value. This does not modify Azure.
+    Azure returns an empty string for ephemeralStorage on the owner's 0.25-vCPU
+    job; the documented capacity is 1Gi. Only those two *literal strings* are
+    accepted as an optional, non-requested third field. Reject any different
+    field, altered CPU/memory or unexpected type. No Azure mutation.
     """
     if not isinstance(actual, dict):
         return False
@@ -160,7 +162,8 @@ def approved_resource_readback(actual, desired):
     return (set(actual) == {"cpu", "memory", "ephemeralStorage"}
             and actual.get("cpu") == desired["cpu"]
             and actual.get("memory") == desired["memory"]
-            and actual.get("ephemeralStorage") == "1Gi")
+            and type(actual.get("ephemeralStorage")) is str
+            and actual["ephemeralStorage"] in ("", "1Gi"))
 
 
 def verify_doc(doc, uai, env, sub):
