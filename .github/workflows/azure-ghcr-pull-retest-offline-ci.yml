@@ -1,0 +1,39 @@
+name: Azure GHCR original pull one-time retest offline safety guard
+
+on:
+  push:
+    paths:
+      - 'scripts/azure-ghcr-pull-proof-one-time-retest.py'
+      - 'scripts/azure-ghcr-pull-proof-job-operator.py'
+      - 'test_azure_ghcr_pull_proof_one_time_retest.py'
+      - 'test_azure_ghcr_pull_proof_job_operator.py'
+      - '.github/workflows/azure-ghcr-pull-retest-offline-ci.yml'
+  pull_request:
+    paths:
+      - 'scripts/azure-ghcr-pull-proof-one-time-retest.py'
+      - 'scripts/azure-ghcr-pull-proof-job-operator.py'
+      - 'test_azure_ghcr_pull_proof_one_time_retest.py'
+      - 'test_azure_ghcr_pull_proof_job_operator.py'
+      - '.github/workflows/azure-ghcr-pull-retest-offline-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-guard:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile guarded source only
+        run: |
+          python -m py_compile scripts/azure-ghcr-pull-proof-one-time-retest.py
+          python -m py_compile scripts/azure-ghcr-pull-proof-job-operator.py
+      - name: Run offline zero-Azure safety regression
+        run: |
+          python -m unittest -v test_azure_ghcr_pull_proof_job_operator.py test_azure_ghcr_pull_proof_one_time_retest.py
+          echo 'OFFLINE_GHCR_RETEST_GUARDS_PASS=YES; NO_AZURE_LOGIN_OR_JOB_START=YES'
