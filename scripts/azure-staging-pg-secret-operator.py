@@ -170,7 +170,7 @@ def verify_staging_password(password):
     if not tmpfs_is_safe():
         raise Blocked("PRIVATE_TMPFS_REQUIRED")
     host, ca = staging_pg_connection()
-    password_for_pgpass = password.replace("\\", "\\\\").replace(":", "\\:")
+    password_for_pgpass = password.replace("\\", "\\\\").replace(":", r"\:")
     row = ":".join((host, "5432", "postgres", PG_USER, password_for_pgpass)) + "\n"
     fd, filename = tempfile.mkstemp(prefix="campuspool-verify-pgpass-", dir="/dev/shm")
     try:
