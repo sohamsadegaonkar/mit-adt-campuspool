@@ -15,9 +15,9 @@ stop() { printf 'STOP_%s\n' "$1" >&2; exit 2; }
     stop "UNEXPECTED_SUBSCRIPTION"
 [[ "$(az account show --query state -o tsv 2>/dev/null)" == "Enabled" ]] ||
     stop "SUBSCRIPTION_NOT_ENABLED"
-[[ "$(az keyvault show -g "$RG" -n "$VAULT" --query properties.enableRbacAuthorization -o tsv 2>/dev/null)" == "True" ]] ||
+[[ "$(az keyvault show -g "$RG" -n "$VAULT" --query properties.enableRbacAuthorization -o json 2>/dev/null)" == "true" ]] ||
     stop "EXPECTED_RBAC_VAULT_MISSING"
-[[ "$(az storage account show -g "$RG" -n "$STORAGE" --query allowSharedKeyAccess -o tsv 2>/dev/null)" == "False" ]] ||
+[[ "$(az storage account show -g "$RG" -n "$STORAGE" --query allowSharedKeyAccess -o json 2>/dev/null)" == "false" ]] ||
     stop "EXPECTED_PRIVATE_ACCOUNT_MISSING"
 
 if az identity show -g "$RG" -n "$ID_NAME" --only-show-errors -o none >/dev/null 2>&1; then
