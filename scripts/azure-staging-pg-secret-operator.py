@@ -5,13 +5,16 @@
 --set-once: owner-controlled, explicitly confirmed creation of *existing*
 staging database password via a private tmpfs file. NEVER a backup run.
 
-No database connections, identity grants, blob writes, job creation, or schedules.
+Credential verification performs only SELECT 1 with TLS verify-full and a private
+RAM-backed passfile. Secret provisioning now REQUIRES this exact password check.
+No database writes, identity grants, blob writes, job creation, or schedules.
 """
 
 import argparse
 import getpass
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -23,6 +26,9 @@ VAULT = "campuspool-backup-kv-01"
 SECRET = "campuspool-staging-pg-password"
 ARM_API = "2024-11-01"
 MAX_PASSWORD_LEN = 2048  # Matches scripts/cloud-backup-vault-bootstrap.js.
+STAGING_REF = "tnitksrlntrdxbvznxzf"
+PG_USER = "postgres." + STAGING_REF
+PG_HOST = re.compile(r"^aws-[0-9]+-ap-southeast-1\.pooler\.supabase\.com$")
 CONFIRM_PHRASE = "CREATE_ONLY_STAGING_PG_SECRET_NO_BACKUP"
 STAGING_CONFIRM_PHRASE = "STAGING_ACCOUNT_PASSWORD_VERIFIED_NOT_PRODUCTION"
 
@@ -133,6 +139,87 @@ def valid_password(password):
         return False
 
 
+
+def staging_pg_connection():
+    """Source-compatible PG17 staging pooler and owner-supplied CA, no credentials."""
+    host = os.environ.get("CAMPUSPOOL_STAGING_PGHOST", "")
+    ca = os.environ.get("CAMPUSPOOL_STAGING_PG_CA_FILE", "")
+    if not PG_HOST.fullmatch(host):
+        raise Blocked("STAGING_POOLER_HOST_NOT_ALLOWLISTED")
+    candidate = Path(ca)
+    try:
+        if (not candidate.is_absolute() or candidate.is_symlink() or
+                candidate.resolve() != candidate or not candidate.is_file()):
+            raise ValueError("not regular trusted file")
+        stat = candidate.stat()
+        if (stat.st_size < 300 or stat.st_size > 131072 or
+                stat.st_mode & 0o022):
+            raise ValueError("CA protection invalid")
+        pem = candidate.read_text(encoding="ascii")
+        if "-----BEGIN CERTIFICATE-----" not in pem or "-----END CERTIFICATE-----" not in pem:
+            raise ValueError("invalid PEM")
+    except (OSError, ValueError, UnicodeError):
+        raise Blocked("STAGING_TLS_CA_NOT_VERIFIED") from None
+    return host, str(candidate)
+
+
+def verify_staging_password(password):
+    """Private read-only SELECT 1. No password in argv/env, no CLI output forwarded."""
+    if not valid_password(password):
+        raise Blocked("STAGING_PASSWORD_INVALID")
+    if not tmpfs_is_safe():
+        raise Blocked("PRIVATE_TMPFS_REQUIRED")
+    host, ca = staging_pg_connection()
+    password_for_pgpass = password.replace("\\", "\\\\").replace(":", "\\:")
+    row = ":".join((host, "5432", "postgres", PG_USER, password_for_pgpass)) + "\n"
+    fd, filename = tempfile.mkstemp(prefix="campuspool-verify-pgpass-", dir="/dev/shm")
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "wb", closefd=True) as stream:
+            stream.write(row.encode("utf-8"))
+        fd = -1
+        # Deliberately provide only known libpq settings, not inherited PG vars.
+        env = {
+            "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+            "HOME": os.environ.get("HOME", "/tmp"),
+            "LANG": "C",
+            "PGHOST": host,
+            "PGPORT": "5432",
+            "PGDATABASE": "postgres",
+            "PGUSER": PG_USER,
+            "PGSSLMODE": "verify-full",
+            "PGSSLROOTCERT": ca,
+            "PGPASSFILE": filename,
+            "PGCONNECT_TIMEOUT": "10",
+        }
+        try:
+            result = subprocess.run(
+                ["psql", "-X", "-w", "-A", "-t", "-q", "-v", "ON_ERROR_STOP=1",
+                 "-c", "SELECT 1;"],
+                env=env, capture_output=True, text=True,
+                encoding="utf-8", timeout=25, check=False
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            raise Blocked("PSQL_NOT_AVAILABLE_OR_TIMEOUT") from None
+        if result.returncode != 0 or result.stdout.strip() != "1":
+            # Never display stderr: it can contain TLS or credential details.
+            raise Blocked("STAGING_PG_PASSWORD_OR_TLS_VERIFICATION_FAILED")
+    finally:
+        if fd != -1:
+            os.close(fd)
+        Path(filename).unlink(missing_ok=True)
+    print("STAGING_PG_PASSWORD_TLS_VERIFY_FULL_PASS=YES")
+
+
+def verify_interactive():
+    if not sys.stdin.isatty():
+        raise Blocked("INTERACTIVE_TERMINAL_REQUIRED")
+    secret = getpass.getpass("Enter existing staging PostgreSQL password (hidden): ")
+    verify_staging_password(secret)
+    secret = None
+    print("NO_AZURE_WRITE_OR_STAGING_DATA_READ=YES")
+
+
 def provision():
     if not sys.stdin.isatty():
         raise Blocked("INTERACTIVE_TERMINAL_REQUIRED")
@@ -150,6 +237,8 @@ def provision():
     repeat = getpass.getpass("Confirm staging PG password (not echoed): ")
     if not valid_password(password) or password != repeat:
         raise Blocked("STAGING_PASSWORD_INVALID_OR_MISMATCH")
+    # Mandatory proof of the *same password* before it may enter Key Vault.
+    verify_staging_password(password)
     # Re-read ARM metadata immediately before the one non-idempotent set request.
     after = secret_metadata(read_context())
     if after["status"] != "NOT_FOUND":
@@ -191,10 +280,13 @@ def main():
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--check", action="store_true", help="read-only, no secret value access")
     group.add_argument("--set-once", action="store_true", help="separately owner-confirmed secret creation")
+    group.add_argument("--verify-credential", action="store_true", help="read-only private PostgreSQL TLS login test")
     args = parser.parse_args()
     try:
         if args.check:
             check()
+        elif args.verify_credential:
+            verify_interactive()
         else:
             provision()
     except (Blocked, EOFError, KeyboardInterrupt) as exc:
