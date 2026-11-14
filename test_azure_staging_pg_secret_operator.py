@@ -4,6 +4,8 @@ import importlib.util
 import io
 import json
 import pathlib
+import os
+import stat
 import types
 import unittest
 from unittest.mock import patch
@@ -105,7 +107,8 @@ class SecretOperatorTests(unittest.TestCase):
         out=io.StringIO()
         with patch.object(m,'az',side_effect=fake_az),patch.object(m.sys.stdin,'isatty',return_value=True),\
              patch.object(m,'tmpfs_is_safe',return_value=True),patch('builtins.input',side_effect=[m.STAGING_CONFIRM_PHRASE,m.CONFIRM_PHRASE]),\
-             patch.object(m.getpass,'getpass',return_value='SYNTHETIC_TEST_PASSWORD'),contextlib.redirect_stdout(out):
+             patch.object(m.getpass,'getpass',return_value='SYNTHETIC_TEST_PASSWORD'),\
+             patch.object(m,'verify_staging_password',return_value=None),contextlib.redirect_stdout(out):
             m.provision()
         writes=[a for a in calls if a[:3]==('keyvault','secret','set')]
         self.assertEqual(len(writes),1)
@@ -116,6 +119,57 @@ class SecretOperatorTests(unittest.TestCase):
         calls,run=self.azure()
         with patch.object(m,'az',side_effect=run),patch.object(m.sys.stdin,'isatty',return_value=True),\
              patch.object(m,'tmpfs_is_safe',return_value=False),contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaises(m.Blocked):m.provision()
+        self.assertFalse(any(a[:3]==('keyvault','secret','set') for a in calls))
+
+
+    def test_private_pg_verification_uses_tls_and_only_tmpfs_password_file(self):
+        synthetic='SYNTHETIC_PRIVATE_PG_PASSWORD'
+        observed={}
+        def fake_psql(args,env=None,**kwargs):
+            self.assertEqual(args[0],'psql')
+            self.assertEqual(env['PGSSLMODE'],'verify-full')
+            self.assertEqual(env['PGUSER'],m.PG_USER)
+            self.assertEqual(env['PGHOST'],'aws-0-ap-southeast-1.pooler.supabase.com')
+            self.assertEqual(env['PGDATABASE'],'postgres')
+            self.assertEqual(env['PGPORT'],'5432')
+            self.assertNotIn('PGPASSWORD',env)
+            self.assertNotIn(synthetic,args)
+            with open(env['PGPASSFILE'],'rb') as stream:
+                observed['row']=stream.read().decode()
+            observed['path']=env['PGPASSFILE']
+            self.assertEqual(stat.S_IMODE(os.stat(env['PGPASSFILE']).st_mode),0o600)
+            return types.SimpleNamespace(returncode=0,stdout='1\n',stderr='ignore')
+        out=io.StringIO()
+        with patch.object(m,'tmpfs_is_safe',return_value=True), \
+             patch.object(m,'staging_pg_connection',return_value=('aws-0-ap-southeast-1.pooler.supabase.com','/synthetic/cert.crt')), \
+             patch.object(m.subprocess,'run',side_effect=fake_psql),contextlib.redirect_stdout(out):
+            m.verify_staging_password(synthetic)
+        self.assertIn(':'+synthetic+'\n',observed['row'])
+        self.assertFalse(os.path.exists(observed['path']))
+        self.assertIn('STAGING_PG_PASSWORD_TLS_VERIFY_FULL_PASS=YES',out.getvalue())
+        self.assertNotIn(synthetic,out.getvalue())
+
+    def test_private_pg_verification_fails_closed_on_wrong_password(self):
+        with patch.object(m,'tmpfs_is_safe',return_value=True), \
+             patch.object(m,'staging_pg_connection',return_value=('aws-0-ap-southeast-1.pooler.supabase.com','/synthetic/cert.crt')), \
+             patch.object(m.subprocess,'run',return_value=types.SimpleNamespace(returncode=2,stdout='',stderr='password in stderr')):
+            with self.assertRaisesRegex(m.Blocked,'STAGING_PG_PASSWORD_OR_TLS_VERIFICATION_FAILED'):
+                m.verify_staging_password('SYNTHETIC_WRONG_PASSWORD')
+
+    def test_staging_host_denylist_stops_before_password_verification(self):
+        with patch.dict(os.environ,{'CAMPUSPOOL_STAGING_PGHOST':'db.production.example.com','CAMPUSPOOL_STAGING_PG_CA_FILE':'/tmp/fake.crt'}):
+            with self.assertRaisesRegex(m.Blocked,'STAGING_POOLER_HOST_NOT_ALLOWLISTED'):
+                m.staging_pg_connection()
+
+    def test_secret_creation_halts_if_private_pg_test_fails(self):
+        calls,run=self.azure()
+        with patch.object(m,'az',side_effect=run),patch.object(m.sys.stdin,'isatty',return_value=True),\
+             patch.object(m,'tmpfs_is_safe',return_value=True), \
+             patch('builtins.input',side_effect=[m.STAGING_CONFIRM_PHRASE,m.CONFIRM_PHRASE]),\
+             patch.object(m.getpass,'getpass',return_value='SYNTHETIC_WRONG_PASSWORD'),\
+             patch.object(m,'verify_staging_password',side_effect=m.Blocked('STAGING_PG_PASSWORD_OR_TLS_VERIFICATION_FAILED')),\
+             contextlib.redirect_stdout(io.StringIO()):
             with self.assertRaises(m.Blocked):m.provision()
         self.assertFalse(any(a[:3]==('keyvault','secret','set') for a in calls))
 
