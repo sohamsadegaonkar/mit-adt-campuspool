@@ -28,11 +28,11 @@ storage_id="$(az storage account show -g "$RG" -n "$STORAGE" --query id -o tsv 2
     stop "VAULT_SCOPE_UNEXPECTED"
 [[ "$storage_id" == */resourceGroups/"$RG"/providers/Microsoft.Storage/storageAccounts/"$STORAGE" ]] ||
     stop "STORAGE_SCOPE_UNEXPECTED"
-[[ "$(az keyvault show -g "$RG" -n "$VAULT" --query properties.enableRbacAuthorization -o tsv 2>/dev/null)" == "True" ]] ||
+[[ "$(az keyvault show -g "$RG" -n "$VAULT" --query properties.enableRbacAuthorization -o json 2>/dev/null)" == "true" ]] ||
     stop "VAULT_RBAC_REQUIRED"
-[[ "$(az storage account show -g "$RG" -n "$STORAGE" --query allowSharedKeyAccess -o tsv 2>/dev/null)" == "False" ]] ||
+[[ "$(az storage account show -g "$RG" -n "$STORAGE" --query allowSharedKeyAccess -o json 2>/dev/null)" == "false" ]] ||
     stop "SHARED_KEY_ACCESS_MUST_BE_DISABLED"
-[[ "$(az storage account show -g "$RG" -n "$STORAGE" --query allowBlobPublicAccess -o tsv 2>/dev/null)" == "False" ]] ||
+[[ "$(az storage account show -g "$RG" -n "$STORAGE" --query allowBlobPublicAccess -o json 2>/dev/null)" == "false" ]] ||
     stop "ANONYMOUS_BLOB_MUST_BE_DISABLED"
 
 secret_scope="$vault_id/secrets/$SECRET"
@@ -78,7 +78,7 @@ echo "NO_DELETE_CUSTOM_ROLE_EXISTS=$role_exists"
 # Secret ARM metadata inspection never retrieves a Key Vault secret VALUE.
 secret_enabled="$(az rest --method get \
     --url "https://management.azure.com$secret_scope?api-version=2024-11-01" \
-    --query properties.attributes.enabled -o tsv --only-show-errors 2>/dev/null)" ||
+    --query properties.attributes.enabled -o json --only-show-errors 2>/dev/null)" ||
       secret_enabled="NOT_FOUND_OR_DENIED"
 echo "EXACT_STAGING_SECRET_ENABLED=$secret_enabled"
 
@@ -110,7 +110,7 @@ if [[ "$MODE" == "--plan" ]]; then
     exit 0
 fi
 
-[[ "$secret_enabled" == "True" ]] || stop "EXACT_STAGING_SECRET_MISSING_OR_NOT_ENABLED"
+[[ "$secret_enabled" == "true" ]] || stop "EXACT_STAGING_SECRET_MISSING_OR_NOT_ENABLED"
 [[ -t 0 ]] || stop "INTERACTIVE_CONFIRMATION_REQUIRED"
 read -r -p "Type GRANT_ONLY_STAGING_SECRET_AND_NO_DELETE_BLOB: " approval
 [[ "$approval" == "GRANT_ONLY_STAGING_SECRET_AND_NO_DELETE_BLOB" ]] ||
