@@ -160,6 +160,8 @@ def assignment_info(ctx,role_id):
         if "resourcenotfound" in msg or "notfound" in msg or "404" in msg:
             return "ABSENT"
         raise Stop("ROLE_ASSIGNMENT_METADATA_UNREADABLE")
+    if role_id is None:
+        raise Stop("ASSIGNMENT_EXISTS_WITHOUT_VERIFIED_ROLE_DEFINITION")
     try:
         doc=json.loads(proc.stdout)
         p=doc["properties"]
@@ -183,9 +185,6 @@ def private_tmpfs():
     path=Path("/dev/shm")
     if path.is_symlink() or not path.is_dir() or path.resolve()!=path:
         raise Stop("PRIVATE_TMPFS_REQUIRED")
-    proc=run_az("version","--query","azure-cli","-o","tsv","--only-show-errors")
-    if proc.returncode:
-        raise Stop("AZURE_CLI_VERSION_UNAVAILABLE")
     try:
         s=subprocess.run(["stat","-f","-c","%T",str(path)],
             capture_output=True,text=True,timeout=5)
@@ -227,7 +226,7 @@ def confirm(phrase):
 
 def status(ctx):
     role=role_info(ctx)
-    assignment=assignment_info(ctx,role) if role else "ABSENT"
+    assignment=assignment_info(ctx,role)
     secret=secret_arm_state(ctx)
     print("EXPECTED_VAULT_AND_SIGNED_IN_USER_VERIFIED=YES")
     print("STAGING_SECRET_ARM_STATUS="+secret)
