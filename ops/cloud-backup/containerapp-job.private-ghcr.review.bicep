@@ -1,4 +1,8 @@
 // REVIEW ONLY: no resource creation, approvals or live operation are authorized.
+// User-assigned GHCR pull and staging data identities are deliberately separate.
+// CA volume uses the dedicated data identity; runtime explicitly selects its clientId.
+// This template remains BLOCKED pending CA read grant, no-export runtime smoke,
+// secure logging, cost review and independent backup/restore approval.
 targetScope = 'resourceGroup'
 
 @allowed(['malaysiawest'])
@@ -9,6 +13,8 @@ param containerAppsEnvironmentResourceId string
 param ghcrImageSha256 string
 param ghcrReadOnlyUsername string
 param registryPullVaultReaderIdentityResourceId string
+param stagingDataIdentityResourceId string
+param stagingDataIdentityClientId string
 param ghcrPullTokenKeyVaultSecretUrl string
 param postgresCaKeyVaultSecretUrl string
 param stagingKeyVaultUrl string
@@ -25,9 +31,10 @@ resource manualBackupJob 'Microsoft.App/jobs@2024-03-01' = {
     purpose: 'manual-encrypted-backup'
   }
   identity: {
-    type: 'SystemAssigned,UserAssigned'
+    type: 'UserAssigned'
     userAssignedIdentities: {
       '${registryPullVaultReaderIdentityResourceId}': {}
+      '${stagingDataIdentityResourceId}': {}
     }
   }
   properties: {
@@ -56,7 +63,7 @@ resource manualBackupJob 'Microsoft.App/jobs@2024-03-01' = {
         {
           name: 'staging-pg-root-ca'
           keyVaultUrl: postgresCaKeyVaultSecretUrl
-          identity: registryPullVaultReaderIdentityResourceId
+          identity: stagingDataIdentityResourceId
         }
       ]
     }
@@ -75,6 +82,7 @@ resource manualBackupJob 'Microsoft.App/jobs@2024-03-01' = {
           env: [
             { name: 'AZURE_AUTH_MODE', value: 'managed-identity' }
             { name: 'CAMPUSPOOL_CLOUD_WORKER', value: 'YES' }
+            { name: 'AZURE_CLIENT_ID', value: stagingDataIdentityClientId }
             { name: 'AZURE_KEYVAULT_URL', value: stagingKeyVaultUrl }
             { name: 'AZURE_PG_SECRET_NAME', value: 'campuspool-staging-pg-password' }
             { name: 'PGHOST', value: pgStagingHost }
