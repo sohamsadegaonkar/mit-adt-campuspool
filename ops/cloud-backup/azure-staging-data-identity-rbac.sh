@@ -92,8 +92,8 @@ role_list(){
 }
 secret_grants="$(role_list "$secret_scope")" || stop "SECRET_ROLE_READ_FAILED"
 blob_grants="$(role_list "$blob_scope")" || stop "BLOB_ROLE_READ_FAILED"
-SECRET_GRANTS="$secret_grants" BLOB_GRANTS="$blob_grants" \
-if ! SECRET_SCOPE="$secret_scope" BLOB_SCOPE="$blob_scope" ROLE_NAME="$ROLE" python3 - <<'PY'
+if ! SECRET_GRANTS="$secret_grants" BLOB_GRANTS="$blob_grants" \
+    SECRET_SCOPE="$secret_scope" BLOB_SCOPE="$blob_scope" ROLE_NAME="$ROLE" python3 - <<'PY'
 import os,json,sys
 for key,scope,allowed in [
     ("SECRET_GRANTS",os.environ["SECRET_SCOPE"],"Key Vault Secrets User"),
