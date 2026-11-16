@@ -47,8 +47,7 @@ principal_id="$(az identity show -g "$RG" -n "$ID_NAME" --query principalId -o t
 # Verify existing custom role is exactly the three data actions and one metadata-read action.
 role_json="$(az role definition list --name "$ROLE" --only-show-errors -o json 2>/dev/null)" ||
     stop "CUSTOM_ROLE_READ_FAILED"
-STORAGE_SCOPE="$storage_id" ROLE_NAME="$ROLE" ROLE_DOC="$role_json" python3 - <<'PY' ||
-    stop "CUSTOM_ROLE_UNEXPECTED_PERMISSIONS"
+if ! STORAGE_SCOPE="$storage_id" ROLE_NAME="$ROLE" ROLE_DOC="$role_json" python3 - <<'PY'
 import json,os,sys
 roles=json.loads(os.environ["ROLE_DOC"])
 if not isinstance(roles,list) or len(roles)>1:
@@ -70,6 +69,9 @@ if (x.get("roleType")!="CustomRole" or
     p[0].get("notActions") or p[0].get("notDataActions")):
     sys.exit(2)
 PY
+then
+    stop "CUSTOM_ROLE_UNEXPECTED_PERMISSIONS"
+fi
 
 # Report only safe status categories, not principal IDs, secret versions, or roles at other scopes.
 if [[ "$role_json" == "[]" ]]; then role_exists="NO"; else role_exists="YES"; fi
@@ -91,8 +93,7 @@ role_list(){
 secret_grants="$(role_list "$secret_scope")" || stop "SECRET_ROLE_READ_FAILED"
 blob_grants="$(role_list "$blob_scope")" || stop "BLOB_ROLE_READ_FAILED"
 SECRET_GRANTS="$secret_grants" BLOB_GRANTS="$blob_grants" \
-SECRET_SCOPE="$secret_scope" BLOB_SCOPE="$blob_scope" ROLE_NAME="$ROLE" python3 - <<'PY' ||
-    stop "UNEXPECTED_OR_TOO_BROAD_EXISTING_SCOPED_GRANT"
+if ! SECRET_SCOPE="$secret_scope" BLOB_SCOPE="$blob_scope" ROLE_NAME="$ROLE" python3 - <<'PY'
 import os,json,sys
 for key,scope,allowed in [
     ("SECRET_GRANTS",os.environ["SECRET_SCOPE"],"Key Vault Secrets User"),
@@ -102,6 +103,9 @@ for key,scope,allowed in [
     if any(x.get("Scope")!=scope or x.get("Role")!=allowed for x in entries):
         sys.exit(2)
 PY
+then
+    stop "UNEXPECTED_OR_TOO_BROAD_EXISTING_SCOPED_GRANT"
+fi
 
 echo "EXACT_SECRET_GRANT_EXISTS=$([[ "$secret_grants" != "[]" ]] && echo YES || echo NO)"
 echo "EXACT_BLOB_GRANT_EXISTS=$([[ "$blob_grants" != "[]" ]] && echo YES || echo NO)"
