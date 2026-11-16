@@ -7,7 +7,7 @@ import subprocess
 import unittest
 from unittest import mock
 
-MODULE = Path(__file__).with_name('azure-staging-ca-operator.py')
+MODULE = Path(__file__).parent / 'scripts' / 'azure-staging-ca-operator.py'
 spec = importlib.util.spec_from_file_location('campuspool_ca_operator', MODULE)
 ca = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ca)
