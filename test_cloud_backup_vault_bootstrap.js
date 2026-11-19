@@ -131,6 +131,23 @@ test('rejects mismatched or disabled Key Vault secret identity',async()=>{
   }
 });
 
+test('accepts valid numeric Content-Length on synthetic Key Vault response',async()=>{
+  const response=secretResponse({value:PASSWORD});
+  response.headers={get:name=>name==='content-length'?'256':null};
+  assert.equal(await fetchPassword(env,{getToken,fetchImpl:async()=>response}),PASSWORD);
+});
+
+test('rejects malformed or oversized Content-Length before reading response',async()=>{
+  for(const value of ['abc','-1','1.5','16385','1e2']){
+    const response=secretResponse({value:PASSWORD});
+    response.headers={get:name=>name==='content-length'?value:null};
+    response.body={getReader(){assert.fail('invalid header must block body read');}};
+    await assert.rejects(
+      ()=>fetchPassword(env,{getToken,fetchImpl:async()=>response}),
+      e=>e.message==='VAULT_SECRET_READ_BLOCKED');
+  }
+});
+
 test('rejects oversized Key Vault response without allocating unbounded text',async()=>{
   let cancelCalled=false;
   const big=new Uint8Array(20000).fill(65);
