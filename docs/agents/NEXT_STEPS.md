@@ -324,3 +324,9 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 
 
 - #51 HTTP characterization PASS at `40e3d91`; do not repeat same test. Next scoped retryable pool exhaustion handling (503, safe Retry-After, distinguish unexpected errors), regression on actual HTTP harness. No speculative Redis or connection-pool expansion. [Evidence](tasks/2026-11-20-http-rides-backpressure.md).
+
+
+- [Graceful backpressure task](tasks/2026-11-20-graceful-backpressure.md): verify exact-head PostgreSQL and browser CI, then sustained controlled mixed API pressure and settlement/privacy policy; no speculative expansion. No live DB/deploy, G1 separate.
+
+
+- #52 tested `b095678`: targeted graceful 503 and retry safety passed, no repeat of identical test. Next review stacked application candidate, sustained bounded mixed HTTP load (queue/wait evidence), settlement/privacy policy and real browser visual QA. No live changes, G1 separate. [Evidence](tasks/2026-11-20-graceful-backpressure.md).

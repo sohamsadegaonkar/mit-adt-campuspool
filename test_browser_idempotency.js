@@ -12,11 +12,12 @@ const begin = html.indexOf('    const idempotentDomainRoutes = new Set([');
 const end = html.indexOf('    async function refreshSession() {', begin);
 assert.ok(begin >= 0 && end > begin, 'Browser retry code exists in index.html');
 const snippet = html.slice(begin, end) +
-  '\n globalThis.__test = {apiFetch, clearPendingDomainMutations};';
+  '\n globalThis.__test = {apiFetch, clearPendingDomainMutations, showMutationFailure};';
 
 function environment({ storage, clock, user='driver@students.example', send }) {
   const captured=[];
   const events=[];
+  const toasts=[];
   const scope={
     Event:class {constructor(type){this.type=type;}},
     window:{dispatchEvent(event){events.push(event.type);}},
@@ -31,13 +32,14 @@ function environment({ storage, clock, user='driver@students.example', send }) {
     appState:{currentUser:{email:user},myBookings:[],myOfferedRides:[]},
     csrfToken:'f'.repeat(64),
     renderUserHeader(){},
+    showToast(message,icon){toasts.push({message,icon});},
     fetch:async (url,options)=>{
       captured.push({url,key:options.headers.get('Idempotency-Key')});
       return send(url,options);
     }
   };
   vm.runInNewContext(snippet,scope,{timeout:2000});
-  return {api:scope.__test, captured, events, scope};
+  return {api:scope.__test, captured, events, toasts, scope};
 }
 const ridePayload=JSON.stringify({
   pickup:'Private Campus Gate',destination:'Private Station',vehicle:'Car'
@@ -236,4 +238,29 @@ test('session cleared while fingerprinting prevents dispatch',{timeout:5000},asy
   await assert.rejects(request,/SESSION_CHANGED_BEFORE_DISPATCH/);
   assert.equal(e.captured.length,0);
   assert.equal(storage.size,0);
+});
+
+test('traffic mode uses bounded retry guidance, no automatic send and same key on manual retry',async()=>{
+  const storage=new Map(),clock={now:1000000};
+  const busy={ok:false,status:503,headers:new Headers({'Retry-After':'3'})};
+  const e=environment({storage,clock,send:async()=>busy});
+  const r=await e.api.apiFetch(route,opts);
+  e.api.showMutationFailure(r,{error:'DB_POOL_BUSY'},'Fallback');
+  assert.equal(e.toasts.length,1);
+  assert.equal(e.toasts[0].message,'Oops, a campus traffic jam! Try the same action again in 3 seconds.');
+  assert.equal(e.toasts[0].icon,'🚦');
+  assert.equal(e.captured.length,1,'No automatic retry');
+  const key=e.captured[0].key;
+  const retry=environment({storage,clock,send:async()=>ok()});
+  clock.now+=3000;
+  await retry.api.apiFetch(route,opts);
+  assert.equal(retry.captured[0].key,key);
+});
+test('traffic mode does not mask unrelated 503 or accept an unbounded wait',()=>{
+  const e=environment({storage:new Map(),clock:{now:1000000},send:async()=>ok()});
+  e.api.showMutationFailure({status:503,headers:new Headers({'Retry-After':'999999'})},{error:'DB_POOL_BUSY'},'Fallback');
+  assert.match(e.toasts[0].message,/in a few seconds/);
+  e.api.showMutationFailure({status:503,headers:new Headers()},{error:'EMAIL_PROVIDER_NOT_CONFIGURED',message:'Provider unavailable'},'Fallback');
+  assert.equal(e.toasts[1].message,'Provider unavailable');
+  assert.equal(e.toasts[1].icon,'⚠️');
 });

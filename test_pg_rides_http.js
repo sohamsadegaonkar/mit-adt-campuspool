@@ -11,6 +11,7 @@ const net=require('node:net');
 const {spawn}=require('node:child_process');
 const {Pool}=require('pg');
 const {migrate}=require('./stage1-otp/migrate');
+const {CampusPgPool,PgPoolBusyError}=require('./stage1-otp/pg-store');
 
 const url=process.env.OTP_DATABASE_URL;
 const stress=process.env.RIDES_HTTP_STRESS_DISPOSABLE_DB==='YES';
@@ -269,6 +270,24 @@ test('HTTP rides and bookings switch to verified PostgreSQL user identities',
       const finish=await send('/api/rides/cancel',0,{rideId:losingRide});
       assert.equal(finish.status,200);
       assert.equal((await invariant(losingRide)).status,'cancelled');
+      // Prove both pg-pool acquisition APIs classify only the real pending
+      // deadline. A real SQL failure is still the original PG error.
+      const tinyPool=new CampusPgPool({connectionString:url,ssl:false,max:1,connectionTimeoutMillis:100});
+      try{
+        const held=await tinyPool.connect();
+        try{
+          await assert.rejects(tinyPool.connect(),e=>e instanceof PgPoolBusyError);
+          await assert.rejects(tinyPool.query('SELECT 1'),e=>e instanceof PgPoolBusyError);
+        }finally{held.release();}
+        await assert.rejects(tinyPool.query('SELECT cp_nonexistent_column'),e=>e.code==='42703'&&!(e instanceof PgPoolBusyError));
+        assert.equal((await tinyPool.query('SELECT 1 AS n')).rows[0].n,1);
+      }finally{await tinyPool.end();}
+      const pressureRide=await create();
+      const pressureKey=crypto.randomUUID();
+      const pressureActorHash=crypto.createHash('sha256').update('campus-user:'+ids[1]).digest('hex');
+      const receiptCount=async()=>Number((await pool.query(
+        "SELECT count(*)::int AS n FROM public.campus_idempotency_keys WHERE actor_hash=$1 AND route='POST /api/bookings' AND request_key=$2",
+        [pressureActorHash,pressureKey])).rows[0].n);
       // Real five-connection saturation: lock session reads in the separate
       // disposable observer connection; never inject a fake PG error.
       const blocker=await pool.connect();
@@ -288,16 +307,25 @@ test('HTTP rides and bookings switch to verified PostgreSQL user identities',
           await new Promise(resolve=>setTimeout(resolve,10));
         }
         assert.equal(peakLocked,5,'All five app pool connections must be occupied');
-        queued=Array.from({length:3},()=>request('/api/auth/me',{user:1}));
+        queued=[
+          request('/api/auth/me',{user:1}),
+          request('/api/bookings',{method:'POST',user:1,csrf:csrf[1],body:{rideId:pressureRide},idempotencyKey:pressureKey}),
+          request('/api/bookings',{method:'POST',user:1,csrf:csrf[1],body:{rideId:pressureRide},idempotencyKey:pressureKey})
+        ];
         const health=await request('/healthz',{anonymous:true});
         assert.equal(health.status,200,'Public health remains responsive');
         timeoutResponses=await Promise.all(queued);
-        // Current behavior is a documented gap, not desirable overload
-        // semantics: sanitized 500, rather than explicit retryable 503.
         for(const r of timeoutResponses){
-          assert.equal(r.status,500);
-          assert.equal(r.body.error,'INTERNAL_ERROR');
+          assert.equal(r.status,503);
+          assert.equal(r.body.error,'DB_POOL_BUSY');
+          assert.equal(r.body.success,false);
+          assert.ok(['2','3','4'].includes(r.retryAfter));
+          assert.equal(Number(r.retryAfter),r.body.retryAfter);
+          assert.match(r.body.message,/campus traffic jam/);
+          assert.equal(r.replayed,null);
         }
+        assert.equal(await receiptCount(),0,'Overload cannot reserve a receipt');
+        assert.equal((await invariant(pressureRide)).active,0,'Overload cannot consume a seat');
       }finally{
         try{await blocker.query('ROLLBACK');}finally{blocker.release();}
         const drained=await Promise.allSettled([...blocked,...queued]);
@@ -306,11 +334,25 @@ test('HTTP rides and bookings switch to verified PostgreSQL user identities',
       for(const r of await Promise.all(blocked))assert.equal(r.status,200);
       const recovered=await Promise.all(Array.from({length:8},()=>request('/api/auth/me',{user:1})));
       assert.ok(recovered.every(r=>r.status===200),'Pool must recover when lock releases');
+      const retried=await request('/api/bookings',{method:'POST',user:1,csrf:csrf[1],
+        body:{rideId:pressureRide},idempotencyKey:pressureKey});
+      assert.equal(retried.status,201);
+      assert.equal(retried.replayed,null);
+      const replayed=await request('/api/bookings',{method:'POST',user:1,csrf:csrf[1],
+        body:{rideId:pressureRide},idempotencyKey:pressureKey});
+      assert.equal(replayed.status,201);
+      assert.equal(replayed.replayed,'true');
+      assert.equal(replayed.body.booking.bookingId,retried.body.booking.bookingId);
+      assert.equal(await receiptCount(),1);
+      assert.equal((await invariant(pressureRide)).active,1);
+      const pressureCancel=await request('/api/rides/cancel',{method:'POST',user:0,csrf:csrf[0],body:{rideId:pressureRide}});
+      assert.equal(pressureCancel.status,200);
+      assert.equal((await invariant(pressureRide)).status,'cancelled');
       const sorted=durations.sort((a,b)=>a-b);
       t.diagnostic('HTTP_RIDES_STRESS_RESULT '+JSON.stringify({
         attempts,codes,snapshots,actorOriginalSuccesses:1,deniedWithoutMutation:4,
         poolConnectionsBlocked:peakLocked,poolAcquireTimeouts:timeoutResponses.length,
-        timeoutHttpStatus:500,recovered:recovered.length,pressureMs:Math.round(performance.now()-pressureStart),
+        timeoutHttpStatus:503,acquisitionApisVerified:2,sqlErrorPreserved:true,overloadMutationAttempts:2,sameKeyRecovery:true,recovered:recovered.length,pressureMs:Math.round(performance.now()-pressureStart),
         p50Ms:Number(sorted[Math.ceil(sorted.length*.5)-1].toFixed(2)),
         p95Ms:Number(sorted[Math.ceil(sorted.length*.95)-1].toFixed(2)),
         unexpectedMixedMutationErrors:0
