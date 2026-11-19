@@ -95,7 +95,9 @@ function main(){
   need(process.stdin.isTTY&&process.stdout.isTTY,'INTERACTIVE_TERMINAL_REQUIRED');
   need(!fs.existsSync(journal),'PRIOR_ATTEMPT_REQUIRES_INSPECTION');
   const approve=phrase=>{process.stdout.write('Type '+phrase+': ');let x='',b=Buffer.alloc(1);while(x.length<256){const n=fs.readSync(0,b,0,1,null);if(!n||b[0]===10)break;if(b[0]!==13)x+=b.toString()}return x===phrase};
-  need(approve('BUDGET_EVIDENCE_REVIEWED_WITHIN_500_INR_CAP_AND_EXCLUSIVE_OPERATOR'),'BUDGET_OR_EXCLUSIVITY_NOT_APPROVED');
+  // Owner revised monthly target to INR 500 or less, flexible up to 800; detailed billing review deferred for this one TLS run.
+  // This is not an assertion of verified current spend, nor permission for additional resources.
+  need(approve('ACK_800_INR_LIMIT_BILLING_REVIEW_DEFERRED_EXCLUSIVE_OPERATOR'),'BUDGET_OR_EXCLUSIVITY_NOT_APPROVED');
   const fd=fs.openSync(journal,'wx',0o600);fs.closeSync(fd);note('ATTEMPT_OPEN');
   const deadline=process.hrtime.bigint()+2700n*1000000000n;
   const pause=()=>{need(process.hrtime.bigint()<deadline,'OPERATOR_DEADLINE');Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,10000);need(process.hrtime.bigint()<deadline,'OPERATOR_DEADLINE')};
