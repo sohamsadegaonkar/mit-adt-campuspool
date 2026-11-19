@@ -1,7 +1,7 @@
 # Task: Campus Rush Hour sustained mixed HTTP load
 
 - **Task ID / file:** 2026-11-20-campus-rush-hour
-- **Status:** in review / CI pending
+- **Status:** in review / exact-head CI passed
 - **Agent / owner:** application engineering; independent reviewer unassigned
 - **Last updated:** 2026-11-20 IST
 - **Baseline:** main@1020e2e; parent #52 ff4869abe12aab847298f2598146b2fe7bdb1133; policy #50 1c493e3.
@@ -42,7 +42,7 @@ Parent #52 code b095678 verified 3/3 503 overload responses under forced lock, 1
 
 | Test/check | Environment and command/evidence | Result / limitations |
 |---|---|---|
-| Sustained rush hour | RIDES_HTTP_RUSH_DISPOSABLE_DB=YES npm run test:rides-http | CI pending |
+| Sustained rush hour | RIDES_HTTP_RUSH_DISPOSABLE_DB=YES npm run test:rides-http | PASS; see exact-head CI evidence below |
 | Parent forced lock | #52 code b095678 | verified |
 | Production load | not run | out of scope |
 
@@ -62,3 +62,15 @@ Single process, one local PostGIS CI runner, 96 synthetic identities not 96 simu
 
 - Branch test/campus-rush-hour-2026-11-20
 - bench/campus-rush-hour.js, test_pg_rides_http.js, .github/workflows/stage1-otp.yml, STATUS.md, NEXT_STEPS.md, DECISIONS.md, this task.
+
+## Exact-head CI evidence — 2026-11-19 UTC / 20 Nov IST
+
+[Disposable PostgreSQL job](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/44606175424/job/135850349217) passed at code `dcbfc5fd9f2051e27aeb4ac1fc949efbcead5193`. Rush Hour subtest PASS: 3880/3880 completed, zero dropped/unexpected; 47 invariant snapshots, 876 exact receipts (including seeded writes), zero sampled DB lock waiters, 8/8 recovery. 96 actors, 16 drivers, 32 initial rides, four-core CI runner, Node 22.23.2. Separate same-IP NAT 120 accepted / 10 HTTP 429 / 0 unexpected. No 429/503 in paced distinct-IP phases.
+
+| Phase | Completed / actual RPS | p95/p99 HTTP ms | p95 acquire ms | Pool acquisitions / peak queued | Node CPU one-core % / RSS MiB |
+|---|---:|---:|---:|---:|---:|
+| Warmup | 80 / 8 | 9.40 / 16.94 | 0.08 | 168 / 2 | 2.94 / 80.16 |
+| Lecture dismissal | 600 / 39.99 | 19.40 / 21.71 | 5.03 | 1260 / 6 | 8.03 / 88.21 |
+| Rush hour | 3200 / 159.94 | 48.73 / 59.72 | 23.85 | 6720 / 39 | 18.13 / 109.55 |
+
+Peak 320 settlement-status reads, 195 offer attempts and 577 booking attempts; standalone settlement reads use two parallel pool acquisitions, mutation settlement checks use two statements on an existing transaction client. Queue pressure merits eliminating avoidable SQL round trips before more infrastructure. Not proof of a saturated production DB (no DB CPU measurement or WAN). #54 candidate to consolidate statement; separate NAT fairness and privacy/settlement-policy follow-ups. No production changes.

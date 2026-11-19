@@ -347,3 +347,6 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 ## 2026-11-20 IST — Campus Rush Hour (branch-local)
 
 - #52 graceful 503 verified. New disposable sustained HTTP test adds 96 synthetic identities, 45s of paced mixed arrivals, actual loopback sources, NAT scenario, pool/CPU and receipt/invariant evidence. CI pending; no runtime changes. [Task](tasks/2026-11-20-campus-rush-hour.md).
+
+
+- #53 exact `dcbfc5f`: 3880/3880 HTTP requests, 159.94 peak req/s, p95 48.73ms, peak queue 39, 0 unexpected/drop, 47 invariant samples, 876 receipts, NAT 120/10, 8 recovery. [Evidence](tasks/2026-11-20-campus-rush-hour.md). No live capacity claim.
