@@ -200,7 +200,7 @@ jobs:
           const packages=new Map(os.Packages.map(p=>[p.Name,p.Version]));
           for(const [name,version] of [
             ['age','1.2.1-r15'],
-            ['postgresql17-client','17.11-r0'],
+            ['postgresql17-client','17.12-r0'],
             ['ca-certificates','20261020-r0'],
             ['zlib','1.3.2-r1']
           ]){
