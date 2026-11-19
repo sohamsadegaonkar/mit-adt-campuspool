@@ -13,6 +13,15 @@ const {Pool}=require('pg');
 const {migrate}=require('./stage1-otp/migrate');
 
 const url=process.env.OTP_DATABASE_URL;
+const stress=process.env.RIDES_HTTP_STRESS_DISPOSABLE_DB==='YES';
+if(stress){
+  assert.ok(url,'Stress requires disposable PostgreSQL');
+  const u=new URL(url);
+  assert.ok(['postgres:','postgresql:'].includes(u.protocol));
+  assert.equal(u.pathname,'/campuspool_stage1_ci');
+  assert.equal(u.search,'');
+  assert.equal(u.hash,'');
+}
 if(url&&!['localhost','127.0.0.1','[::1]'].includes(new URL(url).hostname)){
   throw Error('Refusing to run HTTP Rides tests against a nonlocal PostgreSQL database');
 }
@@ -42,14 +51,16 @@ function waitForServer(child){
   });
 }
 test('HTTP rides and bookings switch to verified PostgreSQL user identities',
- {skip:!url?'requires local isolated CI PostgreSQL':false},async()=>{
+ {skip:!url?'requires local isolated CI PostgreSQL':false,timeout:120000},async t=>{
   await migrate({connectionString:url,ssl:false});
   const pool=new Pool({connectionString:url,ssl:false});
   const temp=fs.mkdtempSync(path.join(os.tmpdir(),'cp-rides-http-'));
-  const ids=[crypto.randomUUID(),crypto.randomUUID()];
+  const ids=Array.from({length:stress?6:2},()=>crypto.randomUUID());
   const email=i=>'rides-http-'+crypto.randomBytes(6).toString('hex')+'@students.mituniversity.edu.in';
-  const emails=[email(0),email(1)];
-  const phones=['9765412380','9765412381'];
+  const emails=ids.map((_,i)=>email(i));
+  const phoneBase=crypto.randomInt(1000000,9000000);
+  const phones=ids.map((_,i)=>'976'+String(phoneBase+i));
+  const appName='cp_http_stress_'+crypto.randomBytes(6).toString('hex');
   const tokens=ids.map(()=>crypto.randomBytes(32).toString('base64url'));
   const pass='ci-private-'+crypto.randomBytes(32).toString('hex');
   const basic='Basic '+Buffer.from('staging:'+pass).toString('base64');
@@ -63,17 +74,18 @@ test('HTTP rides and bookings switch to verified PostgreSQL user identities',
     if(csrf)headers['x-csrf-token']=csrf;
     if(method==='POST' && ['/api/rides','/api/bookings','/api/rides/cancel','/api/bookings/cancel'].includes(endpoint))
       headers['Idempotency-Key']=idempotencyKey||crypto.randomUUID();
-    const response=await fetch(base+endpoint,{method,headers,body:body===undefined?undefined:JSON.stringify(body)});
+    const response=await fetch(base+endpoint,{method,headers,signal:AbortSignal.timeout(15000),body:body===undefined?undefined:JSON.stringify(body)});
     let json;try{json=await response.json();}catch{json=null;}
-    return {status:response.status,body:json,replayed:response.headers.get('Idempotency-Replayed')};
+    return {status:response.status,body:json,replayed:response.headers.get('Idempotency-Replayed'),retryAfter:response.headers.get('Retry-After')};
   }
   try{
-    await pool.query([
-      'INSERT INTO public.campus_users(id,name,email,phone,dept,is_verified)',
-      'VALUES ($1,$2,$3,$4,$5,true),($6,$7,$8,$9,$10,true)'
-    ].join(' '),[ids[0],'CI Driver',emails[0],phones[0],'Testing',
-      ids[1],'CI Passenger',emails[1],phones[1],'Testing']);
-    for(let i=0;i<2;i++){
+    if(stress){
+      const target=await pool.query('SELECT current_database() AS db');
+      assert.equal(target.rows[0].db,'campuspool_stage1_ci');
+    }
+    await pool.query('INSERT INTO public.campus_users(id,name,email,phone,dept,is_verified) SELECT * FROM unnest($1::uuid[],$2::text[],$3::text[],$4::text[],$5::text[],$6::boolean[])',
+      [ids,ids.map((_,i)=>'CI User '+i),emails,phones,ids.map(()=> 'Testing'),ids.map(()=>true)]);
+    for(let i=0;i<ids.length;i++){
       const hash=crypto.createHash('sha256').update(tokens[i]).digest('hex');
       await pool.query(
         "INSERT INTO public.campus_sessions(session_hash,user_id,expires_at) VALUES($1,$2,now()+interval '1 hour')",
@@ -85,7 +97,7 @@ test('HTTP rides and bookings switch to verified PostgreSQL user identities',
         OTP_DB_SSL:'false',OTP_HMAC_KEY:'ci-only-'+crypto.randomBytes(32).toString('hex'),
         OTP_SECRET:crypto.randomBytes(32).toString('hex'),ENABLE_CLUSTER:'false',
         DATABASE_PATH:path.join(temp,'ephemeral.db'),
-        EMAIL_PROVIDER:'disabled',SMS_PROVIDER:'disabled'
+        EMAIL_PROVIDER:'disabled',SMS_PROVIDER:'disabled',PGAPPNAME:appName
       },stdio:['ignore','pipe','pipe']});
     await waitForServer(child);
     const ready=await request('/healthz',{anonymous:true});
@@ -165,6 +177,145 @@ test('HTTP rides and bookings switch to verified PostgreSQL user identities',
       csrf:csrfDriver,body:{rideId},idempotencyKey:cancelRideKey});
     assert.equal(rideCancelReplay.status,200);
     assert.equal(rideCancelReplay.replayed,'true');
+    if(stress){
+      const csrf=[csrfDriver,csrfPassenger];
+      for(let user=2;user<ids.length;user++){
+        const session=await request('/api/auth/me',{user});
+        assert.equal(session.status,200);
+        csrf[user]=session.body.csrfToken;
+      }
+      let attempts=0;
+      const durations=[];
+      const codes={};
+      const send=async(endpoint,user,body,key=crypto.randomUUID(),extra={})=>{
+        const start=performance.now();
+        const r=await request(endpoint,{method:'POST',user,body,csrf:csrf[user],idempotencyKey:key,...extra});
+        durations.push(performance.now()-start);attempts++;
+        const label=r.status+':'+(r.body?.error||'OK');
+        codes[label]=(codes[label]||0)+1;
+        return r;
+      };
+      const create=async()=>{
+        const r=await send('/api/rides',0,{...cleanInput,seatsTotal:2});
+        assert.equal(r.status,201);
+        return r.body.ride.id;
+      };
+      const a=await create(),b=await create();
+      let snapshots=0;
+      async function invariant(id){
+        const {rows}=await pool.query(`SELECT r.status,r.seats_total::int AS total,r.seats_left::int AS available,
+          count(b.booking_id) FILTER (WHERE b.status='active')::int AS active,
+          count(DISTINCT b.passenger_user_id) FILTER (WHERE b.status='active')::int AS distinct_active
+          FROM public.campus_rides r LEFT JOIN public.campus_bookings b ON b.ride_id=r.id
+          WHERE r.id=$1 GROUP BY r.id`,[id]);
+        assert.equal(rows.length,1);
+        const state=rows[0];snapshots++;
+        assert.equal(state.available+state.active,state.total);
+        assert.ok(state.available>=0&&state.available<=state.total);
+        assert.equal(state.active,state.distinct_active);
+        if(state.status==='cancelled')assert.equal(state.active,0);
+        return state;
+      }
+      // Same actor, two distinct rides, two keys, plus a same-key retry.
+      // The actor lock must prevent two simultaneous unpaid obligations.
+      const keyA=crypto.randomUUID(),keyB=crypto.randomUUID();
+      const actorRace=await Promise.all([
+        send('/api/bookings',1,{rideId:a},keyA),
+        send('/api/bookings',1,{rideId:a},keyA),
+        send('/api/bookings',1,{rideId:b},keyB)
+      ]);
+      const winners=actorRace.filter(r=>r.status===201);
+      assert.equal(winners.filter(r=>r.replayed!=='true').length,1);
+      for(const r of actorRace)assert.ok(r.status===201||(r.status===403&&r.body.error==='SETTLEMENT_REQUIRED'));
+      assert.equal(new Set(winners.map(r=>r.body.booking.bookingId)).size,1);
+      const won=winners[0].body.booking;
+      const losingRide=won.rideId===a?b:a;
+      assert.equal((await invariant(a)).active+(await invariant(b)).active,1);
+      const before=await request('/api/user/settlement-status',{user:1});
+      assert.equal(before.status,200);assert.equal(before.body.hasUnpaidBooking,true);
+      // Concurrent bookings, legitimate passenger cancellation and owner
+      // cancellation; unauthorized attempts on the other, active ride.
+      const driverKey=crypto.randomUUID(),cancelKey2=crypto.randomUUID();
+      const mixed=await Promise.all([
+        send('/api/bookings/cancel',1,{bookingId:won.bookingId},cancelKey2),
+        send('/api/bookings/cancel',1,{bookingId:won.bookingId},cancelKey2),
+        send('/api/rides/cancel',0,{rideId:won.rideId},driverKey),
+        send('/api/rides/cancel',0,{rideId:won.rideId},driverKey),
+        send('/api/bookings',2,{rideId:won.rideId}),
+        send('/api/bookings',3,{rideId:won.rideId}),
+        send('/api/bookings',4,{rideId:won.rideId}),
+        send('/api/bookings',5,{rideId:won.rideId}),
+        send('/api/rides/cancel',2,{rideId:losingRide}),
+        send('/api/bookings',3,{rideId:losingRide},crypto.randomUUID(),{csrf:csrf[4]}),
+        send('/api/bookings',4,{rideId:losingRide},crypto.randomUUID(),{anonymous:true}),
+        send('/api/bookings',5,{rideId:losingRide,passengerEmail:emails[2]})
+      ]);
+      for(const r of mixed.slice(0,2))assert.ok(r.status===200||(r.status===404&&r.body.error==='BOOKING_NOT_FOUND'));
+      assert.equal(mixed[2].status,200);assert.equal(mixed[3].status,200);
+      assert.equal(mixed.slice(2,4).filter(r=>r.replayed==='true').length,1);
+      for(const r of mixed.slice(4,8))assert.ok(r.status===201||
+        (r.status===404&&r.body.error==='RIDE_NOT_FOUND')||(r.status===409&&r.body.error==='RIDE_FULL'));
+      assert.equal(mixed[8].status,403);assert.equal(mixed[8].body.error,'NOT_RIDE_OWNER');
+      assert.equal(mixed[9].status,403);assert.equal(mixed[9].body.error,'CSRF_REQUIRED');
+      assert.equal(mixed[10].status,401);
+      assert.equal(mixed[11].status,403);assert.equal(mixed[11].body.error,'NOT_ALLOWED');
+      assert.equal((await invariant(won.rideId)).status,'cancelled');
+      assert.equal((await invariant(losingRide)).active,0,'Denied requests must not book');
+      const after=await request('/api/user/settlement-status',{user:1});
+      assert.equal(after.body.hasUnpaidBooking,false);
+      const retry=await send('/api/bookings',1,{rideId:losingRide});
+      assert.equal(retry.status,201,'Cancellation must release unpaid-booking block');
+      assert.equal((await invariant(losingRide)).active,1);
+      const finish=await send('/api/rides/cancel',0,{rideId:losingRide});
+      assert.equal(finish.status,200);
+      assert.equal((await invariant(losingRide)).status,'cancelled');
+      // Real five-connection saturation: lock session reads in the separate
+      // disposable observer connection; never inject a fake PG error.
+      const blocker=await pool.connect();
+      let blocked=[],queued=[];
+      let peakLocked=0;
+      let timeoutResponses=[];
+      const pressureStart=performance.now();
+      try{
+        await blocker.query('BEGIN');
+        await blocker.query('LOCK TABLE public.campus_sessions IN ACCESS EXCLUSIVE MODE');
+        blocked=Array.from({length:5},()=>request('/api/auth/me',{user:1}));
+        const deadline=performance.now()+3000;
+        while(performance.now()<deadline){
+          const {rows}=await pool.query("SELECT count(*)::int AS n FROM pg_stat_activity WHERE application_name=$1 AND wait_event_type='Lock'",[appName]);
+          peakLocked=Math.max(peakLocked,rows[0].n);
+          if(peakLocked===5)break;
+          await new Promise(resolve=>setTimeout(resolve,10));
+        }
+        assert.equal(peakLocked,5,'All five app pool connections must be occupied');
+        queued=Array.from({length:3},()=>request('/api/auth/me',{user:1}));
+        const health=await request('/healthz',{anonymous:true});
+        assert.equal(health.status,200,'Public health remains responsive');
+        timeoutResponses=await Promise.all(queued);
+        // Current behavior is a documented gap, not desirable overload
+        // semantics: sanitized 500, rather than explicit retryable 503.
+        for(const r of timeoutResponses){
+          assert.equal(r.status,500);
+          assert.equal(r.body.error,'INTERNAL_ERROR');
+        }
+      }finally{
+        try{await blocker.query('ROLLBACK');}finally{blocker.release();}
+        const drained=await Promise.allSettled([...blocked,...queued]);
+        for(const r of drained)assert.equal(r.status,'fulfilled');
+      }
+      for(const r of await Promise.all(blocked))assert.equal(r.status,200);
+      const recovered=await Promise.all(Array.from({length:8},()=>request('/api/auth/me',{user:1})));
+      assert.ok(recovered.every(r=>r.status===200),'Pool must recover when lock releases');
+      const sorted=durations.sort((a,b)=>a-b);
+      t.diagnostic('HTTP_RIDES_STRESS_RESULT '+JSON.stringify({
+        attempts,codes,snapshots,actorOriginalSuccesses:1,deniedWithoutMutation:4,
+        poolConnectionsBlocked:peakLocked,poolAcquireTimeouts:timeoutResponses.length,
+        timeoutHttpStatus:500,recovered:recovered.length,pressureMs:Math.round(performance.now()-pressureStart),
+        p50Ms:Number(sorted[Math.ceil(sorted.length*.5)-1].toFixed(2)),
+        p95Ms:Number(sorted[Math.ceil(sorted.length*.95)-1].toFixed(2)),
+        unexpectedMixedMutationErrors:0
+      }));
+    }
     // Once the global per-IP mutation bucket is full, only authenticated,
     // already-committed same-key receipts are eligible for bounded replay.
     let limited=false;
@@ -207,10 +358,8 @@ test('HTTP rides and bookings switch to verified PostgreSQL user identities',
         child.once('exit',()=>{clearTimeout(timer);resolve()});
       });
     }
-    if(rideId){
-      await pool.query('DELETE FROM public.campus_bookings WHERE ride_id=$1',[rideId]);
-      await pool.query('DELETE FROM public.campus_rides WHERE id=$1',[rideId]);
-    }
+    await pool.query('DELETE FROM public.campus_bookings WHERE ride_id IN (SELECT id FROM public.campus_rides WHERE driver_user_id=ANY($1::uuid[]))',[ids]);
+    await pool.query('DELETE FROM public.campus_rides WHERE driver_user_id=ANY($1::uuid[])',[ids]);
     await pool.query('DELETE FROM public.campus_sessions WHERE user_id=ANY($1::uuid[])',[ids]);
     await pool.query('DELETE FROM public.campus_users WHERE id=ANY($1::uuid[])',[ids]);
     await pool.query('DELETE FROM public.campus_idempotency_keys WHERE actor_hash=ANY($1::text[])',
