@@ -18,9 +18,25 @@ const lower=x=>String(x).toLowerCase();
 const need=(v,code)=>{if(!v)throw Error(code)};
 const hash=b=>crypto.createHash('sha256').update(b).digest('hex');
 const BASE_HASH='153eb21eb03d2f1e97797f595beffa74eae108c566c567056e91307a02dc9027';
+function safeAzureFailure(args,e){
+  const verb=args.slice(0,3).join(' ');
+  const method=args[args.indexOf('--method')+1];
+  const url=args[args.indexOf('--url')+1]||'';
+  let step='OTHER';
+  if(verb.startsWith('account show'))step='ACCOUNT';
+  else if(verb.startsWith('identity show'))step=args.includes('campuspool-ghcr-vault-reader')?'PULL_IDENTITY':'DATA_IDENTITY';
+  else if(verb.startsWith('keyvault show'))step='VAULT_CONFIGURATION';
+  else if(verb==='role assignment list')step='SECRET_ROLE_ASSIGNMENTS';
+  else if(verb==='containerapp job execution')step='EXECUTION_HISTORY';
+  else if(verb==='containerapp job start')step='JOB_START';
+  else if(args[0]==='rest')step=method==='patch'?'JOB_PATCH':url.includes('/secrets/')?'SECRET_METADATA':'JOB_READBACK';
+  const msg=String(e?.stderr||'');
+  const why=e?.code==='ETIMEDOUT'?'TIMEOUT':e?.code==='ENOENT'?'CLI_NOT_FOUND':e?.code==='ENOBUFS'?'OUTPUT_LIMIT':e instanceof SyntaxError?'INVALID_JSON':/AADSTS|az login|login again|expired|AuthenticationFailed|InvalidAuthenticationToken/i.test(msg)?'AUTHENTICATION':/AuthorizationFailed|Forbidden|AccessDenied|insufficient privileges|permission denied|status code[: ]+403/i.test(msg)?'AUTHORIZATION':/ResourceNotFound|NotFound|status code[: ]+404/i.test(msg)?'NOT_FOUND':/TooManyRequests|throttl|status code[: ]+429/i.test(msg)?'THROTTLED':/ServiceUnavailable|InternalServerError|BadGateway|GatewayTimeout|status code[: ]+50[0234]/i.test(msg)?'SERVICE_ERROR':/connection|network|DNS|SSL|TLS|certificate/i.test(msg)?'NETWORK_OR_TLS':/unrecognized arguments|invalid choice|InvalidApiVersionParameter/i.test(msg)?'CLI_OR_API_ARGUMENT':'UNKNOWN';
+  return 'AZURE_'+step+'_'+why;
+}
 function az(args,json=true){
   try{const v=execFileSync('az',[...args,'--subscription',SUB,'--only-show-errors','-o',json?'json':'none'],{encoding:'utf8',timeout:45000,maxBuffer:4*1024*1024,stdio:['ignore','pipe','pipe']});return json?JSON.parse(v):undefined}
-  catch{throw Error('AZURE_REQUEST_UNKNOWN_OR_FAILED')}
+  catch(e){throw Error(safeAzureFailure(args,e))}
 }
 function same(a,b){return lower(a)===lower(b)}
 function scopeGuard(s,ids){
