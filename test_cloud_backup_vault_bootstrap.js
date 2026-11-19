@@ -51,7 +51,7 @@ const fetchImpl=async (url,request)=>{
   return secretResponse({value:PASSWORD});
 };
 
-function secretResponse(fields){
+function secretResponse(fields,includeLength=false){
   const payload=JSON.stringify({
     id:'https://campuspool-backup-kv-01.vault.azure.net/secrets/'+SECRET_NAME+'/'+
       'abcdef0123456789abcdef0123456789',
@@ -59,7 +59,7 @@ function secretResponse(fields){
     ...fields
   });
   return {
-    ok:true,headers:{get:()=>null},
+    ok:true,headers:{get:name=>includeLength&&name==='content-length'?String(Buffer.byteLength(payload,'utf8')):null},
     body:new ReadableStream({start(controller){
       controller.enqueue(new TextEncoder().encode(payload));
       controller.close();
@@ -132,8 +132,7 @@ test('rejects mismatched or disabled Key Vault secret identity',async()=>{
 });
 
 test('accepts valid numeric Content-Length on synthetic Key Vault response',async()=>{
-  const response=secretResponse({value:PASSWORD});
-  response.headers={get:name=>name==='content-length'?'256':null};
+  const response=secretResponse({value:PASSWORD},true);
   assert.equal(await fetchPassword(env,{getToken,fetchImpl:async()=>response}),PASSWORD);
 });
 
@@ -141,10 +140,12 @@ test('rejects malformed or oversized Content-Length before reading response',asy
   for(const value of ['abc','-1','1.5','16385','1e2']){
     const response=secretResponse({value:PASSWORD});
     response.headers={get:name=>name==='content-length'?value:null};
-    response.body={getReader(){assert.fail('invalid header must block body read');}};
+    let readerCalls=0;
+    response.body={getReader(){readerCalls++;throw Error('UNEXPECTED_BODY_READ');}};
     await assert.rejects(
       ()=>fetchPassword(env,{getToken,fetchImpl:async()=>response}),
       e=>e.message==='VAULT_SECRET_READ_BLOCKED');
+    assert.equal(readerCalls,0);
   }
 });
 
