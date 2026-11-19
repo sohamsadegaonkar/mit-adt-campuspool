@@ -22,6 +22,7 @@ on:
       - 'test_stage1_otp.js'
       - 'test_pg_identity.js'
       - 'test_pg_rides.js'
+      - 'test_pg_rides_stress.js'
       - 'test_pg_rides_http.js'
       - 'test_pg_mobility.js'
       - 'test_pg_mobility_http.js'
@@ -109,6 +110,7 @@ jobs:
           node --check test_mobility_geo.js
           node --check test_pg_mobility_http.js
           node --check test_pg_rides.js
+          node --check test_pg_rides_stress.js
           node --check test_pg_rides_http.js
           node --check test_production_auth.js
           node --check scripts/check-release-gates.js
@@ -124,6 +126,7 @@ jobs:
           npm run test:identity
           npm run test:rides
           npm run test:rides-http
+          RIDES_STRESS_DISPOSABLE_DB=YES npm run test:rides-stress
           npm run test:mobility-geo
           npm run test:mobility
           npm run test:mobility-http
