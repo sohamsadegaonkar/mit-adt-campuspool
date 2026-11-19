@@ -66,3 +66,8 @@ The browser auto-generates a per-actor + route + request-body key and stores onl
 - `npm run test:mobility-http` — PostGIS intent create/cancel replays and privacy/authorization.
 
 **Next:** verify PR #11 full CI on the latest head; then review and approve staging migration and controlled E2E QA. Initial CI detected an unawaited rejected HTTP promise on active-intent duplicate; \`server.js\` has been fixed to await every idempotent mutation, preventing a 409 conflict from terminating the server. Subsequent CI must confirm the fix. Do not claim all external provider actions are exactly once.
+
+
+## 2026-11-20 IST — browser concurrency proposal (unmerged)
+
+The application branch adds in-memory request-generation and session-context guards: only a matching dispatched entry can change its own expiry/removal; overlapping 4xx cannot discard an unresolved sibling reservation, and a confirmed or ambiguous sibling protects the key within its batch. A stale 401 cannot reset a changed session. The stored fingerprint/key/expiry format is unchanged; volatile flags do not survive reload. Sequential error policy, raw serialized-body fingerprint, grace and expiry are unchanged. This is not cross-tab coordination, generic caller stale-response protection or exactly-once behavior. [Task](docs/agents/tasks/2026-11-20-browser-retry-concurrency.md). CI pending.

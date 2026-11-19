@@ -305,3 +305,8 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 ## 2026-11-20 IST — backend reliability follow-up
 
 - [Idempotency audit](tasks/2026-11-20-idempotency-audit.md): verify exact-head CI, review browser stale responses and cross-key duplicates, booking/cancel races, contact redaction and rides-only settlement policy; no bypass of existing release/payment gates.
+
+
+## 2026-11-20 IST — application lead next actions
+
+- [Browser retry race and seven-priority audit](tasks/2026-11-20-browser-retry-concurrency.md): finish exact-head CI on child of #47, review parent then child. Next mixed-operation booking/cancel contention + seat invariants, pool/timeout measurements, OTP candidate reconciliation and rides-only settlement/privacy review. Keep Redis/H3 deferred on measured criteria; errands isolated. Recovery handled independently; no live migration/deploy before gates.
