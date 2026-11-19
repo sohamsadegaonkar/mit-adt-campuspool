@@ -9,7 +9,6 @@ const tls=require('node:tls');
 const {X509Certificate}=require('node:crypto');
 const {PassThrough,Readable}=require('node:stream');
 const {EventEmitter}=require('node:events');
-const {validate,preflight,run}=require('./scripts/azure-blob-backup');
 const tmp=fs.mkdtempSync('/dev/shm/campuspool-cloud-worker-tests-');
 fs.chmodSync(tmp,0o700);
 const ca=tmp+'/fake-ca.crt';
@@ -21,6 +20,14 @@ const publicCa=tls.rootCertificates.find(pem=>{
 });
 if(!publicCa)throw Error('TEST_PUBLIC_CA_NOT_AVAILABLE');
 fs.writeFileSync(ca,publicCa,{mode:0o600});
+// Synthetic tests only: replace the imported guard before loading the worker.
+// The runtime wrapper has no environment or CLI override for its pinned CA.
+const security=require('./scripts/cloud-backup-runtime-security');
+const realPinnedGuard=security.validCaFile;
+const testFingerprint=new X509Certificate(publicCa).fingerprint256.replace(/:/g,'');
+assert.equal(realPinnedGuard(ca),false,'unrelated public CA must fail production pin');
+test.mock.method(security,'validCaFile',file=>security.validCaFileAgainstFingerprint(file,testFingerprint));
+const {validate,preflight,run}=require('./scripts/azure-blob-backup');
 const passfile=tmp+'/pgpass';
 fs.writeFileSync(passfile,
   'aws-0-ap-southeast-1.pooler.supabase.com:5432:postgres:postgres.tnitksrlntrdxbvznxzf:NOT_A_REAL_PASSWORD\n',
@@ -148,4 +155,18 @@ test('actual run selects managed identity and performs synthetic readback',async
  await run({...env,AZURE_CLIENT_ID:'00000000-0000-4000-8000-000000000001'},
    {spawnImpl:id.spawnImpl,loadSdkImpl:id.loadSdkImpl});
  assert.deepEqual(id.getOpts(),{clientId:'00000000-0000-4000-8000-000000000001'});
+});
+
+test('pinned CA guard rejects unrelated public CA, multiple roots and loose permissions',()=>{
+  assert.match(security.STAGING_CA_SHA256,/^[A-F0-9]{64}$/);
+  assert.equal(realPinnedGuard(ca),false);
+  assert.equal(security.validCaFileAgainstFingerprint(ca,testFingerprint),true);
+  assert.equal(security.validCaFileAgainstFingerprint(ca,'0'.repeat(64)),false);
+  const bundle=tmp+'/multiple-roots.pem';
+  fs.writeFileSync(bundle,publicCa+'\n'+publicCa,{mode:0o600});
+  assert.equal(security.validCaFileAgainstFingerprint(bundle,testFingerprint),false);
+  const loose=tmp+'/loose-ca.pem';
+  fs.writeFileSync(loose,publicCa,{mode:0o600});
+  fs.chmodSync(loose,0o666);
+  assert.equal(security.validCaFileAgainstFingerprint(loose,testFingerprint),false);
 });
