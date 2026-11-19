@@ -6,7 +6,7 @@ set -euo pipefail
 SUBSCRIPTION_EXPECTED="Azure for Students"
 RG="campuspool-backup-rg"
 REGION="malaysiawest"
-ENVIRONMENT="campuspool-backup-env"
+ENVIRONMENT="campuspool-backup-standard-env"
 STORAGE="011campuspoolbackup"
 
 echo "=== CAMPUSPOOL AZURE READ-ONLY PREFLIGHT ==="
@@ -24,7 +24,7 @@ az containerapp env show -g "$RG" -n "$ENVIRONMENT" \
 az storage account show -g "$RG" -n "$STORAGE" \
   --query '{Name:name,Location:location,PublicNetwork:publicNetworkAccess,AllowBlobPublicAccess:allowBlobPublicAccess}' \
   -o json
-for provider in Microsoft.App Microsoft.ContainerRegistry Microsoft.KeyVault Microsoft.ManagedIdentity; do
+for provider in Microsoft.App Microsoft.Insights Microsoft.ContainerRegistry Microsoft.KeyVault Microsoft.ManagedIdentity; do
   state="$(az provider show --namespace "$provider" --query registrationState -o tsv)"
   printf 'PROVIDER_%s=%s\n' "$provider" "$state"
 done
