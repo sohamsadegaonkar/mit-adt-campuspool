@@ -64,6 +64,26 @@ test('PostgreSQL serializes concurrent identical keys and rolls back effect + re
         e=>e instanceof IdempotencyError && e.code==='IDEMPOTENCY_KEY_REUSED');
       assert.equal(executions,1);
 
+      // Nested prototype-named JSON must not alias a different payload.
+      const special={...input,key:crypto.randomUUID(),
+        body:JSON.parse('{"nested":{"__proto__":{"marker":1},"a":2}}')};
+      let specialExecutions=0;
+      const specialWork=async()=>{specialExecutions++;return {status:201,body:{success:true}};};
+      assert.equal((await storeA.run({...special,execute:specialWork})).replayed,false);
+      assert.equal((await storeB.run({...special,
+        body:JSON.parse('{"nested":{"a":2,"__proto__":{"marker":1}}}'),
+        execute:specialWork})).replayed,true);
+      for(const altered of [
+        JSON.parse('{"nested":{"__proto__":{"marker":2},"a":2}}'),
+        {nested:{a:2}}
+      ]){
+        await assert.rejects(storeB.run({...special,body:altered,execute:specialWork}),
+          e=>e instanceof IdempotencyError&&e.code==='IDEMPOTENCY_KEY_REUSED');
+        await assert.rejects(storeB.findCompleted({...special,body:altered}),
+          e=>e instanceof IdempotencyError&&e.code==='IDEMPOTENCY_KEY_REUSED');
+      }
+      assert.equal(specialExecutions,1);
+
       const rollbackId=crypto.randomUUID(),rollbackKey=crypto.randomUUID();
       await assert.rejects(storeA.run({...input,key:rollbackKey,execute:async client=>{
         await client.query('INSERT INTO public.campus_test_idempotency_effects(id,hits) VALUES($1,1)',[rollbackId]);

@@ -104,3 +104,27 @@ test('SQLite idempotency keys expire and may be replaced',()=>{
     assert.equal(later.replayed,false);
   }finally{db.db.close();fs.rmSync(dir,{recursive:true,force:true})}
 });
+
+
+test('SQLite: prototype-named JSON fields participate in the payload digest',()=>{
+  const db=new SQLiteCampusDatabase(':memory:');
+  try{
+    const idem=new SqliteIdempotencyStore(db.db);
+    const body=JSON.parse('{"nested":{"__proto__":{"marker":1},"a":2}}');
+    const same=JSON.parse('{"nested":{"a":2,"__proto__":{"marker":1}}}');
+    const different=JSON.parse('{"nested":{"__proto__":{"marker":2},"a":2}}');
+    const absent={nested:{a:2}};
+    const args={actor:'synthetic-actor',route:'POST /api/rides',key:crypto.randomUUID(),body};
+    let executions=0;
+    const execute=()=>{executions++;return {status:201,body:{success:true}};};
+    assert.equal(idem.run({...args,execute}).replayed,false);
+    assert.equal(idem.run({...args,body:same,execute}).replayed,true);
+    for(const altered of [different,absent]){
+      assert.throws(()=>idem.run({...args,body:altered,execute}),
+        e=>e instanceof IdempotencyError&&e.code==='IDEMPOTENCY_KEY_REUSED');
+      assert.throws(()=>idem.findCompleted({...args,body:altered}),
+        e=>e instanceof IdempotencyError&&e.code==='IDEMPOTENCY_KEY_REUSED');
+    }
+    assert.equal(executions,1);
+  }finally{db.db.close();}
+});
