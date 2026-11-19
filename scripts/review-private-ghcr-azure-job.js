@@ -7,7 +7,7 @@ function review(source){
  const reasons=[];
  const need=(re,code)=>{if(!re.test(source))reasons.push(code);};
  const ban=(re,code)=>{if(re.test(source))reasons.push(code);};
- need(/resource manualBackupJob 'Microsoft\.App\/jobs@2024-03-01'/,'JOB_RESOURCE_UNKNOWN');
+ need(/resource manualBackupJob 'Microsoft\.App\/jobs@2026-01-01'/,'JOB_RESOURCE_UNKNOWN');
  need(/triggerType:\s*'Manual'/,'JOB_MUST_BE_MANUAL');
  need(/replicaTimeout:\s*1800/,'JOB_TIMEOUT_UNREVIEWED');
  need(/replicaRetryLimit:\s*0/,'JOB_RETRIES_MUST_BE_ZERO');
@@ -19,7 +19,11 @@ function review(source){
  need(/server:\s*'ghcr\.io'/,'REGISTRY_SERVER_MISMATCH');
  need(/keyVaultUrl:\s*ghcrPullTokenKeyVaultSecretUrl/,'REGISTRY_TOKEN_VAULT_REF_REQUIRED');
  need(/identity:\s*registryPullVaultReaderIdentityResourceId/,'VAULT_READER_IDENTITY_REQUIRED');
- need(/type:\s*'SystemAssigned,UserAssigned'/,'ISOLATED_JOB_IDENTITIES_REQUIRED');
+ need(/identity:\s*\{\s*type:\s*'UserAssigned'\s*userAssignedIdentities:\s*\{\s*'\$\{registryPullVaultReaderIdentityResourceId\}':\s*\{\}\s*'\$\{stagingDataIdentityResourceId\}':\s*\{\}\s*\}\s*\}/,'ISOLATED_JOB_IDENTITIES_REQUIRED');
+ need(/identitySettings:\s*\[\s*\{\s*identity:\s*registryPullVaultReaderIdentityResourceId\s*lifecycle:\s*'None'\s*\}\s*\{\s*identity:\s*stagingDataIdentityResourceId\s*lifecycle:\s*'Main'\s*\}\s*\]/,'IDENTITY_LIFECYCLE_ISOLATION_REQUIRED');
+ need(/name:\s*'AZURE_CLIENT_ID',\s*value:\s*stagingDataIdentityClientId/,'EXPLICIT_DATA_CLIENT_ID_REQUIRED');
+ need(/workloadProfileName:\s*'Consumption'/,'CONSUMPTION_PROFILE_REQUIRED');
+ need(/name:\s*'staging-pg-root-ca'\s*keyVaultUrl:\s*postgresCaKeyVaultSecretUrl\s*identity:\s*stagingDataIdentityResourceId/,'CA_DATA_IDENTITY_REQUIRED');
  need(/args:\s*\[\s*'--preflight'\s*\]/,'DEFAULT_PRE_FLIGHT_REQUIRED');
  need(/name:\s*'PGSSLMODE',\s*value:\s*'verify-full'/,'TLS_VERIFY_FULL_REQUIRED');
  need(/name:\s*'PGSSLROOTCERT',\s*value:\s*'\/mnt\/staging-ca\/ca\.pem'/,'CA_ROOT_FILE_REQUIRED');
@@ -64,8 +68,24 @@ function reviewCompiled(template){
  const digest=template?.parameters?.ghcrImageSha256;
  fail(!digest||digest.type!=='string'||digest.minLength!==64||digest.maxLength!==64,
    'COMPILED_DIGEST_LENGTH_UNBOUNDED');
- fail(job?.identity?.type!=='SystemAssigned,UserAssigned','COMPILED_IDENTITIES_CHANGED');
+ const param=name=>"[parameters('"+name+"')]";
+ const keyMatches=(key,name)=>key===param(name)||key==="[format('{0}', parameters('"+name+"'))]";
+ const pull=param('registryPullVaultReaderIdentityResourceId');
+ const data=param('stagingDataIdentityResourceId');
+ const ids=Object.keys(job?.identity?.userAssignedIdentities||{});
+ fail(job?.apiVersion!=='2026-01-01'||job?.identity?.type!=='UserAssigned'||ids.length!==2||
+   !ids.some(k=>keyMatches(k,'registryPullVaultReaderIdentityResourceId'))||
+   !ids.some(k=>keyMatches(k,'stagingDataIdentityResourceId'))||
+   ids.some(k=>Object.keys(job.identity.userAssignedIdentities[k]||{}).length!==0),
+   'COMPILED_IDENTITIES_CHANGED');
+ fail(job?.properties?.workloadProfileName!=='Consumption','COMPILED_PROFILE_CHANGED');
  const cfg=job?.properties?.configuration;
+ const lifecycle=cfg?.identitySettings;
+ fail(!Array.isArray(lifecycle)||lifecycle.length!==2||
+   !lifecycle.some(i=>i.identity===pull&&i.lifecycle==='None')||
+   !lifecycle.some(i=>i.identity===data&&i.lifecycle==='Main')||
+   lifecycle.some(i=>Object.keys(i).length!==2),
+   'COMPILED_IDENTITY_LIFECYCLE_CHANGED');
  const run=cfg?.manualTriggerConfig;
  fail(cfg?.triggerType!=='Manual'||cfg?.replicaTimeout!==1800||cfg?.replicaRetryLimit!==0||
    run?.parallelism!==1||run?.replicaCompletionCount!==1,
@@ -76,8 +96,8 @@ function reviewCompiled(template){
    'COMPILED_REGISTRY_AUTH_CHANGED');
  const secrets=cfg?.secrets;
  fail(!Array.isArray(secrets)||secrets.length!==2||
-   !secrets.some(x=>x.name==='ghcr-pull-token'&&x.keyVaultUrl&&x.identity)||
-   !secrets.some(x=>x.name==='staging-pg-root-ca'&&x.keyVaultUrl&&x.identity)||
+   !secrets.some(x=>x.name==='ghcr-pull-token'&&x.keyVaultUrl===param('ghcrPullTokenKeyVaultSecretUrl')&&x.identity===pull)||
+   !secrets.some(x=>x.name==='staging-pg-root-ca'&&x.keyVaultUrl===param('postgresCaKeyVaultSecretUrl')&&x.identity===data)||
    secrets.some(x=>Object.hasOwn(x,'value')),
    'COMPILED_SECRETS_UNREVIEWED');
  const tpl=job?.properties?.template;
@@ -106,7 +126,7 @@ function reviewCompiled(template){
    'COMPILED_VOLUME_UNREVIEWED');
  const env=c?.env;
  const expected=new Set(['AZURE_AUTH_MODE','CAMPUSPOOL_CLOUD_WORKER',
-  'AZURE_KEYVAULT_URL','AZURE_PG_SECRET_NAME','PGHOST','PGPORT',
+  'AZURE_CLIENT_ID','AZURE_KEYVAULT_URL','AZURE_PG_SECRET_NAME','PGHOST','PGPORT',
   'PGDATABASE','PGUSER','PGSSLMODE','PGSSLROOTCERT','AGE_RECIPIENT',
   'AZURE_STORAGE_ACCOUNT','AZURE_BACKUP_CONTAINER','AZURE_PRIVATE_CONTAINER_CONFIRMED']);
  fail(!Array.isArray(env)||env.length!==expected.size||
@@ -114,6 +134,7 @@ function reviewCompiled(template){
   new Set(env.map(e=>e.name)).size!==expected.size,'COMPILED_ENV_ALLOWLIST_CHANGED');
  fail(!Array.isArray(env)||!env.some(e=>e.name==='PGSSLMODE'&&e.value==='verify-full')||
    !env.some(e=>e.name==='PGSSLROOTCERT'&&e.value==='/mnt/staging-ca/ca.pem')||
+   !env.some(e=>e.name==='AZURE_CLIENT_ID'&&e.value===param('stagingDataIdentityClientId'))||
    !env.some(e=>e.name==='AZURE_PRIVATE_CONTAINER_CONFIRMED'&&e.value==='YES'),
    'COMPILED_SECURITY_ENV_MISSING');
  return {status:reasons.length?'BLOCKED':'COMPILED_STRUCTURE_ELIGIBLE_FOR_REVIEW',
