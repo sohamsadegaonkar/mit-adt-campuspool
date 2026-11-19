@@ -1048,3 +1048,7 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 ## 2026-11-20 — D07 offline readback guard
 
 - Added source-only `scripts/azure-job-readback-guard.js` on existing ops branch at 94eaf7eb7372232606ed2ad02897ad6fea754a98. 25 isolated JavaScript synthetic predicate checks passed; Node CLI and live readback not yet tested, full mutation/rollback integration pending. No Azure writes, job execution, DB contact or export. Preflight restored per previous owner readback; G1 NO-GO.
+
+## D07 Node guard verified; offline TLS state machine added
+
+- Owner Cloud Shell exact committed Node guard: SYNTHETIC_PREDICATES_PASS=25, VERIFIED READONLY_STORAGE_OMISSION, EXECUTION_HISTORY_GUARD_PASS=YES. No Azure writes, new job execution, DB connection or export. Existing preflight baseline verified. Added source-only `scripts/azure-job-tls-operator-state.js` at 7e4b32c2c805da5cb1db2e76a1672aa35d1058cb; 13 mocked transition checks passed in isolated JS (success, separate approval decline, pending/timeout/drift, ambiguous patch/start, terminal failure, extra history, restoration). No actual Azure adapter, no clock-deadline or interruption-recovery implementation; committed Node CLI and combined guard integration not yet tested. Do not run live: next verify committed state machine self-test, then implement pinned protected adapter and resumable reconciliation, exact scope/IAM checks and bounded deadlines; budget/approval requirements remain. D07 partial, G1 NO-GO; no live mutation authorized by these tests.
