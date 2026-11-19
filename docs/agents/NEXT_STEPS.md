@@ -300,3 +300,8 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 - **First priority:** manual-only approved cloud backup worker, protected identity/Key Vault/TLS/recipient, nonleaking logs, pinned image/dependencies, verified ciphertext, **independently** decrypted and restored protected PG17/PostGIS with row-content, roles/RLS/grants/migration ledger comparisons and retained Render rollback proof. Existing 200-byte Azure object is not a usable backup; preserve it for reviewed disposition.
 - **Then Render:** check protected OTP_SECRET is fresh 32+ characters; inspect production data persistence/SQLite fallback, real OTP delivery, health, staged migration plan and exact approved deployment SHA. Both Render services autoDeploy OFF. Do not initiate deployment or migration 008 before independent backup/restore and owner sign-off.
 - Do not delete local WSL `-` file via Git clean or assume encryption/secure erasure. Branch deletion is not available in current connected GitHub tools; only review/anonymize/delete redundant heads later with authenticated GitHub UI/CLI and keep divergent history.
+
+
+## 2026-11-20 IST — disposable PG17 readiness repair (branch-local)
+
+- Prior PR #36 real-tools rerun failed at first fixture SQL with missing socket. Proposed final-server loopback TCP SQL probe and consistent test client endpoint; CI pending. No cloud/data change. [Task](tasks/2026-11-20-disposable-pg17-readiness.md).

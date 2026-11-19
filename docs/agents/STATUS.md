@@ -306,3 +306,8 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 - 25 remote branch refs remain. 17 non-main branches verified ancestral to main; 7 still have uniquely divergent commits. Old stacked PRs were closed only after source integration verification; alternative R2 was explicitly not merged. No refs deleted because connector lacks safe deletion; preserve for controlled cleanup.
 - Tracked repository main tree: 190 files before this audit note, no filename matching `-`/archive/private-key patterns. Local WSL accidental archive remains untracked and not securely erased; history secret revocation remains unverified.
 - Render production/staging auto deploy **OFF**. Actual production running `63ae551` with failed newer OTP secret startup; staging `cceadbf`. **NO new deployment or migration**. Encrypted staging backup/independent recovery/rollback/credential gates still **NO-GO**. See [consolidation task](tasks/2026-11-05-mainline-consolidation-audit.md).
+
+
+## 2026-11-20 IST — disposable PG17 readiness repair (branch-local)
+
+- Prior PR #36 real-tools rerun failed at first fixture SQL with missing socket. Proposed final-server loopback TCP SQL probe and consistent test client endpoint; CI pending. No cloud/data change. [Task](tasks/2026-11-20-disposable-pg17-readiness.md).
