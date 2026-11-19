@@ -1,0 +1,64 @@
+# Task: Prevent Azure job PATCH readback false blocks and unsafe retries
+
+- **Task ID / file:** `2026-11-20-azure-job-patch-readback-prevention`
+- **Status:** in review — incident recovered; prevention policy documented; reusable automated guard/tests pending
+- **Agent / owner:** ChatGPT (documentation); implementation owner unassigned
+- **Last updated:** 2026-11-20 IST
+- **Baseline:** `ops/backup-three-gates-evidence-2026-11-06@44ceb5bcfd0bed3d429069f105fc6775b437edc2`
+- **Scope:** Azure Container Apps backup-job configuration comparison, approved PATCH/rollback, operator evidence and cross-agent handoff. No Azure changes, application code, deployment or migration in this documentation task.
+- **Dependencies / related tasks:** [NEXT_STEPS](../NEXT_STEPS.md), [STATUS](../STATUS.md), [backup security review](../../ops/CLOUD_BACKUP_INDEPENDENT_SECURITY_REVIEW_2026-11-05.md).
+
+## Incident and evidence
+
+- The approved TLS-only template PATCH was accepted; exact readback never matched because the returned path `$.template.containers[0].resources.ephemeralStorage` was absent. All other candidate fields matched, including CA mount, manual trigger, zero retries, exact signed image and no export approval. The script correctly blocked the start rather than accepting unexpected drift.
+- The field is provider-managed/read-only in the SDK; the [2026-01-01 ARM job schema](https://learn.microsoft.com/en-us/azure/templates/microsoft.app/2026-01-01/jobs) defines writable container CPU/memory. [Storage documentation](https://learn.microsoft.com/en-us/azure/container-apps/storage-mounts) describes CPU-based ephemeral capacity. Missing metadata does not prove missing or sufficient runtime storage. Do not generalize this exception to other API versions or fields.
+- Owner explicitly entered `RESTORE_PREFLIGHT_ONLY`; guarded restore PATCH was accepted. First observed poll emitted `BLOCK UNEXPECTED_CONFIGURATION_DIFFERENCE`, later poll emitted `MATCH_EXCEPT_READONLY_STORAGE=YES`, followed by `PREFLIGHT_CONFIGURATION_RESTORED=YES` and `AZURE_WORK_PAUSE_READY=YES`. Cause/details of the first restoration mismatch were not captured; it is a transient observation, not proof of a specific Azure provisioning behavior. Final accepted state matched the original baseline except for the one documented omission. Exact prior execution history guard passed (only ziik3b8, Succeeded). No new execution, DB connection or export reported. Actual TLS and runtime storage remain untested.
+- Source: owner Cloud Shell outputs on 20 Nov IST; preceding [engineering checkpoint](https://github.com/sohamsadegaonkar/mit-adt-campuspool/commit/44ceb5bcfd0bed3d429069f105fc6775b437edc2). Not independent Azure inspection.
+
+## Required prevention rules (future agents)
+
+1. **Read the exact provider/API contract before preparing a mutation.** Separate the writable request model from the broader GET response. Do not assume a full GET is a valid PATCH body, or that a job start override preserves secret volumes/volume mounts. Use one pinned API version for plan, readback and rollback; verify documented behavior for that version.
+2. **Preserve two artifacts:** immutable original live evidence and a separately derived writable baseline/rollback request. Use protected ephemeral storage, mode 0700/0600, checksums and exact candidate diff. Never record raw configuration, passwords, tokens or private keys in handoff. Explicitly review all changed fields; no blind normalization.
+3. **Narrow comparison exception:** for this exact API/job/container, accept full expected equality OR equality to a copy of expected with only `template.containers[0].resources.ephemeralStorage` deleted. Do not strip the field from both inputs or accept a changed value, extra keys, missing CA/volumes, reordered/changed identity or env, other resource changes or arbitrary null/missing differences. Leave raw expected intact; remove the read-only field from writable request payloads. Any new exception needs source evidence, review and a negative regression test.
+4. **Distinguish request acceptance, pending readback, final verified state and failure/unknown outcome.** After an accepted PATCH, poll read-only within a bounded deadline; never classify every intermediate nonmatch as a final hard block. Never start while comparison is nonmatching or provisioning is not Succeeded. Log safe diff paths and provisioning status for unexpected observations. If a security-critical/unexplained drift is seen, freeze start/mutations and investigate; do not treat it as harmless propagation. Timeout, API error or ambiguous result means stop and inspect, never resubmit a PATCH automatically.
+5. **Fail closed around side effects.** Confirm exact subscription/resource identity, image digest, two UAI assignments/lifecycles, least-privilege secrets/RBAC, CA volume, verify-full, staging endpoint, no PGPASSWORD/PGPASSFILE/export approval, manual trigger, one replica, zero retries and unchanged execution history before each mutation or start. Require distinct owner approvals for mutation and actual connection; do not perform export under TLS consent. Recheck configuration/history immediately before the authorized operation. Use concurrency controls/ETag if documented and supported; otherwise coordinate exclusive operator access and fresh readback. Never start on ambiguous state.
+6. **Recovery before mutation:** prepare checksum-verified writable rollback and a separate restoration plan including ambiguous/partial updates, interrupted shell, declined start and terminal run failure. An accepted update is not restoration proof. If start may have been accepted, reconcile history/state before any rollback or further start. Restore only approved known state, no blind overwrite of unrelated drift. Verify baseline (with exact documented omission only), provisioning Succeeded, no approval flags, expected history and no extra side effects. Do not declare safe pause while temporary approval remains enabled.
+7. **Separate development from release gates.** Offline work on isolated branches/synthetic databases can proceed while recovery is blocked; no live migration, production deployment, real student onboarding or weakening of G1. Time-box infrastructure diagnosis; if no safe resolution, document exact blocker and switch to safe development after confirming rollback or explicitly recording unresolved operational state.
+
+## Required future regression coverage
+
+Before the next reusable operator mutation, implement/run synthetic tests in an isolated environment. This is a test specification, not executed evidence.
+
+| Scenario | Expected |
+| --- | --- |
+| Exact match, provisioning Succeeded | accept |
+| Only documented expected storage field omitted | accept |
+| Storage value changed or unexpected field added | reject |
+| Missing or changed CA/identity/image/env/CPU/memory/trigger/retry or export approval introduced | reject |
+| Temporary readback mismatch then exact approved final state | pending until verified; never start during pending |
+| Persistent mismatch, request timeout or unknown acceptance | stop and inspect; no automatic PATCH/start |
+| Declined TLS start / failed terminal run / interrupted session | reconcile state and history; approved restoration required |
+| Restored baseline with only allowed storage omission | accept only after safe mode/approval/history checks |
+| Duplicate or unexpected execution history | reject; no retry |
+| API/version changes or undocumented override volume behavior | block until separately reviewed |
+
+## Verification and status
+
+| Check | Evidence | Result |
+| --- | --- | --- |
+| Restore | owner final readback and history guard | Passed with narrow read-only omission |
+| No extra execution / DB contact / export | owner safe verdicts | Reported none |
+| Runtime TLS, console proof, actual storage, AGE custody, encrypted backup/restore, budget and PAT revocation | not established | Pending; G1 NO-GO |
+| Reusable comparison/polling operator implementation and tests | documentation specification only | Not implemented or run |
+
+## Next steps — exact handoff
+
+1. **Next action:** pause Azure work at restored preflight checkpoint; audit application code/PRs and resume isolated development. Before the next Azure mutation, implement and run the guard test matrix, refresh live state and approval/budget prerequisites.
+2. **Who may do it:** authorized operator for cloud changes; development agent for isolated code/test work.
+3. **Expected evidence:** tested strict comparator, safe polling verdicts and scoped rollback procedure; separately approved TLS-only run, no export.
+4. **Production impact:** none from this documentation task. G1 remains NO-GO.
+
+## Links and files changed
+
+- Operations branch only: `ops/backup-three-gates-evidence-2026-11-06`.
+- Canonical prevention pointer: `AGENTS.md`; current checkpoint in `docs/agents/STATUS.md` and `docs/agents/NEXT_STEPS.md`.
