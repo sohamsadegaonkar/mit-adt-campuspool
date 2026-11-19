@@ -6,8 +6,6 @@ const tls=require('node:tls');
 const {X509Certificate}=require('node:crypto');
 const {EventEmitter}=require('node:events');
 const {PassThrough}=require('node:stream');
-const {stagingTlsProbe,SQL}=require('./scripts/cloud-backup-tls-probe');
-const {main}=require('./scripts/azure-blob-backup');
 
 const dir=fs.mkdtempSync('/dev/shm/campuspool-tls-synthetic-');
 fs.chmodSync(dir,0o700);
@@ -18,6 +16,15 @@ const pem=tls.rootCertificates.find(s=>{
  catch{return false;}
 });
 fs.writeFileSync(ca,pem,{mode:0o600});
+// Synthetic tests only: replace the imported guard before loading the worker.
+// The runtime wrapper has no environment or CLI override for its pinned CA.
+const security=require('./scripts/cloud-backup-runtime-security');
+const realPinnedGuard=security.validCaFile;
+const testFingerprint=new X509Certificate(pem).fingerprint256.replace(/:/g,'');
+assert.equal(realPinnedGuard(ca),false,'unrelated public CA must fail production pin');
+test.mock.method(security,'validCaFile',file=>security.validCaFileAgainstFingerprint(file,testFingerprint));
+const {stagingTlsProbe,SQL}=require('./scripts/cloud-backup-tls-probe');
+const {main}=require('./scripts/azure-blob-backup');
 const host='aws-0-ap-southeast-1.pooler.supabase.com';
 const user='postgres.tnitksrlntrdxbvznxzf';
 const pass=dir+'/pgpass';
