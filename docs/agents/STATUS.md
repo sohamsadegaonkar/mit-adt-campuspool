@@ -350,3 +350,8 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 
 
 - #53 exact `dcbfc5f`: 3880/3880 HTTP requests, 159.94 peak req/s, p95 48.73ms, peak queue 39, 0 unexpected/drop, 47 invariant samples, 876 receipts, NAT 120/10, 8 recovery. [Evidence](tasks/2026-11-20-campus-rush-hour.md). No live capacity claim.
+
+
+## 2026-11-20 IST — settlement query consolidation (branch-local)
+
+- #53 baseline confirms queue 39 at 160 req/s. One SQL statement now returns driver totals and pending bookings in one snapshot with native types, no schema or policy changes. Exact reference parity/count and unchanged rush workload CI pending. [Task](tasks/2026-11-20-single-snapshot-settlement.md).
