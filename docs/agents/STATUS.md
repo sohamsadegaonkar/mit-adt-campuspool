@@ -316,3 +316,13 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 ## 2026-11-20 IST — application-only lead audit and browser retry
 
 - Main `1020e2e`; parent #47 `6d1fa28` 4/4 CI PASS, #45 and #46 each 4/4. #36 has 10/12, independent old setup failure/rerun. No need to redo these patches. Ops #37–44 separate workstream. New branch addresses late browser results mutating successor keys or replacement session; six deterministic regressions pending CI. [Audit and task](tasks/2026-11-20-browser-retry-concurrency.md). No live changes; G1 NO-GO.
+
+
+## 2026-11-20 IST — PostgreSQL mixed-operation stress (branch-local)
+
+- Parent #48 exact `417f1c6`: 3/3 reported checks PASS and 10/10 browser retry cases (job 135825049450). New test branch adds actual restricted-role PostgreSQL mixed booking/cancel stress with 12 rounds, same-key replay and new-key conflicts, seat conservation snapshots and three post-write rollback/retry cases. CI pending; no live DB or deployment. [Task](tasks/2026-11-20-pg-mixed-ride-concurrency.md).
+
+
+## 2026-11-20 IST — mixed PostgreSQL stress evidence
+
+- PR #49 tested `df02678`: [PostgreSQL CI](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/44600159058/job/135829043760) passed; 531 wave attempts, 24 actual lock waves, 173 consistent snapshots, 3/3 rollback cases, 22 replay successes, 0 unexpected transaction errors. Test code unchanged in docs-only checkpoint. No live runtime claims. [Evidence and handoff](tasks/2026-11-20-pg-mixed-ride-concurrency.md).
