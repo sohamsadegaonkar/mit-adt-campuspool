@@ -311,3 +311,8 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 ## 2026-11-20 IST — source-only idempotency audit
 
 - Main `1020e2e`: six keyed authenticated mutation routes, atomic receipt/effect, row lock and unique booking constraints reviewed. Identified plain-object canonicalization dropping JSON prototype-named fields; branch proposes null-prototype accumulator with PG/SQLite regressions, CI pending. No live data or rollout. [Task](tasks/2026-11-20-idempotency-audit.md).
+
+
+## 2026-11-20 IST — application-only lead audit and browser retry
+
+- Main `1020e2e`; parent #47 `6d1fa28` 4/4 CI PASS, #45 and #46 each 4/4. #36 has 10/12, independent old setup failure/rerun. No need to redo these patches. Ops #37–44 separate workstream. New branch addresses late browser results mutating successor keys or replacement session; six deterministic regressions pending CI. [Audit and task](tasks/2026-11-20-browser-retry-concurrency.md). No live changes; G1 NO-GO.

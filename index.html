@@ -1527,6 +1527,7 @@
       '/api/mobility/intents/cancel'
     ]);
     const pendingDomainMutations = new Map();
+    let mutationSessionGeneration = 0;
     const pendingMutationStore = 'campuspool.pending-mutators.v1';
     const pendingMutationTtlMs = 24 * 60 * 60 * 1000;
     const duplicateClickGraceMs = 1200;
@@ -1569,6 +1570,7 @@
       } catch (_) { /* optional, not an authentication mechanism */ }
     }
     function clearPendingDomainMutations() {
+      mutationSessionGeneration++;
       pendingDomainMutations.clear();
       try { sessionStorage.removeItem(pendingMutationStore); } catch (_) {}
     }
@@ -1587,35 +1589,56 @@
       if (sameOriginApi && ['POST','PUT','PATCH','DELETE'].includes(method) && csrfToken) {
         headers.set('X-CSRF-Token', csrfToken);
       }
+      // Capture the auth context before asynchronous fingerprinting or dispatch.
+      const sessionGeneration = mutationSessionGeneration;
+      const sessionUser = appState.currentUser?.email;
+      const sessionCsrf = csrfToken;
+      const sameSession = () => sessionGeneration === mutationSessionGeneration &&
+        sessionUser === appState.currentUser?.email && sessionCsrf === csrfToken;
       let mutationSlot = null;
+      let dispatchedMutation = null;
       const pathname = urlString.split('?')[0];
       // Explicit keys belong to the caller; auto-key only plain JSON domain calls.
       if (sameOriginApi && method === 'POST' && idempotentDomainRoutes.has(pathname) &&
           !headers.has('Idempotency-Key')) {
         mutationSlot = await operationSlot(method, pathname, String(options.body || ''));
+        if (!sameSession()) throw Error('SESSION_CHANGED_BEFORE_DISPATCH');
         let pending = pendingDomainMutations.get(mutationSlot);
         if (!pending || pending.expiresAt <= Date.now()) {
           pending = { key:secureRequestId(), expiresAt:Date.now() + pendingMutationTtlMs };
           pendingDomainMutations.set(mutationSlot, pending);
           persistPendingDomainMutations(); // save before network dispatch
         }
+        // Hold the actual generation, not just the slot. Responses for an
+        // expired/replaced key must never mutate its successor.
+        dispatchedMutation = pending;
+        if (!pending.inFlight) pending.ambiguousBatch = false;
+        pending.inFlight = (pending.inFlight || 0) + 1;
         headers.set('Idempotency-Key', pending.key);
       }
-      // A network failure never clears the pending token. Retrying after a
-      // reload reuses the same key as long as the browser tab state survives.
-      const response = await fetch(input, { ...options, headers, credentials:'same-origin' });
-      if (mutationSlot) {
-        if (response.ok) {
-          const pending = pendingDomainMutations.get(mutationSlot);
-          if (pending) pending.expiresAt = Math.min(pending.expiresAt,
-            Date.now() + duplicateClickGraceMs);
-        } else if (response.status >= 400 && response.status < 500 &&
-                   response.status !== 429) {
-          pendingDomainMutations.delete(mutationSlot);
+      let response;
+      try {
+        response = await fetch(input, { ...options, headers, credentials:'same-origin' });
+      } finally {
+        if (dispatchedMutation) {
+          dispatchedMutation.inFlight--;
+          if (sameSession() && pendingDomainMutations.get(mutationSlot) === dispatchedMutation) {
+            const pending = dispatchedMutation;
+            if (response?.ok) {
+              pending.confirmed = true;
+              pending.expiresAt = Math.min(pending.expiresAt, Date.now() + duplicateClickGraceMs);
+            } else if (!response || response.status === 429 || response.status >= 500) {
+              pending.ambiguousBatch = true;
+            } else if (response.status >= 400 && response.status < 500 &&
+                       !pending.inFlight && !pending.confirmed && !pending.ambiguousBatch) {
+              pendingDomainMutations.delete(mutationSlot);
+            }
+            persistPendingDomainMutations();
+          }
         }
-        persistPendingDomainMutations();
       }
-      if (sameOriginApi && response.status === 401 && !urlString.startsWith('/api/auth/')) {
+      if (sameOriginApi && response.status === 401 && !urlString.startsWith('/api/auth/') &&
+          sameSession()) {
         clearPendingDomainMutations();
         csrfToken = null;
         appState.currentUser = null;

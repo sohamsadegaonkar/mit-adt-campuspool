@@ -108,3 +108,132 @@ test('explicit operation key stays untouched; 24-hour expired pending state is r
   await after.api.apiFetch(route,opts);
   assert.notEqual(after.captured[0].key,key);
 });
+
+
+// Explicit dispatch barriers make ordering deterministic without real network.
+function controlledRequests(){
+  const requests=[];
+  const observers=[];
+  const send=()=>new Promise((resolve,reject)=>{
+    requests.push({resolve,reject});
+    for(const notify of observers.splice(0)) notify();
+  });
+  async function at(index){
+    while(requests.length<=index) await new Promise(resolve=>observers.push(resolve));
+    return requests[index];
+  }
+  return {send,at};
+}
+
+test('late rejection cannot delete the next generation after success grace expires',{timeout:5000},async()=>{
+  const storage=new Map(),clock={now:1000000},net=controlledRequests();
+  const e=environment({storage,clock,send:net.send});
+  const a=e.api.apiFetch(route,opts);
+  const reqA=await net.at(0);
+  const b=e.api.apiFetch(route,opts);
+  const reqB=await net.at(1);
+  const original=e.captured[0].key;
+  assert.equal(e.captured[1].key,original);
+  reqA.resolve(ok());await a;
+  clock.now+=1500;
+  const c=e.api.apiFetch(route,opts);
+  const reqC=await net.at(2);
+  const current=e.captured[2].key;
+  assert.notEqual(current,original);
+  reqC.resolve(rateLimited());await c;
+  reqB.resolve({ok:false,status:409});await b;
+  const d=e.api.apiFetch(route,opts);
+  const reqD=await net.at(3);
+  assert.equal(e.captured[3].key,current);
+  reqD.resolve(ok());await d;
+});
+
+test('late success cannot shorten the successor key lifetime',{timeout:5000},async()=>{
+  const storage=new Map(),clock={now:1000000},net=controlledRequests();
+  const e=environment({storage,clock,send:net.send});
+  const a=e.api.apiFetch(route,opts);
+  const reqA=await net.at(0);
+  const b=e.api.apiFetch(route,opts);
+  const reqB=await net.at(1);
+  reqA.resolve(ok());await a;
+  clock.now+=1500;
+  const c=e.api.apiFetch(route,opts);
+  const reqC=await net.at(2);
+  const current=e.captured[2].key;
+  reqC.resolve(rateLimited());await c;
+  reqB.resolve(ok());await b;
+  clock.now+=1500;
+  const d=e.api.apiFetch(route,opts);
+  const reqD=await net.at(3);
+  assert.equal(e.captured[3].key,current);
+  reqD.resolve(ok());await d;
+});
+
+test('overlapping definitive rejection cannot discard a still-unresolved sibling key',{timeout:5000},async()=>{
+  const storage=new Map(),clock={now:1000000},net=controlledRequests();
+  const e=environment({storage,clock,send:net.send});
+  const a=e.api.apiFetch(route,opts);
+  const reqA=await net.at(0);
+  const b=e.api.apiFetch(route,opts);
+  const reqB=await net.at(1);
+  const original=e.captured[0].key;
+  reqA.resolve({ok:false,status:403});await a;
+  const c=e.api.apiFetch(route,opts);
+  const reqC=await net.at(2);
+  assert.equal(e.captured[2].key,original);
+  reqB.resolve(ok());await b;
+  reqC.resolve({ok:false,status:403});await c;
+  const d=e.api.apiFetch(route,opts);
+  const reqD=await net.at(3);
+  assert.equal(e.captured[3].key,original);
+  reqD.resolve(ok());await d;
+});
+
+test('uncertain sibling keeps the key even if the last overlapping response is a 4xx',{timeout:5000},async()=>{
+  const storage=new Map(),clock={now:1000000},net=controlledRequests();
+  const e=environment({storage,clock,send:net.send});
+  const a=e.api.apiFetch(route,opts);
+  const reqA=await net.at(0);
+  const b=e.api.apiFetch(route,opts);
+  const reqB=await net.at(1);
+  const original=e.captured[0].key;
+  reqA.reject(Error('network disconnected'));
+  await assert.rejects(a,/network disconnected/);
+  reqB.resolve({ok:false,status:400});await b;
+  const c=e.api.apiFetch(route,opts);
+  const reqC=await net.at(2);
+  assert.equal(e.captured[2].key,original);
+  reqC.resolve(ok());await c;
+});
+
+test('late 401 from an old session does not clear replacement session or keys',{timeout:5000},async()=>{
+  const storage=new Map(),clock={now:1000000},net=controlledRequests();
+  const e=environment({storage,clock,send:net.send});
+  const a=e.api.apiFetch(route,opts);
+  const reqA=await net.at(0);
+  e.api.clearPendingDomainMutations();
+  e.scope.appState.currentUser={email:'another@students.example'};
+  e.scope.csrfToken='e'.repeat(64);
+  const b=e.api.apiFetch(route,opts);
+  const reqB=await net.at(1);
+  const newKey=e.captured[1].key;
+  reqB.resolve(rateLimited());await b;
+  reqA.resolve({ok:false,status:401});await a;
+  assert.equal(e.scope.appState.currentUser.email,'another@students.example');
+  assert.equal(e.scope.csrfToken,'e'.repeat(64));
+  assert.equal(e.events.length,0);
+  const c=e.api.apiFetch(route,opts);
+  const reqC=await net.at(2);
+  assert.equal(e.captured[2].key,newKey);
+  reqC.resolve(ok());await c;
+});
+
+test('session cleared while fingerprinting prevents dispatch',{timeout:5000},async()=>{
+  const storage=new Map(),clock={now:1000000};
+  const e=environment({storage,clock,send:async()=>ok()});
+  const request=e.api.apiFetch(route,opts);
+  e.api.clearPendingDomainMutations();
+  await assert.rejects(request,/SESSION_CHANGED_BEFORE_DISPATCH/);
+  assert.equal(e.captured.length,0);
+  assert.equal(storage.size,0);
+});
