@@ -15,7 +15,8 @@ const {CampusPgPool,PgPoolBusyError}=require('./stage1-otp/pg-store');
 
 const url=process.env.OTP_DATABASE_URL;
 const stress=process.env.RIDES_HTTP_STRESS_DISPOSABLE_DB==='YES';
-if(stress){
+const rush=process.env.RIDES_HTTP_RUSH_DISPOSABLE_DB==='YES';
+if(stress||rush){
   assert.ok(url,'Stress requires disposable PostgreSQL');
   const u=new URL(url);
   assert.ok(['postgres:','postgresql:'].includes(u.protocol));
@@ -51,12 +52,12 @@ function waitForServer(child){
     child.once('exit',code=>{clearTimeout(timer);reject(Error('server exited '+code+': '+output.slice(-600)))});
   });
 }
-test('HTTP rides and bookings switch to verified PostgreSQL user identities',
- {skip:!url?'requires local isolated CI PostgreSQL':false,timeout:120000},async t=>{
+test(rush?'Campus Rush Hour: sustained real HTTP load':'HTTP rides and bookings switch to verified PostgreSQL user identities',
+ {skip:!url?'requires local isolated CI PostgreSQL':false,timeout:180000},async t=>{
   await migrate({connectionString:url,ssl:false});
   const pool=new Pool({connectionString:url,ssl:false});
   const temp=fs.mkdtempSync(path.join(os.tmpdir(),'cp-rides-http-'));
-  const ids=Array.from({length:stress?6:2},()=>crypto.randomUUID());
+  const ids=Array.from({length:rush?96:stress?6:2},()=>crypto.randomUUID());
   const email=i=>'rides-http-'+crypto.randomBytes(6).toString('hex')+'@students.mituniversity.edu.in';
   const emails=ids.map((_,i)=>email(i));
   const phoneBase=crypto.randomInt(1000000,9000000);
@@ -80,7 +81,7 @@ test('HTTP rides and bookings switch to verified PostgreSQL user identities',
     return {status:response.status,body:json,replayed:response.headers.get('Idempotency-Replayed'),retryAfter:response.headers.get('Retry-After')};
   }
   try{
-    if(stress){
+    if(stress||rush){
       const target=await pool.query('SELECT current_database() AS db');
       assert.equal(target.rows[0].db,'campuspool_stage1_ci');
     }
@@ -92,15 +93,20 @@ test('HTTP rides and bookings switch to verified PostgreSQL user identities',
         "INSERT INTO public.campus_sessions(session_hash,user_id,expires_at) VALUES($1,$2,now()+interval '1 hour')",
         [hash,ids[i]]);
     }
-    child=spawn(process.execPath,['server.js'],{cwd:__dirname,
+    child=spawn(process.execPath,rush?['-e',"require('./bench/campus-rush-hour').installPoolProbe(); require('./server.js')"]:['server.js'],{cwd:__dirname,
       env:{...process.env,PORT:String(port),NODE_ENV:'production',APP_ENV:'staging',
         STAGING_BASIC_AUTH_PASSWORD:pass,AUTH_OTP_BACKEND:'postgres',RIDES_BACKEND:'postgres',
         OTP_DB_SSL:'false',OTP_HMAC_KEY:'ci-only-'+crypto.randomBytes(32).toString('hex'),
         OTP_SECRET:crypto.randomBytes(32).toString('hex'),ENABLE_CLUSTER:'false',
         DATABASE_PATH:path.join(temp,'ephemeral.db'),
         EMAIL_PROVIDER:'disabled',SMS_PROVIDER:'disabled',PGAPPNAME:appName
-      },stdio:['ignore','pipe','pipe']});
+      },stdio:rush?['ignore','pipe','pipe','ipc']:['ignore','pipe','pipe']});
     await waitForServer(child);
+    if(rush){
+      child.stdout.on('data',()=>{}); // drain real request logs, never print fixture data
+      await require('./bench/campus-rush-hour').runRushHour({t,child,pool,ids,tokens,basic,port,appName});
+      return; // separate run: no duplicate lock-barrier scenario
+    }
     const ready=await request('/healthz',{anonymous:true});
     assert.equal(ready.status,200);
     const blocked=await fetch(base+'/api/rides',{headers:{}});

@@ -101,3 +101,8 @@
 ## 2026-11-20 — Retryable pool admission failure (branch proposal)
 
 - #51 observed three generic HTTP 500 under five-connection saturation. Classify only pg-pool pending acquisition deadline at owned pool boundary; map to 503 with 2–4s Retry-After and existing same-key manual retry; preserve SQL errors, auth and transaction semantics. No extra queue, dependency or pool expansion. Retry guidance is not guaranteed recovery. Driver contract version-sensitive, covered by real PG integration. [Task](tasks/2026-11-20-graceful-backpressure.md). Review after sustained workload or driver upgrade; revert source-only change if needed.
+
+
+## 2026-11-20 — Campus Rush Hour measurement before capacity changes (proposed)
+
+- Use existing five-connection pool and real rate limit, disposable fixed-paced mixed HTTP workload with separate shared-NAT case. No queue, Redis, H3 or extra connections justified by design alone. Review actual queue/latency/response payload and 429 metrics; no production SLA from synthetic runs. [Task](tasks/2026-11-20-campus-rush-hour.md).
