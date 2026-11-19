@@ -1,7 +1,7 @@
 # Task: PostgreSQL mixed ride mutation concurrency stress
 
 - **Task ID / file:** 2026-11-20-pg-mixed-ride-concurrency
-- **Status:** in progress / exact-head CI pending
+- **Status:** in review / tested code CI passed
 - **Agent / owner:** application engineering; independent reviewer unassigned
 - **Last updated:** 2026-11-20 IST
 - **Baseline:** main@1020e2e4a6d446b6b8b7b3bcedd188d02ef142fb; parent PR #48 at 417f1c692b31d2bd9b1b4adce898e59331c99ee3
@@ -33,8 +33,8 @@ Parent #48 exact head 3/3 checks green; PostgreSQL job 135825049450 shows 10/10 
 | Test/check | Environment and command/evidence | Result / limitations |
 |---|---|---|
 | Parent browser retry | GitHub job 135825049450 | 10/10 pass, parent 3/3 checks |
-| Mixed concurrency | RIDES_STRESS_DISPOSABLE_DB=YES npm run test:rides-stress | exact-head CI pending |
-| Invariants and receipt rollback | same stress suite | pending |
+| Mixed concurrency | RIDES_STRESS_DISPOSABLE_DB=YES npm run test:rides-stress | PASS on tested commit df02678; see exact-head evidence below |
+| Invariants and receipt rollback | same stress suite | PASS; 173 snapshots, 3 rollback/retry cases |
 | Live runtime or HTTP load | not executed | out of scope |
 
 ## Risks and decisions
@@ -54,3 +54,7 @@ Direct store integration, not HTTP; deliberately does not exercise commission/se
 - Branch: test/pg-mixed-ride-concurrency-2026-11-20
 - Parent PR #48: https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/48
 - test_pg_rides_stress.js, package.json, .github/workflows/stage1-otp.yml, STATUS.md, NEXT_STEPS.md, this task.
+
+## Exact-head CI evidence — 2026-11-19 UTC / 20 Nov IST
+
+Tested code commit `df0267897a3129325a0e923263994367af46a288`, [PostgreSQL CI job 135829043760](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/44600159058/job/135829043760) completed successfully. Actual TAP suite: 3 pass, 0 fail, 0 skipped, including both child tests. Aggregate RIDES_STRESS_RESULT: 12 rounds, 24/24 real lock-contention waves, 531 mixed-wave attempts, 114 accepted (92 original successes + 22 successful replays), 417 expected business rejections (125 BOOKING_NOT_FOUND, 131 RIDE_FULL, 142 RIDE_NOT_FOUND, 19 ALREADY_BOOKED), 173 consistent committed-state snapshots, 3/3 injected post-write rollback/retry cases, 0 unexpected errors. Four independent pools, max four each, peak queued 15. Sampled request duration p50 24.66 ms, p95 37.31 ms, p99 48.27 ms; suite duration 1313.065004 ms. These are isolated store-level metrics including deliberate barrier/queue delay, neither HTTP latency nor production throughput. Wave attempts exclude setup, follow-up replays and rollback-specific operations. Exact code unchanged by this documentation-only checkpoint; new head CI separate. No live database, deployment or infrastructure changes. Still pending independent review and combined integrated candidate; next HTTP concurrency (actor-level settlement, authorization, CSRF, rate limits) and pool/backpressure QA.
