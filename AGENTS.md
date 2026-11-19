@@ -31,6 +31,12 @@
 - Keep the Rides and Errands domains separate. Errands currently has a standalone demonstration prototype, **not** a production marketplace or payment implementation.
 - Environments must remain isolated; do not copy production student data into staging. Refer to `PRODUCTION_RELEASE_GATE.md` and `SECURITY_CREDENTIAL_ROTATION.md` before any release.
 
+## Cloud configuration mutation and readback safeguards
+
+- Before a cloud mutation, review the pinned provider/API writable schema; keep an immutable GET baseline and a separately derived checksum-verified writable request/rollback. Do not replay arbitrary GET response fields as inputs. Do not assume one-time overrides preserve CA mounts or identity bindings.
+- Exact readback is the default. Only narrowly documented, tested provider-managed omissions may be accepted; never normalize away changed values or security-critical drift. Distinguish accepted requests, bounded pending readback, verified state and unknown outcomes. No blind retries or starts on mismatch; separately authorize each side effect and verify restoration before safe pause.
+- Read the [Azure job PATCH prevention runbook](docs/agents/tasks/2026-11-20-azure-job-patch-readback-prevention.md) before any backup job mutation; it specifies the exact ephemeralStorage omission exception and required regression matrix. Offline product development is independent of recovery gates; live migration/onboarding/deployment stays blocked until its own gates pass.
+
 ## Agent quick-start checklist
 
 - [ ] Read canonical docs and inspect actual code, GitHub state and environment.
