@@ -14,6 +14,17 @@
 6. **On conflicts:** rebase/re-read the latest `main`, reconcile documentation with real changes, and avoid overwriting another agent's progress. Project-wide docs describe **merged or verified** state; task files describe branch-local work until integration.
 7. **On every meaningful code PR:** GitHub CI requires the task record plus edits to `STATUS.md` and `NEXT_STEPS.md`. A failing docs contract means the work is not ready for merge. Repository admins should require this CI check and PR review using GitHub branch protection; direct pushes cannot be reliably blocked by a workflow alone.
 
+## Minimum complexity engineering protocol (mandatory)
+
+Before implementing a change, use the [minimum complexity review](docs/agents/MINIMUM_COMPLEXITY.md). Optimize for correctness, security, reliability, measurable resource/cost efficiency and maintainability together; fewer lines alone are not success.
+
+- Every implementation PR (including test, configuration and deletion changes) must contain a completed `## Minimum complexity review` in a changed dated task record. For a small, bounded fix, four short fields suffice. Do not create a separate analysis document.
+- For significant behavior, architecture, transaction, security/privacy, algorithm, scaling, dependency, schema, operational or contract changes, compare the existing/smallest feasible approach, a conventional alternative and a first-principles alternative; explicitly consider eliminating work, reusing primitives and doing nothing. Use the full record. Innovation is a means to a measured improvement, not a requirement to invent complexity.
+- Predeclare acceptance criteria; compare alternatives on the same workload and constraints when meaningful. Record baseline, units, environment, correctness/failure tests, cost/resource tradeoffs and limitations. If evidence is not yet available, label the claim unverified and the decision provisional; never invent benchmarks. No proven improvement is required for a necessary fix.
+- Preserve transactional guarantees, authentication, authorization, privacy, idempotency, observability and rollback. Never remove necessary safeguards just to reduce complexity or improve a benchmark. Do not introduce another service, dependency, abstraction or cache without a demonstrated need and comparison.
+- Use the existing documentation CI gate. It checks required record structure and automatically demands significant review for certain high-risk changed paths; a reviewer must assess actual risk, alternatives, benchmark validity and correctness. It cannot prove optimality, independent thought or factual truth. Never downgrade a significant change or modify the checker to bypass review.
+- Policy applies to new work immediately; reconcile open branches with the updated main and fill the relevant task record before integration. Keep recovery/operational authorization and all release gates intact. Do not rewrite historical tasks or re-run completed work simply to satisfy this policy.
+
 ## Evidence and wording
 
 - Include a last-verified date (UTC), commit SHA/ref, test names/results and environment. Label statuses `implemented`, `tested (CI)`, `deployed (staging)`, `deployed (production)`, `proposed`, `blocked`, or `not verified` accurately.

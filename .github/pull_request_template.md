@@ -18,6 +18,12 @@ Describe the change and why it is needed. What is explicitly out of scope?
 - [ ] Did not commit secrets, OTP values, student data or sensitive logs.
 - [ ] Did not modify production, live data or real payments without explicit approval.
 
+## Minimum complexity review
+
+- [ ] Completed the Minimum complexity review in the changed dated task record (small or significant as appropriate).
+- [ ] Considered existing/no-change/reuse, and for significant changes conventional and first-principles alternatives; justified additional complexity and measured relevant claims or marked them unverified.
+- [ ] Preserved security, transactional integrity, privacy, rollback and release gates. Independent review required for material changes.
+
 ## Verification evidence
 
 Commands, GitHub Actions run, pass/fail results, environment, remaining untested cases.

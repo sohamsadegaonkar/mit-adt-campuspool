@@ -22,6 +22,21 @@ Summarize what the repo/CI/staging/production currently does and **how it was ve
 2. Tests and data-protection controls.
 3. Release/rollback and documentation requirements.
 
+## Minimum complexity review
+
+- **Level:** small or significant (choose exactly one)
+- **Existing / smallest:** Describe existing behavior, no-change/reuse or simplest sufficient option.
+- **Decision:** Explain chosen approach and why more complexity is unnecessary or justified.
+- **Validation:** Define acceptance checks and link actual results in Verification.
+
+For significant changes also complete:
+- **Conventional alternative:** Compare a conventional feasible option and why it meets/fails constraints.
+- **First-principles alternative:** Derive another approach from invariants; consider eliminating work or state.
+- **Tradeoffs:** Compare relevant complexity, resources, costs, failure modes, safeguards and rollback.
+- **Evidence:** Baseline measurements/source and limitations; distinguish measured from unverified claims.
+
+See [protocol](../MINIMUM_COMPLEXITY.md). Replace all instructional text; do not leave template placeholders.
+
 ## Progress log
 
 - YYYY-MM-DD UTC — <what actually changed; paths/commit/PR, or blocker>. Keep this updated as the work evolves, not just when it ends.
