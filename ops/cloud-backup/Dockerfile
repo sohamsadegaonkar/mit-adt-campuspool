@@ -7,7 +7,7 @@ RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 
 FROM node:22-alpine3.23@sha256:6abbcf5dd6b231da109bcde1181db1d92bf78015ae1a9514d9807c1f857869db
 RUN set -eux; \
-    apk add --no-cache ca-certificates=20261020-r0 postgresql17-client=17.11-r0 age=1.2.1-r15; \
+    apk add --no-cache ca-certificates=20261020-r0 postgresql17-client=17.12-r0 age=1.2.1-r15; \
     pg_dump --version | grep -F 'pg_dump (PostgreSQL) 17.'; \
     age --version; \
     rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack; \
