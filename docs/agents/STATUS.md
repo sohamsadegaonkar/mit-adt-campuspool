@@ -331,3 +331,6 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 ## 2026-11-20 IST — mixed HTTP and real pool pressure (branch-local)
 
 - #49 prior store evidence retained. Extend existing HTTP suite with six actors, actor settlement race, authorization/CSRF, mixed cancels and actual five-connection pool exhaustion/recovery. Minimum complexity review included; CI pending. Generic 500 overload response is a gap to verify, not a release acceptance criterion. [Task](tasks/2026-11-20-http-rides-backpressure.md).
+
+
+- PR #51 tested `40e3d91`: disposable HTTP+PostgreSQL CI PASS, 19 targeted mixed mutations, six consistent snapshots, 0 unexpected mixed mutation errors, p95 36.32ms. Actual 5/5 pool occupancy, 3 generic 500 acquire timeouts, 8/8 recovery reads; explicit retryable overload gap remains. See task. No live changes.

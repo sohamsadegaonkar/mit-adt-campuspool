@@ -321,3 +321,6 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 
 
 - [HTTP mixed-operation and backpressure](tasks/2026-11-20-http-rides-backpressure.md): verify disposable exact-head test; if pool timeout returns generic 500, next scoped safe overload handling. No live changes; apply complexity protocol #50; no duplicate store benchmark.
+
+
+- #51 HTTP characterization PASS at `40e3d91`; do not repeat same test. Next scoped retryable pool exhaustion handling (503, safe Retry-After, distinguish unexpected errors), regression on actual HTTP harness. No speculative Redis or connection-pool expansion. [Evidence](tasks/2026-11-20-http-rides-backpressure.md).

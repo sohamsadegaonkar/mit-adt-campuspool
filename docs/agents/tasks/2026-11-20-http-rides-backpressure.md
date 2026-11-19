@@ -1,7 +1,7 @@
 # Task: HTTP mixed rides concurrency and pool backpressure characterization
 
 - **Task ID / file:** 2026-11-20-http-rides-backpressure
-- **Status:** in progress / CI pending
+- **Status:** in review / tested code CI passed; overload defect confirmed
 - **Agent / owner:** application engineering; independent reviewer unassigned
 - **Last updated:** 2026-11-20 IST
 - **Baseline:** main@1020e2e; parent #49 at f34fb108a2cfbc83cb3f21c56f35af1e713e3587; owner-approved policy #50 exact 1c493e3
@@ -42,7 +42,7 @@ Prove actor-level pending-payment serialization across two rides; same-key retry
 
 | Test/check | Environment and command/evidence | Result / limitations |
 |---|---|---|
-| HTTP mixed writes and pressure | RIDES_HTTP_STRESS_DISPOSABLE_DB=YES npm run test:rides-http | pending exact-head disposable CI |
+| HTTP mixed writes and pressure | RIDES_HTTP_STRESS_DISPOSABLE_DB=YES npm run test:rides-http | PASS; actual generic 500 overload gap confirmed |
 | Prior store stress | #49 code df02678 | pass; not equivalent to HTTP |
 | Real staging/production | none | not run |
 
@@ -63,3 +63,7 @@ Pool acquisition timeout currently generic 500, not graceful 503; characterize s
 - Branch test/http-rides-backpressure-2026-11-20
 - test_pg_rides_http.js, .github/workflows/stage1-otp.yml, STATUS.md, NEXT_STEPS.md, this task
 - Parents #49 and policy #50
+
+## Exact-head CI evidence — 2026-11-19 UTC / 20 Nov IST
+
+Tested commit `40e3d910c68005447845d2972d59db6c10e295d7`, [PostgreSQL CI job](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/44602996832/job/135839111495) PASS. HTTP TAP 1 pass / 0 failed / 0 skipped; suite 5535.815506 ms. Diagnostic: 19 targeted mutations (8 accepted: 5 HTTP 201, 3 HTTP 200; 11 expected rejections: one each SETTLEMENT_REQUIRED, AUTH_REQUIRED, CSRF_REQUIRED, NOT_ALLOWED, NOT_RIDE_OWNER; two BOOKING_NOT_FOUND; four RIDE_NOT_FOUND), six consistent snapshots, exactly one original cross-ride booking, four denied unauthorized attempts without mutation, zero unexpected mixed mutation errors, p50 23.27ms and p95 36.32ms. All five pool connections observed blocked; three queued HTTP requests returned sanitized 500 INTERNAL_ERROR after acquisition deadline; pressure window 5022ms. Public health responded 200, five blocked requests and eight recovery reads succeeded after lock release. Existing rate-limit/receipt protections passed. This confirms an overload response semantics defect, not an overbooking defect; no change to runtime yet. Counts exclude setup, earlier baseline requests, throttle probes and pressure reads. Direct HTTP single process in CI, not production SLA or multi-replica load. Next: minimally classify pool acquisition timeout as retryable 503 with safe Retry-After, preserving existing errors/guards; consider typed boundary helper and explicit timeout tests before any tuning. No live changes.
