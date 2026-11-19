@@ -9,7 +9,6 @@ const tls=require('node:tls');
 const {X509Certificate}=require('node:crypto');
 const {PassThrough,Readable}=require('node:stream');
 const {EventEmitter}=require('node:events');
-const {main,validate}=require('./scripts/azure-blob-backup');
 const {SECRET_NAME,vaultConfigOk,formatPgpass,fetchPassword,withProtectedPgpass,checkTmpfs}
   =require('./scripts/cloud-backup-vault-bootstrap');
 
@@ -24,6 +23,14 @@ const trusted=tls.rootCertificates.find(pem=>{
 });
 assert.ok(trusted,'need a synthetically selected public CA');
 fs.writeFileSync(ca,trusted,{mode:0o600});
+// Synthetic tests only: replace the imported guard before loading the worker.
+// The runtime wrapper has no environment or CLI override for its pinned CA.
+const security=require('./scripts/cloud-backup-runtime-security');
+const realPinnedGuard=security.validCaFile;
+const testFingerprint=new X509Certificate(trusted).fingerprint256.replace(/:/g,'');
+assert.equal(realPinnedGuard(ca),false,'unrelated public CA must fail production pin');
+test.mock.method(security,'validCaFile',file=>security.validCaFileAgainstFingerprint(file,testFingerprint));
+const {main,validate}=require('./scripts/azure-blob-backup');
 process.on('exit',()=>fs.rmSync(dir,{recursive:true,force:true}));
 
 const env={
