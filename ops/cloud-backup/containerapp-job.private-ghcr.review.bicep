@@ -22,7 +22,7 @@ param pgStagingHost string
 param pgStagingUser string
 param agePublicRecipient string
 
-resource manualBackupJob 'Microsoft.App/jobs@2024-03-01' = {
+resource manualBackupJob 'Microsoft.App/jobs@2026-01-01' = {
   name: 'campuspool-staging-backup-job'
   location: location
   tags: {
@@ -39,7 +39,18 @@ resource manualBackupJob 'Microsoft.App/jobs@2024-03-01' = {
   }
   properties: {
     environmentId: containerAppsEnvironmentResourceId
+    workloadProfileName: 'Consumption'
     configuration: {
+      identitySettings: [
+        {
+          identity: registryPullVaultReaderIdentityResourceId
+          lifecycle: 'None'
+        }
+        {
+          identity: stagingDataIdentityResourceId
+          lifecycle: 'Main'
+        }
+      ]
       triggerType: 'Manual'
       replicaTimeout: 1800
       replicaRetryLimit: 0
