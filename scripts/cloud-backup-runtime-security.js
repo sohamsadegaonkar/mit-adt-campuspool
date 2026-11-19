@@ -2,7 +2,9 @@
 // Cloud-only PostgreSQL secret/TLS guard. No network, no secret logging.
 const fs=require('node:fs');
 const path=require('node:path');
-const {X509Certificate}=require('node:crypto');
+const {X509Certificate,createHash}=require('node:crypto');
+// Independently verified public staging CA; certificate rotation requires reviewed code change.
+const STAGING_CA_SHA256='807025AD50D4ED219D2C9C7D299C004F824EB00CF7F65AFEF607D07B72E6CAFA';
 
 function safeRegularFile(file){
   if(typeof file!=='string'||!path.isAbsolute(file)||file.includes('\0'))return null;
@@ -16,20 +18,25 @@ function safeRegularFile(file){
   }catch{return null;}
 }
 
-function validCaFile(file){
+function validCaFileAgainstFingerprint(file,expectedFingerprint){
+  if(!/^[A-F0-9]{64}$/.test(expectedFingerprint||''))return false;
   const st=safeRegularFile(file);
   if(!st)return false;
   try{
     const pem=fs.readFileSync(file,'utf8');
     const blocks=pem.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g);
-    if(!blocks?.length||pem.replace(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g,'').trim())return false;
+    if(blocks?.length!==1||pem.replace(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g,'').trim())return false;
     const now=Date.now();
     return blocks.every(block=>{
       const cert=new X509Certificate(block);
-      return cert.ca && Date.parse(cert.validFrom)<=now && Date.parse(cert.validTo)>now;
+      return cert.ca && Date.parse(cert.validFrom)<=now && Date.parse(cert.validTo)>now &&
+        createHash('sha256').update(cert.raw).digest('hex').toUpperCase()===expectedFingerprint;
     });
   }catch{return false;}
 }
+
+// Runtime uses only the compiled-in pin, never an environment/CLI override.
+function validCaFile(file){return validCaFileAgainstFingerprint(file,STAGING_CA_SHA256);}
 
 function validCloudPassFile(file,env){
   const st=safeRegularFile(file);
@@ -48,4 +55,4 @@ function validCloudPassFile(file,env){
       match[3]===env.PGDATABASE && match[4]===env.PGUSER;
   }catch{return false;}
 }
-module.exports={validCaFile,validCloudPassFile};
+module.exports={STAGING_CA_SHA256,validCaFile,validCaFileAgainstFingerprint,validCloudPassFile};
