@@ -318,3 +318,6 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 
 
 - Mixed-store stress passed on `df02678` (PR #49); no code defect observed under this workload. Do not repeat identical work. Next isolated HTTP mixed-operation and authorization/settlement/pool pressure tests; independently review #47→#48→#49 and integrate only through controlled PR review. See [metrics](tasks/2026-11-20-pg-mixed-ride-concurrency.md).
+
+
+- [HTTP mixed-operation and backpressure](tasks/2026-11-20-http-rides-backpressure.md): verify disposable exact-head test; if pool timeout returns generic 500, next scoped safe overload handling. No live changes; apply complexity protocol #50; no duplicate store benchmark.
