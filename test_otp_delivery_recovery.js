@@ -89,3 +89,34 @@ test('SQLite rejects a failed OTP by exact id without deleting verified or newer
   assert.equal(db.findOtp(base.identifier,'EMAIL').id,'newer-request');
   db.db.close();
 });
+
+
+test('HTTPS email rejects redirects without forwarding OTP payload or provider headers',async(t)=>{
+  const http=require('node:http');
+  let initialRequests=0,redirectedRequests=0;
+  const server=http.createServer((req,res)=>{
+    req.resume();
+    if(req.url==='/send'){
+      initialRequests++;
+      res.writeHead(307,{Location:'/redirect-target'});
+      res.end();
+    }else{
+      redirectedRequests++;
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({id:'synthetic-redirect-id',messageId:'synthetic-redirect-id'}));
+    }
+  });
+  await new Promise((resolve,reject)=>{
+    server.once('error',reject);
+    server.listen(0,'127.0.0.1',resolve);
+  });
+  t.after(()=>new Promise(resolve=>{server.close(resolve);server.closeAllConnections();}));
+  const endpoint='http://127.0.0.1:'+server.address().port+'/send';
+  const brevo={EMAIL_PROVIDER:'brevo',BREVO_API_KEY:'synthetic-brevo-only',EMAIL_FROM:'CampusPool <verified@example.org>'};
+  for(const env of [resend,brevo]){
+    await assert.rejects(sendEmail(mail,{env,fetchImpl:(_url,opts)=>fetch(endpoint,opts)}),
+      {message:'EMAIL_PROVIDER_UNAVAILABLE'});
+  }
+  assert.equal(initialRequests,2);
+  assert.equal(redirectedRequests,0);
+});

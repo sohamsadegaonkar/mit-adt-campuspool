@@ -318,3 +318,8 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 3. **Data continuity:** provision isolated production PostgreSQL (not staging DB), verify TLS CA trust and role isolation, inventory old SQLite rides/accounts without unsafe writes, perform encrypted staging archive and independent PG17/PostGIS recovery and rollback rehearsal, and reconcile legacy data before flipping `AUTH_OTP_BACKEND` or `RIDES_BACKEND`.
 4. **Controlled staging first:** only with explicit staging deployment approval, deploy reviewed SHA with autoDeploy OFF, run end-to-end registration/login/session/restart, seat-conflict/idempotency, privacy and failed payment flows on consenting synthetic accounts. Confirm no data loss and Render rollback.
 5. **Production GO:** obtain separate explicit owner security/recovery release approval for exact SHA, then manual Render deploy, verify live health, real delivery and data integrity. No production deployment, migration or backend flag changes performed in this code-only session. Azure cost evaluation was deferred for code work, not globally waived for new billable infrastructure.
+
+
+## 2026-11-20 IST — parallel development next action
+
+- [OTP redirect guard](tasks/2026-11-20-otp-redirect-guard.md): inspect parent reruns and child exact-head CI; review/resolve parent #36 before child integration. D07 recovery remains separate and G1 NO-GO.

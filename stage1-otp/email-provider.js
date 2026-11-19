@@ -38,7 +38,8 @@ async function sendEmail({to,subject,htmlContent,textContent},{env=process.env,f
   let response;
   try{
     response=await fetchImpl(API_URLS[provider],{
-      method:'POST',headers,body:JSON.stringify(payload),signal:AbortSignal.timeout(8000)
+      // Never forward OTP bodies or credentials to redirect destinations.
+      method:'POST',headers,body:JSON.stringify(payload),redirect:'error',signal:AbortSignal.timeout(8000)
     });
   }catch(_){throw Error('EMAIL_PROVIDER_UNAVAILABLE');}
   if(!response.ok)throw Error('EMAIL_PROVIDER_REJECTED');
