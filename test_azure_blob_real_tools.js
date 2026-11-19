@@ -45,14 +45,20 @@ test('real subprocess streaming and independent synthetic encrypted restore',
       '--network','none','--tmpfs','/var/lib/postgresql/data:rw,size=256m',
       '-e','POSTGRES_HOST_AUTH_METHOD=trust','postgres:17']);
     started=true;
+    // The official entrypoint starts a temporary UNIX-socket-only server
+    // during initdb and stops it before exec'ing the final TCP server.
+    // Probe a real SQL query over container-local loopback, not that socket.
+    const deadline=Date.now()+60000;
     let ready=false;
-    for(let i=0;i<60;i++){
-      const p=spawnSync('docker',['exec',cid,'pg_isready','-q','-U','postgres'],
-        {stdio:'ignore',timeout:3000});
-      if(p.status===0){ready=true;break;}
+    while(Date.now()<deadline){
+      const p=spawnSync('docker',['exec',cid,'psql','-X','-h','127.0.0.1',
+        '-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1','-qAt','-c','SELECT 1'],
+        {encoding:'utf8',timeout:Math.min(3000,Math.max(1,deadline-Date.now())),
+          stdio:['ignore','pipe','ignore']});
+      if(p.status===0&&p.stdout.trim()==='1'){ready=true;break;}
       await pause(250);
     }
-    assert.ok(ready,'Disposable PostgreSQL 17 was not ready');
+    assert.ok(ready,'Disposable PostgreSQL 17 final TCP SQL server was not ready');
     const createSQL=[
       'CREATE TABLE public.backup_probe(id integer PRIMARY KEY)',
       'INSERT INTO public.backup_probe VALUES (1),(2)',
@@ -60,9 +66,9 @@ test('real subprocess streaming and independent synthetic encrypted restore',
       'CREATE TABLE supabase_migrations.schema_migrations(version text PRIMARY KEY)',
       "INSERT INTO supabase_migrations.schema_migrations VALUES ('synthetic_001')"
     ].join('; ')+';';
-    command('docker',['exec',cid,'psql','-X','-U','postgres','-d','postgres',
+    command('docker',['exec',cid,'psql','-X','-h','127.0.0.1','-U','postgres','-d','postgres',
       '-v','ON_ERROR_STOP=1','-q','-c',createSQL]);
-    command('docker',['exec',cid,'psql','-X','-U','postgres','-d','postgres',
+    command('docker',['exec',cid,'psql','-X','-h','127.0.0.1','-U','postgres','-d','postgres',
       '-v','ON_ERROR_STOP=1','-q','-c','CREATE DATABASE campuspool_restore']);
 
     // Allowlisted source names are dummy configuration. pg_dump is intercepted;
@@ -83,7 +89,7 @@ test('real subprocess streaming and independent synthetic encrypted restore',
         dumpCalls++;
         assert.ok(!args.some(a=>a==='-'||a.startsWith('--file')),
           'No plaintext output file arguments permitted');
-        return spawn('docker',['exec',cid,'pg_dump','-U','postgres',
+        return spawn('docker',['exec',cid,'pg_dump','-h','127.0.0.1','-U','postgres',
           '--dbname=postgres',...args],
           {stdio:opts.stdio,env:{PATH:process.env.PATH,HOME:process.env.HOME}});
       }
@@ -129,7 +135,7 @@ test('real subprocess streaming and independent synthetic encrypted restore',
     // Decrypt exactly the captured blob bytes into a different DB via pipes.
     const decrypt=spawn('age',['--decrypt','--identity',identity],
       {stdio:['pipe','pipe','ignore']});
-    const restore=spawn('docker',['exec','-i',cid,'pg_restore','-U','postgres',
+    const restore=spawn('docker',['exec','-i',cid,'pg_restore','-h','127.0.0.1','-U','postgres',
       '-d','campuspool_restore','--clean','--if-exists','--no-owner',
       '--no-acl','--exit-on-error'],
       {stdio:['pipe','ignore','ignore']});
@@ -141,11 +147,11 @@ test('real subprocess streaming and independent synthetic encrypted restore',
     assert.ok(work.every(r=>r.status==='fulfilled'),'AGE/pg_restore pipes failed');
     assert.equal(work[2].value,0,'AGE decryption did not complete');
     assert.equal(work[3].value,0,'PostgreSQL restore did not complete');
-    const ids=command('docker',['exec',cid,'psql','-X','-U','postgres',
+    const ids=command('docker',['exec',cid,'psql','-X','-h','127.0.0.1','-U','postgres',
       '-d','campuspool_restore','-qAt','-c',
       "SELECT string_agg(id::text, ',' ORDER BY id) FROM public.backup_probe"]);
     assert.equal(ids,'1,2');
-    const ledger=command('docker',['exec',cid,'psql','-X','-U','postgres',
+    const ledger=command('docker',['exec',cid,'psql','-X','-h','127.0.0.1','-U','postgres',
       '-d','campuspool_restore','-qAt','-c',
       'SELECT version FROM supabase_migrations.schema_migrations']);
     assert.equal(ledger,'synthetic_001');
