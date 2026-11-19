@@ -96,3 +96,8 @@
 - **Problem:** long prediction lists could be buried by Android IME; per-instance Places budget previously clamped values below 20 up to 20, preventing cautious one-request QA.
 - **Choice:** cap/scroll suggestion items while keeping attribution visible; support keyboard Search selection and 80-character input maximum. Parse the daily cap strictly (1–1000) only when opt-in feature is enabled; reject invalid limits rather than silently raising them.
 - **Caveat:** local shared rate limiter is not a Google Cloud billing cap; external quotas/alerts and provider terms/privacy reviews remain mandatory. No live testing or credential changes. [Task](tasks/2026-11-04-flutter-places-mobile-qa.md).
+
+
+## A-018 — Minimum complexity engineering protocol (2026-11-20 IST)
+
+- Owner-approved direction: compare simpler and first-principles alternatives, prefer evidence-backed minimum sufficient complexity. Implementation/CI on policy branch pending review. Reuse existing task and Node checker; no separate infrastructure or score. Short small-change record and significant review path flags. Reviewer must verify real risk, correctness, measurement and reject boilerplate. See [protocol](MINIMUM_COMPLEXITY.md) and [task](tasks/2026-11-20-minimum-complexity-engineering.md). Revisit if review overhead or loopholes are measured; preserve release gates.
