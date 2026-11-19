@@ -5,6 +5,31 @@ const { Pool } = require('pg');
 const TTL_SECONDS=300, COOLDOWN_SECONDS=60, PROOF_SECONDS=600, MAX_ATTEMPTS=5;
 const PURPOSES=new Set(['login','signup_email','signup_phone']);
 
+// pg-pool 3.14.0 reports a pending acquisition deadline using this exact
+// error text, not a stable SQLSTATE. Classify ONLY at Pool.connect; SQL,
+// connection-establishment, statement and lock failures remain unchanged.
+class PgPoolBusyError extends Error {
+  constructor(cause) {
+    super('PostgreSQL pool acquisition timed out',{cause});
+    this.name='PgPoolBusyError';
+    this.code='DB_POOL_BUSY';
+  }
+}
+function classifyAcquisition(error) {
+  return error && error.message==='timeout exceeded when trying to connect' && !error.code
+    ? new PgPoolBusyError(error) : error;
+}
+class CampusPgPool extends Pool {
+  connect(callback) {
+    // pg-pool.query uses the callback API; transaction callers use promises.
+    // Preserve both contracts including the release function.
+    if(typeof callback==='function'){
+      return super.connect((error,client,release)=>callback(classifyAcquisition(error),client,release));
+    }
+    return super.connect().catch(error=>{throw classifyAcquisition(error);});
+  }
+}
+
 class OtpError extends Error {
   constructor(code,status=400,retryAfter=null) {
     super(code); this.code=code; this.status=status; this.retryAfter=retryAfter;
@@ -36,7 +61,7 @@ class PgOtpStore {
     if(typeof hmacKey!=='string'||hmacKey.length<32) throw Error('OTP_HMAC_KEY must be a private random secret (32+ characters)');
     if(!pool&&!connectionString) throw Error('OTP_DATABASE_URL must be configured for PostgreSQL OTP');
     this.key=hmacKey;
-    this.pool=pool||new Pool({connectionString,ssl:ssl?{rejectUnauthorized:true}:undefined,
+    this.pool=pool||new CampusPgPool({connectionString,ssl:ssl?{rejectUnauthorized:true}:undefined,
       max:maxConnections,connectionTimeoutMillis:5000,idleTimeoutMillis:10000});
     this.ownsPool=!pool;
   }
@@ -191,4 +216,4 @@ class PgOtpStore {
     });
   }
 }
-module.exports={PgOtpStore,OtpError,normalize,TTL_SECONDS,COOLDOWN_SECONDS,PROOF_SECONDS,MAX_ATTEMPTS};
+module.exports={PgOtpStore,CampusPgPool,PgPoolBusyError,OtpError,normalize,TTL_SECONDS,COOLDOWN_SECONDS,PROOF_SECONDS,MAX_ATTEMPTS};

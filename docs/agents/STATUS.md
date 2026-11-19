@@ -334,3 +334,8 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 
 
 - PR #51 tested `40e3d91`: disposable HTTP+PostgreSQL CI PASS, 19 targeted mixed mutations, six consistent snapshots, 0 unexpected mixed mutation errors, p95 36.32ms. Actual 5/5 pool occupancy, 3 generic 500 acquire timeouts, 8/8 recovery reads; explicit retryable overload gap remains. See task. No live changes.
+
+
+## 2026-11-20 IST — graceful pool backpressure (branch-local)
+
+- #51 HTTP pressure baseline passed but produced 3 generic 500s. New branch classifies owned pg-pool acquisition timeout only, central 503 DB_POOL_BUSY with 2–4s Retry-After, traffic-mode existing toast, honest retry copy and actual same-key regression. CI pending; no release or live work. [Task](tasks/2026-11-20-graceful-backpressure.md).

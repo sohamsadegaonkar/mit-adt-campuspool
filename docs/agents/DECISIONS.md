@@ -96,3 +96,8 @@
 - **Problem:** long prediction lists could be buried by Android IME; per-instance Places budget previously clamped values below 20 up to 20, preventing cautious one-request QA.
 - **Choice:** cap/scroll suggestion items while keeping attribution visible; support keyboard Search selection and 80-character input maximum. Parse the daily cap strictly (1–1000) only when opt-in feature is enabled; reject invalid limits rather than silently raising them.
 - **Caveat:** local shared rate limiter is not a Google Cloud billing cap; external quotas/alerts and provider terms/privacy reviews remain mandatory. No live testing or credential changes. [Task](tasks/2026-11-04-flutter-places-mobile-qa.md).
+
+
+## 2026-11-20 — Retryable pool admission failure (branch proposal)
+
+- #51 observed three generic HTTP 500 under five-connection saturation. Classify only pg-pool pending acquisition deadline at owned pool boundary; map to 503 with 2–4s Retry-After and existing same-key manual retry; preserve SQL errors, auth and transaction semantics. No extra queue, dependency or pool expansion. Retry guidance is not guaranteed recovery. Driver contract version-sensitive, covered by real PG integration. [Task](tasks/2026-11-20-graceful-backpressure.md). Review after sustained workload or driver upgrade; revert source-only change if needed.

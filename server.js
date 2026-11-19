@@ -40,7 +40,7 @@ const PLACES_DAILY_CAP = PLACES_AUTOCOMPLETE_ENABLED
   : 0;
 if (MOBILITY_MATCHING_ENABLED && RIDES_BACKEND !== 'postgres')
   throw new Error('Mobility matching requires PostgreSQL Rides and identity');
-const { PgOtpStore } = AUTH_OTP_BACKEND === 'postgres' ? require('./stage1-otp/pg-store') : { PgOtpStore: null };
+const { PgOtpStore, PgPoolBusyError } = AUTH_OTP_BACKEND === 'postgres' ? require('./stage1-otp/pg-store') : { PgOtpStore: null, PgPoolBusyError: null };
 const { handlePgAuth } = AUTH_OTP_BACKEND === 'postgres' ? require('./stage1-otp/auth-routes') : { handlePgAuth: null };
 const {PgIdentity} = AUTH_OTP_BACKEND === 'postgres' ? require('./stage1-otp/identity') : {PgIdentity:null};
 const {PgRidesStore,RidesError} = RIDES_BACKEND === 'postgres'
@@ -1342,6 +1342,7 @@ const server = http.createServer(async (req, res) => {
       }
       return sendJson(404,{success:false,error:'NOT_FOUND'});
     } catch(error){
+      if(PgPoolBusyError && error instanceof PgPoolBusyError) throw error;
       if(error?.code==='RATE_LIMITED'){
         return sendJson(429,{success:false,error:'RATE_LIMITED'});
       }
@@ -1614,6 +1615,7 @@ const server = http.createServer(async (req, res) => {
           : finish(db.checkUserSettlementBlock(authenticatedUser.email));
       });
     }catch(err){
+      if(PgPoolBusyError && err instanceof PgPoolBusyError) throw err;
       if(pgRidesStore){
         const known=err instanceof RidesError;
         return sendJson(known?err.status:500,{success:false,
@@ -1678,6 +1680,7 @@ const server = http.createServer(async (req, res) => {
         }};
       });
     } catch (err) {
+      if(PgPoolBusyError && err instanceof PgPoolBusyError) throw err;
       if(pgRidesStore){
         const known=err instanceof RidesError;
         return sendJson(known?err.status:500,{success:false,
@@ -1712,6 +1715,7 @@ const server = http.createServer(async (req, res) => {
         }};
       });
     } catch (err) {
+      if(PgPoolBusyError && err instanceof PgPoolBusyError) throw err;
       if(pgRidesStore){
         const known=err instanceof RidesError;
         return sendJson(known?err.status:500,{success:false,
@@ -1804,6 +1808,15 @@ const server = http.createServer(async (req, res) => {
   if (method === 'HEAD') return res.end();
   res.end(cached.content);
   } catch (err) {
+    if (PgPoolBusyError && err instanceof PgPoolBusyError && !res.headersSent) {
+      // De-phase retries without a queue, timer or automatic mutation replay.
+      const retryAfter = crypto.randomInt(2, 5);
+      console.warn(JSON.stringify({event:'db_pool_busy',status:503}));
+      res.writeHead(503,{'Content-Type':'application/json; charset=utf-8',
+        'Cache-Control':'no-store','Retry-After':String(retryAfter)});
+      return res.end(JSON.stringify({success:false,error:'DB_POOL_BUSY',retryAfter,
+        message:'Oops, a campus traffic jam! Try the same action again in '+retryAfter+' seconds.'}));
+    }
     const status = err && [400, 413].includes(err.httpStatus) ? err.httpStatus : 500;
     console.error(JSON.stringify({ event: 'request_failed', status, reason: status === 500 ? 'INTERNAL_ERROR' : err.message }));
     if (!res.headersSent) {

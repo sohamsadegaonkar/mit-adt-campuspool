@@ -1649,6 +1649,16 @@
       }
       return response;
     }
+    function showMutationFailure(response, data, fallback) {
+      if (response.status === 503 && data?.error === 'DB_POOL_BUSY') {
+        const seconds = Number(response.headers.get('Retry-After'));
+        const wait = Number.isInteger(seconds) && seconds >= 2 && seconds <= 4
+          ? ' in ' + seconds + ' seconds' : ' in a few seconds';
+        showToast('Oops, a campus traffic jam! Try the same action again' + wait + '.', '🚦');
+        return;
+      }
+      showToast(data?.message || fallback, '⚠️');
+    }
     async function refreshSession() {
       try {
         const response = await apiFetch('/api/auth/me', { cache: 'no-store' });
@@ -1883,7 +1893,8 @@
       const toast = document.getElementById('toastNotification');
       if (!toast) return;
       document.getElementById('toastMessage').textContent = message;
-      const iconName = /⚠|🚨/.test(icon) ? 'alert'
+      const iconName = /🚦/.test(icon) ? 'car'
+        : /⚠|🚨/.test(icon) ? 'alert'
         : /✉|📱/.test(icon) ? 'mail'
         : /📍|🎯|🛰/.test(icon) ? 'pin'
         : /💬/.test(icon) ? 'chat'
@@ -2237,9 +2248,13 @@
                   showToast("Booking canceled and seat freed.", "ℹ️");
                   syncLiveRides();
                   syncUserBookings();
+                } else {
+                  const data = await resp.json().catch(() => null);
+                  showMutationFailure(resp, data, "Cancellation not confirmed. Please retry.");
                 }
               } catch (err) {
                 console.warn(err);
+                showToast("Cancellation not confirmed. Please retry the same action.", "⚠️");
               }
             });
           });
@@ -2290,9 +2305,13 @@
                   showToast("Offered ride canceled.", "ℹ️");
                   syncLiveRides();
                   syncUserBookings();
+                } else {
+                  const data = await resp.json().catch(() => null);
+                  showMutationFailure(resp, data, "Cancellation not confirmed. Please retry.");
                 }
               } catch (err) {
                 console.warn(err);
+                showToast("Cancellation not confirmed. Please retry the same action.", "⚠️");
               }
             });
           });
@@ -3334,7 +3353,7 @@
       const confirmBtn = document.getElementById('confirmBookingBtn');
       if (confirmBtn) {
         confirmBtn.disabled = true;
-        confirmBtn.textContent = "Reserving Seat in SQLite...";
+        confirmBtn.textContent = "Reserving your seat…";
       }
 
       try {
@@ -3354,7 +3373,7 @@
             closeBookingModal();
             openSettlementLockModal(data.restriction);
           }
-          showToast(data.message || "Failed to reserve seat.", "⚠️");
+          showMutationFailure(resp, data, "Failed to reserve seat.");
           if (confirmBtn) {
             confirmBtn.disabled = false;
             confirmBtn.textContent = "Confirm & Book Seat";
@@ -3834,7 +3853,7 @@
           if (data.restriction) {
             openSettlementLockModal(data.restriction);
           }
-          showToast(data.message || "Failed to post ride.", "⚠️");
+          showMutationFailure(resp, data, "Failed to post ride.");
           return;
         }
 
@@ -3857,7 +3876,7 @@
         syncUserBookings();
       } catch (err) {
         console.warn("Backend ride post error:", err);
-        showToast("Ride published locally.", "🚀");
+        showToast("Ride publication not confirmed. Please retry the same action.", "⚠️");
       } finally {
         if (submitBtn) {
           submitBtn.disabled = false;
