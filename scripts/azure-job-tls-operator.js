@@ -9,7 +9,7 @@ const {compare,historyGuard,selfTest}=require('./azure-job-readback-guard');
 const {makeOperator,operatorTests}=require('./azure-job-tls-operator-state');
 const op=makeOperator(compare,historyGuard);
 const RG='campuspool-backup-rg', JOB='campuspool-staging-backup-job', API='2026-01-01';
-const SUB='69fdcf79-e95e-411e-a12f-8d3b7bfe6b53';
+const SUB=process.env.CAMPUSPOOL_APPROVED_AZURE_SUBSCRIPTION||'';
 const ROOT='/subscriptions/'+SUB+'/resourceGroups/'+RG;
 const ID=ROOT+'/providers/Microsoft.App/jobs/'+JOB;
 const URL='https://management.azure.com'+ID+'?api-version='+API;
@@ -62,6 +62,7 @@ function main(){
   const [mode,work]=process.argv.slice(2);
   if(mode==='--self-test'&&!work){console.log('SYNTHETIC_PREDICATES_PASS='+selfTest(compare,historyGuard));console.log('MOCKED_ORCHESTRATION_PASS='+operatorTests(makeOperator));return}
   need(['--plan','--run','--inspect'].includes(mode)&&work&&process.argv.length===4,'INVALID_MODE');
+  need(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(SUB),'APPROVED_SUBSCRIPTION_REQUIRED');
   const dir=fs.realpathSync(work), st=fs.statSync(dir);
   need(dir.startsWith('/dev/shm/campuspool-tls-plan.')&&(st.mode&0o777)===0o700&&fs.statfsSync(dir).type===0x01021994,'PROTECTED_WORKDIR_REQUIRED');
   process.umask(0o077);
@@ -96,7 +97,8 @@ function main(){
   const approve=phrase=>{process.stdout.write('Type '+phrase+': ');let x='',b=Buffer.alloc(1);while(x.length<256){const n=fs.readSync(0,b,0,1,null);if(!n||b[0]===10)break;if(b[0]!==13)x+=b.toString()}return x===phrase};
   need(approve('BUDGET_EVIDENCE_REVIEWED_WITHIN_500_INR_CAP_AND_EXCLUSIVE_OPERATOR'),'BUDGET_OR_EXCLUSIVITY_NOT_APPROVED');
   const fd=fs.openSync(journal,'wx',0o600);fs.closeSync(fd);note('ATTEMPT_OPEN');
-  const pause=()=>Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,10000);
+  const deadline=process.hrtime.bigint()+2700n*1000000000n;
+  const pause=()=>{need(process.hrtime.bigint()<deadline,'OPERATOR_DEADLINE');Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,10000);need(process.hrtime.bigint()<deadline,'OPERATOR_DEADLINE')};
   let writes=0,starts=0;
   const io={snapshot,history,approve,wait:pause,log:msg=>{console.log(msg);note(msg)},
     patch:body=>{need(writes<2,'PATCH_LIMIT');const expected=writes===0?p.apply:p.rollback;need(require('node:util').isDeepStrictEqual(body,expected),'PATCH_BODY_BLOCK');writes++;note('PATCH_'+writes+'_REQUESTING');const f=path.join(dir,'tls-operator-patch-'+writes+'.json');fs.writeFileSync(f,JSON.stringify(body),{mode:0o600,flag:'wx'});az(['rest','--method','patch','--url',URL,'--headers','Content-Type=application/json','--body','@'+f],false);note('PATCH_'+writes+'_REQUEST_ACCEPTED')},
