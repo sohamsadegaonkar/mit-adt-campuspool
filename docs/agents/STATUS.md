@@ -342,3 +342,8 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 
 
 - #52 code `b095678`: actual HTTP pressure test PASS, 3/3 503 instead of 500, 2 overloaded same-key bookings leave no receipt/seat effect; recovery + replay verified. Browser VM 12/12; nine invariant snapshots and no unexpected mixed errors. See task; no live changes.
+
+
+## 2026-11-20 IST — Campus Rush Hour (branch-local)
+
+- #52 graceful 503 verified. New disposable sustained HTTP test adds 96 synthetic identities, 45s of paced mixed arrivals, actual loopback sources, NAT scenario, pool/CPU and receipt/invariant evidence. CI pending; no runtime changes. [Task](tasks/2026-11-20-campus-rush-hour.md).

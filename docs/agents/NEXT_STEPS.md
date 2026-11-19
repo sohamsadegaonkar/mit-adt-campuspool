@@ -330,3 +330,6 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 
 
 - #52 tested `b095678`: targeted graceful 503 and retry safety passed, no repeat of identical test. Next review stacked application candidate, sustained bounded mixed HTTP load (queue/wait evidence), settlement/privacy policy and real browser visual QA. No live changes, G1 separate. [Evidence](tasks/2026-11-20-graceful-backpressure.md).
+
+
+- [Campus Rush Hour](tasks/2026-11-20-campus-rush-hour.md): inspect exact-head sustained diagnostics, then choose measured simplest next improvement; no speculative infrastructure. G1 separate.
