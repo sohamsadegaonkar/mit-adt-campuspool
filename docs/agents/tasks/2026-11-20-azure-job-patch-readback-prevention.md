@@ -62,3 +62,7 @@ Before the next reusable operator mutation, implement/run synthetic tests in an 
 
 - Operations branch only: `ops/backup-three-gates-evidence-2026-11-06`.
 - Canonical prevention pointer: `AGENTS.md`; current checkpoint in `docs/agents/STATUS.md` and `docs/agents/NEXT_STEPS.md`.
+
+## 20 Nov implementation checkpoint — offline guard
+
+- Source-only `scripts/azure-job-readback-guard.js` added at 94eaf7eb7372232606ed2ad02897ad6fea754a98. 25 synthetic predicate checks passed in isolated JavaScript execution of the functions used to generate the file; committed Node CLI not yet executed. Distinguishes VERIFIED/PENDING/BLOCK, rejects unapproved drift, tests sole omission, provisioning states and execution history. This is only a predicate helper; no cloud API, patch/start/rollback orchestration, deadline/reconciliation integration or full regression matrix yet. Caller must independently verify exact ARM resource scope, baseline checksums, identity/RBAC and approval. Next run committed Node `--self-test`, then compare same-API live snapshot to immutable baseline. No writes/start until remaining operator safeguards and approvals.
