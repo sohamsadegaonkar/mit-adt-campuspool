@@ -339,3 +339,6 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 ## 2026-11-20 IST — graceful pool backpressure (branch-local)
 
 - #51 HTTP pressure baseline passed but produced 3 generic 500s. New branch classifies owned pg-pool acquisition timeout only, central 503 DB_POOL_BUSY with 2–4s Retry-After, traffic-mode existing toast, honest retry copy and actual same-key regression. CI pending; no release or live work. [Task](tasks/2026-11-20-graceful-backpressure.md).
+
+
+- #52 code `b095678`: actual HTTP pressure test PASS, 3/3 503 instead of 500, 2 overloaded same-key bookings leave no receipt/seat effect; recovery + replay verified. Browser VM 12/12; nine invariant snapshots and no unexpected mixed errors. See task; no live changes.
