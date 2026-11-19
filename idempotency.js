@@ -17,7 +17,8 @@ function validKey(key) {
 function canonical(value) {
   if (Array.isArray(value)) return value.map(canonical);
   if (value !== null && typeof value === 'object') {
-    const out = {};
+    // A JSON key named __proto__ must be an own data property, not a setter.
+    const out = Object.create(null);
     for (const key of Object.keys(value).sort()) out[key] = canonical(value[key]);
     return out;
   }

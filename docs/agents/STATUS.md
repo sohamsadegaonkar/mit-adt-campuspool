@@ -306,3 +306,8 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 - 25 remote branch refs remain. 17 non-main branches verified ancestral to main; 7 still have uniquely divergent commits. Old stacked PRs were closed only after source integration verification; alternative R2 was explicitly not merged. No refs deleted because connector lacks safe deletion; preserve for controlled cleanup.
 - Tracked repository main tree: 190 files before this audit note, no filename matching `-`/archive/private-key patterns. Local WSL accidental archive remains untracked and not securely erased; history secret revocation remains unverified.
 - Render production/staging auto deploy **OFF**. Actual production running `63ae551` with failed newer OTP secret startup; staging `cceadbf`. **NO new deployment or migration**. Encrypted staging backup/independent recovery/rollback/credential gates still **NO-GO**. See [consolidation task](tasks/2026-11-05-mainline-consolidation-audit.md).
+
+
+## 2026-11-20 IST — source-only idempotency audit
+
+- Main `1020e2e`: six keyed authenticated mutation routes, atomic receipt/effect, row lock and unique booking constraints reviewed. Identified plain-object canonicalization dropping JSON prototype-named fields; branch proposes null-prototype accumulator with PG/SQLite regressions, CI pending. No live data or rollout. [Task](tasks/2026-11-20-idempotency-audit.md).

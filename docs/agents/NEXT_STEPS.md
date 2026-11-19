@@ -300,3 +300,8 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 - **First priority:** manual-only approved cloud backup worker, protected identity/Key Vault/TLS/recipient, nonleaking logs, pinned image/dependencies, verified ciphertext, **independently** decrypted and restored protected PG17/PostGIS with row-content, roles/RLS/grants/migration ledger comparisons and retained Render rollback proof. Existing 200-byte Azure object is not a usable backup; preserve it for reviewed disposition.
 - **Then Render:** check protected OTP_SECRET is fresh 32+ characters; inspect production data persistence/SQLite fallback, real OTP delivery, health, staged migration plan and exact approved deployment SHA. Both Render services autoDeploy OFF. Do not initiate deployment or migration 008 before independent backup/restore and owner sign-off.
 - Do not delete local WSL `-` file via Git clean or assume encryption/secure erasure. Branch deletion is not available in current connected GitHub tools; only review/anonymize/delete redundant heads later with authenticated GitHub UI/CLI and keep divergent history.
+
+
+## 2026-11-20 IST — backend reliability follow-up
+
+- [Idempotency audit](tasks/2026-11-20-idempotency-audit.md): verify exact-head CI, review browser stale responses and cross-key duplicates, booking/cancel races, contact redaction and rides-only settlement policy; no bypass of existing release/payment gates.
