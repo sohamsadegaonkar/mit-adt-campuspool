@@ -1,7 +1,7 @@
 # Task: Smart GPS Privacy
 
 - **Task ID / file:** 2026-11-20-smart-gps-privacy
-- **Status:** candidate / CI pending
+- **Status:** in review / CI passed
 - **Agent / owner:** application engineering; independent review pending
 - **Last updated:** 2026-11-20 IST
 - **Dependencies:** #47–56, #50 policy; G1 separate
@@ -66,3 +66,7 @@ Point-in-time authorization, no cross-store atomic revocation or physical erasur
 ## Browser expiry review — 2026-11-20 IST
 
 Network stalls can keep previous marker visible if the poll returns early on an in-flight request. Added expiry fields and local clearing on existing 3.5s poll, 8s bounded read timeout, guard before second private fetch and map reset on close. Browser VM tests for expired pins while a poll is in flight, old-session response rejection and absence of simulator. Timing is nominal while a visible tab is running; browser scheduling and clock skew may delay UI removal; server expiry is authoritative. CI pending at new head; first candidate run kept as independent evidence.
+
+## Exact-head CI evidence — 2026-11-20 IST
+
+All four reported checks green at `dc412bc5e73abb44983135df8e3f631045a7a6b8`, including browser E2E and smoke. [PostgreSQL CI](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/44715829034/job/136218856047) CAMPUS_GPS_RESULT 11 scenarios passed, TTL 60s, prune 30s, session binding, monotonicity, no resurrection, two independent SQLite handles, legacy hidden, cancellation denied, two latest rows; 3/3 browser VM GPS tests; prior privacy 29/29, rush 3880/3880 and 47 consistent snapshots, 873 receipts, zero dropped/unexpected. No real device/live test. Next free pilot policy; no live changes.
