@@ -345,3 +345,6 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 
 
 - [Wi-Fi fairness](tasks/2026-11-20-campus-wifi-fairness.md): verify actual HTTP and default-off regressions, review cap security tradeoffs, enabled sustained NAT workload and privacy/settlement release gates; no live flag change.
+
+
+- #55 verified; next privacy boundary for ride discovery, active participant contact, historical receipt replay and GPS. No live flag change or deployment.

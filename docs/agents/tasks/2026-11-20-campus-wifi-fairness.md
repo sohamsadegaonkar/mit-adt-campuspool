@@ -1,7 +1,7 @@
 # Task: Campus Wi-Fi fairness for verified PostgreSQL Rides
 
 - **Task ID / file:** 2026-11-20-campus-wifi-fairness
-- **Status:** in review / CI pending
+- **Status:** in review / CI passed
 - **Agent / owner:** application engineering; independent reviewer unassigned
 - **Last updated:** 2026-11-20 IST
 - **Baseline:** main 1020e2e; parent #54 d3d095a273ec83473319a707ad3e31d6bc972d73; policy #50 1c493e3
@@ -42,8 +42,8 @@
 
 | Test/check | Environment and command/evidence | Result / limitations |
 |---|---|---|
-| Fairness and abuse protection | RIDES_HTTP_FAIRNESS_DISPOSABLE_DB=YES npm run test:rides-http | pending |
-| Legacy/default-off HTTP and Rush | PostgreSQL CI | pending |
+| Fairness and abuse protection | RIDES_HTTP_FAIRNESS_DISPOSABLE_DB=YES npm run test:rides-http | PASS |
+| Legacy/default-off HTTP and Rush | PostgreSQL CI | PASS |
 | Production configuration | not changed | no live test |
 
 ## Risks and decisions
@@ -62,3 +62,7 @@ Flag defaults off; no approval to enable on live services. Initial hard IP caps 
 
 - Branch fix/campus-wifi-fairness-2026-11-20
 - server.js; test_pg_rides_http.js; bench/campus-wifi-fairness.js; .github/workflows/stage1-otp.yml; STATUS.md, NEXT_STEPS.md, DECISIONS.md, ARCHITECTURE_MAP.md; this task.
+
+## Exact-head CI evidence — 2026-11-20 UTC
+
+`3cea037` all five reported checks successful (including browser E2E, smoke, PostgreSQL and Places). [PostgreSQL log](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/44699362127/job/136163703500): CAMPUS_WIFI_RESULT: sharedAccepted 130, actorReadCap 120, crossSessionAndIp true, 5 invalid token categories, anonymous cap 120, aggregate read cap 600, actor write cap 60, aggregate write cap 300, 11 completed replays, replay budget enforced, CSRF denied, another actor booked, two receipts and seat invariant true. Default-off rush 3880/3880, 47 invariant snapshots, 875 receipts, NAT 120/10, recovery 8. Flag remains off, enabled sustained shared-NAT and independent security review pending. Next privacy boundary. No live changes.
