@@ -47,12 +47,16 @@ test('real subprocess streaming and independent synthetic encrypted restore',
     started=true;
     let ready=false;
     for(let i=0;i<60;i++){
-      const p=spawnSync('docker',['exec',cid,'pg_isready','-q','-U','postgres'],
+      // The official entrypoint starts a temporary socket-only server during init,
+      // then stops it before the final server starts. A socket readiness check can
+      // race that shutdown. TCP loopback is internal to --network none and only
+      // becomes ready after the final server is listening.
+      const p=spawnSync('docker',['exec',cid,'pg_isready','-q','-h','127.0.0.1','-p','5432','-U','postgres'],
         {stdio:'ignore',timeout:3000});
       if(p.status===0){ready=true;break;}
       await pause(250);
     }
-    assert.ok(ready,'Disposable PostgreSQL 17 was not ready');
+    assert.ok(ready,'Disposable PostgreSQL 17 final TCP listener was not ready');
     const createSQL=[
       'CREATE TABLE public.backup_probe(id integer PRIMARY KEY)',
       'INSERT INTO public.backup_probe VALUES (1),(2)',
