@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const crypto=require('node:crypto');
 const {Pool}=require('pg');
 const {migrate}=require('./stage1-otp/migrate');
-const {PgRidesStore}=require('./stage1-otp/rides-store');
+const {PgRidesStore,bookingPublic}=require('./stage1-otp/rides-store');
 
 const connectionString=process.env.OTP_DATABASE_URL;
 function assertIsolatedDb(url){
@@ -120,6 +120,83 @@ test('PostgreSQL rides: permissions, atomic seats, cancellation and durable read
         assert.ok(rows.rows[0].cancelled_at);
         await assert.rejects(rides.bookRide({rideId:rideIds[1],passengerUserId:uuids[3]}),
           e=>e.code==='RIDE_NOT_FOUND');
+      });
+      await t.test('settlement single snapshot: exact old contract, one query, transaction client',async()=>{
+        // Real committed fixtures include free, passenger-only, driver-only,
+        // both obligations and multiple pending bookings via direct store.
+        // The latter is deliberately store-only: HTTP still prevents it.
+        const offer=async(driver,fare,seats)=>{
+          const r=await rides.createRide({driverUserId:driver,ride:{...fixture(),studentFare:fare,seatsTotal:seats}});
+          rideIds.push(r.id);return r.id;
+        };
+        const a=await offer(uuids[0],12.55,2);
+        const b=await offer(uuids[0],30.15,2);
+        const c=await offer(uuids[3],24.99,1);
+        const first=await rides.bookRide({rideId:a,passengerUserId:uuids[1]});
+        await rides.bookRide({rideId:a,passengerUserId:uuids[2]});
+        const second=await rides.bookRide({rideId:b,passengerUserId:uuids[1]});
+        await rides.bookRide({rideId:c,passengerUserId:uuids[0]});
+        await pool.query("UPDATE public.campus_bookings SET created_at=CASE WHEN booking_id=$1 THEN '2026-01-01T00:00:00Z'::timestamptz ELSE '2026-01-02T00:00:00Z'::timestamptz END WHERE booking_id IN ($1,$2)",[first.bookingId,second.bookingId]);
+        const missing=crypto.randomUUID(),cases=[...uuids,missing];
+        let oldQueries=0,newQueries=0,transactionQueries=0;
+        async function reference(userId,queryable){
+          const [commission,pending]=await Promise.all([
+            queryable.query('SELECT COALESCE(SUM(seats_total-seats_left),0)::int AS seats_sold, COALESCE(SUM((seats_total-seats_left)*student_fare),0) AS gross FROM public.campus_rides WHERE driver_user_id=$1',[userId]),
+            queryable.query("SELECT b.* FROM public.campus_bookings b WHERE b.passenger_user_id=$1 AND b.status='active' AND b.payment_status='Pending' ORDER BY b.created_at DESC",[userId])
+          ]);
+          const totalRides=Number(commission.rows[0].seats_sold),grossFare=Number(commission.rows[0].gross);
+          const totalCommission=Math.round(grossFare*.1),pendingBookings=pending.rows.map(bookingPublic);
+          const hasUnsettledCommission=totalCommission>0,hasUnpaidBooking=pendingBookings.length>0;
+          return {isBlocked:hasUnsettledCommission||hasUnpaidBooking,hasUnsettledCommission,hasUnpaidBooking,
+            commissionDue:totalCommission,driverCommission:{totalRides,grossFare,totalCommission,settled:0,netDue:totalCommission},
+            pendingBookings,reason:hasUnsettledCommission?'COMMISSION_DUE':hasUnpaidBooking?'UNPAID_BOOKING':'NONE'};
+        }
+        const counted=new PgRidesStore({pool:{
+          query(...args){newQueries++;return pool.query(...args);},
+          connect(){throw Error('Standalone check must use one pool.query');}
+        }});
+        const oldQuery={query(...args){oldQueries++;return pool.query(...args);}};
+        const seen=new Map();
+        for(const id of cases){
+          const expected=await reference(id,oldQuery);
+          const result=await counted.checkUserSettlementBlock(id);
+          assert.deepEqual(result,expected);
+          seen.set(id,result);
+        }
+        assert.equal(oldQueries,2*cases.length);
+        assert.equal(newQueries,cases.length);
+        assert.deepEqual(await counted.checkUserSettlementBlock(null),{isBlocked:false,reason:'NONE'});
+        assert.equal(newQueries,cases.length);
+        const both=seen.get(uuids[0]);
+        assert.equal(both.hasUnpaidBooking,true);assert.equal(both.hasUnsettledCommission,true);
+        assert.deepEqual(both.driverCommission,{totalRides:3,grossFare:55.25,totalCommission:6,settled:0,netDue:6});
+        assert.equal(both.reason,'COMMISSION_DUE');
+        assert.deepEqual(seen.get(uuids[1]).pendingBookings.map(x=>x.bookingId),[second.bookingId,first.bookingId]);
+        assert.equal(seen.get(uuids[3]).reason,'COMMISSION_DUE');
+        assert.equal(seen.get(uuids[3]).hasUnpaidBooking,false);
+        assert.equal(seen.get(uuids[4]).reason,'NONE');
+        assert.equal(seen.get(missing).reason,'NONE');
+        // Use the same real transaction client and verify uncommitted changes
+        // are visible to the check and do not escape on rollback.
+        const tx=await pool.connect();
+        try{
+          await tx.query('BEGIN');
+          await rides.cancelBooking({bookingId:first.bookingId,passengerUserId:uuids[1],client:tx});
+          const expected=await reference(uuids[1],tx);
+          const actual=await counted.checkUserSettlementBlock(uuids[1],{query(...args){transactionQueries++;return tx.query(...args);}});
+          assert.deepEqual(actual,expected);
+          assert.equal(transactionQueries,1);
+          assert.deepEqual(actual.pendingBookings.map(x=>x.bookingId),[second.bookingId]);
+          assert.equal(newQueries,cases.length,'External transaction must not acquire another pool client');
+        }finally{try{await tx.query('ROLLBACK');}finally{tx.release();}}
+        assert.deepEqual(await rides.checkUserSettlementBlock(uuids[1]),seen.get(uuids[1]));
+        // Cancellation removes the pending booking and restores the same
+        // commission semantics (including audit rows) as the original query.
+        await rides.cancelRide({rideId:a,driverUserId:uuids[0]});
+        for(const id of cases)assert.deepEqual(await rides.checkUserSettlementBlock(id),await reference(id,pool));
+        const after=await rides.checkUserSettlementBlock(uuids[0]);
+        assert.deepEqual(after.driverCommission,{totalRides:1,grossFare:30.15,totalCommission:3,settled:0,netDue:3});
+        t.diagnostic('SETTLEMENT_QUERY_RESULT '+JSON.stringify({cases:cases.length,oldQueries,newQueries,transactionQueries,parity:true,rollback:true,cancellationParity:true}));
       });
       await t.test('SQL constraints block impossible seat and payment states',async()=>{
         const err=await pool.query(

@@ -106,3 +106,8 @@
 ## 2026-11-20 — Campus Rush Hour measurement before capacity changes (proposed)
 
 - Use existing five-connection pool and real rate limit, disposable fixed-paced mixed HTTP workload with separate shared-NAT case. No queue, Redis, H3 or extra connections justified by design alone. Review actual queue/latency/response payload and 429 metrics; no production SLA from synthetic runs. [Task](tasks/2026-11-20-campus-rush-hour.md).
+
+
+## 2026-11-20 — single SQL settlement snapshot (branch proposal)
+
+- #53 peak queue 39 and 6720 pool acquisitions at 160 req/s. Existing settlement queries split driver totals and pending list; combine via one aggregate then left join, preserve native column decoding, rounding and pending restriction. No cache, extra connections or schema. Actual count/parity and same workload CI pending; no speedup claim. [Task](tasks/2026-11-20-single-snapshot-settlement.md). Source-only rollback.
