@@ -102,3 +102,6 @@ Flutter `PlaceAutocompleteField` calls `HttpPlaceSearchSource` using the configu
 
 
 **Pending Privacy Shield (NOT DEPLOYED):** HTTP projections separate discovery, active passenger contact and historical receipts; existing participant GPS authorization retained; UPI withheld while verification disabled. [Task](tasks/2026-11-20-participant-privacy-shield.md).
+
+
+**Pending Smart GPS Privacy (NOT DEPLOYED):** existing GPS routes explicit start/update/stop, shared SQLite latest-fix lease, no local coordinate cache, short expiry and cleanup. Previous GPS client contract changes; review before rollout. [Task](tasks/2026-11-20-smart-gps-privacy.md).

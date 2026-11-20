@@ -186,6 +186,10 @@ function startWorkerServer() {
 // -------------------------------------------------------------------------
 const SQLiteCampusDatabase = require('./database');
 const db = new SQLiteCampusDatabase();
+// Expired GPS rows are inaccessible immediately, then removed by bounded periodic cleanup.
+function pruneGps(){try{db.pruneLiveLocations();}catch(_){console.warn(JSON.stringify({event:'gps_cleanup_failed'}));}}
+pruneGps();
+const gpsCleanupTimer=setInterval(pruneGps,30000);gpsCleanupTimer.unref();
 const pgOtpStore = AUTH_OTP_BACKEND === 'postgres' ? new PgOtpStore() : null;
 const pgIdentity = pgOtpStore ? new PgIdentity(pgOtpStore) : null;
 const pgRidesStore = RIDES_BACKEND === 'postgres'
@@ -405,8 +409,7 @@ function generateVerificationToken() {
 // 3. Real-Time GPS Tracking Cache: Sub-millisecond coordinates
 // -------------------------------------------------------------------------
 const staticFileCache = new Map();
-const liveRideLocations = new Map();
-const livePassengerLocations = new Map();
+// GPS has no worker-local coordinate cache; shared SQLite lease is authoritative.
 
 let ridesCache = {
   jsonString: null,
@@ -677,8 +680,8 @@ const server = http.createServer(async (req, res) => {
   }
   function safeLiveLocation(loc,driver){
     return loc ? pick(loc,driver
-      ? ['rideId','lat','lng','speed','heading','accuracy','updatedAt']
-      : ['bookingId','lat','lng','accuracy','updatedAt']) : null;
+      ? ['rideId','lat','lng','speed','heading','accuracy','capturedAt','updatedAt','expiresAt']
+      : ['bookingId','lat','lng','accuracy','capturedAt','updatedAt','expiresAt']) : null;
   }
 
   class MutationRejection extends Error {
@@ -899,7 +902,7 @@ const server = http.createServer(async (req, res) => {
         staticFilesCached: staticFileCache.size,
         ridesMicroCacheTtlSeconds: 5,
         isRidesCacheWarm: Boolean(ridesCache.jsonString && Date.now() < ridesCache.expiresAt),
-        gpsCacheSize: liveRideLocations.size + livePassengerLocations.size
+        gpsCacheSize: 0
       },
       rateLimiting: {
         engine: 'Distributed SQLite WAL Shared Rate Limiter',
@@ -1549,81 +1552,51 @@ const server = http.createServer(async (req, res) => {
   }
 
   // -----------------------------------------------------------------------
-  // REST API: Real-Time Free GPS Location (Driver & Passenger Tracking)
-  // Synchronized across Cluster Workers and Nodes via SQLite WAL + Memory Cache
-  // -----------------------------------------------------------------------
-  if (method === 'POST' && pathname === '/api/rides/location') {
-    const body = await parseBody();
-    const { rideId, lat, lng, speed, heading, accuracy } = body;
-    if (!rideId || !validLocation(lat,lng)) {
-      return sendJson(400, { success: false, message: 'Valid rideId, latitude and longitude are required.' });
+  // REST API: explicit short-lived GPS sharing, same existing endpoints.
+  // Authorization is evaluated for every read and mutation. No demo writes.
+  if((method==='GET'||method==='POST') &&
+     (pathname==='/api/rides/location'||pathname==='/api/bookings/passenger-location')){
+    const driver=pathname==='/api/rides/location';
+    const field=driver?'rideId':'bookingId',type=driver?'ride':'passenger';
+    const body=method==='POST'?await parseBody():parsedUrl.query;
+    const id=body?.[field];
+    if(typeof id!=='string'||!id||id.length>128)return sendJson(400,{success:false,error:'INVALID_GPS_ID'});
+    if(method==='POST' && !['start','update','stop'].includes(body.action))
+      return sendJson(400,{success:false,error:'GPS_ACTION_REQUIRED'});
+    const actor=pgRidesStore?authenticatedUser.id:authenticatedUser.email;
+    const store=pgRidesStore||db;
+    const authorized=driver
+      ? await (method==='GET'?store.isRideParticipant(id,actor):store.isRideDriver(id,actor))
+      : await (method==='GET'?store.isBookingParticipant(id,actor):store.isBookingPassenger(id,actor));
+    if(!authorized)return sendJson(403,{success:false,error:driver
+      ? (method==='GET'?'NOT_RIDE_PARTICIPANT':'NOT_RIDE_OWNER')
+      : (method==='GET'?'NOT_BOOKING_PARTICIPANT':'NOT_BOOKING_PASSENGER')});
+    if(method==='GET')return sendJson(200,{success:true,location:safeLiveLocation(db.getLiveLocation(id,type),driver)});
+    // Lease is bound to the actual authenticated session, not body identity.
+    const leaseHash=token=>crypto.createHmac('sha256',sessionToken).update('gps:v2:'+token).digest('hex');
+    if(body.action==='start'){
+      const lease=crypto.randomBytes(32).toString('base64url');
+      db.startLiveLocation(id,type,leaseHash(lease));
+      return sendJson(200,{success:true,lease,ttlSeconds:60});
     }
-    if (!(pgRidesStore ? await pgRidesStore.isRideDriver(rideId,authenticatedUser.id) : db.isRideDriver(rideId,authenticatedUser.email))) {
-      return sendJson(403, { success: false, error: 'NOT_RIDE_OWNER' });
+    if(typeof body.lease!=='string'||!(/^[A-Za-z0-9_-]{43}$/).test(body.lease))
+      return sendJson(400,{success:false,error:'GPS_LEASE_REQUIRED'});
+    if(body.action==='stop'){
+      // Stopping is idempotent and an old lease cannot stop a replacement.
+      db.stopLiveLocation(id,type,leaseHash(body.lease));
+      return sendJson(200,{success:true,location:null});
     }
-    const loc = {
-      rideId,
-      lat: Number(lat),
-      lng: Number(lng),
-      speed: Number(speed || 0),
-      heading: Number(heading || 0),
-      accuracy: Number(accuracy || 10),
-      updatedAt: Date.now()
-    };
-    liveRideLocations.set(rideId, loc);
-    try { db.setLiveLocation(rideId, 'ride', loc); } catch (e) {}
-    return sendJson(200, { success: true, location: loc });
-  }
-
-  if (method === 'GET' && pathname === '/api/rides/location') {
-    const rideId = parsedUrl.query?.rideId;
-    if (!rideId) {
-      return sendJson(400, { success: false, message: 'rideId query param is required.' });
-    }
-    if (!(pgRidesStore ? await pgRidesStore.isRideParticipant(rideId,authenticatedUser.id) : db.isRideParticipant(rideId,authenticatedUser.email))) {
-      return sendJson(403, { success: false, error: 'NOT_RIDE_PARTICIPANT' });
-    }
-    let loc = liveRideLocations.get(rideId);
-    if (!loc) {
-      try { loc = db.getLiveLocation(rideId); } catch (e) {}
-    }
-    return sendJson(200, { success: true, location: safeLiveLocation(loc,true) });
-  }
-
-  if (method === 'POST' && pathname === '/api/bookings/passenger-location') {
-    const body = await parseBody();
-    const { bookingId, lat, lng, accuracy } = body;
-    if (!bookingId || !validLocation(lat,lng)) {
-      return sendJson(400, { success: false, message: 'Valid bookingId, latitude and longitude are required.' });
-    }
-    if (!(pgRidesStore ? await pgRidesStore.isBookingPassenger(bookingId,authenticatedUser.id) : db.isBookingPassenger(bookingId,authenticatedUser.email))) {
-      return sendJson(403, { success: false, error: 'NOT_BOOKING_PASSENGER' });
-    }
-    const loc = {
-      bookingId,
-      lat: Number(lat),
-      lng: Number(lng),
-      accuracy: Number(accuracy || 10),
-      updatedAt: Date.now()
-    };
-    livePassengerLocations.set(bookingId, loc);
-    try { db.setLiveLocation(bookingId, 'passenger', loc); } catch (e) {}
-    return sendJson(200, { success: true, location: loc });
-  }
-
-  if (method === 'GET' && pathname === '/api/bookings/passenger-location') {
-    const bookingId = parsedUrl.query?.bookingId;
-    if (!bookingId) {
-      return sendJson(400, { success: false, message: 'bookingId query param is required.' });
-    }
-    if (!(pgRidesStore ? await pgRidesStore.isBookingParticipant(bookingId,authenticatedUser.id) : db.isBookingParticipant(bookingId,authenticatedUser.email))) {
-      return sendJson(403, { success: false, error: 'NOT_BOOKING_PARTICIPANT' });
-    }
-    let loc = livePassengerLocations.get(bookingId);
-    if (!loc) {
-      try { loc = db.getLiveLocation(bookingId); } catch (e) {}
-    }
-    return sendJson(200, { success: true, location: safeLiveLocation(loc,false) });
+    if(typeof body.lat!=='number'||typeof body.lng!=='number'||!validLocation(body.lat,body.lng)||
+       !Number.isSafeInteger(body.capturedAt)||
+       !Number.isFinite(body.accuracy)||body.accuracy<0||body.accuracy>10000||
+       (driver && (!Number.isFinite(body.speed)||body.speed<0||body.speed>150||
+         !Number.isFinite(body.heading)||body.heading<0||body.heading>=360)))
+      return sendJson(400,{success:false,error:'INVALID_GPS_FIX'});
+    const fix={[field]:id,lat:body.lat,lng:body.lng,accuracy:body.accuracy,capturedAt:body.capturedAt,
+      ...(driver?{speed:body.speed,heading:body.heading}:{})};
+    const result=db.updateLiveLocation(id,type,leaseHash(body.lease),fix);
+    if(result.error)return sendJson(409,{success:false,error:result.error});
+    return sendJson(200,{success:true,location:safeLiveLocation(result.location,driver)});
   }
 
   // -----------------------------------------------------------------------

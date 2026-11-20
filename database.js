@@ -877,25 +877,54 @@ class SQLiteCampusDatabase {
   // -----------------------------------------------------------------------
   // Real-Time GPS Location Storage for Multi-Worker / Clustered Load Balancing
   // -----------------------------------------------------------------------
-  setLiveLocation(id, type, data) {
-    if (!id || !data) return;
-    const stmt = this.db.prepare(`
-      INSERT INTO live_locations (id, type, data, updated_at)
-      VALUES (?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at
-    `);
-    stmt.run(id, type, JSON.stringify(data), Date.now());
+  // Only one short-lived lease/latest fix per ride or booking. Never store raw
+  // session tokens, lease tokens, emails, or a breadcrumb history.
+  startLiveLocation(id,type,leaseHash,now=Date.now()) {
+    this.db.prepare(`
+      INSERT INTO live_locations(id,type,data,updated_at) VALUES(?,?,?,?)
+      ON CONFLICT(id) DO UPDATE SET type=excluded.type,data=excluded.data,updated_at=excluded.updated_at
+    `).run(id,type+':v2',JSON.stringify({leaseHash,startedAt:now,location:null}),now);
   }
 
-  getLiveLocation(id) {
-    if (!id) return null;
-    const row = this.db.prepare('SELECT data FROM live_locations WHERE id = ?').get(id);
-    if (!row) return null;
-    try {
-      return JSON.parse(row.data);
-    } catch (e) {
-      return null;
-    }
+  updateLiveLocation(id,type,leaseHash,fix,now=Date.now()) {
+    return this.db.transaction(()=>{
+      const row=this.db.prepare('SELECT data,updated_at FROM live_locations WHERE id=? AND type=?').get(id,type+':v2');
+      if(!row || row.updated_at<=now-60000)return {error:'GPS_SHARE_INACTIVE'};
+      const state=JSON.parse(row.data);
+      if(state.leaseHash!==leaseHash)return {error:'GPS_SHARE_INACTIVE'};
+      if(fix.capturedAt<now-30000 || fix.capturedAt>now+5000 || fix.capturedAt<state.startedAt-5000)
+        return {error:'GPS_FIX_OUTSIDE_WINDOW'};
+      if(state.location && fix.capturedAt<=state.location.capturedAt)return {error:'GPS_FIX_OUT_OF_ORDER'};
+      const observedAt=Math.min(now,fix.capturedAt);
+      const location={...fix,updatedAt:now,expiresAt:observedAt+60000};
+      this.db.prepare('UPDATE live_locations SET data=?,updated_at=? WHERE id=? AND type=?')
+        .run(JSON.stringify({...state,location}),observedAt,id,type+':v2');
+      return {location};
+    }).immediate();
+  }
+
+  stopLiveLocation(id,type,leaseHash) {
+    return this.db.transaction(()=>{
+      const row=this.db.prepare('SELECT data FROM live_locations WHERE id=? AND type=?').get(id,type+':v2');
+      if(!row || JSON.parse(row.data).leaseHash!==leaseHash)return false;
+      this.db.prepare('DELETE FROM live_locations WHERE id=? AND type=?').run(id,type+':v2');
+      return true;
+    }).immediate();
+  }
+
+  getLiveLocation(id,type,now=Date.now()) {
+    const row=this.db.prepare('SELECT data FROM live_locations WHERE id=? AND type=? AND updated_at>?')
+      .get(id,type+':v2',now-60000);
+    if(!row)return null;
+    const state=JSON.parse(row.data);
+    return state.location && state.location.expiresAt>now ? state.location : null;
+  }
+
+  pruneLiveLocations(now=Date.now()) {
+    // Old unconsented rows are never served. Indexed age cleanup is independent
+    // of read traffic; SQLite/WAL/backups are not a secure-erasure guarantee.
+    return this.db.prepare("DELETE FROM live_locations WHERE updated_at<=? OR type NOT IN ('ride:v2','passenger:v2')")
+      .run(now-60000).changes;
   }
 
   // -----------------------------------------------------------------------

@@ -121,3 +121,8 @@
 ## 2026-11-20 — participant privacy projection (branch proposal)
 
 - Explicit safe feed and historical receipts, active passenger contact via existing booking read, no UPI or unverified QR, GPS no email. No new queries or infrastructure. Prior disclosure cannot be recalled; old receipt storage and GPS retention remain open. [Task](tasks/2026-11-20-participant-privacy-shield.md).
+
+
+## 2026-11-20 — GPS latest-fix consent lease (proposal)
+
+- Reuse existing SQLite row with session-bound lease hash, explicit start/stop and monotonic capture timestamps, 60s expiry and periodic 30s prune; no worker-local coordinate cache or simulated publication. Existing participant checks retained. No new infra/schema. Logical deletion is not physical erasure; cross-store cancellation point-in-time. [Task](tasks/2026-11-20-smart-gps-privacy.md).
