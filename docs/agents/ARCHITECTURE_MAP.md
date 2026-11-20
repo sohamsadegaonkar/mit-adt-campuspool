@@ -96,3 +96,6 @@ The separate Flutter UI branch introduces `lib/ride_feed.dart`: an opt-in HTTPS/
 ## Proposed destination autocomplete integration — branch-local (2026-11-04)
 
 Flutter `PlaceAutocompleteField` calls `HttpPlaceSearchSource` using the configured CampusPool origin. The Node server has two narrow optional, publicly readable JSON POST endpoints, `/api/places/suggest` and `/api/places/resolve`, behind `PLACES_AUTOCOMPLETE_ENABLED`. `places-autocomplete.js` calls fixed Google Places (New) endpoints using the **server-only** `GOOGLE_PLACES_API_KEY`. Google session token comes from the Flutter typing/selection session. Strict rate/budget limits are checked in the Node SQLite bucket; external provider quota must be configured separately. No user session, GPS, payment, rides data or production environment is changed by this unmerged branch. [Task](tasks/2026-11-04-flutter-place-autocomplete.md).
+
+
+**Pending Wi-Fi fairness branch (NOT DEPLOYED):** optional CAMPUS_WIFI_FAIRNESS=true only with PostgreSQL Rides; exact scoped read/write routes get pre-auth IP hard cap and verified UUID budget on existing SQLite shared-file limiter. Default off. Independent replica disks do not share these counters. See [task](tasks/2026-11-20-campus-wifi-fairness.md).

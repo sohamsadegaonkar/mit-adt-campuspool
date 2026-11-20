@@ -111,3 +111,8 @@
 ## 2026-11-20 — single SQL settlement snapshot (branch proposal)
 
 - #53 peak queue 39 and 6720 pool acquisitions at 160 req/s. Existing settlement queries split driver totals and pending list; combine via one aggregate then left join, preserve native column decoding, rounding and pending restriction. No cache, extra connections or schema. Actual count/parity and same workload CI pending; no speedup claim. [Task](tasks/2026-11-20-single-snapshot-settlement.md). Source-only rollback.
+
+
+## 2026-11-20 — Campus Wi-Fi fairness (branch proposal)
+
+- #53/#54 NAT 120/130 accepted. Default-off exact PG rides routes: verified UUID retains 120 read/60 write per minute across IP/session, pre-auth aggregate IP 600/300, existing anonymous IP budget and bounded replay. No exemption from aggregate cap; no OTP/provider/legacy change. Reuse SQLite, no extra infrastructure. Provisional caps and increased preauth plausible-token lookup allowance require security and enabled workload review; no independent replica guarantee. [Task](tasks/2026-11-20-campus-wifi-fairness.md).
