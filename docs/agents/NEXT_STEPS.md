@@ -339,3 +339,6 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 
 
 - [Single-snapshot settlement](tasks/2026-11-20-single-snapshot-settlement.md): verify exact parity and count against original SQL, same rush workload, then NAT fairness and pilot privacy/settlement. No infrastructure additions. G1 unchanged.
+
+
+- #54 verified; next identity-scoped read and keyed mutation fairness behind bounded pre-auth IP budgets; no change to OTP, billable provider or existing SQLite fallback protections. See task.

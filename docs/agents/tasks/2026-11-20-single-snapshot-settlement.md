@@ -1,7 +1,7 @@
 # Task: Single-snapshot settlement query consolidation
 
 - **Task ID / file:** 2026-11-20-single-snapshot-settlement
-- **Status:** in review / CI pending
+- **Status:** in review / CI passed
 - **Agent / owner:** application engineering; independent reviewer unassigned
 - **Last updated:** 2026-11-20 IST
 - **Baseline:** main@1020e2e; parent #53 exact code dcbfc5f and docs bded27584d287a05786ef37cf8a2e33eded9f617; policy #50 1c493e3
@@ -42,9 +42,9 @@ Collapse two SQL requests into one native-typed statement for both pool and in-t
 
 | Test/check | Environment and command/evidence | Result / limitations |
 |---|---|---|
-| Contract and query count | npm run test:rides | pending |
-| HTTP/pressure and stress | existing PostgreSQL CI | pending |
-| Same Rush Hour workload | RIDES_HTTP_RUSH_DISPOSABLE_DB=YES npm run test:rides-http | pending |
+| Contract and query count | npm run test:rides | PASS, 12→6 |
+| HTTP/pressure and stress | existing PostgreSQL CI | PASS |
+| Same Rush Hour workload | RIDES_HTTP_RUSH_DISPOSABLE_DB=YES npm run test:rides-http | PASS |
 | Baseline | #53 exact dcbfc5f | verified |
 | Live | none | not run |
 
@@ -65,3 +65,7 @@ No public contract change intended. The two former SELECTs could see different c
 - Branch perf/single-snapshot-settlement-2026-11-20
 - stage1-otp/rides-store.js, test_pg_rides.js, STATUS.md, NEXT_STEPS.md, DECISIONS.md, this task.
 - #53 baseline https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/44606175424/job/135850349217
+
+## Exact-head CI evidence — 2026-11-20 IST
+
+[PostgreSQL CI](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/44609553987/job/135862179734) PASS at `a6832bbcbb1421631f7a3809fe6ebc49f6b84e91`; browser E2E also green. Six real-PG reference cases, old queries 12→6, external transaction 1, rollback and cancelled booking parity true. Rush 3880/3880, zero unexpected/dropped, 47 invariant snapshots, 874 receipts, 8 recovery, NAT 120/10. Peak 159.95/s, p95 30.17ms, p99 44.5ms, pool 6400 acquisitions vs 6720 in both baseline runs, queue 35 vs 39, p95 acquire 15.04ms vs 22.75–23.85ms. Node one-core CPU 11.15% vs 17.37–18.13%; no general speedup guarantee. Six-case statement reduction deterministic; timing observational. Next shared NAT fairness while retaining preauth IP guards and actor caps. No live changes.
