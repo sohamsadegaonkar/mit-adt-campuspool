@@ -1,8 +1,10 @@
 # Task: Smart GPS Privacy
 
+- **Task ID / file:** 2026-11-20-smart-gps-privacy
 - **Status:** candidate / CI pending
-- **Owner:** application engineering; independent review pending
-- **Date:** 2026-11-20 IST
+- **Agent / owner:** application engineering; independent review pending
+- **Last updated:** 2026-11-20 IST
+- **Dependencies:** #47–56, #50 policy; G1 separate
 - **Baseline:** parent #56 913a93057d79565b99a6ca2c01c60364fd2893a8, main unchanged.
 - **Scope:** existing live location routes and SQLite table; existing browser tracker. No production operations, schema change or new infrastructure.
 
@@ -60,3 +62,7 @@ Point-in-time authorization, no cross-store atomic revocation or physical erasur
 
 - Branch security/smart-gps-privacy-2026-11-20
 - database.js, server.js, index.html, bench/campus-privacy-shield.js, bench/campus-gps-privacy.js, test_pg_rides_http.js, .github/workflows/stage1-otp.yml, docs/agents status/next/decisions/architecture and task.
+
+## Browser expiry review — 2026-11-20 IST
+
+Network stalls can keep previous marker visible if the poll returns early on an in-flight request. Added expiry fields and local clearing on existing 3.5s poll, 8s bounded read timeout, guard before second private fetch and map reset on close. Browser VM tests for expired pins while a poll is in flight, old-session response rejection and absence of simulator. Timing is nominal while a visible tab is running; browser scheduling and clock skew may delay UI removal; server expiry is authoritative. CI pending at new head; first candidate run kept as independent evidence.

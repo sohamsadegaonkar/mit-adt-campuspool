@@ -3865,6 +3865,7 @@
       isDriver: false,
       driverCoords: null,
       passengerCoords: null,
+      driverExpiresAt:0,passengerExpiresAt:0,
       speed: 0
     };
 
@@ -4028,12 +4029,13 @@
         navigator.geolocation.clearWatch(activeWatchPositionId);activeWatchPositionId=null;
       }
       currentTrackingContext.driverCoords=null;currentTrackingContext.passengerCoords=null;
+      currentTrackingContext.driverExpiresAt=0;currentTrackingContext.passengerExpiresAt=0;
       currentTrackingContext.speed=0;gpsControls();updateTrackerView();
       gpsStatus('Sharing off on this device');
       if(old && csrfToken===old.proof && appState.currentUser?.email===old.actor){
         try{
           await gpsPost(old.target,{action:'stop',lease:old.lease});
-          if(!quiet&&!gpsShare)gpsStatus('Sharing stopped');
+          if(!quiet&&!gpsShare)gpsStatus('Sharing stopped on this device');
         }catch(_){
           if(!quiet&&!gpsShare)gpsStatus('Stopped locally; last fix expires within 60 seconds');
         }
@@ -4042,7 +4044,7 @@
     function openGpsTrackingModal({rideId,bookingId,isDriver=false,title='Live Peer Commute GPS'}){
       if(!appState.currentUser?.isVerified||!rideId||(!isDriver&&!bookingId))return;
       closeGpsTrackingModal();
-      currentTrackingContext={rideId,bookingId:bookingId||null,isDriver,driverCoords:null,passengerCoords:null,speed:0};
+      currentTrackingContext={rideId,bookingId:bookingId||null,isDriver,driverCoords:null,passengerCoords:null,driverExpiresAt:0,passengerExpiresAt:0,speed:0};
       const driverBtn=document.getElementById('gpsDriverBroadcastBtn'),passengerBtn=document.getElementById('gpsPassengerShareLocationBtn');
       if(driverBtn)driverBtn.classList.toggle('hidden',!isDriver);
       if(passengerBtn)passengerBtn.classList.toggle('hidden',isDriver);
@@ -4058,8 +4060,9 @@
       hideModal('gpsTrackingModal');
       if(activeGpsPollingInterval!==null){clearInterval(activeGpsPollingInterval);activeGpsPollingInterval=null;}
       void stopGpsSharing({quiet:true});
-      currentTrackingContext={rideId:null,bookingId:null,isDriver:false,driverCoords:null,passengerCoords:null,speed:0};
+      currentTrackingContext={rideId:null,bookingId:null,isDriver:false,driverCoords:null,passengerCoords:null,driverExpiresAt:0,passengerExpiresAt:0,speed:0};
       updateTrackerView();
+      if(gpsTrackerMapInstance)gpsTrackerMapInstance.setView(CAMPUS_COORDS.center,14);
     }
     function updateTrackerView(){
       const d=currentTrackingContext.driverCoords,p=currentTrackingContext.passengerCoords;
@@ -4077,27 +4080,46 @@
       const points=[d,p].filter(Boolean);
       if(points.length)gpsTrackerMapInstance.fitBounds(L.latLngBounds(points),{padding:[40,40],maxZoom:16});
     }
+    function expireGpsMarkers(ctx,now=Date.now()){
+      let changed=false;
+      if(ctx.driverCoords&&ctx.driverExpiresAt<=now){
+        ctx.driverCoords=null;ctx.driverExpiresAt=0;ctx.speed=0;changed=true;
+      }
+      if(ctx.passengerCoords&&ctx.passengerExpiresAt<=now){
+        ctx.passengerCoords=null;ctx.passengerExpiresAt=0;changed=true;
+      }
+      if(changed)updateTrackerView();
+    }
     async function fetchLiveGpsUpdate(){
       const ctx=currentTrackingContext,epoch=gpsEpoch,proof=csrfToken;
+      // The existing poll timer clears expired markers even if a request hangs.
+      expireGpsMarkers(ctx);
       if(!ctx.rideId||gpsPolling)return;
       gpsPolling=true;
       try{
         const read=async(route,idField,id)=>{
-          const r=await apiFetch(route+'?'+idField+'='+encodeURIComponent(id),{cache:'no-store'});
-          if(!r.ok)throw Error('GPS_READ_FAILED');
-          const data=await r.json(),loc=data.location;
-          return loc && loc.expiresAt>Date.now()?loc:null;
+          const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),8000);
+          try{
+            const r=await apiFetch(route+'?'+idField+'='+encodeURIComponent(id),{cache:'no-store',signal:controller.signal});
+            if(!r.ok)throw Error('GPS_READ_FAILED');
+            const data=await r.json(),loc=data.location;
+            return loc && loc.expiresAt>Date.now()?loc:null;
+          }finally{clearTimeout(timer);}
         };
         const driver=await read('/api/rides/location','rideId',ctx.rideId);
+        if(epoch!==gpsEpoch||proof!==csrfToken||ctx!==currentTrackingContext)return;
         const passenger=ctx.bookingId?await read('/api/bookings/passenger-location','bookingId',ctx.bookingId):null;
         if(epoch!==gpsEpoch||proof!==csrfToken||ctx!==currentTrackingContext)return;
         ctx.driverCoords=driver?[driver.lat,driver.lng]:null;
+        ctx.driverExpiresAt=driver?.expiresAt||0;
         ctx.speed=driver?Math.round(driver.speed*3.6):0;
         ctx.passengerCoords=passenger?[passenger.lat,passenger.lng]:null;
+        ctx.passengerExpiresAt=passenger?.expiresAt||0;
+        expireGpsMarkers(ctx);
         updateTrackerView();
       }catch(_){
         if(epoch===gpsEpoch&&ctx===currentTrackingContext){
-          ctx.driverCoords=null;ctx.passengerCoords=null;ctx.speed=0;updateTrackerView();
+          ctx.driverCoords=null;ctx.passengerCoords=null;ctx.driverExpiresAt=0;ctx.passengerExpiresAt=0;ctx.speed=0;updateTrackerView();
           gpsStatus('No current authorized location');
         }
       }finally{gpsPolling=false;}
