@@ -376,3 +376,6 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 
 
 - #57 `dc412bc` all four checks passed, GPS 11 scenarios, browser VM 3/3, privacy 29, rush 3880/3880, no unexpected. [Task](tasks/2026-11-20-smart-gps-privacy.md).
+
+
+- Free rides-only pilot candidate OFF: explicit 009 payment mode and zero fare NoPaymentRequired, legacy obligations retained. CI pending. [Task](tasks/2026-11-20-free-rides-pilot.md).

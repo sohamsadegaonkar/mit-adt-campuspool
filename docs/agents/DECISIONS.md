@@ -126,3 +126,8 @@
 ## 2026-11-20 — GPS latest-fix consent lease (proposal)
 
 - Reuse existing SQLite row with session-bound lease hash, explicit start/stop and monotonic capture timestamps, 60s expiry and periodic 30s prune; no worker-local coordinate cache or simulated publication. Existing participant checks retained. No new infra/schema. Logical deletion is not physical erasure; cross-store cancellation point-in-time. [Task](tasks/2026-11-20-smart-gps-privacy.md).
+
+
+## 2026-11-20 — Free rides-only pilot (proposed)
+
+- Default-off PG rides, mobility disabled. Explicit mode, matching FK, zero-money and NoPaymentRequired; preserve legacy Pending. Owner approval and separate migration required. [Task](tasks/2026-11-20-free-rides-pilot.md).

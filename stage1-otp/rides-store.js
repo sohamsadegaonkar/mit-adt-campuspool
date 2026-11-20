@@ -30,7 +30,7 @@ function ridePublic(r){
     departureTime:r.departure_time,seatsTotal:Number(r.seats_total),
     seatsLeft:Number(r.seats_left),uberBenchmark:Number(r.uber_benchmark),
     studentFare:Number(r.student_fare),driverPayout:Number(r.driver_payout),
-    note:r.note,upiId:r.upi_id,createdAt:asDate(r.created_at)
+    note:r.note,upiId:r.upi_id,paymentMode:r.payment_mode||'legacy',createdAt:asDate(r.created_at)
   };
 }
 function bookingPublic(r){
@@ -42,7 +42,7 @@ function bookingPublic(r){
     dept:r.dept,vehicleModel:r.vehicle_model,pickup:r.pickup,
     destination:r.destination,departureTime:r.departure_time,
     studentFare:Number(r.student_fare),paymentStatus:r.payment_status,
-    upiId:r.upi_id,createdAt:asDate(r.created_at)
+    upiId:r.upi_id,paymentMode:r.payment_mode||'legacy',createdAt:asDate(r.created_at)
   };
 }
 function checkRideInput(r) {
@@ -65,14 +65,17 @@ function checkRideInput(r) {
 }
 
 class PgRidesStore {
-  constructor({pool}={}) {
+  constructor({pool,freePilot=false}={}) {
     if(!pool||typeof pool.query!=='function'||typeof pool.connect!=='function')
       throw Error('PgRidesStore requires an existing private PostgreSQL pool');
     this.pool=pool;
+    this.paymentMode=freePilot?'free_pilot':'legacy';
   }
   async ready(){
-    await this.pool.query('SELECT 1 FROM public.campus_rides LIMIT 0');
-    await this.pool.query('SELECT 1 FROM public.campus_bookings LIMIT 0');
+    await this.pool.query('SELECT payment_mode FROM public.campus_rides LIMIT 0');
+    await this.pool.query('SELECT payment_mode FROM public.campus_bookings LIMIT 0');
+    const {rows}=await this.pool.query("SELECT count(*)::int AS n FROM pg_constraint WHERE convalidated AND ((conrelid='public.campus_rides'::regclass AND conname='campus_ride_payment_mode_check') OR (conrelid='public.campus_bookings'::regclass AND conname IN ('campus_booking_payment_mode_check','campus_booking_ride_payment_mode_fk')))");
+    if(rows[0].n!==3)throw Error('Migration 009 payment mode constraints are required');
   }
   async tx(fn,externalClient){
     if(externalClient)return fn(externalClient);
@@ -90,6 +93,7 @@ class PgRidesStore {
   async createRide({driverUserId,ride,client:txClient}={}){
     if(typeof driverUserId!=='string')throw new RidesError('AUTH_REQUIRED',401);
     const r=checkRideInput(ride);
+    if(this.paymentMode==='free_pilot' && (ride.studentFare!==0||ride.driverPayout!==0||ride.uberBenchmark!==0||r.upiId!==''))throw new RidesError('FREE_PILOT_ZERO_FARE_REQUIRED',400);
     const geo=rideRouteInput(ride);
     const id='ride_'+crypto.randomUUID();
     // The ride and its optional geo points are created atomically.
@@ -99,13 +103,13 @@ class PgRidesStore {
         'INSERT INTO public.campus_rides',
         '(id,driver_user_id,driver_name,driver_email,driver_phone,dept,vehicle,vehicle_model,',
         'pickup,destination,departure_time,seats_total,seats_left,uber_benchmark,',
-        'student_fare,driver_payout,note,upi_id)',
-        'SELECT $1,u.id,u.name,u.email,u.phone,u.dept,$2,$3,$4,$5,$6,$7,$7,$8,$9,$10,$11,$12',
+        'student_fare,driver_payout,note,upi_id,payment_mode)',
+        'SELECT $1,u.id,u.name,u.email,u.phone,u.dept,$2,$3,$4,$5,$6,$7,$7,$8,$9,$10,$11,$12,$14',
         'FROM public.campus_users u WHERE u.id=$13::uuid AND u.is_verified=true',
         'RETURNING *'
       ].join(' ');
       const params=[id,r.vehicle,r.vehicleModel,r.pickup,r.destination,r.departureTime,
-        r.seats,r.uberBenchmark,r.studentFare,r.driverPayout,r.note,r.upiId,driverUserId];
+        r.seats,r.uberBenchmark,r.studentFare,r.driverPayout,r.note,r.upiId,driverUserId,this.paymentMode];
       const result=await client.query(sql,params);
       if(result.rows.length!==1)throw new RidesError('AUTH_REQUIRED',401);
       if(geo){
@@ -124,7 +128,7 @@ class PgRidesStore {
   }
   async getRides(){
     const r=await this.pool.query(
-      "SELECT * FROM public.campus_rides WHERE status='active' ORDER BY created_at DESC");
+      "SELECT * FROM public.campus_rides WHERE status='active' AND payment_mode=$1 ORDER BY created_at DESC",[this.paymentMode]);
     return r.rows.map(ridePublic);
   }
   async getRidesByDriver(userId){
@@ -152,6 +156,7 @@ class PgRidesStore {
         'SELECT * FROM public.campus_rides WHERE id=$1 FOR UPDATE',[rideId]);
       const ride=rideResult.rows[0];
       if(!ride||ride.status!=='active')throw new RidesError('RIDE_NOT_FOUND',404);
+      if(ride.payment_mode!==this.paymentMode)throw new RidesError('RIDE_PAYMENT_MODE_UNAVAILABLE',409);
       const userResult=await client.query(
         'SELECT id,name,email FROM public.campus_users WHERE id=$1::uuid AND is_verified=true',[passengerUserId]);
       const passenger=userResult.rows[0];
@@ -170,13 +175,13 @@ class PgRidesStore {
         'INSERT INTO public.campus_bookings',
         '(booking_id,ride_id,passenger_user_id,passenger_name,passenger_email,',
         'driver_name,driver_email,driver_phone,dept,vehicle_model,pickup,destination,',
-        'departure_time,student_fare,upi_id)',
-        'VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)',
+        'departure_time,student_fare,upi_id,payment_mode,payment_status)',
+        'VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)',
         'RETURNING *'
       ].join(' '),[bookingId,rideId,passenger.id,passenger.name,passenger.email,
         ride.driver_name,ride.driver_email,ride.driver_phone,ride.dept,
         ride.vehicle_model,ride.pickup,ride.destination,ride.departure_time,
-        ride.student_fare,ride.upi_id]);
+        ride.student_fare,ride.upi_id,ride.payment_mode,ride.payment_mode==='free_pilot'?'NoPaymentRequired':'Pending']);
       return bookingPublic(insert.rows[0]);
     },txClient);
   }

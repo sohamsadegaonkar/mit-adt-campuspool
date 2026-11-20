@@ -360,3 +360,6 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 
 
 - #57 verified. Next propose free rides-only pilot with explicit no-payment state, zero fare and commission, no waiver of existing obligations. Owner approval before activation, G1 separate.
+
+
+- [Free rides pilot](tasks/2026-11-20-free-rides-pilot.md): verify CI, review owner-approved policy, 009 preflight and integration; no live changes.

@@ -105,3 +105,6 @@ Flutter `PlaceAutocompleteField` calls `HttpPlaceSearchSource` using the configu
 
 
 **Pending Smart GPS Privacy (NOT DEPLOYED):** existing GPS routes explicit start/update/stop, shared SQLite latest-fix lease, no local coordinate cache, short expiry and cleanup. Previous GPS client contract changes; review before rollout. [Task](tasks/2026-11-20-smart-gps-privacy.md).
+
+
+**Pending free rides pilot (NOT DEPLOYED):** 009 adds ride/booking payment_mode and mode FK; FREE_RIDES_PILOT defaults false, 009 readiness required. No new service. [Task](tasks/2026-11-20-free-rides-pilot.md).

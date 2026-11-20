@@ -595,8 +595,9 @@
             </div>
           </section>
 
+          <div id="freePilotOfferNotice" hidden class="bg-emerald-950/40 border border-emerald-500/30 rounded-2xl p-3 text-xs text-emerald-200"><strong>Free rides pilot — ₹0</strong><p>Offer a voluntary seat. No fare, fuel reimbursement, commission or off-platform payment solicitation.</p></div>
           <!-- Uber Reference Market Price (Idea for Driver) -->
-          <div class="fare-benchmark bg-slate-950/90 border border-slate-800 rounded-2xl p-3.5 space-y-2.5">
+          <div id="legacyFareBenchmark" class="fare-benchmark bg-slate-950/90 border border-slate-800 rounded-2xl p-3.5 space-y-2.5">
             <div class="flex items-start justify-between gap-3">
               <div class="flex items-center gap-2.5">
                 <span class="text-xl"><svg class="cp-icon" aria-hidden="true"><use href="#cp-car"></use></svg></span>
@@ -635,7 +636,7 @@
           </div>
 
           <!-- Driver Decides the Ride Share Price -->
-          <div class="bg-gradient-to-r from-emerald-950/30 via-slate-900 to-slate-900 border-2 border-emerald-500/40 rounded-2xl p-4 space-y-3 shadow-md">
+          <div id="legacyFarePrice" class="bg-gradient-to-r from-emerald-950/30 via-slate-900 to-slate-900 border-2 border-emerald-500/40 rounded-2xl p-4 space-y-3 shadow-md">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
               <div>
                 <label for="offerStudentFare" class="block text-xs font-black uppercase text-emerald-400 tracking-wider">
@@ -731,7 +732,7 @@
             <div>
               <span class="bg-amber-400 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider">Weekly Driver Settlement</span>
               <h3 class="font-bold text-sm text-white mt-1">10% Platform Green Fund Share</h3>
-              <p class="text-[11px] text-slate-400">Zero fees during rides. Clear your weekly 10% platform share directly via UPI.</p>
+              <p class="text-[11px] text-slate-400">Historic obligations remain subject to review; payment verification is unavailable.</p>
             </div>
             <div class="text-right">
               <span class="block text-[10px] text-slate-400 uppercase font-semibold">Weekly Due</span>
@@ -1466,6 +1467,7 @@
       selectedRideForBooking: null,
       selectedBookingForPayment: null,
       settledCommissionAmount: 0,
+      freeRidesPilot: false,
 
       pendingAuth: {
         name: "",
@@ -1655,6 +1657,7 @@
           throw Error('Invalid session data');
         }
         appState.currentUser = data.user;
+        appState.freeRidesPilot=data.freeRidesPilot===true;
         csrfToken = data.csrfToken;
         window.dispatchEvent(new Event('campuspool:session-changed'));
         return true;
@@ -1693,6 +1696,8 @@
     let lastRidesEtag = null;
     window.addEventListener('campuspool:session-changed',()=>{
       privateReadGeneration++;
+      if(!appState.currentUser)appState.freeRidesPilot=false;
+      applyFreePilotOfferMode();
       lastRidesEtag=null;
       appState.rides=[];appState.myBookings=[];appState.myOfferedRides=[];
       appState.selectedRideForBooking=null;appState.selectedBookingForPayment=null;
@@ -2085,8 +2090,8 @@
             <div class="ride-card-footer pt-3 border-t border-slate-800 flex items-center justify-between gap-3">
               <div>
                 <div class="flex items-baseline gap-1.5">
-                  <span class="text-2xl font-black text-emerald-400">₹${ride.studentFare}</span>
-                  <span class="text-xs text-slate-500 line-through">Uber: ₹${ride.uberBenchmark}</span>
+                  <span class="text-2xl font-black text-emerald-400">${ride.paymentMode==='free_pilot'?'Free · ₹0':'₹'+ride.studentFare}</span>
+                  ${ride.paymentMode==='free_pilot'?'':`<span class="text-xs text-slate-500 line-through">Uber: ₹${ride.uberBenchmark}</span>`}
                 </div>
                 ${discountAmount > 0 ? `
                   <span class="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">Save ₹${discountAmount} (${discountPct}% OFF)</span>
@@ -2174,6 +2179,7 @@
         } else {
           passengerContainer.innerHTML = appState.myBookings.map(b => {
             const isPaid = b.paymentStatus === 'Paid';
+            const noPayment=b.paymentMode==='free_pilot'&&b.paymentStatus==='NoPaymentRequired'&&b.studentFare===0;
             const digits = (b.driverPhone || '').replace(/[^0-9]/g, '');
             const cleanDriverPhone = digits.length===10 ? '91'+digits : digits;
             const hasContact=/^[1-9][0-9]{7,14}$/.test(cleanDriverPhone);
@@ -2207,7 +2213,7 @@
                   </div>
 
                   <div class="flex items-center gap-2">
-                    ${isPaid ? `
+                    ${noPayment?`<span class="text-emerald-400 font-bold text-[11px]">Free pilot · No payment required</span>`:isPaid ? `
                       <span class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold px-3 py-1.5 rounded-xl inline-flex items-center gap-1 text-[11px]">
                         ✓ Paid via UPI (₹${b.studentFare})
                       </span>
@@ -2392,11 +2398,11 @@
 
       if (hasUnsettledCommission) {
         reason = 'COMMISSION_DUE';
-        message = `Platform Settlement Required: You have ₹${comm.netDue} in pending platform commission from your previous commute. Settle via UPI to unlock bookings & driver inquiries.`;
+        message = `Platform Settlement Required: You have ₹${comm.netDue} in pending platform commission from your previous commute. Payment verification is unavailable; existing obligations require review.`;
       } else if (hasUnpaidBooking) {
         const b = unpaidBookings[0];
         reason = 'UNPAID_BOOKING';
-        message = `Ride Payment Required: You have an unpaid ride booking (₹${b.studentFare} with ${b.driverName}). Settle your ride fare before booking another seat or asking riders.`;
+        message = `Ride Payment Required: You have an unpaid ride booking (₹${b.studentFare} with ${b.driverName}). Payment verification is unavailable; existing obligations require review.`;
       }
 
       return {
@@ -3231,7 +3237,7 @@
             <div class="text-[11px] text-slate-400">Vehicle: <strong class="text-slate-200">${sanitize(ride.vehicleModel)}</strong> (${ride.vehicle})</div>
           </div>
 
-          <div class="bg-emerald-950/40 p-3 rounded-2xl border border-emerald-500/30 space-y-1 text-emerald-200">
+          ${ride.paymentMode==='free_pilot'?`<div class="bg-emerald-950/40 p-3 rounded-2xl border border-emerald-500/30 text-emerald-200">Free voluntary ride · ₹0 payable. No payment or commission required.</div>`:`<div class="bg-emerald-950/40 p-3 rounded-2xl border border-emerald-500/30 space-y-1 text-emerald-200">
             <div class="flex justify-between font-bold">
               <span>Driver's Ride Share Price:</span>
               <span class="text-emerald-400 text-base font-black">₹${ride.studentFare}</span>
@@ -3244,7 +3250,7 @@
               <span>Student Savings:</span>
               <span>${(ride.uberBenchmark > ride.studentFare) ? `₹${ride.uberBenchmark - ride.studentFare} (${Math.round(((ride.uberBenchmark - ride.studentFare) / ride.uberBenchmark) * 100)}% OFF Uber)` : `Direct Peer Fare`}</span>
             </div>
-          </div>
+          </div>`}
 
           <p class="text-[11px] text-slate-500 text-center">
             Booking connects you with ${sanitize(ride.driverName)} for pickup coordination at the gate.
@@ -3324,7 +3330,9 @@
 
     // Payment Modal with Scannable Dynamic QR Code
     function openPaymentModal(bookingId){
-      if(!appState.myBookings.some(b=>b.bookingId===bookingId))return;
+      const b=appState.myBookings.find(b=>b.bookingId===bookingId);
+      if(!b)return;
+      if(b.paymentMode==='free_pilot'&&b.paymentStatus==='NoPaymentRequired'){showToast('Free pilot — no payment required.','ℹ️');return;}
       const content=document.getElementById('paymentModalContent');
       if(content)content.textContent='Payment verification is unavailable. Do not transfer funds through CampusPool.';
       showModal('paymentModal','#closePaymentModalBtn');
@@ -3512,7 +3520,20 @@
       'Pune Airport (Lohegaon)': { car: 380, bike: 190 }
     };
 
+    function applyFreePilotOfferMode(){
+      const pilot=appState.freeRidesPilot===true;
+      for(const id of ['legacyFareBenchmark','legacyFarePrice']){
+        const el=document.getElementById(id);if(el){el.hidden=pilot;el.style.display=pilot?'none':'';}
+      }
+      const notice=document.getElementById('freePilotOfferNotice');
+      if(notice){notice.hidden=!pilot;notice.style.display=pilot?'block':'none';}
+      for(const id of ['offerUberBenchmark','offerStudentFare']){
+        const el=document.getElementById(id);if(el){el.disabled=pilot;if(pilot)el.value='0';}
+      }
+      if(!pilot){const fare=document.getElementById('offerStudentFare');if(fare)fare.dataset.userEdited='false';updateUberBenchmarkForRoute();}
+    }
     function updateUberBenchmarkForRoute() {
+      if(appState.freeRidesPilot)return;
       const dest = document.getElementById('offerDestination')?.value || 'Pune Railway Station';
       const vehicle = document.getElementById('offerVehicleType')?.value || 'Car';
       const routeData = ROUTE_UBER_BENCHMARKS[dest] || { car: 300, bike: 150 };
@@ -3561,6 +3582,7 @@
 
     // Offer Price Preview (Driver decides price, compared with Uber reference)
     function updateOfferPricePreview() {
+      if(appState.freeRidesPilot)return;
       const benchmark = Math.max(20, parseFloat(document.getElementById('offerUberBenchmark')?.value) || 200);
       const fareInput = document.getElementById('offerStudentFare');
       let customFare = parseFloat(fareInput?.value);
@@ -3673,8 +3695,8 @@
       }
       const departureTime = document.getElementById('offerDepartureTime').value.trim();
       const benchmark = Math.max(20, parseFloat(document.getElementById('offerUberBenchmark')?.value) || 200);
-      let studentFare = parseFloat(document.getElementById('offerStudentFare')?.value);
-      if (isNaN(studentFare) || studentFare <= 0) {
+      let studentFare = appState.freeRidesPilot?0:parseFloat(document.getElementById('offerStudentFare')?.value);
+      if (!appState.freeRidesPilot && (isNaN(studentFare) || studentFare <= 0)) {
         studentFare = Math.round(benchmark * 0.65);
       }
       const appFee = Math.round(studentFare * 0.10);
@@ -3693,7 +3715,7 @@
         departureTime: departureTime,
         seatsTotal: seats,
         seatsLeft: seats,
-        uberBenchmark: benchmark,
+        uberBenchmark: appState.freeRidesPilot?0:benchmark,
         studentFare: studentFare,
         driverPayout: driverPayout,
         note: note || "MIT ADT student ride",

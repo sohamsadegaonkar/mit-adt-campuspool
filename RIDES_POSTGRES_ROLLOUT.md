@@ -63,3 +63,8 @@ npm run check:release-ci
 The tests fail closed when their \`OTP_DATABASE_URL\` points to a remote host. The HTTP test creates disposable verified users and server sessions in isolated PostgreSQL, verifies Basic Auth and CSRF, creates a ride, rejects spoofed ownership, books/cancels a seat, checks the shared PostgreSQL seat count, and deletes all fixtures.
 
 Only **\`main\`** is used for development, and Render production/staging remain separate services with private environment variables. The presence of these files in \`main\` is not permission for a production deployment.
+
+
+## Pending migration 009 candidate (20 Nov 2026)
+
+Do not apply or enable without separate owner approval. Explicit legacy Pending versus free_pilot NoPaymentRequired; candidate runtime requires 009, 008 preflight insufficient. Disposable CI only; approved staging preflight/backup and coordinated rollout needed.
