@@ -367,3 +367,6 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 
 
 - Privacy Shield candidate: discovery/receipt/participant projections, GPS wire metadata minimization, no unverified UPI/QR. Actual CI pending. [Task](tasks/2026-11-20-participant-privacy-shield.md).
+
+
+- #56 `576b90c` all five checks green, 29 privacy projection checks, four actors, normal/throttled legacy receipt redaction, GPS/cancel denial, no seat violation. No live change. [Task](tasks/2026-11-20-participant-privacy-shield.md).

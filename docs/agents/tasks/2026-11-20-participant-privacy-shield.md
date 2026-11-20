@@ -1,7 +1,7 @@
 # Task: CampusPool Privacy Shield
 
 - **Task ID / file:** 2026-11-20-participant-privacy-shield
-- **Status:** in progress / CI pending
+- **Status:** in review / CI passed
 - **Agent / owner:** application engineering; independent reviewer unassigned
 - **Last updated:** 2026-11-20 IST
 - **Baseline:** main 1020e2e; parent #55 2e83809cfb9a443878328e97f5a48bcc173ae73c; policy #50 1c493e3
@@ -42,8 +42,8 @@ No discovery contact/email/UPI/free-form note/exact GPS. Own email retained for 
 
 | Test | Environment | Result |
 |---|---|---|
-| Privacy HTTP | RIDES_HTTP_PRIVACY_DISPOSABLE_DB=YES npm run test:rides-http | pending |
-| Existing regression | disposable CI | pending |
+| Privacy HTTP | RIDES_HTTP_PRIVACY_DISPOSABLE_DB=YES npm run test:rides-http | PASS |
+| Existing regression | disposable CI | PASS |
 | Live / physical device | none | not run |
 
 ## Risks and decisions
@@ -62,3 +62,7 @@ No historical data deletion, no legal compliance claim. Current active contact a
 
 - Branch security/participant-privacy-shield-2026-11-20
 - server.js, index.html, test_pg_rides_http.js, bench/campus-privacy-shield.js, .github/workflows/stage1-otp.yml; STATUS.md, NEXT_STEPS.md, DECISIONS.md, ARCHITECTURE_MAP.md, this task.
+
+## Exact-head CI evidence — 2026-11-20 IST
+
+All five checks passed at `576b90cb4fb6bac53c159eeb5c2272a2cb61926f`, including browser E2E and smoke. [PostgreSQL CI](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/44701454445/job/136170571296) CAMPUS_PRIVACY_RESULT: 29 projection checks, four actors, active passenger contact, discovery redaction, legacy receipt redaction, normal/throttled replay, GPS isolation, cancellation revocation, seat invariant, UPI withheld all true. Rush 3880/3880, zero dropped/unexpected, 47 consistent snapshots, 869 receipts; Wi-Fi 130/130. No physical device or production test. GPS storage freshness/consent/lifecycle next; no live changes.
