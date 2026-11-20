@@ -99,3 +99,6 @@ Flutter `PlaceAutocompleteField` calls `HttpPlaceSearchSource` using the configu
 
 
 **Pending Wi-Fi fairness branch (NOT DEPLOYED):** optional CAMPUS_WIFI_FAIRNESS=true only with PostgreSQL Rides; exact scoped read/write routes get pre-auth IP hard cap and verified UUID budget on existing SQLite shared-file limiter. Default off. Independent replica disks do not share these counters. See [task](tasks/2026-11-20-campus-wifi-fairness.md).
+
+
+**Pending Privacy Shield (NOT DEPLOYED):** HTTP projections separate discovery, active passenger contact and historical receipts; existing participant GPS authorization retained; UPI withheld while verification disabled. [Task](tasks/2026-11-20-participant-privacy-shield.md).

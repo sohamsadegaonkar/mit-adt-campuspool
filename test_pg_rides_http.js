@@ -17,7 +17,8 @@ const url=process.env.OTP_DATABASE_URL;
 const stress=process.env.RIDES_HTTP_STRESS_DISPOSABLE_DB==='YES';
 const rush=process.env.RIDES_HTTP_RUSH_DISPOSABLE_DB==='YES';
 const fairness=process.env.RIDES_HTTP_FAIRNESS_DISPOSABLE_DB==='YES';
-if(stress||rush||fairness){
+const privacy=process.env.RIDES_HTTP_PRIVACY_DISPOSABLE_DB==='YES';
+if(stress||rush||fairness||privacy){
   assert.ok(url,'Stress requires disposable PostgreSQL');
   const u=new URL(url);
   assert.ok(['postgres:','postgresql:'].includes(u.protocol));
@@ -53,12 +54,12 @@ function waitForServer(child){
     child.once('exit',code=>{clearTimeout(timer);reject(Error('server exited '+code+': '+output.slice(-600)))});
   });
 }
-test(fairness?'Campus Wi-Fi fairness: verified actors and IP hard ceilings':rush?'Campus Rush Hour: sustained real HTTP load':'HTTP rides and bookings switch to verified PostgreSQL user identities',
+test(privacy?'Privacy Shield: discovery, participants and historical receipts':fairness?'Campus Wi-Fi fairness: verified actors and IP hard ceilings':rush?'Campus Rush Hour: sustained real HTTP load':'HTTP rides and bookings switch to verified PostgreSQL user identities',
  {skip:!url?'requires local isolated CI PostgreSQL':false,timeout:180000},async t=>{
   await migrate({connectionString:url,ssl:false});
   const pool=new Pool({connectionString:url,ssl:false});
   const temp=fs.mkdtempSync(path.join(os.tmpdir(),'cp-rides-http-'));
-  const ids=Array.from({length:rush?96:fairness?8:stress?6:2},()=>crypto.randomUUID());
+  const ids=Array.from({length:rush?96:fairness?8:privacy?4:stress?6:2},()=>crypto.randomUUID());
   const email=i=>'rides-http-'+crypto.randomBytes(6).toString('hex')+'@students.mituniversity.edu.in';
   const emails=ids.map((_,i)=>email(i));
   const phoneBase=crypto.randomInt(1000000,9000000);
@@ -82,7 +83,7 @@ test(fairness?'Campus Wi-Fi fairness: verified actors and IP hard ceilings':rush
     return {status:response.status,body:json,replayed:response.headers.get('Idempotency-Replayed'),retryAfter:response.headers.get('Retry-After')};
   }
   try{
-    if(stress||rush||fairness){
+    if(stress||rush||fairness||privacy){
       const target=await pool.query('SELECT current_database() AS db');
       assert.equal(target.rows[0].db,'campuspool_stage1_ci');
     }
@@ -104,6 +105,11 @@ test(fairness?'Campus Wi-Fi fairness: verified actors and IP hard ceilings':rush
         CAMPUS_WIFI_FAIRNESS:fairness?'true':'false',TRUSTED_PROXY_ADDRESSES:''
       },stdio:rush?['ignore','pipe','pipe','ipc']:['ignore','pipe','pipe']});
     await waitForServer(child);
+    if(privacy){
+      child.stdout.on('data',()=>{});
+      await require('./bench/campus-privacy-shield').runPrivacy({t,pool,ids,tokens,emails,phones,basic,port});
+      return;
+    }
     if(fairness){
       child.stdout.on('data',()=>{});
       await require('./bench/campus-wifi-fairness').runFairness({t,pool,ids,tokens,basic,port});

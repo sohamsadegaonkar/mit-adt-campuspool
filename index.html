@@ -1195,11 +1195,9 @@
       </div>
 
       <div class="pt-2 flex flex-col gap-2">
-        <a id="paymentUpiLinkBtn" href="upi://pay?pa=campuspool.mitadt@okaxis&amp;pn=CampusPool&amp;cu=INR" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md flex items-center justify-center gap-2">
-          <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-phone"></use></svg></span> Open GPay / PhonePe / Paytm
-        </a>
+        <p class="text-xs text-slate-400">Payment verification is currently unavailable.</p>
         <button id="markPaymentDoneBtn" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2 rounded-xl text-xs transition cursor-pointer">
-          I Have Completed the Transfer
+          Payment verification required
         </button>
       </div>
     </div>
@@ -1237,18 +1235,14 @@
       <div class="p-3 bg-slate-950 border border-slate-800 rounded-2xl space-y-1.5 text-xs">
         <div class="flex items-center justify-between">
           <span class="text-[10px] uppercase font-bold text-slate-500">CampusPool Admin UPI VPA</span>
-          <button type="button" class="copy-vpa-btn text-[10px] bg-slate-900 hover:bg-slate-800 text-brand-300 hover:text-white px-2 py-0.5 rounded-md border border-slate-700 cursor-pointer flex items-center gap-1" data-vpa="campuspool.mitadt@okaxis">
-            <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-copy"></use></svg></span> Copy VPA
-          </button>
+          
         </div>
-        <div id="adminUpiVpaText" class="font-mono font-black text-brand-300 text-sm break-all">campuspool.mitadt@okaxis</div>
+        <div id="adminUpiVpaText" class="font-mono font-black text-brand-300 text-sm break-all">Payment unavailable</div>
         <p class="text-[10px] text-slate-500">Scan QR or tap to launch Google Pay / PhonePe / Paytm directly with 0% gateway fees.</p>
       </div>
 
       <div class="pt-1 flex flex-col gap-2">
-        <a id="settleUpiLinkBtn" href="upi://pay?pa=campuspool.mitadt@okaxis&amp;pn=CampusPool&amp;am=0&amp;cu=INR&amp;tn=Weekly%20Driver%20Commission%2010%25" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md flex items-center justify-center gap-2">
-          <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-phone"></use></svg></span> Open UPI App to Pay Due
-        </a>
+        <p class="text-xs text-slate-400">Payment verification is currently unavailable.</p>
         <button id="markCommissionPaidBtn" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2 rounded-xl text-xs transition cursor-pointer">
           I Have Transferred Due Commission
         </button>
@@ -1287,25 +1281,21 @@
       <div class="p-3 bg-slate-950 border border-slate-800 rounded-2xl space-y-2 text-center">
         <div class="flex justify-center">
           <div class="bg-white p-2 rounded-2xl shadow-xl inline-block border border-slate-700">
-            <img id="settleQrCodeImg" src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&amp;data=upi%3A%2F%2Fpay%3Fpa%3Dcampuspool.mitadt%40okaxis%26pn%3DCampusPool%26cu%3DINR" onerror="handleQrError(this)" alt="Scan UPI QR" class="w-32 h-32 mx-auto rounded-lg" loading="lazy">
+            <span class="text-xs text-slate-600">No payment QR available</span>
           </div>
         </div>
         <div class="flex items-center justify-between px-1">
           <span class="text-[10px] uppercase font-bold text-slate-500">Recipient UPI VPA</span>
-          <button type="button" class="copy-vpa-btn text-[10px] bg-slate-900 hover:bg-slate-800 text-brand-300 hover:text-white px-2 py-0.5 rounded-md border border-slate-700 cursor-pointer flex items-center gap-1" data-target="settleVpaDisplay">
-            <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-copy"></use></svg></span> Copy VPA
-          </button>
+          
         </div>
-        <div id="settleVpaDisplay" class="font-mono font-black text-brand-300 text-xs break-all">campuspool.mitadt@okaxis</div>
-        <p class="text-[10px] text-slate-400">Scan using Google Pay, PhonePe, Paytm, or BHIM</p>
+        <div id="settleVpaDisplay" class="font-mono font-black text-brand-300 text-xs break-all">Payment unavailable</div>
+        <p class="text-[10px] text-slate-400">Payment verification required before transfer.</p>
       </div>
 
       <div class="pt-1 flex flex-col gap-2">
-        <a id="settleActionUpiLink" href="upi://pay?pa=campuspool.mitadt@okaxis&amp;pn=CampusPool&amp;am=0&amp;cu=INR&amp;tn=CampusPool%20Dues%20Settlement" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md flex items-center justify-center gap-2">
-          <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-phone"></use></svg></span> Pay Dues via UPI App
-        </a>
+        <p class="text-xs text-slate-400">Payment verification is currently unavailable.</p>
         <button id="confirmSettleDoneBtn" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md cursor-pointer flex items-center justify-center gap-1.5">
-          <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-check"></use></svg></span> I Have Settled Dues (Unlock Account)
+          <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-check"></use></svg></span> Payment verification required
         </button>
       </div>
     </div>
@@ -1470,7 +1460,6 @@
     const LEGACY_STORAGE_KEY = 'mit_adt_campuspool_live_db_v4';
     const STORAGE_KEY = 'mit_adt_campuspool_preferences_v1';
     const ONBOARDING_POP_SEEN_KEY = 'mit_adt_campuspool_onboarding_seen';
-    const ADMIN_COMMISSION_VPA = "campuspool.mitadt@okaxis";
 
     const initialRealState = {
       currentUser: null,
@@ -1704,6 +1693,15 @@
     }
 
     let lastRidesEtag = null;
+    window.addEventListener('campuspool:session-changed',()=>{
+      privateReadGeneration++;
+      lastRidesEtag=null;
+      appState.rides=[];appState.myBookings=[];appState.myOfferedRides=[];
+      appState.selectedRideForBooking=null;appState.selectedBookingForPayment=null;
+      renderRidesGrid();renderMyRidesViews();
+      hideModal('bookingModal',{restoreFocus:false});hideModal('paymentModal',{restoreFocus:false});
+      closeGpsTrackingModal();
+    });
 
     async function syncLiveRides() {
       if (!appState.currentUser || !csrfToken) {
@@ -1714,6 +1712,8 @@
         return;
       }
       if (rideFeedInFlight) return;
+      const feedProof=csrfToken,feedUser=appState.currentUser?.email;
+      const currentFeed=()=>csrfToken===feedProof && appState.currentUser?.email===feedUser;
       const refreshOrigin = document.activeElement?.matches('[data-refresh-rides]')
         ? document.activeElement : null;
       rideFeedInFlight = true;
@@ -1721,9 +1721,10 @@
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10000);
       try {
-        const fetchHeaders = {}; if (lastRidesEtag) fetchHeaders["If-None-Match"] = lastRidesEtag; const resp = await apiFetch('/api/rides', { headers: fetchHeaders, signal: controller.signal }); if (resp.status === 304) { rideFeedState = "ready"; return; } const etag = resp.headers.get("ETag"); if (etag) lastRidesEtag = etag;
+        const fetchHeaders = {}; if (lastRidesEtag) fetchHeaders["If-None-Match"] = lastRidesEtag; const resp = await apiFetch('/api/rides', { headers: fetchHeaders, signal: controller.signal }); if(!currentFeed())return; if (resp.status === 304) { rideFeedState = "ready"; return; } const etag = resp.headers.get("ETag"); if (etag) lastRidesEtag = etag;
         if (!resp.ok) throw new Error('Ride feed request failed');
         const data = await resp.json();
+        if(!currentFeed())return;
         if (!Array.isArray(data.rides)) throw new Error('Invalid ride feed response');
         const changed = JSON.stringify(appState.rides) !== JSON.stringify(data.rides);
         const previousState = rideFeedState;
@@ -1751,36 +1752,44 @@
       }
     }
 
+    let privateReadGeneration=0;
     async function syncUserBookings() {
       if (!appState.currentUser || !csrfToken || !appState.currentUser.email) return;
-      const email = appState.currentUser.email;
+      const email=appState.currentUser.email, proof=csrfToken, generation=++privateReadGeneration;
+      const current=()=>generation===privateReadGeneration && proof===csrfToken && appState.currentUser?.email===email;
       try {
         const bResp = await apiFetch(`/api/bookings?email=${encodeURIComponent(email)}`);
         if (bResp.ok) {
           const bData = await bResp.json();
+          if(!current())return;
           if (Array.isArray(bData.bookings)) {
             appState.myBookings = bData.bookings.filter(b => b.passengerEmail && b.passengerEmail.toLowerCase() === email.toLowerCase());
           }
         }
+        if(!current())return;
         const rResp = await apiFetch(`/api/my-rides?email=${encodeURIComponent(email)}`);
         if (rResp.ok) {
           const rData = await rResp.json();
+          if(!current())return;
           if (Array.isArray(rData.rides)) {
             appState.myOfferedRides = rData.rides;
           }
         }
+        if(!current())return;
         const sResp = await apiFetch(`/api/user/settlement-status?email=${encodeURIComponent(email)}`);
         if (sResp.ok) {
           const sData = await sResp.json();
+          if(!current())return;
           if (sData.driverCommission && typeof sData.driverCommission.settled === 'number') {
             appState.settledCommissionAmount = sData.driverCommission.settled;
           }
         }
+        if(!current())return;
         saveState();
         renderMyRidesViews();
         updateSettlementWarningBanner();
       } catch (e) {
-        console.warn("Could not sync user bookings from server:", e);
+        if(current())console.warn("Could not sync user bookings from server:", e);
       }
     }
 
@@ -2093,7 +2102,7 @@
                   class="ask-rider-btn px-2.5 py-2 rounded-xl text-xs font-bold border border-emerald-500/40 text-emerald-300 hover:bg-emerald-950/60 transition cursor-pointer flex items-center gap-1 shadow-xs"
                   data-ride-id="${ride.id}"
                   title="Inquire with student driver">
-                  <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-chat"></use></svg></span> Ask Rider
+                  <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-chat"></use></svg></span> Contact after booking
                 </button>
                 <a 
                   href="https://www.google.com/maps/dir/?api=1&origin=MIT+ADT+University,+Loni+Kalbhor,+Pune&destination=${encodeURIComponent(ride.destination + ' Pune')}&travelmode=driving" 
@@ -2130,29 +2139,18 @@
       });
     }
 
-    function handleAskRiderClick(rideId) {
-      if (!appState.currentUser || !appState.currentUser.isVerified) {
-        openAuthModal('signin');
-        showToast("Please sign in or register before contacting riders.", "⚠️");
-        return;
-      }
-      const restriction = checkUserSettlementRestriction();
-      if (restriction.isBlocked) {
-        openSettlementLockModal(restriction);
-        showToast(restriction.message, "🚨");
-        return;
-      }
-      const ride = appState.rides.find(r => r.id === rideId);
-      if (!ride) return;
-      if (ride.driverEmail === appState.currentUser.email) {
-        showToast("You are the driver of this commute.", "ℹ️");
-        return;
-      }
-      const digits = (ride.driverPhone || '').replace(/[^0-9]/g, '');
-      const cleanPhone = digits.length === 10 ? `91${digits}` : digits;
-      const msg = encodeURIComponent(`Hi ${ride.driverName}, I saw your MIT ADT CampusPool ride to ${ride.destination} departing ${ride.departureTime} from ${ride.pickup}. Is a seat still available for me to join?`);
-      window.open(`https://wa.me/${cleanPhone}?text=${msg}`, '_blank');
-      showToast(`Connecting with ${ride.driverName} on WhatsApp...`, "💬");
+    function ownsRide(ride){
+      return !!appState.currentUser && (appState.myOfferedRides.some(r=>r.id===ride.id) ||
+        (!!ride.driverEmail && ride.driverEmail===appState.currentUser.email));
+    }
+    function handleAskRiderClick(rideId){
+      if(!appState.currentUser?.isVerified){openAuthModal('signin');return;}
+      const ride=appState.rides.find(r=>r.id===rideId);
+      if(!ride)return;
+      if(ownsRide(ride)){showToast('You are the driver of this commute.','ℹ️');return;}
+      if(appState.myBookings.some(b=>b.rideId===rideId)){
+        switchMainTab('tabMyRides','viewMyRides');syncUserBookings();
+      }else showToast('CampusPool Privacy Shield: book a seat to unlock driver contact.','🔒');
     }
 
     function renderMyRidesViews() {
@@ -2178,7 +2176,9 @@
         } else {
           passengerContainer.innerHTML = appState.myBookings.map(b => {
             const isPaid = b.paymentStatus === 'Paid';
-            const cleanDriverPhone = b.driverPhone.replace(/[^0-9]/g, '');
+            const digits = (b.driverPhone || '').replace(/[^0-9]/g, '');
+            const cleanDriverPhone = digits.length===10 ? '91'+digits : digits;
+            const hasContact=/^[1-9][0-9]{7,14}$/.test(cleanDriverPhone);
             const whatsappMsg = encodeURIComponent(`Hi ${b.driverName}, I booked a seat on your MIT ADT CampusPool ride to ${b.destination} departing ${b.departureTime}. Let me know when you reach ${b.pickup}!`);
 
             return `
@@ -2200,12 +2200,12 @@
 
                 <div class="pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
                   <div class="flex items-center gap-1.5">
-                    <a href="https://wa.me/${cleanDriverPhone}?text=${whatsappMsg}" target="_blank" rel="noopener noreferrer" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1 cursor-pointer">
+                    ${hasContact ? `<a href="https://wa.me/${cleanDriverPhone}?text=${whatsappMsg}" target="_blank" rel="noopener noreferrer" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1 cursor-pointer">
                       <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-chat"></use></svg></span> WhatsApp
                     </a>
                     <a href="tel:${cleanDriverPhone}" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-3 py-1.5 rounded-xl transition">
                       <svg class="cp-icon" aria-hidden="true"><use href="#cp-phone"></use></svg> Call
-                    </a>
+                    </a>` : `<span class="text-slate-400">Contact available after refresh</span>`}
                   </div>
 
                   <div class="flex items-center gap-2">
@@ -2215,7 +2215,7 @@
                       </span>
                     ` : `
                       <button class="pay-fuel-btn bg-brand-600 hover:bg-brand-500 text-white font-bold px-3 py-1.5 rounded-xl transition shadow-md cursor-pointer" data-booking-id="${b.bookingId}">
-                        <svg class="cp-icon" aria-hidden="true"><use href="#cp-wallet"></use></svg> Pay ₹${b.studentFare} Fuel Share
+                        <svg class="cp-icon" aria-hidden="true"><use href="#cp-wallet"></use></svg> Payment unavailable
                       </button>
                     `}
                     <button class="cancel-booking-btn bg-slate-900 hover:bg-rose-950/80 text-slate-400 hover:text-rose-300 font-semibold px-2.5 py-1.5 rounded-xl transition border border-slate-800 hover:border-rose-900/60 cursor-pointer text-[11px]" data-booking-id="${b.bookingId}">
@@ -2438,90 +2438,12 @@
       }
     }
 
-    function openSettlementLockModal(restriction) {
-      if (!restriction) restriction = checkUserSettlementRestriction();
-      const modal = document.getElementById('settlementLockModal');
-      const title = document.getElementById('settleModalTitle');
-      const content = document.getElementById('settleBreakdownContent');
-      const vpaDisplay = document.getElementById('settleVpaDisplay');
-      const qrImg = document.getElementById('settleQrCodeImg');
-      const upiLink = document.getElementById('settleActionUpiLink');
-
-      let targetVpa = ADMIN_COMMISSION_VPA;
-      let targetName = "MIT ADT CampusPool Platform";
-      let amount = 0;
-      let note = "";
-
-      if (restriction.hasUnsettledCommission) {
-        amount = restriction.commissionDue;
-        targetVpa = ADMIN_COMMISSION_VPA;
-        targetName = "MIT ADT CampusPool";
-        note = "Weekly Driver Commission 10%";
-        if (title) title.textContent = "Driver Commission Settlement";
-        if (content) {
-          content.innerHTML = `
-            <div class="space-y-1.5">
-              <div class="flex justify-between items-center text-slate-400">
-                <span>Account Role:</span>
-                <span class="text-brand-300 font-bold">Commute Driver / Rider</span>
-              </div>
-              <div class="flex justify-between items-center text-slate-400">
-                <span>Completed Commute Status:</span>
-                <span class="text-slate-200 font-semibold">Fare received from students</span>
-              </div>
-              <div class="flex justify-between items-center pt-2 border-t border-slate-800 text-white font-bold">
-                <span>10% Platform Commission Due:</span>
-                <span class="text-base font-black text-rose-400">₹${amount}</span>
-              </div>
-              <p class="text-[10px] text-slate-500 pt-1">
-                Once ₹${amount} is transferred to the platform, your account is instantly cleared to book seats, ask riders, and offer new rides.
-              </p>
-            </div>
-          `;
-        }
-      } else if (restriction.hasUnpaidBooking) {
-        const b = restriction.unpaidBooking;
-        amount = b.studentFare;
-        targetVpa = b.upiId || `${b.driverName.toLowerCase().replace(/[^a-z]/g, '')}@okaxis`;
-        targetName = b.driverName;
-        note = `CampusPool Fuel Share to ${b.driverName}`;
-        if (title) title.textContent = "Previous Ride Payment Due";
-        if (content) {
-          content.innerHTML = `
-            <div class="space-y-1.5">
-              <div class="flex justify-between items-center text-slate-400">
-                <span>Account Role:</span>
-                <span class="text-brand-300 font-bold">Student Passenger</span>
-              </div>
-              <div class="flex justify-between items-center text-slate-400">
-                <span>Unsettled Route:</span>
-                <span class="text-slate-200 font-semibold">${sanitize(b.destination)} (${sanitize(b.departureTime)})</span>
-              </div>
-              <div class="flex justify-between items-center text-slate-400">
-                <span>Peer Driver:</span>
-                <span class="text-slate-200 font-semibold">${sanitize(b.driverName)}</span>
-              </div>
-              <div class="flex justify-between items-center pt-2 border-t border-slate-800 text-white font-bold">
-                <span>Fuel Share Amount Due:</span>
-                <span class="text-base font-black text-rose-400">₹${amount}</span>
-              </div>
-              <p class="text-[10px] text-slate-500 pt-1">
-                Direct peer transfer to driver's UPI. Once payment is confirmed, booking seats and asking riders will be immediately unlocked.
-              </p>
-            </div>
-          `;
-        }
-      }
-
-      if (vpaDisplay) vpaDisplay.textContent = targetVpa;
-
-      const upiUrl = `upi://pay?pa=${encodeURIComponent(targetVpa)}&pn=${encodeURIComponent(targetName)}&am=${amount}&cu=INR&tn=${encodeURIComponent(note)}`;
-      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(upiUrl)}`;
-
-      if (qrImg) qrImg.src = qrUrl;
-      if (upiLink) upiLink.href = upiUrl;
-
-      showModal(modal);
+    function openSettlementLockModal(restriction){
+      if(!restriction)restriction=checkUserSettlementRestriction();
+      const content=document.getElementById('settleBreakdownContent');
+      if(content)content.textContent=(restriction.message||'Outstanding ride dues or commission require review.')+
+        ' Payment verification is not available. Do not send a payment through CampusPool.';
+      showModal('settlementLockModal');
     }
 
     document.getElementById('closeSettlementLockModalBtn')?.addEventListener('click', () => {
@@ -3292,7 +3214,7 @@
       if (!ride || ride.seatsLeft <= 0) return;
 
       // BUG-07 Fix: Prevent drivers from self-booking seats on their own rides
-      if (ride.driverEmail === appState.currentUser.email) {
+      if (ownsRide(ride)) {
         showToast("Safety rule: You cannot book seats on your own offered ride.", "⚠️");
         return;
       }
@@ -3381,15 +3303,13 @@
           return;
         }
 
-        const newBooking = data.booking;
-        ride.seatsLeft -= 1;
-        appState.myBookings.unshift(newBooking);
-        saveState();
+        if(!data.booking?.bookingId)throw Error('Booking receipt missing');
+        // Historical receipts are not evidence of a currently active booking.
 
         renderRidesGrid();
         renderMyRidesViews();
         closeBookingModal();
-        showToast(`Seat booked with ${ride.driverName}! Reach out on WhatsApp.`, "🎟️");
+        showToast('Booking receipt confirmed. Refreshing active rides and contacts.','🎟️');
         switchMainTab('tabMyRides', 'viewMyRides');
         syncLiveRides();
         syncUserBookings();
@@ -3405,45 +3325,11 @@
     });
 
     // Payment Modal with Scannable Dynamic QR Code
-    function openPaymentModal(bookingId) {
-      const booking = appState.myBookings.find(b => b.bookingId === bookingId);
-      if (!booking) return;
-
-      appState.selectedBookingForPayment = booking;
-      const content = document.getElementById('paymentModalContent');
-      const upiUrl = `upi://pay?pa=${encodeURIComponent(booking.upiId)}&pn=${encodeURIComponent(booking.driverName)}&am=${booking.studentFare}&cu=INR&tn=${encodeURIComponent('MIT ADT CampusPool Fuel Share')}`;
-      const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(upiUrl)}`;
-
-      if (content) {
-        content.innerHTML = `
-          <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3 text-center">
-            <div class="flex justify-center">
-              <div class="bg-white p-2 rounded-2xl shadow-xl inline-block border border-slate-700">
-                <img src="${qrCodeUrl}" alt="Scan UPI QR" class="w-36 h-36 mx-auto rounded-lg" loading="lazy">
-              </div>
-            </div>
-            <p class="text-[11px] text-slate-400">Scan with Google Pay, PhonePe, or Paytm</p>
-
-            <div class="p-3 bg-slate-900 rounded-xl border border-slate-800 text-left space-y-1">
-              <div class="flex items-center justify-between">
-                <span class="text-[10px] text-brand-400 font-bold uppercase tracking-wider block">Driver UPI VPA</span>
-                <button type="button" class="copy-vpa-btn text-[10px] bg-slate-800 hover:bg-slate-700 text-brand-300 px-2 py-0.5 rounded-md border border-slate-700 cursor-pointer flex items-center gap-1" data-vpa="${sanitize(booking.upiId)}">
-                  <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-copy"></use></svg></span> Copy
-                </button>
-              </div>
-              <div class="font-mono font-black text-brand-300 text-sm break-all">${sanitize(booking.upiId)}</div>
-              <div class="text-[11px] text-slate-400">Recipient: <strong class="text-slate-200">${sanitize(booking.driverName)}</strong></div>
-              <div class="text-xl font-black text-emerald-400 pt-1">₹${booking.studentFare}</div>
-              <p class="text-[10px] text-slate-500">90% directly reimburses driver petrol</p>
-            </div>
-          </div>
-        `;
-      }
-
-      const upiBtn = document.getElementById('paymentUpiLinkBtn');
-      if (upiBtn) upiBtn.href = upiUrl;
-
-      showModal('paymentModal', '#markPaymentDoneBtn');
+    function openPaymentModal(bookingId){
+      if(!appState.myBookings.some(b=>b.bookingId===bookingId))return;
+      const content=document.getElementById('paymentModalContent');
+      if(content)content.textContent='Payment verification is unavailable. Do not transfer funds through CampusPool.';
+      showModal('paymentModal','#closePaymentModalBtn');
     }
 
     document.getElementById('closePaymentModalBtn')?.addEventListener('click', () => {
@@ -3461,10 +3347,7 @@
       document.getElementById('modalDriverShareDisplay').textContent = `₹${comm.driverNet}`;
       document.getElementById('modalCommissionDueDisplay').textContent = `₹${comm.netDue}`;
 
-      const upiUrl = `upi://pay?pa=${encodeURIComponent(ADMIN_COMMISSION_VPA)}&pn=${encodeURIComponent('MIT ADT CampusPool Platform')}&am=${comm.netDue}&cu=INR&tn=${encodeURIComponent('Weekly Driver Commission 10%')}`;
-      const upiBtn = document.getElementById('settleUpiLinkBtn');
-      if (upiBtn) upiBtn.href = upiUrl;
-
+      // Provider verification disabled; no transfer URL.
       showModal('driverSettlementModal', '#markCommissionPaidBtn');
     });
 
@@ -3816,7 +3699,7 @@
         studentFare: studentFare,
         driverPayout: driverPayout,
         note: note || "MIT ADT student ride",
-        upiId: `${appState.currentUser.name.toLowerCase().replace(/[^a-z]/g, '')}@okaxis`
+        upiId: ''
       };
 
       if (document.getElementById('offerMobilityOptIn')?.checked) {
@@ -3857,10 +3740,9 @@
           return;
         }
 
-        const savedRide = (resp.ok && data.ride) ? data.ride : { id: "ride_" + (appState.rides.length + 1), ...ridePayload };
+        if(!data.ride?.id)throw Error("Ride receipt missing");
 
-        appState.rides.unshift(savedRide);
-        appState.myOfferedRides.unshift(savedRide);
+        // Reconcile the receipt against current active rides.
         saveState();
 
         renderRidesGrid();
@@ -3869,7 +3751,7 @@
         if (fareInputEl) fareInputEl.dataset.userEdited = 'false';
         updateUberBenchmarkForRoute();
 
-        showToast("Ride posted and saved to campus database! Joined students will contact you.", "🚀");
+        showToast("Ride receipt confirmed. Refreshing active offers.", "🚀");
         switchMainTab('tabMyRides', 'viewMyRides');
         document.getElementById('toggleDriverSubTab')?.click();
         syncLiveRides();

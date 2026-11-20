@@ -364,3 +364,6 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 
 
 - #55 `3cea037` passed all five checks, 130/130 shared-IP authenticated reads; actor/aggregate caps, forged/revoked/expired tokens, bounded replay, CSRF, exact receipt and seat invariants verified. Flag remains off; enabled sustained review pending. [Task](tasks/2026-11-20-campus-wifi-fairness.md).
+
+
+- Privacy Shield candidate: discovery/receipt/participant projections, GPS wire metadata minimization, no unverified UPI/QR. Actual CI pending. [Task](tasks/2026-11-20-participant-privacy-shield.md).

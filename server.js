@@ -637,6 +637,50 @@ const server = http.createServer(async (req, res) => {
     res.end(JSON.stringify(data));
   }
 
+  // Explicit projections prevent discovery and historic receipts from
+  // exposing counterparty contact or unverified payment identifiers.
+  function pick(value,fields){
+    return Object.fromEntries(fields.filter(k=>Object.hasOwn(value,k)).map(k=>[k,value[k]]));
+  }
+  function discoveryRide(ride){
+    return pick(ride,['id','driverName','dept','vehicle','vehicleModel','pickup','destination',
+      'departureTime','seatsTotal','seatsLeft','uberBenchmark','studentFare','driverPayout','createdAt']);
+  }
+  function ownerRide(ride){
+    const result=discoveryRide(ride);
+    if(isSelf(ride.driverEmail))result.driverEmail=ride.driverEmail;
+    return result;
+  }
+  function historicalBooking(booking){
+    const result=pick(booking,['bookingId','rideId','passengerName','driverName','dept',
+      'vehicleModel','pickup','destination','departureTime','studentFare','paymentStatus','createdAt']);
+    if(isSelf(booking.passengerEmail))result.passengerEmail=booking.passengerEmail;
+    return result;
+  }
+  function activeParticipantBooking(booking){
+    const result=historicalBooking(booking);
+    if(isSelf(booking.passengerEmail) && typeof booking.driverPhone==='string')
+      result.driverPhone=booking.driverPhone;
+    return result;
+  }
+  function safeSettlement(status){
+    return {...status,...(Array.isArray(status.pendingBookings)
+      ? {pendingBookings:status.pendingBookings.map(historicalBooking)} : {}),
+      ...(Array.isArray(status.unpaidBookings)
+      ? {unpaidBookings:status.unpaidBookings.map(historicalBooking)} : {}),
+      ...(status.unpaidBooking ? {unpaidBooking:historicalBooking(status.unpaidBooking)} : {})};
+  }
+  function receiptBody(route,body){
+    if(route==='/api/rides' && body?.ride)return {...body,ride:ownerRide(body.ride)};
+    if(route==='/api/bookings' && body?.booking)return {...body,booking:historicalBooking(body.booking)};
+    return body;
+  }
+  function safeLiveLocation(loc,driver){
+    return loc ? pick(loc,driver
+      ? ['rideId','lat','lng','speed','heading','accuracy','updatedAt']
+      : ['bookingId','lat','lng','accuracy','updatedAt']) : null;
+  }
+
   class MutationRejection extends Error {
     constructor(status, body) { super('MUTATION_REJECTED'); this.status = status; this.body = body; }
   }
@@ -652,7 +696,7 @@ const server = http.createServer(async (req, res) => {
         execute
       });
       if (receipt.replayed) res.setHeader('Idempotency-Replayed', 'true');
-      return sendJson(receipt.status, receipt.body);
+      return sendJson(receipt.status, receiptBody(route,receipt.body));
     } catch (error) {
       if (error instanceof IdempotencyError)
         return sendJson(error.status, { success: false, error: error.code });
@@ -781,7 +825,7 @@ const server = http.createServer(async (req, res) => {
       });
       if (receipt) {
         res.setHeader('Idempotency-Replayed', 'true');
-        return sendJson(receipt.status, receipt.body);
+        return sendJson(receipt.status, receiptBody(pathname,receipt.body));
       }
     } catch (error) {
       if (error instanceof IdempotencyError) {
@@ -1384,7 +1428,7 @@ const server = http.createServer(async (req, res) => {
     if (pgRidesStore) {
       // PostgreSQL is the sole source in this mode; no SQLite-backed cache or
       // cluster-local version value can incorrectly serve old seat counts.
-      const freshRides=await pgRidesStore.getRides();
+      const freshRides=(await pgRidesStore.getRides()).map(discoveryRide);
       const payload=JSON.stringify({success:true,rides:freshRides});
       const etag='W/"pg-'+crypto.createHash('sha256').update(payload).digest('hex').slice(0,20)+'"';
       if(req.headers['if-none-match']===etag){
@@ -1409,7 +1453,7 @@ const server = http.createServer(async (req, res) => {
       if (ifNoneMatch && ifNoneMatch === ridesCache.etag) {
         res.writeHead(304, {
           'ETag': ridesCache.etag,
-          'Cache-Control': 'public, max-age=5, stale-while-revalidate=10',
+          'Cache-Control': 'private, no-store',
           'X-Cache': 'HIT-304'
         });
         return res.end();
@@ -1417,14 +1461,14 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, {
         'Content-Type': 'application/json',
         'ETag': ridesCache.etag,
-        'Cache-Control': 'public, max-age=5, stale-while-revalidate=10',
+        'Cache-Control': 'private, no-store',
         'X-Cache': 'HIT'
       });
       return res.end(ridesCache.jsonString);
     }
 
     // Cache Miss or Invalidation: Query Relational Database
-    const freshRides = db.getRides();
+    const freshRides = db.getRides().map(discoveryRide);
     const jsonStr = JSON.stringify({ success: true, rides: freshRides });
     const etag = `W/"v${currentVersion}-${crypto.createHash('md5').update(jsonStr).digest('hex').slice(0, 16)}"`;
 
@@ -1438,7 +1482,7 @@ const server = http.createServer(async (req, res) => {
     if (ifNoneMatch && ifNoneMatch === etag) {
       res.writeHead(304, {
         'ETag': etag,
-        'Cache-Control': 'public, max-age=5, stale-while-revalidate=10',
+        'Cache-Control': 'private, no-store',
         'X-Cache': 'HIT-304'
       });
       return res.end();
@@ -1447,7 +1491,7 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, {
       'Content-Type': 'application/json',
       'ETag': etag,
-      'Cache-Control': 'public, max-age=5, stale-while-revalidate=10',
+      'Cache-Control': 'private, no-store',
       'X-Cache': 'MISS'
     });
     return res.end(jsonStr);
@@ -1480,7 +1524,7 @@ const server = http.createServer(async (req, res) => {
           rejectMutation(403, {
             success:false,error:'COMMISSION_SETTLEMENT_REQUIRED',
             message:`Commission Settlement Required: You have ₹${settlementCheck.commissionDue} in pending platform commission from a previous commute. Please settle your commission via UPI before offering new rides.`,
-            ...settlementCheck
+            ...safeSettlement(settlementCheck)
           });
         }
         const cleanRide = {
@@ -1488,15 +1532,15 @@ const server = http.createServer(async (req, res) => {
           driverPhone:authenticatedUser.phone,dept:authenticatedUser.dept,
           seatsTotal:Number(body.seatsTotal),
           uberBenchmark:Number(body.uberBenchmark),studentFare:Number(body.studentFare),
-          driverPayout:Number(body.driverPayout),note:body.note||''
+          driverPayout:Number(body.driverPayout),note:body.note||'',upiId:''
         };
         if(pgRidesStore){
           return pgRidesStore.createRide({driverUserId:authenticatedUser.id,ride:cleanRide,client})
-            .then(ride=>({status:201,body:{success:true,ride}}));
+            .then(ride=>({status:201,body:{success:true,ride:ownerRide(ride)}}));
         }
         const ride=db.createRide(cleanRide);
         invalidateRidesCache();
-        return {status:201,body:{success:true,ride}};
+        return {status:201,body:{success:true,ride:ownerRide(ride)}};
       };
       return pgRidesStore
         ? pgRidesStore.checkUserSettlementBlock(authenticatedUser.id,client).then(finish)
@@ -1524,7 +1568,6 @@ const server = http.createServer(async (req, res) => {
       speed: Number(speed || 0),
       heading: Number(heading || 0),
       accuracy: Number(accuracy || 10),
-      driverEmail: authenticatedUser.email,
       updatedAt: Date.now()
     };
     liveRideLocations.set(rideId, loc);
@@ -1544,7 +1587,7 @@ const server = http.createServer(async (req, res) => {
     if (!loc) {
       try { loc = db.getLiveLocation(rideId); } catch (e) {}
     }
-    return sendJson(200, { success: true, location: loc || null });
+    return sendJson(200, { success: true, location: safeLiveLocation(loc,true) });
   }
 
   if (method === 'POST' && pathname === '/api/bookings/passenger-location') {
@@ -1561,7 +1604,6 @@ const server = http.createServer(async (req, res) => {
       lat: Number(lat),
       lng: Number(lng),
       accuracy: Number(accuracy || 10),
-      passengerEmail: authenticatedUser.email,
       updatedAt: Date.now()
     };
     livePassengerLocations.set(bookingId, loc);
@@ -1581,7 +1623,7 @@ const server = http.createServer(async (req, res) => {
     if (!loc) {
       try { loc = db.getLiveLocation(bookingId); } catch (e) {}
     }
-    return sendJson(200, { success: true, location: loc || null });
+    return sendJson(200, { success: true, location: safeLiveLocation(loc,false) });
   }
 
   // -----------------------------------------------------------------------
@@ -1593,7 +1635,7 @@ const server = http.createServer(async (req, res) => {
     const bookings=pgRidesStore
       ? await pgRidesStore.getBookingsByUser(authenticatedUser.id)
       : db.getBookingsByUser(authenticatedUser.email);
-    return sendJson(200, { success: true, bookings });
+    return sendJson(200, { success: true, bookings:bookings.map(activeParticipantBooking) });
   }
 
   if (method === 'GET' && pathname === '/api/my-rides') {
@@ -1602,7 +1644,7 @@ const server = http.createServer(async (req, res) => {
     const rides = pgRidesStore
       ? await pgRidesStore.getRidesByDriver(authenticatedUser.id)
       : db.getRidesByDriver(authenticatedUser.email);
-    return sendJson(200, { success: true, rides });
+    return sendJson(200, { success: true, rides:rides.map(ownerRide) });
   }
 
   if (method === 'POST' && pathname === '/api/bookings') {
@@ -1618,20 +1660,20 @@ const server = http.createServer(async (req, res) => {
               ? `Settlement Required: You have ₹${settlementCheck.commissionDue} in pending platform commission from a previous ride. Please settle via UPI to unlock bookings.`
               : `Payment Settlement Required: You have an unpaid ride booking (₹${settlementCheck.pendingBookings[0].studentFare} with ${settlementCheck.pendingBookings[0].driverName}). Please settle your ride fare before booking another seat.`;
             rejectMutation(403,{
-              success:false,error:'SETTLEMENT_REQUIRED',message:errorMsg,...settlementCheck
+              success:false,error:'SETTLEMENT_REQUIRED',message:errorMsg,...safeSettlement(settlementCheck)
             });
           }
           if(pgRidesStore){
             return pgRidesStore.bookRide({
               rideId:body.rideId,passengerUserId:authenticatedUser.id,client
-            }).then(booking=>({status:201,body:{success:true,booking}}));
+            }).then(booking=>({status:201,body:{success:true,booking:historicalBooking(booking)}}));
           }
           const booking=db.bookRide({
             rideId:body.rideId,passengerEmail:authenticatedUser.email,
             passengerName:authenticatedUser.name
           });
           invalidateRidesCache();
-          return {status:201,body:{success:true,booking}};
+          return {status:201,body:{success:true,booking:historicalBooking(booking)}};
         };
         return pgRidesStore
           ? client.query('SELECT id FROM public.campus_users WHERE id=$1::uuid FOR UPDATE',
@@ -1661,7 +1703,7 @@ const server = http.createServer(async (req, res) => {
     const status = pgRidesStore
       ? await pgRidesStore.checkUserSettlementBlock(authenticatedUser.id)
       : db.checkUserSettlementBlock(authenticatedUser.email);
-    return sendJson(200, { success: true, ...status });
+    return sendJson(200, { success: true, ...safeSettlement(status) });
   }
 
   // -----------------------------------------------------------------------
