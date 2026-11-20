@@ -354,3 +354,9 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 
 
 - #56 verified. Next Smart GPS Privacy: explicit sharing and revocation, bounded freshness/retention, eliminate stale per-worker maps and synthetic location publication. No live ops.
+
+
+- [Smart GPS Privacy](tasks/2026-11-20-smart-gps-privacy.md): check actual GPS/previous CI, then independent review and owner-approved rides-only settlement policy. No live changes.
+
+
+- #57 verified. Next propose free rides-only pilot with explicit no-payment state, zero fare and commission, no waiver of existing obligations. Owner approval before activation, G1 separate.

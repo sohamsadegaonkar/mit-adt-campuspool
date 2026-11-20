@@ -1426,13 +1426,11 @@
             </button>
           </div>
 
-          <button type="button" id="gpsSimulateToggleBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-2 rounded-xl border border-slate-700 font-semibold text-[11px] flex items-center gap-1 cursor-pointer">
-            <span><svg class="cp-icon" aria-hidden="true"><use href="#cp-car"></use></svg></span> Highway Demo
-          </button>
+          <span id="gpsPrivacyStatus" role="status" aria-live="polite" class="text-xs text-slate-400">Location sharing off</span>
         </div>
 
         <p class="text-[10px] text-slate-500 text-center">
-          Powered by browser native Geolocation &amp; OpenStreetMap. Zero data charges, zero Google Maps API fees.
+          Sharing is optional. Your latest fix expires after 60 seconds; stop sharing at any time. Map tiles are supplied by an external map provider.
         </p>
       </div>
     </div>
@@ -3860,13 +3858,14 @@
     let routePolyline = null;
     let activeWatchPositionId = null;
     let activeGpsPollingInterval = null;
-    let simulationInterval = null;
+    let gpsEpoch=0, gpsShare=null, gpsStarting=false, gpsPolling=false;
     let currentTrackingContext = {
       rideId: null,
       bookingId: null,
       isDriver: false,
-      driverCoords: [18.4905, 74.0255],
-      passengerCoords: [18.4905, 74.0255],
+      driverCoords: null,
+      passengerCoords: null,
+      driverExpiresAt:0,passengerExpiresAt:0,
       speed: 0
     };
 
@@ -4000,295 +3999,169 @@
       }).addTo(gpsTrackerMapInstance);
     }
 
-    // Open GPS Tracking Modal
-    function openGpsTrackingModal({ rideId, bookingId, isDriver = false, title = "Live Peer Commute GPS" }) {
-      currentTrackingContext.rideId = rideId || 'commute_1';
-      currentTrackingContext.bookingId = bookingId || null;
-      currentTrackingContext.isDriver = isDriver;
-
-      const modal = document.getElementById('gpsTrackingModal');
-      const titleEl = document.getElementById('gpsModalTitle');
-      const driverBtn = document.getElementById('gpsDriverBroadcastBtn');
-      const passengerBtn = document.getElementById('gpsPassengerShareLocationBtn');
-
-      if (titleEl) titleEl.textContent = title;
-
-      showModal(modal, isDriver ? '#gpsDriverBroadcastBtn' : '#gpsPassengerShareLocationBtn');
-
-      setTimeout(() => {
-        initGpsTrackerMap();
-        updateTrackerView();
-      }, 100);
-
-      // Start periodic polling for location updates
-      if (activeGpsPollingInterval) clearInterval(activeGpsPollingInterval);
-      activeGpsPollingInterval = setInterval(fetchLiveGpsUpdate, 3500);
-
-      // Adjust controls visibility
-      if (driverBtn && passengerBtn) {
-        if (isDriver) {
-          driverBtn.classList.remove('hidden');
-          passengerBtn.classList.add('hidden');
-        } else {
-          driverBtn.classList.add('hidden');
-          passengerBtn.classList.remove('hidden');
+    // Explicit sharing only. One active lease and one in-flight update per view.
+    function gpsStatus(message){
+      const el=document.getElementById('gpsPrivacyStatus');
+      if(el)el.textContent=message;
+    }
+    function gpsButton(){
+      return document.getElementById(currentTrackingContext.isDriver?'gpsDriverBroadcastBtn':'gpsPassengerShareLocationBtn');
+    }
+    function gpsControls(){
+      const btn=gpsButton();
+      if(btn)btn.textContent=gpsStarting?'Starting…':gpsShare?'Stop GPS Sharing':'Start GPS Sharing';
+    }
+    function gpsTarget(context=currentTrackingContext){
+      return context.isDriver
+        ? {route:'/api/rides/location',field:'rideId',id:context.rideId}
+        : {route:'/api/bookings/passenger-location',field:'bookingId',id:context.bookingId};
+    }
+    async function gpsPost(target,body){
+      const r=await apiFetch(target.route,{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({[target.field]:target.id,...body})});
+      if(!r.ok)throw Error('GPS_REQUEST_FAILED');
+      return r.json();
+    }
+    async function stopGpsSharing({quiet=false}={}){
+      const old=gpsShare;
+      gpsShare=null;gpsStarting=false;gpsEpoch++;
+      if(activeWatchPositionId!==null && navigator.geolocation){
+        navigator.geolocation.clearWatch(activeWatchPositionId);activeWatchPositionId=null;
+      }
+      currentTrackingContext.driverCoords=null;currentTrackingContext.passengerCoords=null;
+      currentTrackingContext.driverExpiresAt=0;currentTrackingContext.passengerExpiresAt=0;
+      currentTrackingContext.speed=0;gpsControls();updateTrackerView();
+      gpsStatus('Sharing off on this device');
+      if(old && csrfToken===old.proof && appState.currentUser?.email===old.actor){
+        try{
+          await gpsPost(old.target,{action:'stop',lease:old.lease});
+          if(!quiet&&!gpsShare)gpsStatus('Sharing stopped on this device');
+        }catch(_){
+          if(!quiet&&!gpsShare)gpsStatus('Stopped locally; last fix expires within 60 seconds');
         }
       }
     }
-
-    function closeGpsTrackingModal() {
+    function openGpsTrackingModal({rideId,bookingId,isDriver=false,title='Live Peer Commute GPS'}){
+      if(!appState.currentUser?.isVerified||!rideId||(!isDriver&&!bookingId))return;
+      closeGpsTrackingModal();
+      currentTrackingContext={rideId,bookingId:bookingId||null,isDriver,driverCoords:null,passengerCoords:null,driverExpiresAt:0,passengerExpiresAt:0,speed:0};
+      const driverBtn=document.getElementById('gpsDriverBroadcastBtn'),passengerBtn=document.getElementById('gpsPassengerShareLocationBtn');
+      if(driverBtn)driverBtn.classList.toggle('hidden',!isDriver);
+      if(passengerBtn)passengerBtn.classList.toggle('hidden',isDriver);
+      const titleEl=document.getElementById('gpsModalTitle');if(titleEl)titleEl.textContent=title;
+      gpsControls();gpsStatus('Sharing off — awaiting a fresh location');
+      showModal('gpsTrackingModal',isDriver?'#gpsDriverBroadcastBtn':'#gpsPassengerShareLocationBtn');
+      const epoch=gpsEpoch;
+      setTimeout(()=>{if(epoch===gpsEpoch){initGpsTrackerMap();updateTrackerView();}},100);
+      activeGpsPollingInterval=setInterval(fetchLiveGpsUpdate,3500);
+      fetchLiveGpsUpdate();
+    }
+    function closeGpsTrackingModal(){
       hideModal('gpsTrackingModal');
-      if (activeWatchPositionId && navigator.geolocation) {
-        navigator.geolocation.clearWatch(activeWatchPositionId);
-        activeWatchPositionId = null;
-      }
-      if (activeGpsPollingInterval) {
-        clearInterval(activeGpsPollingInterval);
-        activeGpsPollingInterval = null;
-      }
-      if (simulationInterval) {
-        clearInterval(simulationInterval);
-        simulationInterval = null;
-      }
-      const bBtn = document.getElementById('gpsDriverBroadcastBtn');
-      if (bBtn) {
-        bBtn.classList.remove('bg-rose-600');
-        bBtn.classList.add('bg-emerald-600');
-        bBtn.innerHTML = '<span><svg class="cp-icon" aria-hidden="true"><use href="#cp-signal"></use></svg></span> Start GPS Sharing';
-      }
+      if(activeGpsPollingInterval!==null){clearInterval(activeGpsPollingInterval);activeGpsPollingInterval=null;}
+      void stopGpsSharing({quiet:true});
+      currentTrackingContext={rideId:null,bookingId:null,isDriver:false,driverCoords:null,passengerCoords:null,driverExpiresAt:0,passengerExpiresAt:0,speed:0};
+      updateTrackerView();
+      if(gpsTrackerMapInstance)gpsTrackerMapInstance.setView(CAMPUS_COORDS.center,14);
     }
-
-    function updateTrackerView() {
-      if (!gpsTrackerMapInstance) return;
-
-      const dCoords = currentTrackingContext.driverCoords;
-      const pCoords = currentTrackingContext.passengerCoords;
-
-      // Update or create driver marker
-      const carIcon = L.divIcon({
-        className: 'driver-live-marker',
-        html: renderIcon('car'),
-        iconSize: [32, 32],
-        iconAnchor: [16, 16]
-      });
-
-      if (!driverMarker) {
-        driverMarker = L.marker(dCoords, { icon: carIcon }).addTo(gpsTrackerMapInstance);
-      } else {
-        driverMarker.setLatLng(dCoords);
-      }
-      driverMarker.bindPopup('<strong style="font-size:11px; color:#087443;"><svg class="cp-icon" aria-hidden="true"><use href="#cp-car"></use></svg> Driver Live Vehicle</strong>');
-
-      // Update or create passenger pickup marker
-      const passIcon = L.divIcon({
-        className: 'gps-pulse-pin',
-        html: '<div class="gps-pulse-dot"></div>',
-        iconSize: [20, 20],
-        iconAnchor: [10, 10]
-      });
-
-      if (!passengerMarker) {
-        passengerMarker = L.marker(pCoords, { icon: passIcon }).addTo(gpsTrackerMapInstance);
-      } else {
-        passengerMarker.setLatLng(pCoords);
-      }
-      passengerMarker.bindPopup('<strong style="font-size:11px; color:#171717;"><svg class="cp-icon" aria-hidden="true"><use href="#cp-pin"></use></svg> Passenger Pickup Bay</strong>');
-
-      // Update Polyline
-      if (!routePolyline) {
-        routePolyline = L.polyline([dCoords, pCoords], { color: '#171717', weight: 4, dashArray: '6, 8' }).addTo(gpsTrackerMapInstance);
-      } else {
-        routePolyline.setLatLngs([dCoords, pCoords]);
-      }
-
-      // Fit bounds
-      const bounds = L.latLngBounds([dCoords, pCoords]);
-      gpsTrackerMapInstance.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
-
-      // Telemetry
-      const dist = calculateDistanceKm(dCoords[0], dCoords[1], pCoords[0], pCoords[1]);
-      const speed = currentTrackingContext.speed || 32;
-      const etaMin = Math.max(1, Math.round((dist / speed) * 60));
-
-      const distEl = document.getElementById('gpsDistanceDisplay');
-      const etaEl = document.getElementById('gpsEtaDisplay');
-      const spdEl = document.getElementById('gpsSpeedDisplay');
-
-      if (distEl) distEl.textContent = `${dist} km`;
-      if (etaEl) etaEl.textContent = `~${etaMin} min`;
-      if (spdEl) spdEl.textContent = `${speed} km/h`;
+    function updateTrackerView(){
+      const d=currentTrackingContext.driverCoords,p=currentTrackingContext.passengerCoords;
+      const distEl=document.getElementById('gpsDistanceDisplay'),etaEl=document.getElementById('gpsEtaDisplay'),spdEl=document.getElementById('gpsSpeedDisplay');
+      const distance=d&&p?calculateDistanceKm(d[0],d[1],p[0],p[1]):null;
+      if(distEl)distEl.textContent=distance===null?'-- km':distance+' km (straight line)';
+      if(etaEl)etaEl.textContent='-- min'; // no fabricated road ETA
+      if(spdEl)spdEl.textContent=d?currentTrackingContext.speed+' km/h':'-- km/h';
+      if(!gpsTrackerMapInstance)return;
+      if(driverMarker){gpsTrackerMapInstance.removeLayer(driverMarker);driverMarker=null;}
+      if(passengerMarker){gpsTrackerMapInstance.removeLayer(passengerMarker);passengerMarker=null;}
+      if(routePolyline){gpsTrackerMapInstance.removeLayer(routePolyline);routePolyline=null;}
+      if(d)driverMarker=L.marker(d).addTo(gpsTrackerMapInstance).bindPopup('Driver shared location');
+      if(p)passengerMarker=L.marker(p).addTo(gpsTrackerMapInstance).bindPopup('Passenger shared location');
+      const points=[d,p].filter(Boolean);
+      if(points.length)gpsTrackerMapInstance.fitBounds(L.latLngBounds(points),{padding:[40,40],maxZoom:16});
     }
-
-    async function fetchLiveGpsUpdate() {
-      if (!currentTrackingContext.rideId) return;
-      try {
-        const res = await apiFetch(`/api/rides/location?rideId=${encodeURIComponent(currentTrackingContext.rideId)}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.location) {
-            currentTrackingContext.driverCoords = [data.location.lat, data.location.lng];
-            currentTrackingContext.speed = Math.round((data.location.speed || 0) * 3.6) || 30; // convert m/s to km/h
-            updateTrackerView();
-          }
-        }
-      } catch (e) {
-        // quiet network poll
+    function expireGpsMarkers(ctx,now=Date.now()){
+      let changed=false;
+      if(ctx.driverCoords&&ctx.driverExpiresAt<=now){
+        ctx.driverCoords=null;ctx.driverExpiresAt=0;ctx.speed=0;changed=true;
       }
+      if(ctx.passengerCoords&&ctx.passengerExpiresAt<=now){
+        ctx.passengerCoords=null;ctx.passengerExpiresAt=0;changed=true;
+      }
+      if(changed)updateTrackerView();
     }
-
-    // Driver Live GPS Broadcast Toggle
-    document.getElementById('gpsDriverBroadcastBtn')?.addEventListener('click', () => {
-      const btn = document.getElementById('gpsDriverBroadcastBtn');
-      if (activeWatchPositionId) {
-        navigator.geolocation.clearWatch(activeWatchPositionId);
-        activeWatchPositionId = null;
-        btn.classList.remove('bg-rose-600');
-        btn.classList.add('bg-emerald-600');
-        btn.innerHTML = '<span><svg class="cp-icon" aria-hidden="true"><use href="#cp-signal"></use></svg></span> Start GPS Sharing';
-        showToast("Stopped live GPS streaming.", "🛑");
-        return;
-      }
-
-      if (!navigator.geolocation) {
-        showToast("Geolocation not supported by device.", "⚠️");
-        return;
-      }
-
-      btn.classList.remove('bg-emerald-600');
-      btn.classList.add('bg-rose-600');
-      btn.innerHTML = '<span><svg class="cp-icon" aria-hidden="true"><use href="#cp-stop"></use></svg></span> Stop GPS Sharing';
-      showToast("Live GPS Broadcast Active! Streaming to passenger.", "📡");
-
-      activeWatchPositionId = navigator.geolocation.watchPosition(
-        async (pos) => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          const speed = pos.coords.speed || 0;
-          const heading = pos.coords.heading || 0;
-          const acc = pos.coords.accuracy || 10;
-
-          currentTrackingContext.driverCoords = [lat, lng];
-          currentTrackingContext.speed = Math.round(speed * 3.6) || 35;
-          updateTrackerView();
-
-          // Sync with backend
-          try {
-            await apiFetch('/api/rides/location', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                rideId: currentTrackingContext.rideId,
-                lat, lng, speed, heading, accuracy: acc,
-                driverEmail: appState.currentUser?.email || ''
-              })
-            });
-          } catch (e) {
-            console.warn("GPS broadcast sync error:", e);
-          }
-        },
-        (err) => {
-          console.warn("GPS watch error:", err);
-          showToast("GPS error: Please check location permissions.", "⚠️");
-        },
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
-      );
-    });
-
-    // Passenger Share Gate Location
-    document.getElementById('gpsPassengerShareLocationBtn')?.addEventListener('click', () => {
-      if (!navigator.geolocation) {
-        showToast("Geolocation not supported by device.", "⚠️");
-        return;
-      }
-      showToast("Acquiring your exact waiting location...", "🛰️");
-
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          currentTrackingContext.passengerCoords = [lat, lng];
-          updateTrackerView();
-
-          if (currentTrackingContext.bookingId) {
-            try {
-              await apiFetch('/api/bookings/passenger-location', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  bookingId: currentTrackingContext.bookingId,
-                  lat, lng, accuracy: pos.coords.accuracy,
-                  passengerEmail: appState.currentUser?.email || ''
-                })
-              });
-            } catch (e) {
-              console.warn(e);
-            }
-          }
-          showToast("Pickup location shared with driver!", "✅");
-        },
-        (err) => {
-          showToast("Failed to acquire GPS. Check location permissions.", "⚠️");
-        },
-        { enableHighAccuracy: true, timeout: 8000 }
-      );
-    });
-
-    // Test Route Highway Simulator (Solapur Highway NH 65 corridor)
-    document.getElementById('gpsSimulateToggleBtn')?.addEventListener('click', () => {
-      if (simulationInterval) {
-        clearInterval(simulationInterval);
-        simulationInterval = null;
-        document.getElementById('gpsSimulateToggleBtn').classList.remove('bg-amber-600');
-        document.getElementById('gpsSimulateToggleBtn').classList.add('bg-slate-800');
-        showToast("Highway simulation stopped.", "⏹️");
-        return;
-      }
-
-      const simBtn = document.getElementById('gpsSimulateToggleBtn');
-      simBtn.classList.remove('bg-slate-800');
-      simBtn.classList.add('bg-amber-600');
-      showToast("Highway demo running! Simulating Solapur Highway commute.", "🚗");
-
-      // Highway path waypoints between MIT ADT Gate 1 and Hadapsar
-      const waypoints = [
-        [18.4905, 74.0255],
-        [18.4932, 74.0150],
-        [18.4965, 73.9980],
-        [18.4998, 73.9780],
-        [18.5040, 73.9520],
-        [18.5089, 73.9260]
-      ];
-      let step = 0;
-      let forward = true;
-
-      simulationInterval = setInterval(() => {
-        if (forward) {
-          step++;
-          if (step >= waypoints.length - 1) forward = false;
-        } else {
-          step--;
-          if (step <= 0) forward = true;
-        }
-
-        currentTrackingContext.driverCoords = waypoints[step];
-        currentTrackingContext.speed = 42;
+    async function fetchLiveGpsUpdate(){
+      const ctx=currentTrackingContext,epoch=gpsEpoch,proof=csrfToken;
+      // The existing poll timer clears expired markers even if a request hangs.
+      expireGpsMarkers(ctx);
+      if(!ctx.rideId||gpsPolling)return;
+      gpsPolling=true;
+      try{
+        const read=async(route,idField,id)=>{
+          const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),8000);
+          try{
+            const r=await apiFetch(route+'?'+idField+'='+encodeURIComponent(id),{cache:'no-store',signal:controller.signal});
+            if(!r.ok)throw Error('GPS_READ_FAILED');
+            const data=await r.json(),loc=data.location;
+            return loc && loc.expiresAt>Date.now()?loc:null;
+          }finally{clearTimeout(timer);}
+        };
+        const driver=await read('/api/rides/location','rideId',ctx.rideId);
+        if(epoch!==gpsEpoch||proof!==csrfToken||ctx!==currentTrackingContext)return;
+        const passenger=ctx.bookingId?await read('/api/bookings/passenger-location','bookingId',ctx.bookingId):null;
+        if(epoch!==gpsEpoch||proof!==csrfToken||ctx!==currentTrackingContext)return;
+        ctx.driverCoords=driver?[driver.lat,driver.lng]:null;
+        ctx.driverExpiresAt=driver?.expiresAt||0;
+        ctx.speed=driver?Math.round(driver.speed*3.6):0;
+        ctx.passengerCoords=passenger?[passenger.lat,passenger.lng]:null;
+        ctx.passengerExpiresAt=passenger?.expiresAt||0;
+        expireGpsMarkers(ctx);
         updateTrackerView();
-
-        // Also post to backend to verify end-to-end sync
-        apiFetch('/api/rides/location', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            rideId: currentTrackingContext.rideId,
-            lat: waypoints[step][0],
-            lng: waypoints[step][1],
-            speed: 11.6, // m/s = 42 km/h
-            heading: 270,
-            accuracy: 5
-          })
-        }).catch(() => {});
-      }, 2500);
-    });
+      }catch(_){
+        if(epoch===gpsEpoch&&ctx===currentTrackingContext){
+          ctx.driverCoords=null;ctx.passengerCoords=null;ctx.driverExpiresAt=0;ctx.passengerExpiresAt=0;ctx.speed=0;updateTrackerView();
+          gpsStatus('No current authorized location');
+        }
+      }finally{gpsPolling=false;}
+    }
+    async function toggleGpsSharing(){
+      if(gpsShare||gpsStarting){await stopGpsSharing();return;}
+      if(!navigator.geolocation||!appState.currentUser?.isVerified){gpsStatus('Location permission or sign-in required');return;}
+      const ctx=currentTrackingContext,target=gpsTarget(ctx),epoch=++gpsEpoch,proof=csrfToken,actor=appState.currentUser.email;
+      if(!target.id)return;
+      gpsStarting=true;gpsControls();gpsStatus('Requesting sharing permission…');
+      try{
+        const started=await gpsPost(target,{action:'start'});
+        if(epoch!==gpsEpoch||proof!==csrfToken||ctx!==currentTrackingContext){
+          if(proof===csrfToken&&actor===appState.currentUser?.email)
+            void gpsPost(target,{action:'stop',lease:started.lease}).catch(()=>{});
+          return;
+        }
+        const share={target,lease:started.lease,proof,actor,epoch,busy:false,lastSent:0};
+        gpsShare=share;gpsStarting=false;gpsControls();
+        gpsStatus('Waiting for device location permission and fresh fix');
+        activeWatchPositionId=navigator.geolocation.watchPosition(async pos=>{
+          if(gpsShare!==share||epoch!==gpsEpoch||proof!==csrfToken||share.busy)return;
+          if(Date.now()-share.lastSent<3000)return;
+          share.lastSent=Date.now();share.busy=true;
+          try{
+            const fix={action:'update',lease:share.lease,lat:pos.coords.latitude,lng:pos.coords.longitude,
+              accuracy:pos.coords.accuracy,capturedAt:Math.round(pos.timestamp),
+              ...(ctx.isDriver?{speed:Math.max(0,pos.coords.speed||0),heading:pos.coords.heading||0}:{})};
+            await gpsPost(target,fix);
+            if(gpsShare===share){gpsStatus('Location shared — expires in 60 seconds without a new fix');fetchLiveGpsUpdate();}
+          }catch(_){
+            if(gpsShare===share){await stopGpsSharing();gpsStatus('Sharing ended; start again to share a fresh fix');}
+          }finally{share.busy=false;}
+        },()=>{
+          if(gpsShare===share){void stopGpsSharing();gpsStatus('Location permission denied or unavailable');}
+        },{enableHighAccuracy:true,timeout:8000,maximumAge:0});
+      }catch(_){if(epoch===gpsEpoch){gpsStarting=false;gpsControls();gpsStatus('Could not start sharing');}}
+    }
+    document.getElementById('gpsDriverBroadcastBtn')?.addEventListener('click',toggleGpsSharing);
+    document.getElementById('gpsPassengerShareLocationBtn')?.addEventListener('click',toggleGpsSharing);
+    document.addEventListener('visibilitychange',()=>{if(document.hidden && (gpsShare||gpsStarting))void stopGpsSharing({quiet:true});});
+    window.addEventListener('pagehide',()=>{if(gpsShare||gpsStarting)void stopGpsSharing({quiet:true});});
 
     // Close GPS modal event listener
     document.getElementById('closeGpsModalBtn')?.addEventListener('click', closeGpsTrackingModal);

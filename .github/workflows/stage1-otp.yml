@@ -27,6 +27,8 @@ on:
       - 'bench/campus-rush-hour.js'
       - 'bench/campus-wifi-fairness.js'
       - 'bench/campus-privacy-shield.js'
+      - 'bench/campus-gps-privacy.js'
+      - 'test_browser_gps_privacy.js'
       - 'test_pg_mobility.js'
       - 'test_pg_mobility_http.js'
       - 'test_mobility_geo.js'
@@ -118,6 +120,8 @@ jobs:
           node --check bench/campus-rush-hour.js
           node --check bench/campus-wifi-fairness.js
           node --check bench/campus-privacy-shield.js
+          node --check bench/campus-gps-privacy.js
+          node --check test_browser_gps_privacy.js
           node --check test_production_auth.js
           node --check scripts/check-release-gates.js
           node --check test_release_gates.js
@@ -128,6 +132,7 @@ jobs:
           npm run test:idempotency-pg
           npm run test:staging-preflight
           npm run test:browser-idempotency
+          node --test test_browser_gps_privacy.js
           npm run test:stage1
           npm run test:identity
           npm run test:rides
@@ -135,6 +140,7 @@ jobs:
           RIDES_HTTP_RUSH_DISPOSABLE_DB=YES npm run test:rides-http
           RIDES_HTTP_FAIRNESS_DISPOSABLE_DB=YES npm run test:rides-http
           RIDES_HTTP_PRIVACY_DISPOSABLE_DB=YES npm run test:rides-http
+          RIDES_HTTP_GPS_DISPOSABLE_DB=YES npm run test:rides-http
           RIDES_STRESS_DISPOSABLE_DB=YES npm run test:rides-stress
           npm run test:mobility-geo
           npm run test:mobility
