@@ -30,12 +30,17 @@ if (RIDES_BACKEND === 'postgres' && AUTH_OTP_BACKEND !== 'postgres')
   throw new Error('PostgreSQL Rides requires PostgreSQL identity backend');
 // Optional pilot policy: only verified PostgreSQL rides routes, not OTP,
 // GPS, billable providers, public APIs or legacy SQLite identity.
+const FREE_RIDES_PILOT_VALUE=process.env.FREE_RIDES_PILOT||'false';
+if(!['true','false'].includes(FREE_RIDES_PILOT_VALUE))throw Error('FREE_RIDES_PILOT must be true or false');
+const FREE_RIDES_PILOT=FREE_RIDES_PILOT_VALUE==='true';
+if(FREE_RIDES_PILOT && RIDES_BACKEND!=='postgres')throw Error('Free rides pilot requires PostgreSQL Rides');
 const CAMPUS_WIFI_FAIRNESS = process.env.CAMPUS_WIFI_FAIRNESS === 'true';
 if (CAMPUS_WIFI_FAIRNESS && RIDES_BACKEND !== 'postgres')
   throw new Error('Campus Wi-Fi fairness requires PostgreSQL Rides');
 const FAIR_READ_PATHS = new Set(['/api/rides','/api/bookings','/api/my-rides','/api/user/settlement-status']);
 const FAIR_WRITE_PATHS = new Set(['/api/rides','/api/bookings','/api/rides/cancel','/api/bookings/cancel']);
 const MOBILITY_MATCHING_ENABLED = process.env.MOBILITY_MATCHING_ENABLED === 'true';
+if(FREE_RIDES_PILOT && MOBILITY_MATCHING_ENABLED)throw Error('Free rides pilot requires mobility matching disabled');
 // Cost-bearing Places calls stay OFF without an explicitly approved server flag.
 const PLACES_AUTOCOMPLETE_ENABLED = process.env.PLACES_AUTOCOMPLETE_ENABLED === 'true';
 const { createPlacesClient, PlacesError, validInput, validToken, validPlaceId, parseDailyCap } = require('./places-autocomplete');
@@ -193,7 +198,7 @@ const gpsCleanupTimer=setInterval(pruneGps,30000);gpsCleanupTimer.unref();
 const pgOtpStore = AUTH_OTP_BACKEND === 'postgres' ? new PgOtpStore() : null;
 const pgIdentity = pgOtpStore ? new PgIdentity(pgOtpStore) : null;
 const pgRidesStore = RIDES_BACKEND === 'postgres'
-  ? new PgRidesStore({pool:pgOtpStore.pool}) : null;
+  ? new PgRidesStore({pool:pgOtpStore.pool,freePilot:FREE_RIDES_PILOT}) : null;
 const pgMobilityStore = MOBILITY_MATCHING_ENABLED
   ? new PgMobilityStore({pool:pgOtpStore.pool}) : null;
 const pgIdempotency = pgRidesStore ? new PgIdempotencyStore(pgOtpStore.pool) : null;
@@ -647,7 +652,7 @@ const server = http.createServer(async (req, res) => {
   }
   function discoveryRide(ride){
     return pick(ride,['id','driverName','dept','vehicle','vehicleModel','pickup','destination',
-      'departureTime','seatsTotal','seatsLeft','uberBenchmark','studentFare','driverPayout','createdAt']);
+      'departureTime','seatsTotal','seatsLeft','uberBenchmark','studentFare','driverPayout','paymentMode','createdAt']);
   }
   function ownerRide(ride){
     const result=discoveryRide(ride);
@@ -656,7 +661,7 @@ const server = http.createServer(async (req, res) => {
   }
   function historicalBooking(booking){
     const result=pick(booking,['bookingId','rideId','passengerName','driverName','dept',
-      'vehicleModel','pickup','destination','departureTime','studentFare','paymentStatus','createdAt']);
+      'vehicleModel','pickup','destination','departureTime','studentFare','paymentStatus','paymentMode','createdAt']);
     if(isSelf(booking.passengerEmail))result.passengerEmail=booking.passengerEmail;
     return result;
   }
@@ -808,7 +813,7 @@ const server = http.createServer(async (req, res) => {
     if (!authenticatedUser) {
       return sendJson(401, { success: false, error: 'AUTH_REQUIRED' });
     }
-    return sendJson(200, { success: true, user: authenticatedUser, csrfToken: csrfForSession(sessionToken) });
+    return sendJson(200, { success: true, user: authenticatedUser, csrfToken: csrfForSession(sessionToken), freeRidesPilot:FREE_RIDES_PILOT });
   }
   if (pathname.startsWith('/api/') && (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE')
     && authenticatedUser && (!pathname.startsWith('/api/auth/') || pathname === '/api/auth/logout')
@@ -1522,11 +1527,12 @@ const server = http.createServer(async (req, res) => {
           ['pickupCoordinates','destinationCoordinates','departureAt'].some(k=>body[k]!==undefined)){
         rejectMutation(400,{success:false,error:'FEATURE_NOT_ENABLED'});
       }
+      if(FREE_RIDES_PILOT && (body.studentFare!==0 || body.driverPayout!==0 || body.uberBenchmark!==0 || (body.upiId!==undefined && body.upiId!=='')))rejectMutation(400,{success:false,error:'FREE_PILOT_ZERO_FARE_REQUIRED',message:'Pilot rides are free; no fare, payout or commission.'});
       const finish = settlementCheck => {
         if (settlementCheck.hasUnsettledCommission) {
           rejectMutation(403, {
             success:false,error:'COMMISSION_SETTLEMENT_REQUIRED',
-            message:`Commission Settlement Required: You have ₹${settlementCheck.commissionDue} in pending platform commission from a previous commute. Please settle your commission via UPI before offering new rides.`,
+            message:`Commission Settlement Required: You have ₹${settlementCheck.commissionDue} in pending platform commission from a previous commute. Payment verification is unavailable; existing obligations require review.`,
             ...safeSettlement(settlementCheck)
           });
         }
@@ -1630,8 +1636,8 @@ const server = http.createServer(async (req, res) => {
         const finish=settlementCheck=>{
           if(settlementCheck.isBlocked){
             const errorMsg=settlementCheck.hasUnsettledCommission
-              ? `Settlement Required: You have ₹${settlementCheck.commissionDue} in pending platform commission from a previous ride. Please settle via UPI to unlock bookings.`
-              : `Payment Settlement Required: You have an unpaid ride booking (₹${settlementCheck.pendingBookings[0].studentFare} with ${settlementCheck.pendingBookings[0].driverName}). Please settle your ride fare before booking another seat.`;
+              ? `Settlement Required: You have ₹${settlementCheck.commissionDue} in pending platform commission from a previous ride. Payment verification is unavailable; existing obligations require review.`
+              : `Payment Settlement Required: You have an unpaid ride booking (₹${settlementCheck.pendingBookings[0].studentFare} with ${settlementCheck.pendingBookings[0].driverName}). Payment verification is unavailable; existing obligations require review.`;
             rejectMutation(403,{
               success:false,error:'SETTLEMENT_REQUIRED',message:errorMsg,...safeSettlement(settlementCheck)
             });
