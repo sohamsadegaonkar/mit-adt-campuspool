@@ -358,3 +358,6 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 
 
 - #54 `a6832bb` both checks PASS. Settlement real parity 6/6, 12→6 statements; 3880/3880 rush, peak 159.95/s, p95 30.17ms, pool acquisitions 6400 vs 6720, queue 35 vs 39, zero unexpected, 47 snapshots, 874 receipts. No live change. [Task](tasks/2026-11-20-single-snapshot-settlement.md).
+
+
+- Campus Wi-Fi fairness default-off candidate: scoped verified PG Rides actor budgets + hard preauth IP ceiling, existing limiter, no provider/OTP change. CI pending. [Task](tasks/2026-11-20-campus-wifi-fairness.md).

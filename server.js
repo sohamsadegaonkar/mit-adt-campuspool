@@ -28,6 +28,13 @@ const RIDES_BACKEND = process.env.RIDES_BACKEND || 'sqlite';
 if (!['sqlite', 'postgres'].includes(RIDES_BACKEND)) throw new Error('RIDES_BACKEND must be sqlite or postgres');
 if (RIDES_BACKEND === 'postgres' && AUTH_OTP_BACKEND !== 'postgres')
   throw new Error('PostgreSQL Rides requires PostgreSQL identity backend');
+// Optional pilot policy: only verified PostgreSQL rides routes, not OTP,
+// GPS, billable providers, public APIs or legacy SQLite identity.
+const CAMPUS_WIFI_FAIRNESS = process.env.CAMPUS_WIFI_FAIRNESS === 'true';
+if (CAMPUS_WIFI_FAIRNESS && RIDES_BACKEND !== 'postgres')
+  throw new Error('Campus Wi-Fi fairness requires PostgreSQL Rides');
+const FAIR_READ_PATHS = new Set(['/api/rides','/api/bookings','/api/my-rides','/api/user/settlement-status']);
+const FAIR_WRITE_PATHS = new Set(['/api/rides','/api/bookings','/api/rides/cancel','/api/bookings/cancel']);
 const MOBILITY_MATCHING_ENABLED = process.env.MOBILITY_MATCHING_ENABLED === 'true';
 // Cost-bearing Places calls stay OFF without an explicitly approved server flag.
 const PLACES_AUTOCOMPLETE_ENABLED = process.env.PLACES_AUTOCOMPLETE_ENABLED === 'true';
@@ -545,49 +552,54 @@ const server = http.createServer(async (req, res) => {
     return { tier: 'API_READ', limit: 120, windowMs: 60000 };
   }
 
-  // Enforce Shared Rate Limiting Across Cluster Workers
+  // Reuse the existing SQLite counter across workers on the same DB file.
+  // Never choose an actor from a cookie, body, email or forwarded header.
   const rateLimitPolicy = resolveRateLimitPolicy();
+  const clientIp = getClientIp();
+  const fairRoute = CAMPUS_WIFI_FAIRNESS && (
+    (method === 'GET' && FAIR_READ_PATHS.has(pathname)) ||
+    (method === 'POST' && FAIR_WRITE_PATHS.has(pathname)));
   let throttledIdempotencyReplay = null;
-  if (rateLimitPolicy) {
-    const clientIp = getClientIp();
-    const rateLimitKey = `rl:${rateLimitPolicy.tier}:${clientIp}`;
-    const rlResult = db.checkRateLimit(rateLimitKey, rateLimitPolicy.limit, rateLimitPolicy.windowMs);
-
-    res.setHeader('RateLimit-Limit', String(rlResult.limit));
-    res.setHeader('RateLimit-Remaining', String(rlResult.remaining));
-    res.setHeader('RateLimit-Reset', String(rlResult.resetSeconds));
-    res.setHeader('X-RateLimit-Limit', String(rlResult.limit));
-    res.setHeader('X-RateLimit-Remaining', String(rlResult.remaining));
-    res.setHeader('X-RateLimit-Reset', String(rlResult.resetSeconds));
-    res.setHeader('X-RateLimit-Tier', rateLimitPolicy.tier);
-
-    if (!rlResult.allowed) {
-      let retryAfter = rlResult.resetSeconds;
-      // The normal rate limit still applies to all *new* writes. For completed
-      // retries, permit only a tiny number of read-only receipt probes per IP.
-      // This budget also bounds pre-auth DB work by forged cookie/key traffic.
-      if (method === 'POST' && IDEMPOTENT_MUTATION_PATHS.has(pathname) &&
-          typeof req.headers['idempotency-key'] === 'string' &&
-          req.headers['idempotency-key'].length >= 16) {
-        const replayBudget = db.checkRateLimit('rl:IDEMPOTENCY_REPLAY:' + clientIp, 12, 60000);
-        if (replayBudget.allowed) {
-          throttledIdempotencyReplay = { tier: rateLimitPolicy.tier, retryAfter };
-        } else {
-          retryAfter = Math.max(retryAfter, replayBudget.resetSeconds);
-        }
-      }
-      if (!throttledIdempotencyReplay) {
-        res.setHeader('Retry-After', String(retryAfter));
-        res.writeHead(429, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-        return res.end(JSON.stringify({
-          success: false,
-          error: 'RATE_LIMIT_EXCEEDED',
-          tier: rateLimitPolicy.tier,
-          message: `Too many requests on ${rateLimitPolicy.tier}. Please wait ${retryAfter}s before retrying.`,
-          retryAfter
-        }));
-      }
+  function setRateLimitHeaders(result,tier) {
+    for(const prefix of ['RateLimit-','X-RateLimit-']){
+      res.setHeader(prefix+'Limit',String(result.limit));
+      res.setHeader(prefix+'Remaining',String(result.remaining));
+      res.setHeader(prefix+'Reset',String(result.resetSeconds));
     }
+    res.setHeader('X-RateLimit-Tier',tier);
+  }
+  function sendRateLimit(tier,retryAfter) {
+    res.setHeader('Retry-After',String(retryAfter));
+    return sendJson(429,{success:false,error:'RATE_LIMIT_EXCEEDED',tier,retryAfter,
+      message:'Too many requests. Please wait '+retryAfter+'s before retrying.'});
+  }
+  function admitRateLimit(policy,key,{allowReplay=true}={}) {
+    const result=db.checkRateLimit(key,policy.limit,policy.windowMs);
+    setRateLimitHeaders(result,policy.tier);
+    if(result.allowed)return true;
+    let retryAfter=result.resetSeconds;
+    if(allowReplay && method==='POST' && IDEMPOTENT_MUTATION_PATHS.has(pathname) &&
+        typeof req.headers['idempotency-key']==='string' && req.headers['idempotency-key'].length>=16){
+      const replayBudget=db.checkRateLimit('rl:IDEMPOTENCY_REPLAY:'+clientIp,12,60000);
+      if(replayBudget.allowed){
+        throttledIdempotencyReplay={tier:policy.tier,retryAfter};
+        return true;
+      }
+      retryAfter=Math.max(retryAfter,replayBudget.resetSeconds);
+    }
+    sendRateLimit(policy.tier,retryAfter);
+    return false;
+  }
+  if(rateLimitPolicy){
+    if(fairRoute){
+      // Hard IP ceiling BEFORE costly session validation; no replay exception
+      // to this ceiling. Initial pilot cap is 5x the old per-IP allowance.
+      const aggregate={...rateLimitPolicy,tier:'CAMPUS_IP_'+rateLimitPolicy.tier,limit:rateLimitPolicy.limit*5};
+      if(!admitRateLimit(aggregate,'rl:'+aggregate.tier+':'+clientIp,{allowReplay:false}))return;
+      // Missing/malformed cookies use existing anonymous IP cap and never
+      // allocate an actor bucket. Plausible tokens are checked below.
+      if(!readSessionToken() && !admitRateLimit(rateLimitPolicy,'rl:'+rateLimitPolicy.tier+':'+clientIp,{allowReplay:false}))return;
+    }else if(!admitRateLimit(rateLimitPolicy,'rl:'+rateLimitPolicy.tier+':'+clientIp))return;
   }
 
   // Parse JSON Body Helper
@@ -668,6 +680,19 @@ const server = http.createServer(async (req, res) => {
   }
   const sessionToken = readSessionToken();
   const authenticatedUser = pgIdentity ? await pgIdentity.getSessionUser(sessionToken) : db.getSessionUser(sessionToken);
+  if(fairRoute && sessionToken){
+    if(authenticatedUser){
+      // A stable verified user UUID shares its budget across sessions/IPs.
+      // Hash the UUID so the existing limiter stores no raw actor identifier.
+      const actor=crypto.createHash('sha256').update('campus-rate:v1:'+authenticatedUser.id).digest('hex');
+      const policy={...rateLimitPolicy,tier:'CAMPUS_USER_'+rateLimitPolicy.tier};
+      if(!admitRateLimit(policy,'rl:'+policy.tier+':'+actor))return;
+    }else{
+      // Forged/revoked/expired tokens never receive an actor bucket, and
+      // cannot probe receipts. The pre-auth IP ceiling already bounded DB work.
+      if(!admitRateLimit(rateLimitPolicy,'rl:'+rateLimitPolicy.tier+':'+clientIp,{allowReplay:false}))return;
+    }
+  }
   // CSRF token is tied to a server-issued session, never persisted in a browser storage.
   function csrfForSession(token) {
     return crypto.createHmac('sha256', OTP_SECRET).update('csrf:v1:' + token).digest('hex');

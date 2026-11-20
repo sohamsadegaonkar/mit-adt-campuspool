@@ -25,6 +25,7 @@ on:
       - 'test_pg_rides_stress.js'
       - 'test_pg_rides_http.js'
       - 'bench/campus-rush-hour.js'
+      - 'bench/campus-wifi-fairness.js'
       - 'test_pg_mobility.js'
       - 'test_pg_mobility_http.js'
       - 'test_mobility_geo.js'
@@ -114,6 +115,7 @@ jobs:
           node --check test_pg_rides_stress.js
           node --check test_pg_rides_http.js
           node --check bench/campus-rush-hour.js
+          node --check bench/campus-wifi-fairness.js
           node --check test_production_auth.js
           node --check scripts/check-release-gates.js
           node --check test_release_gates.js
@@ -129,6 +131,7 @@ jobs:
           npm run test:rides
           RIDES_HTTP_STRESS_DISPOSABLE_DB=YES npm run test:rides-http
           RIDES_HTTP_RUSH_DISPOSABLE_DB=YES npm run test:rides-http
+          RIDES_HTTP_FAIRNESS_DISPOSABLE_DB=YES npm run test:rides-http
           RIDES_STRESS_DISPOSABLE_DB=YES npm run test:rides-stress
           npm run test:mobility-geo
           npm run test:mobility
