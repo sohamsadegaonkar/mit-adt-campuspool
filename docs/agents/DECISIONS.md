@@ -116,3 +116,8 @@
 ## 2026-11-20 — Campus Wi-Fi fairness (branch proposal)
 
 - #53/#54 NAT 120/130 accepted. Default-off exact PG rides routes: verified UUID retains 120 read/60 write per minute across IP/session, pre-auth aggregate IP 600/300, existing anonymous IP budget and bounded replay. No exemption from aggregate cap; no OTP/provider/legacy change. Reuse SQLite, no extra infrastructure. Provisional caps and increased preauth plausible-token lookup allowance require security and enabled workload review; no independent replica guarantee. [Task](tasks/2026-11-20-campus-wifi-fairness.md).
+
+
+## 2026-11-20 — participant privacy projection (branch proposal)
+
+- Explicit safe feed and historical receipts, active passenger contact via existing booking read, no UPI or unverified QR, GPS no email. No new queries or infrastructure. Prior disclosure cannot be recalled; old receipt storage and GPS retention remain open. [Task](tasks/2026-11-20-participant-privacy-shield.md).

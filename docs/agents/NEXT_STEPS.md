@@ -348,3 +348,9 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 
 
 - #55 verified; next privacy boundary for ride discovery, active participant contact, historical receipt replay and GPS. No live flag change or deployment.
+
+
+- [Privacy Shield](tasks/2026-11-20-participant-privacy-shield.md): check exact-head CI, then independent privacy/client review and owner-approved rides-only settlement policy; GPS retention follows. No live changes.
+
+
+- #56 verified. Next Smart GPS Privacy: explicit sharing and revocation, bounded freshness/retention, eliminate stale per-worker maps and synthetic location publication. No live ops.
