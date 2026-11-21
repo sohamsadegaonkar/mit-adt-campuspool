@@ -68,7 +68,7 @@ async function runPickupAbort({t,pool,ids,request}){
  const emergency=await claim(2,two,'safety_emergency');
  assert.equal(emergency.status,200,JSON.stringify(emergency.body));
  assert.equal(emergency.body.recorded,true);
- assert.ok(!JSON.stringify(emergency.body).includes('penalty'));
+ assert.equal(Object.hasOwn(emergency.body,'penalty'),false);
 
  // Test exactly the 4m59 boundary using controlled synthetic timestamps on disposable DB.
  const setPickup=async(seconds)=>pool.query(
