@@ -32,7 +32,9 @@ on:
       - 'test_browser_gps_privacy.js'
       - 'test_browser_motion.js'
       - 'bench/campus-journey-lifecycle.js'
+      - 'bench/campus-boarding-pin.js'
       - 'test_browser_journey.js'
+      - 'test_browser_boarding_pin.js'
       - 'test_pg_mobility.js'
       - 'test_pg_mobility_http.js'
       - 'test_mobility_geo.js'
@@ -129,7 +131,9 @@ jobs:
           node --check test_browser_gps_privacy.js
           node --check test_browser_motion.js
           node --check bench/campus-journey-lifecycle.js
+          node --check bench/campus-boarding-pin.js
           node --check test_browser_journey.js
+          node --check test_browser_boarding_pin.js
           node --check test_production_auth.js
           node --check scripts/check-release-gates.js
           node --check test_release_gates.js
@@ -143,6 +147,7 @@ jobs:
           node --test test_browser_gps_privacy.js
           node --test test_browser_motion.js
           node --test test_browser_journey.js
+          node --test test_browser_boarding_pin.js
           npm run test:stage1
           npm run test:identity
           npm run test:rides
@@ -153,6 +158,7 @@ jobs:
           RIDES_HTTP_GPS_DISPOSABLE_DB=YES npm run test:rides-http
           RIDES_HTTP_FREE_PILOT_DISPOSABLE_DB=YES npm run test:rides-http
           RIDES_HTTP_JOURNEY_DISPOSABLE_DB=YES npm run test:rides-http
+          RIDES_HTTP_BOARDING_DISPOSABLE_DB=YES npm run test:rides-http
           RIDES_STRESS_DISPOSABLE_DB=YES npm run test:rides-stress
           npm run test:mobility-geo
           npm run test:mobility
