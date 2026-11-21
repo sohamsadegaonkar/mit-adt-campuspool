@@ -1,0 +1,75 @@
+name: 008-014 Disposable Schema Recovery Drill
+
+on:
+  pull_request:
+    paths:
+      - 'stage1-otp/migrations/**'
+      - 'stage1-otp/migrate.js'
+      - 'scripts/migration-008-014-preflight.js'
+      - 'scripts/reviewer-onboarding-preflight.js'
+      - 'test_migration_008_014_preflight.js'
+      - 'test_pg_migration_recovery_drill.js'
+      - '.github/workflows/schema-recovery-drill.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  disposable-recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: stage1-ci-only
+          POSTGRES_DB: campuspool_stage1_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d campuspool_stage1_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      OTP_DATABASE_URL: postgresql://postgres:stage1-ci-only@127.0.0.1:5432/campuspool_stage1_ci
+      OTP_DB_SSL: "false"
+      SCHEMA_RECOVERY_DISPOSABLE_DB: "YES"
+      RECOVERY_008_014_DISPOSABLE_DB: "YES"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.2'
+          cache: npm
+      - name: Install pinned dependencies
+        run: npm ci
+      - name: Locate container-bound PostgreSQL 16 backup tools
+        run: |
+          CID="$(docker ps --quiet --filter ancestor=postgis/postgis:16-3.4 | head -n 1)"
+          test -n "$CID"
+          echo "POSTGIS_CI_CONTAINER_ID=$CID" >> "$GITHUB_ENV"
+          docker exec "$CID" pg_dump --version
+          docker exec "$CID" pg_restore --version
+      - name: Syntax and offline migration-state guards
+        run: |
+          node --check scripts/migration-008-014-preflight.js
+          node --check test_migration_008_014_preflight.js
+          node --check test_pg_migration_recovery_drill.js
+          node --test test_migration_008_014_preflight.js
+      - name: Migrate only isolated local CI database and read back schema 014
+        run: |
+          node stage1-otp/migrate.js
+          node scripts/migration-008-014-preflight.js --expected-stage=014
+      - name: Perform independent synthetic 007 and 014 archive restore
+        run: |
+          node --test test_pg_migration_recovery_drill.js
+      - name: Assert no real cloud backup or release authorization
+        run: |
+          echo "SYNTHETIC_RECOVERY_ONLY=YES"
+          echo "STAGING_DATABASE_CONNECTED=NO"
+          echo "AZURE_BACKUP_RETRIEVED=NO"
+          echo "OFFSITE_RESTORE_G1_VERIFIED=NO"
+          echo "NO_PRODUCTION_MIGRATION_OR_ROLLBACK=YES"
