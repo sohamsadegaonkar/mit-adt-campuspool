@@ -473,3 +473,9 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 - Exact code `be358d6518c9fe69a42e2ded36f59e5f80b1d237` passed Stage 1 PG `44884061538`, real browser `44884061505`, security `44884061503`, Places `44884061516`, disposable mobility benchmark `44884061497`. `CAMPUS_CASE_REVIEW_APPEALS_RESULT` proved no self-provisioning, independent roles, 2-sided evidence, appeals, revocation, audit immutability, migration 014 replay, no money/seat or ban changes.
 - First CI failed because an extra test HTTP mutation correctly triggered real rate limiting; moved **only that synthetic scenario** to direct disposable store, without weakening production limiter. Full test suite then green. [Handoff](tasks/2026-11-21-reviewer-and-appeals-foundation.md).
 - Draft PR #68 remains **unmerged/not deployed**; no actual staff reviewer has been granted permissions. `CASE_REVIEW_ENABLED=false` by default. Active `Pending` policy, staffing/SLAs, real Android, G1 restore, staged migration 008–014 and full parent PR integration remain NO-GO.
+
+## 2026-11-21 — Reviewer onboarding operations source candidate, NO-GO
+
+- Created PR #69 above #68: **unapproved human-operations policy** and a **read-only, zero-permission-writes** reviewer grant/revoke preflight that rejects arbitrary/prod DBs, unverified users, dual roles and unsafe privilege configurations. Added offline guard tests to Stage 1 CI; **exact-code verification pending**.
+- No live/staging/production database accessed; no reviewer assigned or revoked; no support SLA, money, fine, ban or account sanction committed. Feature flag `CASE_REVIEW_ENABLED=false`. [Source handoff](tasks/2026-11-21-reviewer-onboarding-safety-handoff.md).
+- Parent #68 and stack unmerged; independent G1 restore, 008–014 migration/rollback, real Android safety/accessibility and product/privacy/legal signoffs remain release NO-GO.
