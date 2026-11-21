@@ -1655,7 +1655,7 @@
     // random keys and expiry timestamps are stored; never request JSON or PII.
     const idempotentDomainRoutes = new Set([
       '/api/rides', '/api/bookings', '/api/rides/cancel',
-      '/api/bookings/cancel', '/api/mobility/intents',
+      '/api/bookings/cancel', '/api/bookings/pickup-abort', '/api/mobility/intents',
       '/api/mobility/intents/cancel'
     ]);
     const pendingDomainMutations = new Map();
