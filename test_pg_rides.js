@@ -140,16 +140,32 @@ test('PostgreSQL rides: permissions, atomic seats, cancellation and durable read
         const missing=crypto.randomUUID(),cases=[...uuids,missing];
         let oldQueries=0,newQueries=0,transactionQueries=0;
         async function reference(userId,queryable){
-          const [commission,pending]=await Promise.all([
-            queryable.query('SELECT COALESCE(SUM(seats_total-seats_left),0)::int AS seats_sold, COALESCE(SUM((seats_total-seats_left)*student_fare),0) AS gross FROM public.campus_rides WHERE driver_user_id=$1',[userId]),
-            queryable.query("SELECT b.* FROM public.campus_bookings b WHERE b.passenger_user_id=$1 AND b.status='active' AND b.payment_status='Pending' ORDER BY b.created_at DESC",[userId])
+          const [stats,pending]=await Promise.all([
+            queryable.query([
+              'SELECT count(*)::int AS n FROM public.campus_bookings b',
+              'JOIN public.campus_rides r ON r.id=b.ride_id',
+              "WHERE r.driver_user_id=$1 AND b.payment_mode='legacy'",
+              "AND b.payment_status='Pending'"
+            ].join(' '),[userId]),
+            queryable.query([
+              'SELECT b.*,r.journey_stage,r.departed_at,r.pickup_at,r.arrived_at,',
+              'r.status AS ride_status FROM public.campus_bookings b',
+              'JOIN public.campus_rides r ON r.id=b.ride_id',
+              "WHERE b.passenger_user_id=$1 AND b.payment_mode='legacy'",
+              "AND b.payment_status='Pending'",
+              'ORDER BY b.created_at DESC,b.booking_id DESC'
+            ].join(' '),[userId])
           ]);
-          const totalRides=Number(commission.rows[0].seats_sold),grossFare=Number(commission.rows[0].gross);
-          const totalCommission=Math.round(grossFare*.1),pendingBookings=pending.rows.map(bookingPublic);
-          const hasUnsettledCommission=totalCommission>0,hasUnpaidBooking=pendingBookings.length>0;
-          return {isBlocked:hasUnsettledCommission||hasUnpaidBooking,hasUnsettledCommission,hasUnpaidBooking,
-            commissionDue:totalCommission,driverCommission:{totalRides,grossFare,totalCommission,settled:0,netDue:totalCommission},
-            pendingBookings,reason:hasUnsettledCommission?'COMMISSION_DUE':hasUnpaidBooking?'UNPAID_BOOKING':'NONE'};
+          const active=pending.rows.filter(x=>x.status==='active'&&x.ride_status==='active').map(bookingPublic);
+          const review=pending.rows.filter(x=>x.status!=='active'||x.ride_status!=='active').map(bookingPublic);
+          const driverReviewCount=Number(stats.rows[0].n),hasUnpaidBooking=active.length>0;
+          const hasReviewRequired=review.length>0||driverReviewCount>0;
+          return {isBlocked:hasUnpaidBooking,reason:hasUnpaidBooking?'UNPAID_BOOKING':'NONE',
+            hasUnsettledCommission:false,hasUnpaidBooking,commissionDue:0,
+            driverCommission:{totalRides:0,grossFare:0,totalCommission:0,settled:0,netDue:0},
+            pendingBookings:active,reviewRequiredBookings:review,hasReviewRequired,driverReviewCount,
+            reviewStatus:hasReviewRequired?'REVIEW_REQUIRED':'NONE',
+            financialMessage:'Pending is unverified. Cancelled or disputed records require review; no automatic charge, waiver, refund, fee or commission was made.'};
         }
         const counted=new PgRidesStore({pool:{
           query(...args){newQueries++;return pool.query(...args);},
@@ -168,11 +184,14 @@ test('PostgreSQL rides: permissions, atomic seats, cancellation and durable read
         assert.deepEqual(await counted.checkUserSettlementBlock(null),{isBlocked:false,reason:'NONE'});
         assert.equal(newQueries,cases.length);
         const both=seen.get(uuids[0]);
-        assert.equal(both.hasUnpaidBooking,true);assert.equal(both.hasUnsettledCommission,true);
-        assert.deepEqual(both.driverCommission,{totalRides:3,grossFare:55.25,totalCommission:6,settled:0,netDue:6});
-        assert.equal(both.reason,'COMMISSION_DUE');
+        assert.equal(both.hasUnpaidBooking,true);assert.equal(both.hasUnsettledCommission,false);
+        assert.deepEqual(both.driverCommission,{totalRides:0,grossFare:0,totalCommission:0,settled:0,netDue:0});
+        assert.equal(both.driverReviewCount,3);
+        assert.equal(both.reason,'UNPAID_BOOKING');
         assert.deepEqual(seen.get(uuids[1]).pendingBookings.map(x=>x.bookingId),[second.bookingId,first.bookingId]);
-        assert.equal(seen.get(uuids[3]).reason,'COMMISSION_DUE');
+        assert.equal(seen.get(uuids[3]).reason,'NONE');
+        assert.equal(seen.get(uuids[3]).driverReviewCount,1);
+        assert.equal(seen.get(uuids[3]).hasReviewRequired,true);
         assert.equal(seen.get(uuids[3]).hasUnpaidBooking,false);
         assert.equal(seen.get(uuids[4]).reason,'NONE');
         assert.equal(seen.get(missing).reason,'NONE');
@@ -190,12 +209,17 @@ test('PostgreSQL rides: permissions, atomic seats, cancellation and durable read
           assert.equal(newQueries,cases.length,'External transaction must not acquire another pool client');
         }finally{try{await tx.query('ROLLBACK');}finally{tx.release();}}
         assert.deepEqual(await rides.checkUserSettlementBlock(uuids[1]),seen.get(uuids[1]));
-        // Cancellation removes the pending booking and restores the same
-        // commission semantics (including audit rows) as the original query.
+        // Cancellation does not hide original Pending or create phantom commission.
+        // Previously active rows transition to reviewRequiredBooks, not Paid.
         await rides.cancelRide({rideId:a,driverUserId:uuids[0]});
         for(const id of cases)assert.deepEqual(await rides.checkUserSettlementBlock(id),await reference(id,pool));
         const after=await rides.checkUserSettlementBlock(uuids[0]);
-        assert.deepEqual(after.driverCommission,{totalRides:1,grossFare:30.15,totalCommission:3,settled:0,netDue:3});
+        assert.deepEqual(after.driverCommission,{totalRides:0,grossFare:0,totalCommission:0,settled:0,netDue:0});
+        assert.equal(after.driverReviewCount,3);
+        const postCancelPassenger=await counted.checkUserSettlementBlock(uuids[1]);
+        assert.deepEqual(postCancelPassenger.pendingBookings.map(x=>x.bookingId),[second.bookingId]);
+        assert.deepEqual(postCancelPassenger.reviewRequiredBookings.map(x=>x.bookingId),[first.bookingId]);
+        assert.equal(postCancelPassenger.reviewStatus,'REVIEW_REQUIRED');
         t.diagnostic('SETTLEMENT_QUERY_RESULT '+JSON.stringify({cases:cases.length,oldQueries,newQueries,transactionQueries,parity:true,rollback:true,cancellationParity:true}));
       });
       await t.test('SQL constraints block impossible seat and payment states',async()=>{
