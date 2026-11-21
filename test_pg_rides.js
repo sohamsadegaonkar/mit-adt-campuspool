@@ -199,6 +199,18 @@ test('PostgreSQL rides: permissions, atomic seats, cancellation and durable read
         assert.equal(both.hasUnpaidBooking,true);assert.equal(both.hasUnsettledCommission,true);
         assert.deepEqual(both.driverCommission,{totalRides:3,grossFare:55.25,totalCommission:6,settled:0,netDue:6,estimatedFromActiveBookings:true,collectionAuthorized:false});
         assert.equal(both.reason,'COMMISSION_DUE');
+        // Capacity is not earned-service evidence: cancellation or a stale
+        // seats_left snapshot must not fabricate or erase a commission estimate.
+        await pool.query('UPDATE public.campus_rides SET seats_left=1 WHERE id=$1',[a]);
+        try{
+          const distorted=await rides.checkUserSettlementBlock(uuids[0]);
+          assert.equal(distorted.driverCommission.totalRides,3);
+          assert.equal(distorted.driverCommission.grossFare,55.25);
+          assert.equal(distorted.commissionDue,6);
+          assert.equal(distorted.collectionAuthorized,false);
+        }finally{
+          await pool.query('UPDATE public.campus_rides SET seats_left=0 WHERE id=$1',[a]);
+        }
         assert.deepEqual(seen.get(uuids[1]).pendingBookings.map(x=>x.bookingId),[second.bookingId,first.bookingId]);
         assert.equal(seen.get(uuids[3]).reason,'COMMISSION_DUE');
         assert.equal(seen.get(uuids[3]).hasUnpaidBooking,false);
