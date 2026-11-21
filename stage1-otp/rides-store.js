@@ -328,7 +328,7 @@ class PgRidesStore {
       canAppeal=!!review&&!appealRows.rows.some(a=>a.actor_user_id===actorUserId);
     }
     return {bookingId,caseId:row.case_id,state:row.state,openedAt:asDate(row.opened_at),
-      actorRole,canRespond:otherClaim&&!responses.rows.some(x=>x.actor_user_id===actorUserId),
+      actorRole,canRespond:otherClaim&&!review&&!responses.rows.some(x=>x.actor_user_id===actorUserId),
       review,appeals,canAppeal,
       claims:claims.rows.map(x=>({
         actorRole:x.actor_role,reason:x.reason,createdAt:asDate(x.created_at)
@@ -569,7 +569,7 @@ class PgRidesStore {
   async recordAppealReview({appealId,reviewerUserId,resultCode,client:txClient}={}){
     if(!this.caseReviewEnabled||!this.reviewSchemaReady)
       throw new RidesError('CASE_REVIEW_NOT_ENABLED',503);
-    if(typeof appealId!=='string'||!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(appealId))
+    if(typeof appealId!=='string'||!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(appealId))
       throw new RidesError('INVALID_APPEAL',400);
     if(!['review_record_unchanged','additional_review_required','insufficient_information'].includes(resultCode))
       throw new RidesError('INVALID_APPEAL_RESULT',400);
