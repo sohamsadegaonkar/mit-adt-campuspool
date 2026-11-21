@@ -1895,7 +1895,7 @@
           }
         }
         if(!current())return;
-        if(appState.boardingPinEnabled && allUserBookings && verifiedOwnerRides){
+        if(allUserBookings && verifiedOwnerRides){
           const ownRideIds=new Set(appState.myOfferedRides.map(r=>r.id));
           driverJourneyBookings=allUserBookings.filter(b=>ownRideIds.has(b.rideId) && !b.passengerEmail);
           driverJourneyBookingsKnown=true;
@@ -2442,13 +2442,13 @@
     let driverJourneyBookings=[];
     let driverJourneyBookingsKnown=false;
     function boardingStatusMarkup(booking){
-      if(!appState.boardingPinEnabled || !['pickup_ready','arrived'].includes(booking?.journeyStage))return '';
+      if(!booking?.boardedAt && (!appState.boardingPinEnabled || !['pickup_ready','arrived'].includes(booking?.journeyStage)))return '';
       const verified=Boolean(booking.boardedAt);
       return '<p class="cp-boarding-status" aria-label="Passenger boarding status">'+
         (verified?'Boarding confirmed with in-app PIN':'Boarding not confirmed')+'</p>';
     }
     function passengerPinMarkup(booking){
-      if(!appState.boardingPinEnabled)return '';
+      if(!appState.boardingPinEnabled)return booking?.boardedAt?boardingStatusMarkup(booking):'';
       const stage=booking?.journeyStage;
       if(!['pickup_ready','arrived'].includes(stage))return '';
       const id=sanitize(String(booking.bookingId||''));
@@ -2463,8 +2463,13 @@
         </section>`;
     }
     function driverPinMarkup(ride){
-      if(!appState.boardingPinEnabled||!['pickup_ready','arrived'].includes(ride?.journeyStage))return '';
-      const entries=driverJourneyBookings.filter(b=>b.rideId===ride.id);
+      const entries=driverJourneyBookings.filter(b=>b.rideId===ride?.id);
+      if(!appState.boardingPinEnabled){
+        const confirmed=entries.filter(b=>b.boardedAt);
+        return confirmed.length?'<section class="cp-pin-panel"><p class="cp-boarding-note">Previously verified boarding</p>'+
+          confirmed.map(b=>'<p class="cp-boarding-status">'+sanitize(String(b.passengerName||'Passenger'))+': PIN confirmed</p>').join('')+'</section>':'';
+      }
+      if(!['pickup_ready','arrived'].includes(ride?.journeyStage))return '';
       if(!driverJourneyBookingsKnown)return '<section class="cp-pin-panel"><p class="cp-boarding-note">Passenger boarding list unavailable. Refresh My Rides before verifying a PIN.</p></section>';
       return `<section class="cp-pin-panel" aria-label="Passenger boarding verification">
         <h4 class="font-bold text-white">Passenger boarding</h4>
