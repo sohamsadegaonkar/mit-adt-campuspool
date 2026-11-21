@@ -66,8 +66,8 @@ jobs:
       - name: Migrate only isolated local CI database and read back schema 014
         run: |
           node stage1-otp/migrate.js
-          node scripts/migration-008-014-preflight.js --expected-stage=014
           SCHEMA_RECOVERY_SCHEMA_READY=YES node --test test_migration_008_014_preflight.js
+          node scripts/migration-008-014-preflight.js --expected-stage=014
       - name: Perform independent synthetic 007 and 014 archive restore
         run: |
           node --test test_pg_migration_recovery_drill.js
