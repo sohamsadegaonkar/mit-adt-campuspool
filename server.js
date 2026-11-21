@@ -671,7 +671,7 @@ const server = http.createServer(async (req, res) => {
   }
   function activeParticipantBooking(booking){
     const result=historicalBooking(booking);
-    if(isSelf(booking.passengerEmail) && typeof booking.driverPhone==='string')
+    if(isSelf(booking.passengerEmail) && booking.journeyStage!=='arrived' && typeof booking.driverPhone==='string')
       result.driverPhone=booking.driverPhone;
     return result;
   }
@@ -1567,6 +1567,7 @@ const server = http.createServer(async (req, res) => {
   if(method==='POST' && pathname==='/api/rides/journey'){
     if(!RIDES_JOURNEY_ENABLED||!pgRidesStore)return sendJson(503,{success:false,error:'JOURNEY_NOT_ENABLED'});
     const body=await parseBody();
+    if(!body||typeof body!=='object'||Array.isArray(body))return sendJson(400,{success:false,error:'INVALID_JOURNEY_ACTION'});
     try{
       return await executeIdempotentMutation(pathname,body,client=>
         pgRidesStore.advanceJourney({rideId:body.rideId,action:body.action,driverUserId:authenticatedUser.id,client})

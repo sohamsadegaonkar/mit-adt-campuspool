@@ -53,6 +53,7 @@ async function runJourney({t,pool,ids,request}){
   assert.equal(arrived.body.ride.journeyStage,'arrived');
   const trip=(await request('/api/bookings',{user:1})).body.bookings.find(x=>x.bookingId===bid);
   assert.equal(trip.journeyStage,'arrived');assert.ok(trip.arrivedAt);
+  assert.equal(trip.driverPhone,undefined,'post-arrival contact must be withheld from new reads');
   assert.ok(Date.parse(trip.arrivedAt)>=Date.parse(trip.pickupAt));
   assert.equal((await event(0,'arrive')).status,409);
   assert.equal((await request('/api/rides/cancel',{method:'POST',user:0,csrf:csrf[0],body:{rideId:rid}})).status,409);
