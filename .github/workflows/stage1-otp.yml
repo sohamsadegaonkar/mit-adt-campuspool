@@ -38,6 +38,7 @@ on:
       - 'test_browser_boarding_pin.js'
       - 'test_browser_pickup_abort.js'
       - 'test_browser_financial_review.js'
+      - 'test_browser_case_response.js'
       - 'test_pg_mobility.js'
       - 'test_pg_mobility_http.js'
       - 'test_mobility_geo.js'
@@ -140,6 +141,7 @@ jobs:
           node --check test_browser_boarding_pin.js
           node --check test_browser_pickup_abort.js
           node --check test_browser_financial_review.js
+          node --check test_browser_case_response.js
           node --check test_production_auth.js
           node --check scripts/check-release-gates.js
           node --check test_release_gates.js
@@ -156,6 +158,7 @@ jobs:
           node --test test_browser_boarding_pin.js
           node --test test_browser_pickup_abort.js
           node --test test_browser_financial_review.js
+          node --test test_browser_case_response.js
           npm run test:stage1
           npm run test:identity
           npm run test:rides
