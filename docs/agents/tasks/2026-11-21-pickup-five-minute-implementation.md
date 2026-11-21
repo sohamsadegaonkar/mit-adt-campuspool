@@ -34,3 +34,13 @@ Both parties have a shared maximum five-minute pickup waiting window measured fr
 6. **Upcoming hardening:** perhaps avoid case overflow for multiple user reports, add author RBAC/responses, independent cancellation/PIN race tests and a compatibility layer for historical finance. No automated enforcement without approved policy.
 
 [Owner policy](2026-11-21-five-minute-pickup-abort-enforcement.md) · [Dispute architecture](2026-11-21-booking-disputes-and-no-show-rfc.md).
+
+## Verified CI checkpoint — 2026-11-21 (disposable only)
+
+**Exact tested application SHA: `00497e2dfe4a87c36e4bc8f23ab03d95d384278c`. All FIVE workflows completed SUCCESS.**
+
+- [Stage 1 PostgreSQL 44877905364](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/44877905364) — logged `CAMPUS_PICKUP_ABORT_RESULT` on five authenticated actors: mutual 300-second boundary, before-deadline rejection, early safety, private read/CSRF, opposing concurrent claims as one case, repeated reason deduplication, independent PIN boarding, no seat/payment changes, retained cancelled Pending history, append-only case events, migration 012 replay and **no automatic fine/ban**. `releaseVerdict=HOLD_PENDING_POLICY_RECOVERY_AND_PHYSICAL_QA`.
+- [Real browser E2E 44877905333](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/44877905333), [security smoke 44877905335](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/44877905335), [Places 44877905324](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/44877905324), [disposable PostGIS benchmark 44877905351](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/44877905351) — completed SUCCESS on same application SHA.
+- **Two CI defects caught and fixed**: existing boarding VM fixture omitted newly introduced pickup-markup stub; and disposable test cleanup attempted deleting an FK-protected booking before its immutable case/event children. Neither changed financial logic or weakened the production no-delete case-event protection. Verified cleanup now removes *only synthetic CI data* in correct child→parent order.
+- Scope is still **feature OFF by default**, **NO staging/prod data, migration, enforcement, money, deployment or merge operations**. This work exposes cancelled Pending in private history but does **not** resolve the active-only settlement guard, reviewer adjudication or appeal, physical Android, independent migration backup/recovery and complete PR stack. **NO-GO.**
+- If this verification record is committed after the tested SHA, it is **documentation-only**; cite the above exact application SHA for proof and wait for any new head checks before merging.
