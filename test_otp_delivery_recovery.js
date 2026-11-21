@@ -89,3 +89,143 @@ test('SQLite rejects a failed OTP by exact id without deleting verified or newer
   assert.equal(db.findOtp(base.identifier,'EMAIL').id,'newer-request');
   db.db.close();
 });
+
+const {preflight:probePreflight,run:runProbe}=require('./scripts/otp-email-provider-probe');
+const probeEnv={
+  EMAIL_PROVIDER:'resend',
+  RESEND_API_KEY:'unit-only-restricted-test-key',
+  EMAIL_FROM:'CampusPool QA <sender@example.org>',
+  OTP_EMAIL_PROBE_SENDER_VERIFIED:'YES',
+  OTP_EMAIL_PROBE_RECIPIENT_CONSENT:'YES',
+  OTP_EMAIL_PROBE_TO:'consenting-recipient@example.org',
+  OTP_EMAIL_PROBE_CONFIRM_TO:'consenting-recipient@example.org'
+};
+
+test('manual provider probe preflight never sends and rejects missing attestation',async()=>{
+  let calls=0;
+  const write=[];
+  const bad={...probeEnv,OTP_EMAIL_PROBE_RECIPIENT_CONSENT:'NO',
+    OTP_EMAIL_PROBE_CONFIRM_TO:'different-recipient@example.org'};
+  const code=await runProbe({
+    argv:['--preflight'],env:bad,
+    sendImpl:async()=>{calls++;throw Error('network must never be invoked');},
+    write:x=>write.push(x)
+  });
+  assert.equal(code,1);
+  assert.equal(calls,0);
+  assert.ok(write.includes('NO_EMAIL_SENT=YES'));
+  assert.ok(write.includes('BLOCKED RECIPIENT_CONSENT_NOT_ATTESTED'));
+  assert.ok(write.includes('BLOCKED EXACT_RECIPIENT_CONFIRMATION_REQUIRED'));
+  assert.doesNotMatch(write.join(' '),/consenting-recipient|unit-only-restricted-test-key/);
+  assert.equal(probePreflight(probeEnv).ok,true);
+});
+
+test('manual probe requires exact send authorization and sends exactly one non-OTP message',async()=>{
+  const outputs=[];
+  let calls=0;
+  const sendImpl=async(message,{env})=>{
+    calls++;
+    assert.equal(env.EMAIL_PROVIDER,'resend');
+    assert.equal(message.to,probeEnv.OTP_EMAIL_PROBE_TO);
+    assert.match(message.subject,/delivery test/);
+    assert.doesNotMatch(message.textContent,/\\b[0-9]{6}\\b/);
+    return {accepted:true,provider:'resend'};
+  };
+  assert.equal(await runProbe({
+    argv:['--execute'],env:probeEnv,sendImpl,write:x=>outputs.push(x)
+  }),1);
+  assert.equal(calls,0);
+  assert.ok(outputs.includes('NO_EMAIL_SENT=YES'));
+  outputs.length=0;
+  assert.equal(await runProbe({
+    argv:['--execute'],env:{...probeEnv,OTP_EMAIL_PROBE_APPROVED:'SEND_ONE_NON_OTP_EMAIL'},
+    sendImpl,write:x=>outputs.push(x)
+  }),0);
+  assert.equal(calls,1);
+  assert.ok(outputs.includes('ONE_NON_OTP_EMAIL_PROVIDER_ACCEPTED=YES'));
+  assert.ok(outputs.includes('ACTUAL_INBOX_RECEIPT_REQUIRES_OWNER_VERIFICATION=YES'));
+  assert.doesNotMatch(outputs.join(' '),/consenting-recipient|unit-only-restricted-test-key/);
+});
+
+test('provider probe suppresses sensitive provider errors and does not retry',async()=>{
+  const output=[];
+  let calls=0;
+  const code=await runProbe({
+    argv:['--execute'],env:{...probeEnv,OTP_EMAIL_PROBE_APPROVED:'SEND_ONE_NON_OTP_EMAIL'},
+    sendImpl:async()=>{calls++;throw Error('secret-key and inbox address leaked by provider');},
+    write:x=>output.push(x)
+  });
+  assert.equal(code,1);
+  assert.equal(calls,1);
+  assert.deepEqual(output,['PROVIDER_NOT_ACCEPTED=YES']);
+});
+
+
+const {run:runResendSandbox,preflight:sandboxPreflight,
+  FROM:sandboxFrom,TO:sandboxTo}=require('./scripts/otp-resend-sandbox-probe');
+const sandboxEnv={
+  RESEND_API_KEY:'re_synthetic_sandbox_key_only',
+  NODE_ENV:'development',
+  OTP_EMAIL_PROBE_TO:'arbitrary-private-student@example.org',
+  EMAIL_FROM:'arbitrary@example.org'
+};
+
+test('Resend sandbox mode requires a key and refuses production context',async()=>{
+  assert.equal(sandboxPreflight(sandboxEnv).ok,true);
+  assert.equal(sandboxPreflight({...sandboxEnv,RESEND_API_KEY:''}).ok,false);
+  assert.equal(sandboxPreflight({...sandboxEnv,APP_ENV:'production'}).ok,false);
+  assert.equal(sandboxPreflight({...sandboxEnv,NODE_ENV:'production'}).ok,false);
+  let calls=0;const lines=[];
+  const code=await runResendSandbox({
+    argv:['--preflight'],env:sandboxEnv,
+    sendImpl:async()=>{calls++;throw Error('No network allowed in preflight');},
+    log:x=>lines.push(x)
+  });
+  assert.equal(code,0);
+  assert.equal(calls,0);
+  assert.ok(lines.includes('NO_EMAIL_SENT=YES'));
+  assert.doesNotMatch(lines.join(' '),/re_synthetic|arbitrary-private/);
+});
+
+test('Resend sandbox sends one fixed non-OTP test address only after explicit approval',async()=>{
+  let calls=0;let output=[];
+  const sendImpl=async(message,{env})=>{
+    calls++;
+    assert.equal(message.to,'delivered@resend.dev');
+    assert.equal(message.to,sandboxTo);
+    assert.equal(env.EMAIL_FROM,sandboxFrom);
+    assert.equal(env.EMAIL_PROVIDER,'resend');
+    assert.equal(env.RESEND_API_KEY,sandboxEnv.RESEND_API_KEY);
+    assert.doesNotMatch(message.textContent,/\b[0-9]{6}\b/);
+    assert.doesNotMatch(JSON.stringify(message),/arbitrary-private-student/);
+    return {accepted:true,provider:'resend'};
+  };
+  assert.equal(await runResendSandbox({
+    argv:['--execute'],env:sandboxEnv,sendImpl,log:x=>output.push(x)
+  }),1);
+  assert.equal(calls,0);
+  assert.ok(output.includes('NO_EMAIL_SENT=YES'));
+  output=[];
+  assert.equal(await runResendSandbox({
+    argv:['--execute'],
+    env:{...sandboxEnv,OTP_RESEND_TEST_APPROVAL:'SEND_ONE_RESEND_SIMULATED_EMAIL'},
+    sendImpl,log:x=>output.push(x)
+  }),0);
+  assert.equal(calls,1);
+  assert.ok(output.includes('RESEND_SANDBOX_API_ACCEPTED=YES'));
+  assert.ok(output.includes('SIMULATED_DELIVERY_ONLY_NOT_STUDENT_INBOX=YES'));
+  assert.doesNotMatch(output.join(' '),/re_synthetic|arbitrary-private/);
+});
+
+test('Resend sandbox handles provider failure once and redacts sensitive exception',async()=>{
+  const output=[];let calls=0;
+  const code=await runResendSandbox({
+    argv:['--execute'],
+    env:{...sandboxEnv,OTP_RESEND_TEST_APPROVAL:'SEND_ONE_RESEND_SIMULATED_EMAIL'},
+    sendImpl:async()=>{calls++;throw Error('real key and private recipient in provider log');},
+    log:x=>output.push(x)
+  });
+  assert.equal(code,1);
+  assert.equal(calls,1);
+  assert.deepEqual(output,['RESEND_SANDBOX_PROVIDER_NOT_ACCEPTED=YES']);
+});
