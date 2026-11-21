@@ -14,12 +14,17 @@ function validSha(x){return typeof x==='string'&&SHA.test(x);}
 function nonblank(x){return typeof x==='string'&&x.length>0&&x.trim()===x&&x.length<=256;}
 function assess(evidence){
   const missing=[];
-  const block=(code,condition)=>{if(!condition)missing.push(code);};
+  let checksRequired=0;
+  const block=(code,condition)=>{checksRequired++;if(!condition)missing.push(code);};
   if(!safeObject(evidence)){
     return {status:'BLOCKED_MISSING_EVIDENCE',failures:['EVIDENCE_NOT_OBJECT'],
       independentRecoveryVerified:false,releaseReady:false,externalProofChecked:false};
   }
-  const {provenance={},archive={},recovery={},migration={},operations={}}=evidence;
+  const provenance=safeObject(evidence.provenance)?evidence.provenance:{};
+  const archive=safeObject(evidence.archive)?evidence.archive:{};
+  const recovery=safeObject(evidence.recovery)?evidence.recovery:{};
+  const migration=safeObject(evidence.migration)?evidence.migration:{};
+  const operations=safeObject(evidence.operations)?evidence.operations:{};
   // Source and image provenance are independently trusted ONLY after reviewing
   // authenticated GitHub/Azure evidence outside this offline checker.
   block('AZURE_CONFIGURED_IMAGE_INVALID',GHCR.test(provenance.azureJobImage||''));
@@ -65,7 +70,7 @@ function assess(evidence){
 
   const unique=[...new Set(missing)];
   return {status:unique.length?'BLOCKED_G1_EVIDENCE_INCOMPLETE':'CLAIMS_COMPLETE_EXTERNAL_ATTESTATION_REQUIRED',
-    failures:unique,checksRequired:26,
+    failures:unique,checksRequired,
     independentRecoveryVerified:false,releaseReady:false,externalProofChecked:false,
     note:'This tool checks internally consistent, operator-supplied metadata ONLY; it never authenticates the cited evidence, accesses Azure or PostgreSQL, or grants a release.'};
 }
@@ -80,7 +85,8 @@ function main(argv=process.argv.slice(2)){
     const data=JSON.parse(fs.readFileSync(file,'utf8'));
     const out=assess(data);
     process.stdout.write('G1_EVIDENCE_PREFLIGHT '+JSON.stringify(out)+'\n');
-    return out.status==='CLAIMS_COMPLETE_EXTERNAL_ATTESTATION_REQUIRED'?0:1;
+    // Never return success as if operator-supplied claims were verified G1.
+    return 1;
   }catch(_){
     process.stderr.write('G1_EVIDENCE_PREFLIGHT_BLOCKED_REDACTED\n');
     return 1;
