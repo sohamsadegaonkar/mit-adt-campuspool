@@ -149,6 +149,9 @@ test('actual run selects managed identity and performs synthetic readback',async
  const m=mock();
  const result=await run(env,{spawnImpl:m.spawnImpl,loadSdkImpl:m.loadSdkImpl});
  assert.equal(result.status,'AZURE_CIPHERTEXT_READBACK_MATCH_RESTORE_NOT_TESTED');
+  assert.equal(result.backupCoverage.globalRolesIncluded,false);
+  assert.equal(result.backupCoverage.releaseReady,false);
+  assert.equal(result.backupCoverage.scope,'SCOPED_APPLICATION_SCHEMAS_ONLY');
  assert.equal(m.getMode(),'managed-identity');
  assert.equal(result.bytes>100,true);
  const id=mock();
