@@ -36,6 +36,7 @@ jobs:
     env:
       OTP_DATABASE_URL: postgresql://postgres:stage1-ci-only@127.0.0.1:5432/campuspool_stage1_ci
       OTP_DB_SSL: "false"
+      MIGRATION_PREFLIGHT_DB_URL: postgresql://postgres:stage1-ci-only@127.0.0.1:5432/campuspool_stage1_ci
       SCHEMA_RECOVERY_DISPOSABLE_DB: "YES"
       RECOVERY_008_014_DISPOSABLE_DB: "YES"
     steps:
@@ -63,6 +64,7 @@ jobs:
         run: |
           node stage1-otp/migrate.js
           node scripts/migration-008-014-preflight.js --expected-stage=014
+          SCHEMA_RECOVERY_SCHEMA_READY=YES node --test test_migration_008_014_preflight.js
       - name: Perform independent synthetic 007 and 014 archive restore
         run: |
           node --test test_pg_migration_recovery_drill.js
