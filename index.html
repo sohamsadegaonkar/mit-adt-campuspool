@@ -468,11 +468,11 @@
         <span class="text-lg"><svg class="cp-icon" aria-hidden="true"><use href="#cp-alert"></use></svg></span>
         <div class="text-[11px] sm:text-xs">
           <strong class="text-white">Action Required:</strong>
-          <span id="settlementWarningText" class="ml-1 text-rose-200">Pending ride dues detected. Ride bookings and driver inquiries are locked until settled.</span>
+          <span id="settlementWarningText" class="ml-1 text-rose-200">Historical booking records require review. No payment request or automatic restriction on cancelled bookings.</span>
         </div>
       </div>
       <button id="bannerSettleBtn" class="bg-rose-600 hover:bg-rose-500 text-white font-bold px-3.5 py-1.5 rounded-xl text-xs transition shadow-sm cursor-pointer shrink-0 flex items-center gap-1.5">
-        <svg class="cp-icon" aria-hidden="true"><use href="#cp-wallet"></use></svg> Resolve Dues Now →
+        <svg class="cp-icon" aria-hidden="true"><use href="#cp-wallet"></use></svg> View Review Status
       </button>
     </div>
   </div>
@@ -779,7 +779,7 @@
                 <span id="previewStudentFare" class="text-sm font-extrabold text-white">₹208</span>
               </div>
               <div class="bg-slate-950 p-2 rounded-xl border border-emerald-500/30">
-                <span class="block text-[10px] uppercase font-bold text-emerald-400">Your Take-Home (90%)</span>
+                <span class="block text-[10px] uppercase font-bold text-emerald-400">Verified payout</span>
                 <span id="previewDriverCut" class="text-sm font-black text-emerald-400">₹187</span>
               </div>
               <div class="bg-slate-950 p-2 rounded-xl border border-slate-800/80">
@@ -844,27 +844,27 @@
             </div>
           </div>
 
-        <!-- Weekly Driver Settlement Card (Zero Intermediary Fees) -->
+        <!-- Driver Booking Review Card (Zero Intermediary Fees) -->
         <div id="driverWeeklySettlementCard" class="hidden bg-slate-950 p-5 rounded-2xl border border-brand-900/60 shadow-md space-y-3">
           <div class="flex items-start justify-between gap-2 pb-2 border-b border-slate-800">
             <div>
               <span class="bg-amber-400 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider">Weekly Driver Settlement</span>
-              <h3 class="font-bold text-sm text-white mt-1">10% Platform Green Fund Share</h3>
+              <h3 class="font-bold text-sm text-white mt-1">Unverified historic booking records</h3>
               <p class="text-[11px] text-slate-400">Historic obligations remain subject to review; payment verification is unavailable.</p>
             </div>
             <div class="text-right">
-              <span class="block text-[10px] text-slate-400 uppercase font-semibold">Weekly Due</span>
+              <span class="block text-[10px] text-slate-400 uppercase font-semibold">Collection disabled</span>
               <span id="settlementDueDisplay" class="text-lg font-black text-amber-300">₹0</span>
             </div>
           </div>
 
           <div class="grid grid-cols-3 gap-2 text-center text-xs">
             <div class="bg-slate-900 p-2 rounded-xl border border-slate-800">
-              <span class="block text-[10px] text-slate-400">Total Rides</span>
+              <span class="block text-[10px] text-slate-400">Review candidates</span>
               <span id="settlementRidesCount" class="font-extrabold text-white text-sm">0</span>
             </div>
             <div class="bg-slate-900 p-2 rounded-xl border border-slate-800">
-              <span class="block text-[10px] text-slate-400">Gross Collected</span>
+              <span class="block text-[10px] text-slate-400">Verified payments</span>
               <span id="settlementGrossEarned" class="font-extrabold text-emerald-400 text-sm">₹0</span>
             </div>
             <div class="bg-slate-900 p-2 rounded-xl border border-slate-800">
@@ -874,9 +874,9 @@
           </div>
 
           <div class="pt-1 flex items-center justify-between gap-2">
-            <span class="text-[11px] text-slate-400">Billing Cycle: <strong class="text-white">Current Week</strong></span>
+            <span class="text-[11px] text-slate-400">Account review: <strong class="text-white">No automatic collection</strong></span>
             <button id="openSettlementModalBtn" class="bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold px-3 py-1.5 rounded-xl text-xs transition cursor-pointer shadow-xs">
-              <svg class="cp-icon" aria-hidden="true"><use href="#cp-wallet"></use></svg> Settle Commission (UPI)
+              <svg class="cp-icon" aria-hidden="true"><use href="#cp-wallet"></use></svg> View Review Details
             </button>
           </div>
         </div>
@@ -1338,32 +1338,32 @@
 
       <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-2 text-xs">
         <div class="flex justify-between items-center text-slate-400">
-          <span>Gross Passenger Fare Collected:</span>
+          <span>Verified passenger payment:</span>
           <strong id="modalGrossFareDisplay" class="text-white">₹0</strong>
         </div>
         <div class="flex justify-between items-center text-slate-400">
-          <span>Your Net Fuel Return (90%):</span>
+          <span>Verified driver payout:</span>
           <strong id="modalDriverShareDisplay" class="text-emerald-400 font-bold">₹0</strong>
         </div>
         <div class="flex justify-between items-center pt-2 border-t border-slate-800 text-white font-bold text-sm">
-          <span>10% Platform Share Due:</span>
+          <span>Collection status:</span>
           <span id="modalCommissionDueDisplay" class="text-base font-black text-amber-400">₹0</span>
         </div>
       </div>
 
       <div class="p-3 bg-slate-950 border border-slate-800 rounded-2xl space-y-1.5 text-xs">
         <div class="flex items-center justify-between">
-          <span class="text-[10px] uppercase font-bold text-slate-500">CampusPool Admin UPI VPA</span>
+          <span class="text-[10px] uppercase font-bold text-slate-500">No payment transfer required</span>
           
         </div>
         <div id="adminUpiVpaText" class="font-mono font-black text-brand-300 text-sm break-all">Payment unavailable</div>
-        <p class="text-[10px] text-slate-500">Scan QR or tap to launch Google Pay / PhonePe / Paytm directly with 0% gateway fees.</p>
+        <p class="text-[10px] text-slate-500">No payment link is available or requested. Do not transfer funds.</p>
       </div>
 
       <div class="pt-1 flex flex-col gap-2">
         <p class="text-xs text-slate-400">Payment verification is currently unavailable.</p>
         <button id="markCommissionPaidBtn" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2 rounded-xl text-xs transition cursor-pointer">
-          I Have Transferred Due Commission
+          Payment verification unavailable
         </button>
       </div>
     </div>
@@ -1376,18 +1376,18 @@
         <div class="flex items-center gap-2">
           <div class="w-8 h-8 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center font-bold text-sm"><svg class="cp-icon" aria-hidden="true"><use href="#cp-alert"></use></svg></div>
           <div>
-            <h2 id="settleModalTitle" class="font-bold text-sm text-white text-left">Commute Dues Settlement</h2>
+            <h2 id="settleModalTitle" class="font-bold text-sm text-white text-left">Booking Review Status</h2>
             <p class="text-[10px] text-slate-400 text-left">MIT ADT CampusPool Fairness Protocol</p>
           </div>
         </div>
-        <button type="button" id="closeSettlementLockModalBtn" aria-label="Close dues settlement dialog" class="modal-close-button text-slate-400 hover:text-white text-xl font-bold p-1 cursor-pointer">×</button>
+        <button type="button" id="closeSettlementLockModalBtn" aria-label="Close booking review dialog" class="modal-close-button text-slate-400 hover:text-white text-xl font-bold p-1 cursor-pointer">×</button>
       </div>
 
       <!-- Policy explanation alert -->
       <div class="p-3 bg-rose-950/40 border border-rose-500/30 rounded-2xl text-left space-y-1">
-        <span class="text-[11px] font-bold text-rose-300 block">Ride Bookings &amp; Inquiries Locked</span>
+        <span class="text-[11px] font-bold text-rose-300 block">Legacy booking status</span>
         <p class="text-[11px] text-slate-300 leading-snug">
-          Under campus platform rules, after completing 1 commute you must settle outstanding ride dues or commission before booking new rides or contacting riders.
+          Active unchallenged legacy Pending bookings can restrict new legacy bookings while awaiting review. Cancelled or disputed records are retained for review, not automatically charged or forgiven.
         </p>
       </div>
 
@@ -1606,6 +1606,7 @@
       selectedRideForBooking: null,
       selectedBookingForPayment: null,
       settledCommissionAmount: 0,
+      settlementReview: null,
       freeRidesPilot: false,
       journeyEnabled: false,
       boardingPinEnabled: false,
@@ -1847,7 +1848,7 @@
       applyFreePilotOfferMode();
       lastRidesEtag=null;
       pendingSeatTransitions.clear();
-      appState.rides=[];appState.myBookings=[];appState.myBookingHistory=[];appState.myOfferedRides=[];pickupServerClockOffset=0;
+      appState.rides=[];appState.myBookings=[];appState.myBookingHistory=[];appState.myOfferedRides=[];appState.settlementReview=null;pickupServerClockOffset=0;
       appState.selectedRideForBooking=null;appState.selectedBookingForPayment=null;
       renderRidesGrid();renderMyRidesViews();
       hideModal('bookingModal',{restoreFocus:false});hideModal('paymentModal',{restoreFocus:false});
@@ -1956,6 +1957,7 @@
         if (sResp.ok) {
           const sData = await sResp.json();
           if(!current())return;
+          appState.settlementReview=Array.isArray(sData.reviewRequiredBookings)?sData:null;
           if (sData.driverCommission && typeof sData.driverCommission.settled === 'number') {
             appState.settledCommissionAmount = sData.driverCommission.settled;
           }
@@ -2910,32 +2912,14 @@
     }
 
     function calculateWeeklyCommission() {
-      let totalRides = 0;
-      let grossFare = 0;
-      let driverNet = 0;
-      let commissionDue = 0;
-
-      appState.myOfferedRides.forEach(r => {
-        // BUG-01 Fix: Check live ride seatsLeft from appState.rides
-        const liveRide = appState.rides.find(live => live.id === r.id);
-        const seatsRemaining = (liveRide !== undefined) ? liveRide.seatsLeft : (r.seatsLeft || 0);
-        const seatsSold = (r.seatsTotal || 1) - seatsRemaining;
-        if (seatsSold > 0) {
-          const rideGross = seatsSold * (r.studentFare || 0);
-          const rideComm = Math.round(rideGross * 0.10);
-          const rideDriverTake = rideGross - rideComm;
-
-          totalRides += seatsSold;
-          grossFare += rideGross;
-          commissionDue += rideComm;
-          driverNet += rideDriverTake;
-        }
-      });
-
-      const settled = appState.settledCommissionAmount || 0;
-      const netDue = Math.max(0, commissionDue - settled);
-
-      return { totalRides, grossFare, driverNet, netDue, settled };
+      // Seat availability is capacity, NOT proof of transport or money due.
+      // Do not generate a collectible commission from seatsTotal-seatsLeft.
+      const verified=appState.settlementReview;
+      return {
+        totalRides:0,grossFare:0,driverNet:0,netDue:0,settled:0,
+        reviewCount:verified?Number(verified.driverReviewCount||0):0,
+        verified:!!verified
+      };
     }
 
     function updateDriverCommissionBanner() {
@@ -2950,10 +2934,11 @@
         const grossEl = document.getElementById('settlementGrossEarned');
         const netEl = document.getElementById('settlementDriverNet');
 
-        if (dueEl) dueEl.textContent = `₹${comm.netDue}`;
-        if (countEl) countEl.textContent = comm.totalRides;
-        if (grossEl) grossEl.textContent = `₹${comm.grossFare}`;
-        if (netEl) netEl.textContent = `₹${comm.driverNet}`;
+        if (dueEl) dueEl.textContent = 'Not payable';
+        if (countEl) countEl.textContent = comm.reviewCount
+          ?comm.reviewCount+' historical booking(s) for review':'—';
+        if (grossEl) grossEl.textContent = 'Unverified';
+        if (netEl) netEl.textContent = 'Not settled';
       } else {
         banner.classList.add('hidden');
       }
@@ -2964,65 +2949,47 @@
     // ANTI-DEFAULTER & COMMUTE SETTLEMENT ENFORCEMENT
     // -------------------------------------------------------------
     function checkUserSettlementRestriction() {
-      if (!appState.currentUser || !appState.currentUser.email) {
-        return { isBlocked: false, hasUnsettledCommission: false, hasUnpaidBooking: false, reason: 'NONE', message: '' };
+      const snapshot=appState.settlementReview;
+      if(!appState.currentUser?.email||!snapshot){
+        // A missing backend read is *unknown*, not evidence of payment,
+        // collectible debt or an authorization to bypass server write checks.
+        return {isBlocked:false,hasUnsettledCommission:false,hasUnpaidBooking:false,
+          reason:'NONE',hasReviewRequired:false,message:'Financial review status unavailable. Refresh to check.'};
       }
-
-      // 1. Check Driver Commission Due (after 1 or more rides)
-      const comm = calculateWeeklyCommission();
-      const hasUnsettledCommission = (comm.netDue > 0);
-
-      // 2. Check Unsettled / Unpaid Passenger Bookings (after completing 1 ride)
-      const unpaidBookings = (appState.myBookings || []).filter(b => b.paymentStatus === 'Pending');
-      const hasUnpaidBooking = (unpaidBookings.length > 0);
-
-      const isBlocked = hasUnsettledCommission || hasUnpaidBooking;
-
-      let reason = 'NONE';
-      let message = '';
-
-      if (hasUnsettledCommission) {
-        reason = 'COMMISSION_DUE';
-        message = `Platform Settlement Required: You have ₹${comm.netDue} in pending platform commission from your previous commute. Payment verification is unavailable; existing obligations require review.`;
-      } else if (hasUnpaidBooking) {
-        const b = unpaidBookings[0];
-        reason = 'UNPAID_BOOKING';
-        message = `Ride Payment Required: You have an unpaid ride booking (₹${b.studentFare} with ${b.driverName}). Payment verification is unavailable; existing obligations require review.`;
-      }
-
+      const pending=Array.isArray(snapshot.pendingBookings)?snapshot.pendingBookings:[];
+      const review=Array.isArray(snapshot.reviewRequiredBookings)?snapshot.reviewRequiredBookings:[];
       return {
-        isBlocked,
-        hasUnsettledCommission,
-        hasUnpaidBooking,
-        commissionDue: comm.netDue,
-        unpaidBooking: unpaidBookings[0] || null,
-        unpaidBookings,
-        reason,
-        message
+        isBlocked:snapshot.isBlocked===true,
+        hasUnsettledCommission:false,
+        hasUnpaidBooking:snapshot.hasUnpaidBooking===true,
+        commissionDue:0,
+        unpaidBooking:pending[0]||null,
+        unpaidBookings:pending,
+        reviewRequiredBookings:review,
+        hasReviewRequired:snapshot.hasReviewRequired===true,
+        driverReviewCount:Number(snapshot.driverReviewCount||0),
+        reason:snapshot.reason||'NONE',
+        message:snapshot.isBlocked===true
+          ?'An active legacy booking has an unverified Pending marker. New legacy bookings are restricted until review; this is not a bill or a payment confirmation.'
+          :'Some legacy booking records may require review. Cancelled Pending is not a collectible invoice, automatic waiver or fee.'
       };
     }
 
     function updateSettlementWarningBanner() {
-      const banner = document.getElementById('settlementWarningBanner');
-      const text = document.getElementById('settlementWarningText');
-      if (!banner) return;
-
-      const restriction = checkUserSettlementRestriction();
-      if (restriction.isBlocked) {
+      const banner=document.getElementById('settlementWarningBanner');
+      const text=document.getElementById('settlementWarningText');
+      if(!banner)return;
+      const restriction=checkUserSettlementRestriction();
+      if(restriction.isBlocked||restriction.hasReviewRequired){
         banner.removeAttribute('hidden');
-        banner.style.display = 'block';
+        banner.style.display='block';
         banner.classList.remove('hidden');
-        if (text) {
-          if (restriction.hasUnsettledCommission) {
-            text.innerHTML = `You have <strong class="text-white">₹${restriction.commissionDue}</strong> in unsettled platform commission from your previous commute. Booking rides and asking riders are locked until settled.`;
-          } else if (restriction.hasUnpaidBooking) {
-            const b = restriction.unpaidBooking;
-            text.innerHTML = `You have an unpaid ride (<strong class="text-white">₹${b.studentFare}</strong> with ${b.driverName}). Booking other rides and asking riders are locked until settled.`;
-          }
-        }
-      } else {
-        banner.setAttribute('hidden', '');
-        banner.style.display = 'none';
+        if(text)text.textContent=restriction.isBlocked
+          ?'Active legacy Pending booking: booking restrictions continue until review. No payment has been verified, and no charge is being made.'
+          :'Historical or disputed Pending booking: review required. No automatic charge, waived debt, driver commission or restriction from this record.';
+      }else{
+        banner.setAttribute('hidden','');
+        banner.style.display='none';
         banner.classList.add('hidden');
       }
     }
@@ -3030,7 +2997,7 @@
     function openSettlementLockModal(restriction){
       if(!restriction)restriction=checkUserSettlementRestriction();
       const content=document.getElementById('settleBreakdownContent');
-      if(content)content.textContent=(restriction.message||'Outstanding ride dues or commission require review.')+
+      if(content)content.textContent=(restriction.message||'Unverified booking markers require review.')+
         ' Payment verification is not available. Do not send a payment through CampusPool.';
       showModal('settlementLockModal');
     }
@@ -3044,7 +3011,7 @@
     });
 
     document.getElementById('confirmSettleDoneBtn')?.addEventListener('click', () => {
-      showToast('Commission payment must be verified by the payment provider.', '⚠️');
+      showToast('No commission payment can be made until verified policy and provider integration are approved.', '⚠️');
     });
 
     function renderLeaderboard() {
@@ -3933,12 +3900,12 @@
       showToast('Payment cannot be marked paid until provider verification succeeds.', '⚠️');
     });
 
-    // Driver Weekly Commission Settlement Modal
+    // Driver historic booking review: no verified payout/commission ledger.
     document.getElementById('openSettlementModalBtn')?.addEventListener('click', () => {
       const comm = calculateWeeklyCommission();
-      document.getElementById('modalGrossFareDisplay').textContent = `₹${comm.grossFare}`;
-      document.getElementById('modalDriverShareDisplay').textContent = `₹${comm.driverNet}`;
-      document.getElementById('modalCommissionDueDisplay').textContent = `₹${comm.netDue}`;
+      document.getElementById('modalGrossFareDisplay').textContent = 'Unverified';
+      document.getElementById('modalDriverShareDisplay').textContent = 'Unverified';
+      document.getElementById('modalCommissionDueDisplay').textContent = 'Not payable';
 
       // Provider verification disabled; no transfer URL.
       showModal('driverSettlementModal', '#markCommissionPaidBtn');
@@ -3949,7 +3916,7 @@
     });
 
     document.getElementById('markCommissionPaidBtn')?.addEventListener('click', () => {
-      showToast('Commission payment cannot be self-confirmed.', '⚠️');
+      showToast('There is no verified commission or payment transaction to confirm.', 'ℹ️');
     });
 
     // -------------------------------------------------------------

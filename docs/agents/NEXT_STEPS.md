@@ -425,3 +425,10 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 3. Resolve P1 historical cancelled Pending financial review/booking restrictions with explicit policy; never use seat capacity as collectible commission. No automatic fee/strike/ban, even after five minutes.
 4. Add authorized reviewer/response/appeal later only after owner defines thresholds, fine amount, terms, legal/payment provider, privacy retention and support role; staged escalation is design only.
 5. Physical Android TalkBack/large text/offline focus and parked-driver review; migration 012 plus 008–011 G1 backup/restore, combined parent PR checks and owner GO before staging/production writes. [Task](tasks/2026-11-21-pickup-five-minute-implementation.md).
+
+## 2026-11-21 — Financial review reconciliation verification and release gates
+
+1. Review [cancelled Pending reconciliation](tasks/2026-11-21-cancelled-pending-reconciliation.md) and draft PR #66. Verify exact-head Stage 1 real PG tests including query parity, transaction rollback, cancelled Pending review, disputed Pending review, no capacity-derived driver commission, no contact leak, zero-fare pilot and browser debt labels. Fix any regressions rather than interpreting CI red as passed.
+2. Independently audit **active unchallenged Pending** restriction fairness; user has NOT authorized automatic debt collection, waiver, suspension or fine. Define how verified service, provider payment, reviewer appeal and due process may change restrictions in a future policy task.
+3. Ensure POST APIs continue to use a transaction-snapshot authoritatively; `reviewRequiredBookings` is **read-only** and never automatically changes `Pending` or booking/seat state. No actual finance transaction or automatic settlement.
+4. Combined parent PR #47→…→#64→#66, G1 verified backup and independent restore, migrations through 012, physical Android/200% text/TalkBack and parked-driver safety before stage/prod GO. No live writes authorized.

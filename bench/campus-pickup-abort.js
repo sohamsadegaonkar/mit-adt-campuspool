@@ -43,6 +43,20 @@ async function runPickupAbort({t,pool,ids,request}){
  assert.equal(first.status,201,JSON.stringify(first.body));
  assert.equal(second.status,201,JSON.stringify(second.body));
  const one=first.body.booking.bookingId,two=second.body.booking.bookingId;
+ const initialPassengerFinance=await request('/api/user/settlement-status',{user:1});
+ const initialDriverFinance=await request('/api/user/settlement-status',{user:0});
+ assert.equal(initialPassengerFinance.status,200);
+ assert.equal(initialPassengerFinance.body.hasUnpaidBooking,true,
+   'preexisting active Pending restriction preserved');
+ assert.equal(initialPassengerFinance.body.reviewRequiredBookings.length,0);
+ assert.equal(initialDriverFinance.body.commissionDue,0,
+   'driver capacity is not evidence of collectible commission');
+ assert.equal(initialDriverFinance.body.hasUnsettledCommission,false);
+ assert.equal(initialDriverFinance.body.isBlocked,false);
+ assert.equal(initialDriverFinance.body.driverReviewCount,2);
+ assert.equal(initialDriverFinance.body.hasReviewRequired,true);
+ assert.equal(initialDriverFinance.body.driverCommission.netDue,0);
+ assert.ok(initialDriverFinance.body.financialMessage.includes('Pending is unverified'));
  assert.equal((await claim(1,one)).status,409,'cannot claim ordinary no-response before pickup');
  assert.equal((await claim(3,one,'safety_emergency')).status,403,'stranger cannot claim even emergency');
  assert.equal((await claim(1,one,'unknown')).status,400);
@@ -94,6 +108,18 @@ async function runPickupAbort({t,pool,ids,request}){
    'SELECT c.id,c.state,count(e.id)::int AS events FROM public.campus_booking_cases c JOIN public.campus_booking_case_events e ON e.case_id=c.id WHERE c.booking_id=$1 GROUP BY c.id,c.state',[one])).rows[0];
  assert.equal(readCase.events,2);
  assert.equal(readCase.state,'open');
+ const disputedFinance=await request('/api/user/settlement-status',{user:1});
+ assert.equal(disputedFinance.status,200);
+ assert.equal(disputedFinance.body.isBlocked,false,
+   'active disputed Pending is quarantined for review, not automatically sanctioned');
+ assert.equal(disputedFinance.body.reviewRequiredBookings.length,1);
+ assert.equal(disputedFinance.body.pendingBookings.length,0);
+ assert.equal(disputedFinance.body.reviewStatus,'REVIEW_REQUIRED');
+ assert.equal(disputedFinance.body.reviewRequiredBookings[0].bookingId,one);
+ assert.equal(disputedFinance.body.reviewRequiredBookings[0].pickupCase.state,'open');
+ assert.equal(disputedFinance.body.reviewRequiredBookings[0].driverPhone,undefined,
+   'no private contact in settlement review');
+
  const statuses=(await pool.query(
    'SELECT booking_id,status,boarded_at,payment_status FROM public.campus_bookings WHERE booking_id=ANY($1::text[]) ORDER BY booking_id',
    [[one,two]])).rows;
@@ -138,12 +164,39 @@ async function runPickupAbort({t,pool,ids,request}){
  assert.ok(past.cancelledAt);
  assert.equal(past.paymentStatus,'Pending','no automatic waiver, charge, or Paid');
  assert.equal(past.pickupCase.state,'open');
+ const cancelledFinance=await request('/api/user/settlement-status',{user:1});
+ assert.equal(cancelledFinance.status,200);
+ assert.equal(cancelledFinance.body.hasUnpaidBooking,false);
+ assert.equal(cancelledFinance.body.isBlocked,false,
+   'cancelled Pending is review only, not a new-booking restriction');
+ assert.equal(cancelledFinance.body.reviewRequiredBookings.length,1);
+ assert.equal(cancelledFinance.body.reviewRequiredBookings[0].status,'cancelled');
+ assert.equal(cancelledFinance.body.reviewRequiredBookings[0].paymentStatus,'Pending');
+ const driverCancelledFinance=await request('/api/user/settlement-status',{user:0});
+ assert.equal(driverCancelledFinance.body.commissionDue,0);
+ assert.equal(driverCancelledFinance.body.driverReviewCount,2,
+   'driver keeps pending historical audit count after seat reset');
+ assert.equal(driverCancelledFinance.body.hasReviewRequired,true);
+
  assert.equal(historyDriver.body.bookings.find(x=>x.bookingId===two).boardedAt!==null,true);
  assert.equal((await claim(1,one)).status,409,'no ordinary no-show after ride cancellation');
  const financial=await pool.query(
    'SELECT status,payment_status,student_fare FROM public.campus_bookings WHERE booking_id=$1',[one]);
  assert.equal(financial.rows[0].payment_status,'Pending');
  assert.equal(financial.rows[0].status,'cancelled');
+ // Turning off pickup reporting must NOT reinstate punitive restrictions
+ // on an already-open case. Historical review survives as a read-only fact.
+ const {PgRidesStore}=require('../stage1-otp/rides-store');
+ const flagOffStore=new PgRidesStore({pool,journeyEnabled:true,pickupAbortEnabled:false});
+ await flagOffStore.ready();
+ assert.equal(flagOffStore.caseSchemaReady,true);
+ const offReview=await flagOffStore.checkUserSettlementBlock(ids[1]);
+ assert.equal(offReview.isBlocked,false);
+ assert.ok(offReview.reviewRequiredBookings.some(x=>
+   x.bookingId===one && x.pickupCase?.id===readCase.id));
+ const offHistory=await flagOffStore.getBookingHistory(ids[1]);
+ assert.ok(offHistory.some(x=>x.bookingId===one&&x.pickupCase?.id===readCase.id),
+   'dispute proof stays readable when feature flag is disabled');
  const rls=await pool.query("SELECT relrowsecurity FROM pg_class WHERE oid='public.campus_booking_cases'::regclass");
  assert.equal(rls.rows[0].relrowsecurity,true);
  const noDeletes=await pool.query("SELECT has_table_privilege('campuspool_staging_app','public.campus_booking_case_events','DELETE') AS d,has_table_privilege('campuspool_staging_app','public.campus_booking_case_events','UPDATE') AS u");
@@ -159,7 +212,10 @@ async function runPickupAbort({t,pool,ids,request}){
   earlyClaimsBlocked:true,emergencyEarlyAllowed:true,privateRead:true,
   csrfRequired:true,concurrentClaimsSingleCase:true,idempotentRepeatedReason:true,
   perPassengerBoardingIndependent:true,noSeatOrPaymentMutation:true,
-  cancelledPendingHistoryPreserved:true,caseEventsAppendOnly:true,
+  cancelledPendingHistoryPreserved:true,flagRollbackKeepsDisputedPendingReview:true,
+  financialReviewSeparateFromActiveRestriction:true,
+  noCapacityDerivedCommission:true,disputedPendingQuarantined:true,
+  caseEventsAppendOnly:true,
   migration012Replay:true,automaticFineOrBan:false,
   releaseVerdict:'HOLD_PENDING_POLICY_RECOVERY_AND_PHYSICAL_QA'
  }));

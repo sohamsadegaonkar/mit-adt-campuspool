@@ -79,6 +79,7 @@ class PgRidesStore {
     this.journeyEnabled=journeyEnabled===true;
     this.boardingPinEnabled=boardingPinEnabled===true;
     this.pickupAbortEnabled=pickupAbortEnabled===true;
+    this.caseSchemaReady=false;
     if(this.pickupAbortEnabled && (!this.journeyEnabled||!this.boardingPinEnabled))
       throw Error('Pickup abort requires journey + per-passenger boarding proof');
     if(this.boardingPinEnabled && (!this.journeyEnabled || Buffer.byteLength(boardingPinKey,'utf8')<32))
@@ -96,10 +97,14 @@ class PgRidesStore {
       const pin=await this.pool.query("SELECT count(*)::int AS n FROM pg_constraint WHERE conrelid='public.campus_bookings'::regclass AND conname='campus_booking_boarding_pin_check' AND convalidated");
       if(pin.rows[0].n!==1)throw Error('Migration 011 boarding PIN constraints are required');
     }
-    if(this.pickupAbortEnabled){
-      const r=await this.pool.query("SELECT count(*)::int AS n FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('campus_booking_cases','campus_booking_case_events')");
-      if(r.rows[0].n!==2)throw Error('Migration 012 pickup cases are required');
-    }
+    // Read-only historical case review must survive feature rollback.
+    // If 012 was not deployed yet, old applications can still boot with the
+    // pickup feature OFF and review cancelled Pending by booking status.
+    const caseTables=await this.pool.query(
+      "SELECT count(*)::int AS n FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('campus_booking_cases','campus_booking_case_events')");
+    this.caseSchemaReady=caseTables.rows[0].n===2;
+    if(this.pickupAbortEnabled&&!this.caseSchemaReady)
+      throw Error('Migration 012 pickup cases are required');
   }
   async tx(fn,externalClient){
     if(externalClient)return fn(externalClient);
@@ -176,10 +181,10 @@ class PgRidesStore {
     if(!userId||!Number.isInteger(limit)||limit<1||limit>50||
        !Number.isInteger(offset)||offset<0||offset>1000)
       throw new RidesError('INVALID_HISTORY_PAGE',400);
-    const joinCase=this.pickupAbortEnabled
+    const joinCase=this.caseSchemaReady
       ? "LEFT JOIN public.campus_booking_cases c ON c.booking_id=b.booking_id"
       : "";
-    const caseColumns=this.pickupAbortEnabled
+    const caseColumns=this.caseSchemaReady
       ? ",c.id AS pickup_case_id,c.state AS pickup_case_state,c.opened_at AS pickup_case_opened_at"
       : "";
     const r=await this.pool.query([
@@ -361,37 +366,68 @@ class PgRidesStore {
   }
   async checkUserSettlementBlock(userId,client){
     if(!userId)return {isBlocked:false,reason:'NONE'};
-    // Payment settlement is intentionally disabled. Existing 'Pending'
-    // bookings and unpaid driver commission continue to block new actions.
-    // One statement, one MVCC snapshot and (without a transaction client)
-    // one pool acquisition. Aggregate before joining so pending rows cannot
-    // multiply the driver totals. Keep native PG column types for bookingPublic.
-    const {rows}=await (client||this.pool).query([
-      'SELECT c.seats_sold,c.gross,b.* FROM (',
-      'SELECT COALESCE(SUM(seats_total-seats_left),0)::int AS seats_sold,',
-      'COALESCE(SUM((seats_total-seats_left)*student_fare),0) AS gross',
-      'FROM public.campus_rides WHERE driver_user_id=$1',
-      ') c LEFT JOIN public.campus_bookings b',
-      "ON b.passenger_user_id=$1 AND b.status='active' AND b.payment_status='Pending'",
-      'ORDER BY b.created_at DESC'
-    ].join(' '),[userId]);
-    const totalRides=Number(rows[0].seats_sold);
-    const grossFare=Number(rows[0].gross);
-    const totalCommission=Math.round(grossFare*0.1);
-    const commissionDue=totalCommission;
-    // LEFT JOIN retains the commission row even when no pending booking exists.
-    const pendingBookings=rows.filter(row=>row.booking_id!==null).map(bookingPublic);
-    const hasUnsettledCommission=commissionDue>0;
-    const hasUnpaidBooking=pendingBookings.length>0;
+    // Legacy Pending is a *historical database marker*, not proof that money
+    // moved or that a passenger actually travelled. Keep cancelled/disputed
+    // items in review; retain the existing active-only booking restriction
+    // pending an explicit approved replacement policy.
+    //
+    // A driver has NO collectible commission without verified settlement
+    // evidence. In particular seats_total-seats_left is a capacity counter,
+    // not proof that the service occurred. Never convert it to a debt.
+    //
+    // One statement, one MVCC snapshot and a single pool acquisition,
+    // including the caller-supplied transaction client where present.
+    const caseJoin=this.caseSchemaReady
+      ? 'LEFT JOIN public.campus_booking_cases pc ON pc.booking_id=b.booking_id'
+      : '';
+    const caseColumn=this.caseSchemaReady
+      ? ',pc.id AS pickup_case_id,pc.state AS pickup_case_state,pc.opened_at AS pickup_case_opened_at'
+      : '';
+    const result=await (client||this.pool).query([
+      'SELECT driver_stats.review_count AS driver_review_count,',
+      'b.*,r.journey_stage,r.departed_at,r.pickup_at,r.arrived_at,'+
+      'r.status AS ride_status'+caseColumn,
+      'FROM (',
+      'SELECT COUNT(*)::int AS review_count FROM public.campus_bookings db',
+      'JOIN public.campus_rides dr ON dr.id=db.ride_id',
+      "WHERE dr.driver_user_id=$1 AND db.payment_mode='legacy' AND db.payment_status='Pending'",
+      ') driver_stats',
+      'LEFT JOIN public.campus_bookings b ON b.passenger_user_id=$1',
+      "AND b.payment_mode='legacy' AND b.payment_status='Pending'",
+      'LEFT JOIN public.campus_rides r ON r.id=b.ride_id',
+      caseJoin,
+      'ORDER BY b.created_at DESC,b.booking_id DESC'
+    ].filter(Boolean).join(' '),[userId]);
+    const rows=result.rows;
+    const driverReviewCount=Number(rows[0]?.driver_review_count||0);
+    const activePending=[],review=[];
+    for(const row of rows){
+      if(row.booking_id===null)continue;
+      const booking=bookingPublic(row);
+      const disputed=Boolean(row.pickup_case_id);
+      if(row.status==='active' && row.ride_status==='active'&&!disputed){
+        activePending.push(booking);
+      }else{
+        review.push(booking);
+      }
+    }
+    const hasUnpaidBooking=activePending.length>0;
+    const hasReviewRequired=review.length>0||driverReviewCount>0;
     return {
-      isBlocked:hasUnsettledCommission||hasUnpaidBooking,
-      hasUnsettledCommission,hasUnpaidBooking,commissionDue,
-      driverCommission:{totalRides,grossFare,totalCommission,settled:0,netDue:commissionDue},
-      pendingBookings,
-      reason:hasUnsettledCommission?'COMMISSION_DUE':hasUnpaidBooking?'UNPAID_BOOKING':'NONE'
+      // Do not make an unverified commission collectible or restrict driver
+      // access on a capacity-derived amount. Existing *active* Pending
+      // passenger booking restrictions remain until owner approves policy.
+      isBlocked:hasUnpaidBooking,reason:hasUnpaidBooking?'UNPAID_BOOKING':'NONE',
+      hasUnsettledCommission:false,hasUnpaidBooking,
+      commissionDue:0,
+      driverCommission:{totalRides:0,grossFare:0,totalCommission:0,settled:0,netDue:0},
+      pendingBookings:activePending,
+      reviewRequiredBookings:review,
+      hasReviewRequired,driverReviewCount,
+      reviewStatus:hasReviewRequired?'REVIEW_REQUIRED':'NONE',
+      financialMessage:'Pending is unverified. Cancelled or disputed records require review; no automatic charge, waiver, refund, fee or commission was made.'
     };
   }
-
 
   // PINs are derived only on demand with a server-secret HMAC and random nonce.
   // The database never stores the six-digit code, and general booking reads never include it.

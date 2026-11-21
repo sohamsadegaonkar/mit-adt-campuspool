@@ -689,6 +689,8 @@ const server = http.createServer(async (req, res) => {
   function safeSettlement(status){
     return {...status,...(Array.isArray(status.pendingBookings)
       ? {pendingBookings:status.pendingBookings.map(historicalBooking)} : {}),
+      ...(Array.isArray(status.reviewRequiredBookings)
+      ? {reviewRequiredBookings:status.reviewRequiredBookings.map(historicalBooking)} : {}),
       ...(Array.isArray(status.unpaidBookings)
       ? {unpaidBookings:status.unpaidBookings.map(historicalBooking)} : {}),
       ...(status.unpaidBooking ? {unpaidBooking:historicalBooking(status.unpaidBooking)} : {})};
