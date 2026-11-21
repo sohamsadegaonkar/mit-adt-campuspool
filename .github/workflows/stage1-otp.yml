@@ -41,6 +41,8 @@ on:
       - 'test_browser_case_response.js'
       - 'test_browser_case_review_appeals.js'
       - 'test_reviewer_onboarding_preflight.js'
+      - 'test_migration_008_014_preflight.js'
+      - 'test_pg_migration_recovery_drill.js'
       - 'test_pg_mobility.js'
       - 'test_pg_mobility_http.js'
       - 'test_mobility_geo.js'
@@ -147,6 +149,9 @@ jobs:
           node --check test_browser_case_review_appeals.js
           node --check scripts/reviewer-onboarding-preflight.js
           node --check test_reviewer_onboarding_preflight.js
+          node --check scripts/migration-008-014-preflight.js
+          node --check test_migration_008_014_preflight.js
+          node --check test_pg_migration_recovery_drill.js
           node --check test_production_auth.js
           node --check scripts/check-release-gates.js
           node --check test_release_gates.js
@@ -166,6 +171,7 @@ jobs:
           node --test test_browser_case_response.js
           node --test test_browser_case_review_appeals.js
           node --test test_reviewer_onboarding_preflight.js
+          node --test test_migration_008_014_preflight.js
           npm run test:stage1
           npm run test:identity
           npm run test:rides
