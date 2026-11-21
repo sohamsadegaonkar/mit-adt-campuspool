@@ -289,3 +289,32 @@ test('Stage 1 API contract: email signup, phone signup, registration and login',
   assert.equal(sessions,2);
   await store.close();
 });
+
+
+test('PostgreSQL identity lookup never maps email-local phone digits to another account',async()=>{
+  const {PgIdentity}=require('./stage1-otp/identity');
+  const queries=[];
+  const store={pool:{query:async(sql,params)=>{
+    queries.push({sql,params});
+    return {rows:[]};
+  }}};
+  const identity=new PgIdentity(store);
+  const digitEmail='9123456788@students.mituniversity.edu.in';
+  assert.equal(await identity.getProfileByIdentifier(digitEmail),null);
+  assert.equal(queries.length,1);
+  assert.match(queries[0].sql,/WHERE email=\\$1 LIMIT 1/);
+  assert.doesNotMatch(queries[0].sql,/phone/);
+  assert.deepEqual(queries[0].params,[digitEmail]);
+
+  assert.equal(await identity.getProfileByIdentifier('+91 9123456788'),null);
+  assert.equal(queries.length,2);
+  assert.match(queries[1].sql,/WHERE phone=\\$1 LIMIT 1/);
+  assert.doesNotMatch(queries[1].sql,/email=/);
+  assert.deepEqual(queries[1].params,['9123456788']);
+
+  // An entirely different identifier must not be resolved via accidental
+  // substring matching or an ambiguous OR predicate.
+  assert.equal(await identity.getProfileByIdentifier('student@mituniversity.edu.in'),null);
+  assert.equal(queries.length,3);
+  assert.deepEqual(queries[2].params,['student@mituniversity.edu.in']);
+});
