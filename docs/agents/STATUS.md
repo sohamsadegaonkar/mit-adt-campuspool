@@ -399,3 +399,10 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 - Audit branch \`test/journey-release-safety-audit-2026-11-21\` adds adversarial real HTTP/PostgreSQL tests for driver-only self-reporting without independent confirmation, passenger no-show cancellation, driver emergency cancellation, canceled Pending visibility/enforcement and safe 010 re-apply in **disposable** CI. Current product behavior is potentially unsafe: canceled Pending rows remain in SQL but can disappear from normal history and settlement block. Test PASS means gap reproduced, not safety sign-off.
 - **P1 HOLD** pending explicit no-show/dispute/obligation policy and corresponding acceptance tests. Physical Android TalkBack/scaling/focus/reduced-motion is not executed (no connected device). Migration 010 is not run on staging/production; 009/010 are mandatory for new PostgreSQL Rides binary even with feature flag OFF.
 - Stacked dependency #47→#48→#49→#51→#52→#53→#54→#55→#56→#57→#58→#59→#60. #50 and #36 are separate main-based PRs. No merge/deploy authorized. [Audit task](tasks/2026-11-21-journey-release-safety-audit.md).
+
+
+## 2026-11-21 — Journey boarding product decision (documentation only)
+
+- **Adopted behavior for next feature slice:** pickup-location coordination uses existing authorized passenger/driver contact; it does not imply passenger boarding. For false destination-arrival claims, implement per-passenger-booking **in-app boarding PIN** read by passenger, entered by the driver after boarding, and server-verified before recording that passenger as boarded. No SMS/email delivery.
+- **Not implemented** in PR #60 or QA PR #61 as of this checkpoint. Driver-reported vehicle arrival remains separate; unverified passenger travel must not be displayed as verified completion. No automatic payment/fee/refund/settlement conclusions. Driver misreporting and disputed/cancelled Pending financial history remain P1 release blockers.
+- [Architecture/decision record](DECISIONS.md) and [QA implementation handoff](tasks/2026-11-21-journey-release-safety-audit.md). No DB/cloud/deploy changes; physical Android review and G1 remain outstanding.
