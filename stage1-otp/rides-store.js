@@ -194,7 +194,7 @@ class PgRidesStore {
 
   // An abort is a *claim only*. It never changes booking.status, seat
   // capacity, financial markers or the self-reported driver timeline.
-  async reportPickupAbort({bookingId,actorUserId,reason}={}){
+  async reportPickupAbort({bookingId,actorUserId,reason,client:txClient}={}){
     if(!this.pickupAbortEnabled)throw new RidesError('PICKUP_ABORT_NOT_ENABLED',503);
     if(typeof bookingId!=='string'||!/^BKG-[0-9a-f-]{36}$/.test(bookingId))
       throw new RidesError('INVALID_BOOKING',400);
@@ -231,7 +231,7 @@ class PgRidesStore {
       return {caseId:current.id,bookingId,state:current.state,
         openedAt:asDate(current.opened_at),recorded:event.rows.length===1,
         message:'Pickup report recorded for review. No penalty or payment change was made.'};
-    });
+    },txClient);
   }
 
   async pickupWaitStatus({bookingId,actorUserId}={}){
