@@ -311,6 +311,22 @@
   .cp-journey,.cp-journey-progress,.cp-journey-car{animation:none!important;transition:none!important}
 }
 </style>
+
+<style id="campuspool-boarding-pin">
+.cp-pin-panel{background:#242424;border:1px solid #6b5a22;border-radius:12px;padding:12px;display:grid;gap:10px}
+.cp-boarding-status{font-size:12px;font-weight:750;color:#facc15}
+.cp-boarding-note{font-size:12px;line-height:1.45;color:#dedede}
+.cp-pin-button{background:#facc15;color:#171717;font-weight:800;font-size:12px;border-radius:10px;padding:9px 12px;min-height:44px}
+.cp-pin-button:disabled{opacity:.6}
+.cp-pin-button:focus-visible,.cp-pin-input:focus-visible{outline:3px solid #fff;outline-offset:3px}
+.cp-boarding-secret{font-size:26px;font-weight:900;letter-spacing:.16em;color:#facc15;overflow-wrap:anywhere;text-align:center}
+.cp-boarding-secret[hidden]{display:none}
+.cp-driver-booking{border-top:1px solid #494949;padding-top:8px;display:grid;gap:7px}
+.cp-driver-boarding-form{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
+.cp-driver-boarding-form label{flex:1 1 150px;display:grid;gap:5px;font-size:12px;color:#e5e5e5}
+.cp-pin-input{color:#171717;background:#fff;border-radius:8px;padding:10px;width:100%;min-height:44px}
+@media (prefers-reduced-motion:reduce){.cp-pin-panel,.cp-pin-button{animation:none!important;transition:none!important}}
+</style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-brand-500 selection:text-white radial-bg">
   <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
@@ -1549,6 +1565,7 @@
       settledCommissionAmount: 0,
       freeRidesPilot: false,
       journeyEnabled: false,
+      boardingPinEnabled: false,
 
       pendingAuth: {
         name: "",
@@ -1740,6 +1757,7 @@
         appState.currentUser = data.user;
         appState.freeRidesPilot=data.freeRidesPilot===true;
         appState.journeyEnabled=data.journeyEnabled===true;
+        appState.boardingPinEnabled=data.boardingPinEnabled===true;
         csrfToken = data.csrfToken;
         window.dispatchEvent(new Event('campuspool:session-changed'));
         return true;
@@ -1778,8 +1796,8 @@
     let lastRidesEtag = null;
     window.addEventListener('campuspool:session-changed',()=>{
       privateReadGeneration++;
-      journeyReadReady=false;seenJourneyStages.clear();pendingJourneyAnimations.clear();
-      if(!appState.currentUser){appState.freeRidesPilot=false;appState.journeyEnabled=false;}
+      journeyReadReady=false;seenJourneyStages.clear();pendingJourneyAnimations.clear();driverJourneyBookings=[];
+      if(!appState.currentUser){appState.freeRidesPilot=false;appState.journeyEnabled=false;appState.boardingPinEnabled=false;}
       applyFreePilotOfferMode();
       lastRidesEtag=null;
       pendingSeatTransitions.clear();
@@ -1845,13 +1863,14 @@
       if (!appState.currentUser || !csrfToken || !appState.currentUser.email) return;
       const email=appState.currentUser.email, proof=csrfToken, generation=++privateReadGeneration;
       const current=()=>generation===privateReadGeneration && proof===csrfToken && appState.currentUser?.email===email;
-      let verifiedBookings=null,verifiedOwnerRides=false;
+      let verifiedBookings=null,verifiedOwnerRides=false,allUserBookings=null;
       try {
         const bResp = await apiFetch(`/api/bookings?email=${encodeURIComponent(email)}`);
         if (bResp.ok) {
           const bData = await bResp.json();
           if(!current())return;
           if (Array.isArray(bData.bookings)) {
+            allUserBookings=bData.bookings;
             appState.myBookings = bData.bookings.filter(b => b.passengerEmail && b.passengerEmail.toLowerCase() === email.toLowerCase());
             verifiedBookings=appState.myBookings;
           }
@@ -1876,6 +1895,10 @@
           }
         }
         if(!current())return;
+        if(appState.boardingPinEnabled && allUserBookings && verifiedOwnerRides){
+          const ownRideIds=new Set(appState.myOfferedRides.map(r=>r.id));
+          driverJourneyBookings=allUserBookings.filter(b=>ownRideIds.has(b.rideId) && !b.passengerEmail);
+        }else driverJourneyBookings=[];
         if(appState.journeyEnabled && verifiedBookings && verifiedOwnerRides)
           recordVerifiedJourneySnapshot(appState.myBookings,appState.myOfferedRides);
         saveState();
@@ -2412,6 +2435,55 @@
     }
     // CAMPUSPOOL_JOURNEY_END
 
+
+    // CAMPUSPOOL_BOARDING_BEGIN
+    // Vehicle arrival is driver-reported; PIN proof is per-passenger, not a GPS claim.
+    let driverJourneyBookings=[];
+    function boardingStatusMarkup(booking){
+      if(!appState.boardingPinEnabled || !['pickup_ready','arrived'].includes(booking?.journeyStage))return '';
+      const verified=Boolean(booking.boardedAt);
+      return '<p class="cp-boarding-status" aria-label="Passenger boarding status">'+
+        (verified?'Boarding confirmed with in-app PIN':'Boarding not confirmed')+'</p>';
+    }
+    function passengerPinMarkup(booking){
+      if(!appState.boardingPinEnabled)return '';
+      const stage=booking?.journeyStage;
+      if(!['pickup_ready','arrived'].includes(stage))return '';
+      const id=sanitize(String(booking.bookingId||''));
+      const status=boardingStatusMarkup(booking);
+      if(booking.boardedAt||stage==='arrived')return status+
+        (stage==='arrived'&&!booking.boardedAt?'<p class="cp-boarding-note">Driver reported arrival. Your boarding was not verified; do not treat this as proof of travel.</p>':'');
+      return status+`
+        <section class="cp-pin-panel" aria-label="In-app boarding PIN">
+          <p class="cp-boarding-note">Only share your PIN after physically entering the vehicle. No SMS or email is needed.</p>
+          <button type="button" class="cp-pin-button cp-show-boarding-pin" data-booking-id="${id}">Show my boarding PIN</button>
+          <code class="cp-boarding-secret" tabindex="-1" hidden aria-label="Your six-digit boarding PIN"></code>
+        </section>`;
+    }
+    function driverPinMarkup(ride){
+      if(!appState.boardingPinEnabled||!['pickup_ready','arrived'].includes(ride?.journeyStage))return '';
+      const entries=driverJourneyBookings.filter(b=>b.rideId===ride.id);
+      return `<section class="cp-pin-panel" aria-label="Passenger boarding verification">
+        <h4 class="font-bold text-white">Passenger boarding</h4>
+        <p class="cp-boarding-note">A driver-reported arrival does not verify passenger boarding.</p>
+        ${entries.length ? entries.map(b=>`
+          <div class="cp-driver-booking">
+            <strong>${sanitize(String(b.passengerName||'Passenger'))}</strong>
+            ${b.boardedAt?'<span class="cp-boarding-status">Boarding PIN verified</span>'
+              :ride.journeyStage==='arrived'
+                ?'<span class="cp-boarding-note">Boarding not confirmed — driver reported arrival</span>'
+                :`<form class="cp-driver-boarding-form" data-booking-id="${sanitize(String(b.bookingId||''))}">
+                    <label>Passenger's six-digit PIN
+                      <input type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="off" required
+                       aria-label="Six-digit boarding PIN for ${sanitize(String(b.passengerName||'passenger'))}" class="cp-pin-input"/>
+                    </label>
+                    <button type="submit" class="cp-pin-button">Verify boarding</button>
+                  </form>`}
+          </div>`).join(''):'<p class="cp-boarding-note">No active passenger bookings to verify.</p>'}
+      </section>`;
+    }
+    // CAMPUSPOOL_BOARDING_END
+
     function renderMyRidesViews() {
       const passengerContainer = document.getElementById('passengerBookingsSection');
       const driverContainer = document.getElementById('driverRidesSection');
@@ -2445,6 +2517,7 @@
               <article class="cp-boarding-pass p-3 sm:p-4 space-y-3" data-booking-id="${sanitize(String(b.bookingId||''))}">
                 ${boardingPassMarkup(b)}
                 ${journeyTimelineMarkup(b,pendingJourneyAnimations.get(b.rideId))}
+                ${passengerPinMarkup(b)}
                 ${b.journeyStage&&b.journeyStage!=='scheduled'?`<p class="text-xs text-slate-300">${b.journeyStage==='arrived'?'Driver reported arrival. This booking remains in your history.':'Booking changes are locked after reported departure. Contact your driver for assistance.'}</p>`:'' }
 
                 <div class="pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
@@ -2483,6 +2556,32 @@
             });
           });
 
+          passengerContainer.querySelectorAll('.cp-show-boarding-pin').forEach(button=>{
+            button.addEventListener('click',async()=>{
+              const id=button.dataset.bookingId,secret=button.parentElement?.querySelector('.cp-boarding-secret');
+              if(!secret||!appState.boardingPinEnabled||!appState.myBookings.some(b=>b.bookingId===id))return;
+              if(!secret.hidden){secret.textContent='';secret.hidden=true;button.textContent='Show my boarding PIN';return;}
+              const actor=appState.currentUser?.email,proof=csrfToken;
+              button.disabled=true;
+              try{
+                const response=await apiFetch('/api/bookings/boarding-pin',{
+                  method:'POST',headers:{'Content-Type':'application/json'},
+                  body:JSON.stringify({bookingId:id})
+                });
+                const data=await response.json();
+                if(proof!==csrfToken||actor!==appState.currentUser?.email)return;
+                if(!response.ok){showMutationFailure(response,data,'Could not show boarding PIN.');return;}
+                if(data.alreadyBoarded){await syncUserBookings();return;}
+                if(typeof data.pin!=='string'||!/^[0-9]{6}$/.test(data.pin))
+                  throw Error('Invalid boarding PIN response');
+                secret.textContent=data.pin;
+                secret.hidden=false;
+                button.textContent='Hide PIN';
+                secret.focus();
+              }catch(_){showToast('Boarding PIN unavailable. Please retry.','⚠️');}
+              finally{button.disabled=false;}
+            });
+          });
           passengerContainer.querySelectorAll('.cancel-booking-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
               const bId = e.currentTarget.getAttribute('data-booking-id');
@@ -2532,6 +2631,7 @@
                 <div>Seats Available: <strong class="text-white">${r.seatsLeft} of ${r.seatsTotal} left</strong></div>
               </div>
               ${journeyTimelineMarkup(r,pendingJourneyAnimations.get(r.id))}
+              ${driverPinMarkup(r)}
               ${appState.journeyEnabled&&nextJourneyAction(r.journeyStage)?`<button type="button" class="cp-journey-action" data-ride-id="${sanitize(r.id)}" data-action="${nextJourneyAction(r.journeyStage)}">${journeySteps[journeyRank(r.journeyStage)].cta}</button>`:''}
               <div class="pt-2 border-t border-slate-800 flex items-center justify-between">
                 <span class="text-[11px] text-slate-500">MIT ADT Campus Corridor</span>
@@ -2542,6 +2642,31 @@
             </div>
           `).join('');
 
+          driverContainer.querySelectorAll('.cp-driver-boarding-form').forEach(form=>{
+            form.addEventListener('submit',async event=>{
+              event.preventDefault();
+              const id=form.dataset.bookingId,input=form.querySelector('.cp-pin-input');
+              const code=input?.value.trim(),button=form.querySelector('button[type="submit"]');
+              if(!appState.boardingPinEnabled||!driverJourneyBookings.some(b=>b.bookingId===id))return;
+              if(!/^[0-9]{6}$/.test(code||'')){showToast('Enter the six-digit PIN shared by the passenger.','⚠️');return;}
+              const actor=appState.currentUser?.email,proof=csrfToken;
+              button.disabled=true;
+              input.value='';
+              try{
+                const response=await apiFetch('/api/bookings/verify-boarding-pin',{
+                  method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':secureRequestId()},
+                  body:JSON.stringify({bookingId:id,pin:code})
+                });
+                const data=await response.json();
+                if(actor!==appState.currentUser?.email||proof!==csrfToken)return;
+                if(!response.ok){showMutationFailure(response,data,'Boarding PIN was not verified.');return;}
+                await syncUserBookings();
+                if(actor===appState.currentUser?.email&&proof===csrfToken)
+                  showToast('Passenger boarding PIN verified.','✅');
+              }catch(_){showToast('Verification unconfirmed. Refresh and retry.','⚠️');}
+              finally{button.disabled=false;}
+            });
+          });
           driverContainer.querySelectorAll('.cp-journey-action').forEach(button=>{
             button.addEventListener('click',async()=>{
               const id=button.dataset.rideId,action=button.dataset.action;
