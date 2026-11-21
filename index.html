@@ -1626,6 +1626,7 @@
 
       myBookings: [],
       myBookingHistory: [],
+      financialReview: null,
       myOfferedRides: [],
 
       leaderboard: []
@@ -1775,6 +1776,8 @@
         csrfToken = null;
         appState.currentUser = null;
         appState.myBookings = [];
+        appState.myBookingHistory = [];
+        appState.financialReview = null;
         appState.myOfferedRides = [];
         renderUserHeader();
         window.dispatchEvent(new Event('campuspool:session-changed'));
@@ -1847,7 +1850,7 @@
       applyFreePilotOfferMode();
       lastRidesEtag=null;
       pendingSeatTransitions.clear();
-      appState.rides=[];appState.myBookings=[];appState.myBookingHistory=[];appState.myOfferedRides=[];pickupServerClockOffset=0;
+      appState.rides=[];appState.myBookings=[];appState.myBookingHistory=[];appState.myOfferedRides=[];appState.financialReview=null;pickupServerClockOffset=0;
       appState.selectedRideForBooking=null;appState.selectedBookingForPayment=null;
       renderRidesGrid();renderMyRidesViews();
       hideModal('bookingModal',{restoreFocus:false});hideModal('paymentModal',{restoreFocus:false});
@@ -1959,7 +1962,13 @@
           if (sData.driverCommission && typeof sData.driverCommission.settled === 'number') {
             appState.settledCommissionAmount = sData.driverCommission.settled;
           }
-        }
+          appState.financialReview={
+            passengerCount:Array.isArray(sData.reviewRequiredBookings)?sData.reviewRequiredBookings.length:0,
+            driverCount:Number(sData.driverCancellationReview?.count)||0,
+            required:sData.hasReviewRequired===true,
+            collectionAuthorized:false
+          };
+        }else appState.financialReview=null;
         if(!current())return;
         if(allUserBookings && verifiedOwnerRides){
           const ownRideIds=new Set(appState.myOfferedRides.map(r=>r.id));
@@ -2903,6 +2912,14 @@
               }
             });
           });
+        }
+        if(appState.financialReview?.driverCount>0){
+          driverContainer.insertAdjacentHTML('afterbegin',`
+            <section class="cp-history" aria-label="Driver cancellation financial review">
+              <h3>Cancelled-booking records retained</h3>
+              <p>${appState.financialReview.driverCount} historical legacy booking(s) still marked Pending.
+              These require review. They do not establish earned commission or an invoice.</p>
+            </section>`);
         }
         updateDriverCommissionBanner();
       }
