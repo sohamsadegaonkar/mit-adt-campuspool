@@ -36,7 +36,17 @@ async function runPilot({t,pool,ids,tokens,basic,port}){
   const feed=await req('/api/rides',1);assert.equal(feed.status,200);assert.ok(feed.data.rides.some(r=>r.id===rid));assert.ok(feed.data.rides.every(r=>r.paymentMode==='free_pilot'));
   for(const id of [paid.id,oldZero.id])assert.equal((await req('/api/bookings',1,{rideId:id})).data.error,'RIDE_PAYMENT_MODE_UNAVAILABLE');
   for(const actor of [4,5]){assert.equal((await req('/api/user/settlement-status',actor)).data.hasUnpaidBooking,true);const blocked=await req('/api/bookings',actor,{rideId:rid});assert.equal(blocked.status,403);assert.equal(blocked.data.error,'SETTLEMENT_REQUIRED');}
-  const commission=await req('/api/rides',2,free);assert.equal(commission.status,403);assert.equal(commission.data.error,'COMMISSION_SETTLEMENT_REQUIRED');
+  // Reserved seats on a legacy ride never prove a collectible driver commission.
+  const driverReview=await req('/api/user/settlement-status',2);
+  assert.equal(driverReview.status,200);
+  assert.equal(driverReview.data.commissionDue,0);
+  assert.equal(driverReview.data.hasUnsettledCommission,false);
+  assert.equal(driverReview.data.isBlocked,false);
+  assert.equal(driverReview.data.driverReviewCount,1);
+  assert.equal(driverReview.data.hasReviewRequired,true);
+  const commission=await req('/api/rides',2,free);
+  assert.equal(commission.status,201,'phantom legacy commission must not block zero-fare service');
+  assert.equal(commission.data.ride.paymentMode,'free_pilot');
   assert.equal((await req('/api/bookings',1,{rideId:rid},key(),true)).status,403);
   assert.equal((await req('/api/bookings',0,{rideId:rid})).data.error,'OWN_RIDE');
   const bk=key(),pair=await Promise.all([req('/api/bookings',1,{rideId:rid},bk),req('/api/bookings',1,{rideId:rid},bk)]);
@@ -63,6 +73,6 @@ async function runPilot({t,pool,ids,tokens,basic,port}){
   assert.deepEqual(state,{available:1,total:2,active:1});assert.deepEqual(await snapshot(),before);
   const counts=(await pool.query("SELECT count(*)::int AS n,count(*) FILTER(WHERE b.student_fare<>0 OR b.payment_status<>'NoPaymentRequired' OR b.upi_id<>'')::int AS bad FROM public.campus_bookings b JOIN public.campus_rides r ON r.id=b.ride_id WHERE r.driver_user_id=ANY($1::uuid[]) AND r.payment_mode='free_pilot'",[ids])).rows[0];
   assert.deepEqual(counts,{n:3,bad:0});
-  t.diagnostic('CAMPUS_FREE_PILOT_RESULT '+JSON.stringify({actors:ids.length,freeBookings:counts.n,monetaryViolations:counts.bad,legacyObligationsPreserved:2,zeroFareLegacyStillBlocked:true,repeatBooking:true,driverCanOfferAgain:true,duplicateReplay:true,modeIsolation:true,dbConstraints:true,migrationReapply:true,cancelSeatInvariant:true,paymentApisDisabled:true}));
+  t.diagnostic('CAMPUS_FREE_PILOT_RESULT '+JSON.stringify({actors:ids.length,freeBookings:counts.n,monetaryViolations:counts.bad,legacyObligationsPreserved:2,zeroFareLegacyStillBlocked:true,legacyDriverCommissionReviewNotCollectible:true,repeatBooking:true,driverCanOfferAgain:true,duplicateReplay:true,modeIsolation:true,dbConstraints:true,migrationReapply:true,cancelSeatInvariant:true,paymentApisDisabled:true}));
 }
 module.exports={runPilot};
