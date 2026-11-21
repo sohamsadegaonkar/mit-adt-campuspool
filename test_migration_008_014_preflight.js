@@ -122,7 +122,7 @@ test('preflight never has migration or restore write operations in its DB catalo
  assert.match(script,/releaseReady:false/);
 });
 test('real read-only PostgreSQL catalog detects 014 after synthetic migrations',{
- skip:!process.env.OTP_DATABASE_URL?'requires strictly disposable PostgreSQL':false
+ skip:process.env.SCHEMA_RECOVERY_SCHEMA_READY!=='YES'?'requires explicit migrated disposable PostgreSQL schema':false
 },async()=>{
  const url=new URL(process.env.OTP_DATABASE_URL);
  assert.ok(['127.0.0.1','localhost','[::1]'].includes(url.hostname));
