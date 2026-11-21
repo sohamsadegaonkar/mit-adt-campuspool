@@ -97,8 +97,8 @@ async function handlePgAuth({pathname,method,parseBody,sendJson,db,setSessionCoo
         purpose:'signup_email',channel:'email',target:email,ip:getClientIp(),
         deliver:({target,code})=>mailProvider.sendOtpEmail(target,code)
       });
-      sendJson(200,{success:true,expiresInSeconds:result.expiresInSeconds,deliveredToInbox:true,
-        message:'Verification code submitted to email provider.'});
+      sendJson(200,{success:true,expiresInSeconds:result.expiresInSeconds,providerAccepted:true,
+        message:'Verification code submitted to email provider. Check your inbox; receipt is not yet confirmed.'});
       return true;
     }
     if(pathname==='/api/auth/verify-email-otp') {
