@@ -48,7 +48,9 @@ function bookingPublic(r){
     dept:r.dept,vehicleModel:r.vehicle_model,pickup:r.pickup,
     destination:r.destination,departureTime:r.departure_time,
     studentFare:Number(r.student_fare),paymentStatus:r.payment_status,
-    upiId:r.upi_id,paymentMode:r.payment_mode||'legacy',status:r.status,cancelledAt:r.cancelled_at?asDate(r.cancelled_at):null,...journeyPublic(r),boardedAt:r.boarded_at?asDate(r.boarded_at):null,createdAt:asDate(r.created_at),...(r.pickup_case_id?{pickupCase:{id:r.pickup_case_id,state:r.pickup_case_state,openedAt:asDate(r.pickup_case_opened_at)}}:{})
+    upiId:r.upi_id,paymentMode:r.payment_mode||'legacy',status:r.status,cancelledAt:r.cancelled_at?asDate(r.cancelled_at):null,...journeyPublic(r),boardedAt:r.boarded_at?asDate(r.boarded_at):null,createdAt:asDate(r.created_at),financialReview:r.status==='cancelled'&&r.payment_status==='Pending'&&(r.payment_mode||'legacy')==='legacy'
+      ?{state:'CANCELLED_PENDING_REVIEW',collectionAuthorized:false,decision:'NOT_ADJUDICATED'}
+      :null,...(r.pickup_case_id?{pickupCase:{id:r.pickup_case_id,state:r.pickup_case_state,openedAt:asDate(r.pickup_case_opened_at)}}:{})
   };
 }
 function checkRideInput(r) {
@@ -359,35 +361,59 @@ class PgRidesStore {
     ].join(' '),[bookingId,userId]);
     return r.rows.length>0;
   }
+
+  // Snapshot explicitly separates active legacy reservation restrictions from
+  // cancelled legacy Pending review records. Cancellation does NOT erase the
+  // original marker, create an invoice, or introduce an account block.
+  // No commission can be established by seatsTotal-seatsLeft: capacity is
+  // reset during cancellation and is not evidence of service performed.
   async checkUserSettlementBlock(userId,client){
     if(!userId)return {isBlocked:false,reason:'NONE'};
-    // Payment settlement is intentionally disabled. Existing 'Pending'
-    // bookings and unpaid driver commission continue to block new actions.
-    // One statement, one MVCC snapshot and (without a transaction client)
-    // one pool acquisition. Aggregate before joining so pending rows cannot
-    // multiply the driver totals. Keep native PG column types for bookingPublic.
+    // Single MVCC snapshot, one pool acquisition, no duplicate aggregates
+    // from participant rows and no dependency on optional case migration 012.
     const {rows}=await (client||this.pool).query([
-      'SELECT c.seats_sold,c.gross,b.* FROM (',
-      'SELECT COALESCE(SUM(seats_total-seats_left),0)::int AS seats_sold,',
-      'COALESCE(SUM((seats_total-seats_left)*student_fare),0) AS gross',
-      'FROM public.campus_rides WHERE driver_user_id=$1',
-      ') c LEFT JOIN public.campus_bookings b',
-      "ON b.passenger_user_id=$1 AND b.status='active' AND b.payment_status='Pending'",
-      'ORDER BY b.created_at DESC'
+      'SELECT c.seats_sold,c.gross,dr.review_count,dr.review_total,b.* FROM (',
+      'SELECT count(*)::int AS seats_sold,COALESCE(SUM(b.student_fare),0) AS gross',
+      'FROM public.campus_bookings b JOIN public.campus_rides r ON r.id=b.ride_id',
+      "WHERE r.driver_user_id=$1 AND r.status='active' AND b.status='active'",
+      "AND b.payment_status='Pending' AND b.payment_mode='legacy'",
+      ') c CROSS JOIN (',
+      'SELECT count(*)::int AS review_count,COALESCE(SUM(b.student_fare),0) AS review_total',
+      'FROM public.campus_bookings b JOIN public.campus_rides r ON r.id=b.ride_id',
+      "WHERE r.driver_user_id=$1 AND b.status='cancelled'",
+      "AND b.payment_status='Pending' AND b.payment_mode='legacy'",
+      ') dr LEFT JOIN public.campus_bookings b',
+      "ON b.passenger_user_id=$1 AND b.payment_status='Pending' AND b.payment_mode='legacy'",
+      'ORDER BY b.created_at DESC,b.booking_id DESC'
     ].join(' '),[userId]);
-    const totalRides=Number(rows[0].seats_sold);
-    const grossFare=Number(rows[0].gross);
+    const summary=rows[0];
+    const totalRides=Number(summary.seats_sold);
+    const grossFare=Number(summary.gross);
     const totalCommission=Math.round(grossFare*0.1);
+    // A legacy provisional calculation, not a verified charge or payout.
     const commissionDue=totalCommission;
-    // LEFT JOIN retains the commission row even when no pending booking exists.
-    const pendingBookings=rows.filter(row=>row.booking_id!==null).map(bookingPublic);
+    const bookings=rows.filter(row=>row.booking_id!==null);
+    const pendingBookings=bookings.filter(row=>row.status==='active').map(bookingPublic);
+    const reviewRequiredBookings=bookings.filter(row=>row.status==='cancelled').map(bookingPublic);
     const hasUnsettledCommission=commissionDue>0;
     const hasUnpaidBooking=pendingBookings.length>0;
+    const driverCancellationReview={
+      count:Number(summary.review_count),
+      originalFareTotal:Number(summary.review_total),
+      state:Number(summary.review_count)>0?'REVIEW_REQUIRED':'NONE',
+      collectionAuthorized:false
+    };
+    const hasReviewRequired=reviewRequiredBookings.length>0||driverCancellationReview.count>0;
     return {
+      // Preserve existing restrictions ONLY for active, unresolved legacy
+      // records; reviewed cancellations alone do not penalize either actor.
       isBlocked:hasUnsettledCommission||hasUnpaidBooking,
       hasUnsettledCommission,hasUnpaidBooking,commissionDue,
-      driverCommission:{totalRides,grossFare,totalCommission,settled:0,netDue:commissionDue},
-      pendingBookings,
+      driverCommission:{totalRides,grossFare,totalCommission,settled:0,
+        netDue:commissionDue,estimatedFromActiveBookings:true,collectionAuthorized:false},
+      pendingBookings,reviewRequiredBookings,driverCancellationReview,
+      hasReviewRequired,reviewReason:hasReviewRequired?'CANCELLED_PENDING_UNREVIEWED':'NONE',
+      collectionAuthorized:false,
       reason:hasUnsettledCommission?'COMMISSION_DUE':hasUnpaidBooking?'UNPAID_BOOKING':'NONE'
     };
   }
