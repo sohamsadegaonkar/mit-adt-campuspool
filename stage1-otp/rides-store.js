@@ -48,7 +48,7 @@ function bookingPublic(r){
     dept:r.dept,vehicleModel:r.vehicle_model,pickup:r.pickup,
     destination:r.destination,departureTime:r.departure_time,
     studentFare:Number(r.student_fare),paymentStatus:r.payment_status,
-    upiId:r.upi_id,paymentMode:r.payment_mode||'legacy',status:r.status,cancelledAt:r.cancelled_at?asDate(r.cancelled_at):null,...journeyPublic(r),boardedAt:r.boarded_at?asDate(r.boarded_at):null,createdAt:asDate(r.created_at),...(r.pickup_case_id?{pickupCase:{id:r.pickup_case_id,state:r.pickup_case_state,openedAt:asDate(r.pickup_case_opened_at)}}:{})
+    upiId:r.upi_id,paymentMode:r.payment_mode||'legacy',...(r.actor_role?{actorRole:r.actor_role}:{}),status:r.status,cancelledAt:r.cancelled_at?asDate(r.cancelled_at):null,...journeyPublic(r),boardedAt:r.boarded_at?asDate(r.boarded_at):null,createdAt:asDate(r.created_at),...(r.pickup_case_id?{pickupCase:{id:r.pickup_case_id,state:r.pickup_case_state,openedAt:asDate(r.pickup_case_opened_at)}}:{})
   };
 }
 function checkRideInput(r) {
@@ -198,7 +198,8 @@ class PgRidesStore {
       ? ",c.id AS pickup_case_id,c.state AS pickup_case_state,c.opened_at AS pickup_case_opened_at"
       : "";
     const r=await this.pool.query([
-      'SELECT b.*,r.journey_stage,r.departed_at,r.pickup_at,r.arrived_at'+caseColumns,
+      'SELECT b.*,r.journey_stage,r.departed_at,r.pickup_at,r.arrived_at,',
+      "CASE WHEN r.driver_user_id=$1 THEN 'driver' ELSE 'passenger' END AS actor_role"+caseColumns,
       'FROM public.campus_bookings b JOIN public.campus_rides r ON r.id=b.ride_id',
       joinCase,
       'WHERE (b.passenger_user_id=$1 OR r.driver_user_id=$1)',
