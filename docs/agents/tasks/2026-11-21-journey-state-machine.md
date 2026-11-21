@@ -55,3 +55,5 @@ PostgreSQL-backed, driver-attested scheduled -> departed -> pickup_ready -> arri
 - 2026-11-21 UTC — corrected potential timestamp inversion across PostgreSQL row-lock waits: use clock_timestamp() at UPDATE and GREATEST with previous milestone; now() at transaction start can predate a serialized earlier event. CI pending.
 
 - 2026-11-21 UTC — added actual PostgreSQL transaction-start lag regression: hold transaction 60ms, assert milestone uses write-time DB clock (at least 40ms after BEGIN), rollback proves no phantom event, then owner cancel. Exact test CI pending.
+
+- 2026-11-21 UTC — related mobility candidate query now filters journey_stage='scheduled' so departed rides cannot be offered via matching after disappearing from ride discovery. The same 010 migration readiness applies to PG mobility. CI pending.
