@@ -48,7 +48,7 @@ function bookingPublic(r){
     dept:r.dept,vehicleModel:r.vehicle_model,pickup:r.pickup,
     destination:r.destination,departureTime:r.departure_time,
     studentFare:Number(r.student_fare),paymentStatus:r.payment_status,
-    upiId:r.upi_id,paymentMode:r.payment_mode||'legacy',...journeyPublic(r),boardedAt:r.boarded_at?asDate(r.boarded_at):null,createdAt:asDate(r.created_at)
+    upiId:r.upi_id,paymentMode:r.payment_mode||'legacy',status:r.status,cancelledAt:r.cancelled_at?asDate(r.cancelled_at):null,...journeyPublic(r),boardedAt:r.boarded_at?asDate(r.boarded_at):null,createdAt:asDate(r.created_at),...(r.pickup_case_id?{pickupCase:{id:r.pickup_case_id,state:r.pickup_case_state,openedAt:asDate(r.pickup_case_opened_at)}}:{})
   };
 }
 function checkRideInput(r) {
@@ -71,13 +71,16 @@ function checkRideInput(r) {
 }
 
 class PgRidesStore {
-  constructor({pool,freePilot=false,journeyEnabled=false,boardingPinEnabled=false,boardingPinKey=''}={}) {
+  constructor({pool,freePilot=false,journeyEnabled=false,boardingPinEnabled=false,boardingPinKey='',pickupAbortEnabled=false}={}) {
     if(!pool||typeof pool.query!=='function'||typeof pool.connect!=='function')
       throw Error('PgRidesStore requires an existing private PostgreSQL pool');
     this.pool=pool;
     this.paymentMode=freePilot?'free_pilot':'legacy';
     this.journeyEnabled=journeyEnabled===true;
     this.boardingPinEnabled=boardingPinEnabled===true;
+    this.pickupAbortEnabled=pickupAbortEnabled===true;
+    if(this.pickupAbortEnabled && (!this.journeyEnabled||!this.boardingPinEnabled))
+      throw Error('Pickup abort requires journey + per-passenger boarding proof');
     if(this.boardingPinEnabled && (!this.journeyEnabled || Buffer.byteLength(boardingPinKey,'utf8')<32))
       throw Error('Boarding PIN requires enabled journey and a strong private key');
     this.boardingPinKey=this.boardingPinEnabled?Buffer.from(boardingPinKey,'utf8'):null;
@@ -92,6 +95,10 @@ class PgRidesStore {
     if(this.boardingPinEnabled){
       const pin=await this.pool.query("SELECT count(*)::int AS n FROM pg_constraint WHERE conrelid='public.campus_bookings'::regclass AND conname='campus_booking_boarding_pin_check' AND convalidated");
       if(pin.rows[0].n!==1)throw Error('Migration 011 boarding PIN constraints are required');
+    }
+    if(this.pickupAbortEnabled){
+      const r=await this.pool.query("SELECT count(*)::int AS n FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('campus_booking_cases','campus_booking_case_events')");
+      if(r.rows[0].n!==2)throw Error('Migration 012 pickup cases are required');
     }
   }
   async tx(fn,externalClient){
@@ -163,6 +170,98 @@ class PgRidesStore {
     ].join(' '),[userId]);
     return r.rows.map(bookingPublic);
   }
+  // Historical read path does NOT filter by active booking or ride; cancelled
+  // Pending remains visible but is never auto-declared collectible or waived.
+  async getBookingHistory(userId,{limit=30,offset=0}={}){
+    if(!userId||!Number.isInteger(limit)||limit<1||limit>50||
+       !Number.isInteger(offset)||offset<0||offset>1000)
+      throw new RidesError('INVALID_HISTORY_PAGE',400);
+    const joinCase=this.pickupAbortEnabled
+      ? "LEFT JOIN public.campus_booking_cases c ON c.booking_id=b.booking_id"
+      : "";
+    const caseColumns=this.pickupAbortEnabled
+      ? ",c.id AS pickup_case_id,c.state AS pickup_case_state,c.opened_at AS pickup_case_opened_at"
+      : "";
+    const r=await this.pool.query([
+      'SELECT b.*,r.journey_stage,r.departed_at,r.pickup_at,r.arrived_at'+caseColumns,
+      'FROM public.campus_bookings b JOIN public.campus_rides r ON r.id=b.ride_id',
+      joinCase,
+      'WHERE (b.passenger_user_id=$1 OR r.driver_user_id=$1)',
+      'ORDER BY b.created_at DESC,b.booking_id DESC LIMIT $2 OFFSET $3'
+    ].filter(Boolean).join(' '),[userId,limit,offset]);
+    return r.rows.map(bookingPublic);
+  }
+
+  // An abort is a *claim only*. It never changes booking.status, seat
+  // capacity, financial markers or the self-reported driver timeline.
+  async reportPickupAbort({bookingId,actorUserId,reason}={}){
+    if(!this.pickupAbortEnabled)throw new RidesError('PICKUP_ABORT_NOT_ENABLED',503);
+    if(typeof bookingId!=='string'||!/^BKG-[0-9a-f-]{36}$/.test(bookingId))
+      throw new RidesError('INVALID_BOOKING',400);
+    const reasons=new Set(['no_response','could_not_locate','changed_plans','safety_emergency','other']);
+    if(typeof reason!=='string'||!reasons.has(reason))
+      throw new RidesError('INVALID_PICKUP_REASON',400);
+    if(typeof actorUserId!=='string')throw new RidesError('AUTH_REQUIRED',401);
+    return this.tx(async client=>{
+      const {ride,booking}=await this.lockedBoardingBooking(client,bookingId);
+      const role=booking.passenger_user_id===actorUserId?'passenger'
+        :ride.driver_user_id===actorUserId?'driver':null;
+      if(!role)throw new RidesError('NOT_BOOKING_PARTICIPANT',403);
+      const emergency=reason==='safety_emergency';
+      if(!emergency){
+        if(ride.status!=='active'||booking.status!=='active'||
+          ride.journey_stage!=='pickup_ready'||booking.boarded_at)
+          throw new RidesError('PICKUP_NOT_UNRESOLVED',409);
+        const elapsed=await client.query(
+          "SELECT clock_timestamp() >= $1::timestamptz + interval '5 minutes' AS allowed",
+          [ride.pickup_at]);
+        if(!elapsed.rows[0].allowed)throw new RidesError('PICKUP_WAIT_NOT_ELAPSED',409);
+      }
+      const c=await client.query([
+        'INSERT INTO public.campus_booking_cases(booking_id) VALUES ($1)',
+        'ON CONFLICT (booking_id) DO NOTHING RETURNING id,state,opened_at'
+      ].join(' '),[bookingId]);
+      const current=c.rows[0]|| (await client.query(
+        'SELECT id,state,opened_at FROM public.campus_booking_cases WHERE booking_id=$1',[bookingId])).rows[0];
+      const event=await client.query([
+        'INSERT INTO public.campus_booking_case_events(case_id,actor_user_id,actor_role,reason)',
+        'VALUES ($1,$2,$3,$4)',
+        'ON CONFLICT (case_id,actor_user_id,reason) DO NOTHING RETURNING id'
+      ].join(' '),[current.id,actorUserId,role,reason]);
+      return {caseId:current.id,bookingId,state:current.state,
+        openedAt:asDate(current.opened_at),recorded:event.rows.length===1,
+        message:'Pickup report recorded for review. No penalty or payment change was made.'};
+    });
+  }
+
+  async pickupWaitStatus({bookingId,actorUserId}={}){
+    if(!this.pickupAbortEnabled)throw new RidesError('PICKUP_ABORT_NOT_ENABLED',503);
+    if(typeof bookingId!=='string'||!/^BKG-[0-9a-f-]{36}$/.test(bookingId))
+      throw new RidesError('INVALID_BOOKING',400);
+    const r=await this.pool.query([
+      'SELECT b.booking_id,b.status AS booking_status,b.boarded_at,',
+      'r.driver_user_id,b.passenger_user_id,r.journey_stage,r.status AS ride_status,r.pickup_at,',
+      'c.id AS case_id,c.state AS case_state,clock_timestamp() AS server_now',
+      'FROM public.campus_bookings b JOIN public.campus_rides r ON r.id=b.ride_id',
+      'LEFT JOIN public.campus_booking_cases c ON c.booking_id=b.booking_id',
+      'WHERE b.booking_id=$1'
+    ].join(' '),[bookingId]);
+    const row=r.rows[0];
+    if(!row)throw new RidesError('BOOKING_NOT_FOUND',404);
+    if(row.driver_user_id!==actorUserId&&row.passenger_user_id!==actorUserId)
+      throw new RidesError('NOT_BOOKING_PARTICIPANT',403);
+    const due=row.pickup_at?new Date(new Date(row.pickup_at).getTime()+300000):null;
+    const eligible=row.ride_status==='active'&&row.booking_status==='active'
+      &&row.journey_stage==='pickup_ready'&&!row.boarded_at&&due
+      &&new Date(row.server_now)>=due;
+    return {bookingId,serverNow:asDate(row.server_now),
+      pickupReportedAt:row.pickup_at?asDate(row.pickup_at):null,
+      abortEligibleAt:due?due.toISOString():null,eligible:!!eligible,
+      boardingConfirmed:!!row.boarded_at,caseId:row.case_id||null,
+      caseState:row.case_state||null,
+      note:'Pickup time is reported by the driver, not independently verified.'};
+  }
+
   async bookRide({rideId,passengerUserId,client:txClient}={}){
     if(typeof passengerUserId!=='string')throw new RidesError('AUTH_REQUIRED',401);
     if(typeof rideId!=='string'||rideId.length>64)throw new RidesError('INVALID_RIDE');
@@ -305,7 +404,7 @@ class PgRidesStore {
     const result=await client.query('SELECT ride_id FROM public.campus_bookings WHERE booking_id=$1',[bookingId]);
     if(!result.rows.length)throw new RidesError('BOOKING_NOT_FOUND',404);
     // Reuse universal ride -> booking lock order to avoid cancellation deadlocks.
-    const ride=(await client.query('SELECT id,driver_user_id,status,journey_stage FROM public.campus_rides WHERE id=$1 FOR UPDATE',[result.rows[0].ride_id])).rows[0];
+    const ride=(await client.query('SELECT id,driver_user_id,status,journey_stage,pickup_at FROM public.campus_rides WHERE id=$1 FOR UPDATE',[result.rows[0].ride_id])).rows[0];
     const booking=(await client.query('SELECT * FROM public.campus_bookings WHERE booking_id=$1 FOR UPDATE',[bookingId])).rows[0];
     if(!ride||!booking)throw new RidesError('BOOKING_NOT_FOUND',404);
     return {ride,booking};
