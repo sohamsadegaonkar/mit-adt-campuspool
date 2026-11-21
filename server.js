@@ -41,6 +41,12 @@ const PICKUP_ABORT_ENABLED_VALUE=process.env.PICKUP_ABORT_ENABLED||'false';
 if(!['true','false'].includes(PICKUP_ABORT_ENABLED_VALUE))
   throw Error('PICKUP_ABORT_ENABLED must be true or false');
 const PICKUP_ABORT_ENABLED=PICKUP_ABORT_ENABLED_VALUE==='true';
+const CASE_RESPONSE_ENABLED_VALUE=process.env.CASE_RESPONSE_ENABLED||'false';
+if(!['true','false'].includes(CASE_RESPONSE_ENABLED_VALUE))
+  throw Error('CASE_RESPONSE_ENABLED must be true or false');
+const CASE_RESPONSE_ENABLED=CASE_RESPONSE_ENABLED_VALUE==='true';
+if(CASE_RESPONSE_ENABLED && RIDES_BACKEND!=='postgres')
+  throw Error('Case responses require PostgreSQL rides');
 if(PICKUP_ABORT_ENABLED && (!BOARDING_PIN_ENABLED||!RIDES_JOURNEY_ENABLED||RIDES_BACKEND!=='postgres'))
   throw Error('Pickup abort requires PostgreSQL ride journeys and in-app boarding PIN');
 if(BOARDING_PIN_ENABLED && (!RIDES_JOURNEY_ENABLED||RIDES_BACKEND!=='postgres'))
@@ -52,8 +58,8 @@ if(FREE_RIDES_PILOT && RIDES_BACKEND!=='postgres')throw Error('Free rides pilot 
 const CAMPUS_WIFI_FAIRNESS = process.env.CAMPUS_WIFI_FAIRNESS === 'true';
 if (CAMPUS_WIFI_FAIRNESS && RIDES_BACKEND !== 'postgres')
   throw new Error('Campus Wi-Fi fairness requires PostgreSQL Rides');
-const FAIR_READ_PATHS = new Set(['/api/rides','/api/bookings','/api/my-rides','/api/user/settlement-status','/api/bookings/history','/api/bookings/pickup-status']);
-const FAIR_WRITE_PATHS = new Set(['/api/rides','/api/bookings','/api/rides/cancel','/api/bookings/cancel','/api/rides/journey','/api/bookings/boarding-pin','/api/bookings/verify-boarding-pin','/api/bookings/pickup-abort']);
+const FAIR_READ_PATHS = new Set(['/api/rides','/api/bookings','/api/my-rides','/api/user/settlement-status','/api/bookings/history','/api/bookings/pickup-status','/api/bookings/cases']);
+const FAIR_WRITE_PATHS = new Set(['/api/rides','/api/bookings','/api/rides/cancel','/api/bookings/cancel','/api/rides/journey','/api/bookings/boarding-pin','/api/bookings/verify-boarding-pin','/api/bookings/pickup-abort','/api/bookings/cases/respond']);
 const MOBILITY_MATCHING_ENABLED = process.env.MOBILITY_MATCHING_ENABLED === 'true';
 if(FREE_RIDES_PILOT && MOBILITY_MATCHING_ENABLED)throw Error('Free rides pilot requires mobility matching disabled');
 // Cost-bearing Places calls stay OFF without an explicitly approved server flag.
@@ -213,7 +219,7 @@ const gpsCleanupTimer=setInterval(pruneGps,30000);gpsCleanupTimer.unref();
 const pgOtpStore = AUTH_OTP_BACKEND === 'postgres' ? new PgOtpStore() : null;
 const pgIdentity = pgOtpStore ? new PgIdentity(pgOtpStore) : null;
 const pgRidesStore = RIDES_BACKEND === 'postgres'
-  ? new PgRidesStore({pool:pgOtpStore.pool,freePilot:FREE_RIDES_PILOT,journeyEnabled:RIDES_JOURNEY_ENABLED,boardingPinEnabled:BOARDING_PIN_ENABLED,boardingPinKey:OTP_SECRET,pickupAbortEnabled:PICKUP_ABORT_ENABLED}) : null;
+  ? new PgRidesStore({pool:pgOtpStore.pool,freePilot:FREE_RIDES_PILOT,journeyEnabled:RIDES_JOURNEY_ENABLED,boardingPinEnabled:BOARDING_PIN_ENABLED,boardingPinKey:OTP_SECRET,pickupAbortEnabled:PICKUP_ABORT_ENABLED,caseResponseEnabled:CASE_RESPONSE_ENABLED}) : null;
 const pgMobilityStore = MOBILITY_MATCHING_ENABLED
   ? new PgMobilityStore({pool:pgOtpStore.pool}) : null;
 const pgIdempotency = pgRidesStore ? new PgIdempotencyStore(pgOtpStore.pool) : null;
@@ -831,7 +837,7 @@ const server = http.createServer(async (req, res) => {
     if (!authenticatedUser) {
       return sendJson(401, { success: false, error: 'AUTH_REQUIRED' });
     }
-    return sendJson(200, { success: true, user: authenticatedUser, csrfToken: csrfForSession(sessionToken), freeRidesPilot:FREE_RIDES_PILOT,journeyEnabled:RIDES_JOURNEY_ENABLED,boardingPinEnabled:BOARDING_PIN_ENABLED,pickupAbortEnabled:PICKUP_ABORT_ENABLED });
+    return sendJson(200, { success: true, user: authenticatedUser, csrfToken: csrfForSession(sessionToken), freeRidesPilot:FREE_RIDES_PILOT,journeyEnabled:RIDES_JOURNEY_ENABLED,boardingPinEnabled:BOARDING_PIN_ENABLED,pickupAbortEnabled:PICKUP_ABORT_ENABLED,caseResponseEnabled:CASE_RESPONSE_ENABLED });
   }
   if (pathname.startsWith('/api/') && (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE')
     && authenticatedUser && (!pathname.startsWith('/api/auth/') || pathname === '/api/auth/logout')
@@ -1727,6 +1733,41 @@ const server = http.createServer(async (req, res) => {
       return await executeIdempotentMutation(pathname,body,client=>
         pgRidesStore.reportPickupAbort({
           bookingId:body.bookingId,reason:body.reason,
+          actorUserId:authenticatedUser.id,client
+        }).then(result=>({status:200,body:{success:true,...result}})));
+    }catch(err){
+      if(PgPoolBusyError&&err instanceof PgPoolBusyError)throw err;
+      const known=err instanceof RidesError;
+      return sendJson(known?err.status:500,{success:false,error:known?err.code:'DATABASE_ERROR'});
+    }
+  }
+
+  // Participant-only, read-only non-monetary case timeline. Case records
+  // remain available after cancellation; no private contact, PIN or actor IDs.
+  if(method==='GET' && pathname==='/api/bookings/cases'){
+    if(!CASE_RESPONSE_ENABLED||!pgRidesStore)
+      return sendJson(503,{success:false,error:'CASE_RESPONSE_NOT_ENABLED'});
+    try{
+      const timeline=await pgRidesStore.getBookingCase({
+        bookingId:parsedUrl.query?.bookingId,actorUserId:authenticatedUser.id});
+      return sendJson(200,{success:true,...timeline});
+    }catch(err){
+      if(PgPoolBusyError&&err instanceof PgPoolBusyError)throw err;
+      const known=err instanceof RidesError;
+      return sendJson(known?err.status:500,{success:false,error:known?err.code:'DATABASE_ERROR'});
+    }
+  }
+
+  // One counterparty statement per booking case. This cannot resolve,
+  // penalize, collect, waive or unblock any payment-related restriction.
+  if(method==='POST' && pathname==='/api/bookings/cases/respond'){
+    if(!CASE_RESPONSE_ENABLED||!pgRidesStore)
+      return sendJson(503,{success:false,error:'CASE_RESPONSE_NOT_ENABLED'});
+    const body=await parseBody();
+    try{
+      return await executeIdempotentMutation(pathname,body,client=>
+        pgRidesStore.respondToBookingCase({
+          bookingId:body.bookingId,code:body.code,
           actorUserId:authenticatedUser.id,client
         }).then(result=>({status:200,body:{success:true,...result}})));
     }catch(err){
