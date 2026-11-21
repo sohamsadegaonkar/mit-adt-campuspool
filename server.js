@@ -682,7 +682,7 @@ const server = http.createServer(async (req, res) => {
   }
   function historicalBooking(booking){
     const result=pick(booking,['bookingId','rideId','passengerName','driverName','dept',
-      'vehicleModel','pickup','destination','departureTime','studentFare','paymentStatus','paymentMode','journeyStage','departedAt','pickupAt','arrivedAt','boardedAt','createdAt','status','cancelledAt','pickupCase']);
+      'vehicleModel','pickup','destination','departureTime','studentFare','paymentStatus','paymentMode','journeyStage','departedAt','pickupAt','arrivedAt','boardedAt','createdAt','status','cancelledAt','pickupCase','actorRole']);
     if(isSelf(booking.passengerEmail))result.passengerEmail=booking.passengerEmail;
     return result;
   }
