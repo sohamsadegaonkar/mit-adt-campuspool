@@ -23,7 +23,7 @@ Make each CampusPool deployment easier to verify without requiring a sending dom
 
 ## Verification
 
-- Local Node 22 test suite: 7/7 PASS with network mocked; tested only approved loopback/Render origins, SHA mismatch prevention, three GET calls without cookies, healthy/unhealthy/redirect, staging Basic Auth gate and argument validation.
+- Local Node 22 test suite: Initial local 7/7 PASS with network mocked; subsequent source-added 8th mocked regression checks all-network-inaccessible verdict is INCONCLUSIVE, not a product outage; tested only approved loopback/Render origins, SHA mismatch prevention, three GET calls without cookies, healthy/unhealthy/redirect, staging Basic Auth gate and argument validation.
 - GitHub Actions run on exact review SHA remains required. Do not claim real deployment coverage or inbox receipt from mocked test output.
 
 ## Next steps
