@@ -79,6 +79,7 @@ class PgRidesStore {
     this.journeyEnabled=journeyEnabled===true;
     this.boardingPinEnabled=boardingPinEnabled===true;
     this.pickupAbortEnabled=pickupAbortEnabled===true;
+    this.caseSchemaReady=false;
     if(this.pickupAbortEnabled && (!this.journeyEnabled||!this.boardingPinEnabled))
       throw Error('Pickup abort requires journey + per-passenger boarding proof');
     if(this.boardingPinEnabled && (!this.journeyEnabled || Buffer.byteLength(boardingPinKey,'utf8')<32))
@@ -96,10 +97,14 @@ class PgRidesStore {
       const pin=await this.pool.query("SELECT count(*)::int AS n FROM pg_constraint WHERE conrelid='public.campus_bookings'::regclass AND conname='campus_booking_boarding_pin_check' AND convalidated");
       if(pin.rows[0].n!==1)throw Error('Migration 011 boarding PIN constraints are required');
     }
-    if(this.pickupAbortEnabled){
-      const r=await this.pool.query("SELECT count(*)::int AS n FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('campus_booking_cases','campus_booking_case_events')");
-      if(r.rows[0].n!==2)throw Error('Migration 012 pickup cases are required');
-    }
+    // Read-only historical case review must survive feature rollback.
+    // If 012 was not deployed yet, old applications can still boot with the
+    // pickup feature OFF and review cancelled Pending by booking status.
+    const caseTables=await this.pool.query(
+      "SELECT count(*)::int AS n FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('campus_booking_cases','campus_booking_case_events')");
+    this.caseSchemaReady=caseTables.rows[0].n===2;
+    if(this.pickupAbortEnabled&&!this.caseSchemaReady)
+      throw Error('Migration 012 pickup cases are required');
   }
   async tx(fn,externalClient){
     if(externalClient)return fn(externalClient);
@@ -176,10 +181,10 @@ class PgRidesStore {
     if(!userId||!Number.isInteger(limit)||limit<1||limit>50||
        !Number.isInteger(offset)||offset<0||offset>1000)
       throw new RidesError('INVALID_HISTORY_PAGE',400);
-    const joinCase=this.pickupAbortEnabled
+    const joinCase=this.caseSchemaReady
       ? "LEFT JOIN public.campus_booking_cases c ON c.booking_id=b.booking_id"
       : "";
-    const caseColumns=this.pickupAbortEnabled
+    const caseColumns=this.caseSchemaReady
       ? ",c.id AS pickup_case_id,c.state AS pickup_case_state,c.opened_at AS pickup_case_opened_at"
       : "";
     const r=await this.pool.query([
@@ -372,10 +377,10 @@ class PgRidesStore {
     //
     // One statement, one MVCC snapshot and a single pool acquisition,
     // including the caller-supplied transaction client where present.
-    const caseJoin=this.pickupAbortEnabled
+    const caseJoin=this.caseSchemaReady
       ? 'LEFT JOIN public.campus_booking_cases pc ON pc.booking_id=b.booking_id'
       : '';
-    const caseColumn=this.pickupAbortEnabled
+    const caseColumn=this.caseSchemaReady
       ? ',pc.id AS pickup_case_id,pc.state AS pickup_case_state,pc.opened_at AS pickup_case_opened_at'
       : '';
     const result=await (client||this.pool).query([
