@@ -60,7 +60,7 @@ jobs:
       - name: Prepare isolated PostGIS extension placement
         run: |
           node -e "const {Client}=require('pg');(async()=>{const c=new Client({connectionString:process.env.OTP_DATABASE_URL});await c.connect();try{await c.query('DROP EXTENSION IF EXISTS postgis CASCADE; CREATE SCHEMA IF NOT EXISTS extensions;')}finally{await c.end();}})().catch(e=>{console.error(e.message);process.exit(1)})"
-      - name: Locate container-bound PostgreSQL 16 backup tools
+      - name: Locate container-bound PostgreSQL 16/17 backup tools
         run: |
           CID="$(docker ps --quiet --filter "ancestor=${{ matrix.postgis_image }}" | head -n 1)"
           test -n "$CID"
@@ -68,7 +68,8 @@ jobs:
           echo "EXPECTED_PG_MAJOR=${{ matrix.postgres_major }}" >> "$GITHUB_ENV"
           docker exec "$CID" pg_dump --version
           docker exec "$CID" pg_restore --version
-          docker exec "$CID" psql -U postgres -d campuspool_stage1_ci -qAt -c 'SHOW server_version_num' | grep -E '^${{ matrix.postgres_major }}[0-9]{4}
+          ACTUAL_MAJOR="$(docker exec "$CID" psql -U postgres -d campuspool_stage1_ci -qAt -c 'SHOW server_version_num' | cut -c1-2)"
+          test "$ACTUAL_MAJOR" = "${{ matrix.postgres_major }}"
       - name: Syntax and offline migration-state guards
         run: |
           node --check scripts/migration-008-014-preflight.js
