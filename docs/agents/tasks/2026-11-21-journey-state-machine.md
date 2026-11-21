@@ -1,6 +1,6 @@
 # CampusPool real driver-reported journey lifecycle
 - **Task ID:** 2026-11-21-journey-state-machine
-- **Status:** implementation in progress / CI pending / unmerged, undeployed
+- **Status:** all five exact-code CI checks passed; independent UX/security review pending, unmerged and undeployed
 - **Owner:** application engineering, independent security and product review unassigned
 - **Last updated:** 2026-11-21 UTC
 - **Baseline:** main 1020e2e; parent #59 b252b6e, #50 minimum complexity rule
@@ -30,9 +30,9 @@ PostgreSQL-backed, driver-attested scheduled -> departed -> pickup_ready -> arri
 
 | Test | Scope | Status |
 |---|---|---|
-| Journey HTTP real PG | owner/outsider/order/idempotency/cancel/GPS | pending |
-| Browser timeline VM | persisted snapshots and reduced motion | pending |
-| Existing PostgreSQL/Rush/privacy/GPS/pilot/browser | CI | pending |
+| Journey HTTP real PG | owner/outsider/order/idempotency/cancel/GPS | PASS |
+| Browser timeline VM | persisted snapshots and reduced motion | PASS 7/7 |
+| Existing PostgreSQL/Rush/privacy/GPS/pilot/browser | CI | PASS; 30 browser E2E, 3880/3880 Rush |
 | Real device/accessibility | manual | not run |
 
 ## Risks / exact handoff
@@ -59,3 +59,11 @@ PostgreSQL-backed, driver-attested scheduled -> departed -> pickup_ready -> arri
 - 2026-11-21 UTC — related mobility candidate query now filters journey_stage='scheduled' so departed rides cannot be offered via matching after disappearing from ride discovery. The same 010 migration readiness applies to PG mobility. CI pending.
 
 - 2026-11-21 UTC — flag-off disables new reports but cannot hide previously committed journey state. Render arrived/departed milestones read-only and retain stage-based cancellation restrictions; VM test added. CI pending.
+
+## Exact application code verified — 2026-11-21 UTC
+
+- **Code SHA:** `e1ea31720aba2c3f50c804964f70dc1182c3be39` (PR #60); [PostgreSQL integration](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/44871019791/job/136745345060) PASS, [real-browser E2E](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/44871019796/job/136745344957) PASS (**30 tests**); smoke, Places and disposable benchmark PASS (five checks total).
+- **Journey VM:** 7/7 passed; no initial/unchanged/backwards animation, verified state changes, static persisted history after flag-off, reduced motion and source syntax.
+- **Journey real HTTP/PG:** 5 actors, owner-only and CSRF, concurrent same-key idempotency, invalid ordering, booking closure and late cancellation, private passenger readback and timestamp ordering, GPS revoked after arrival, historical Pending preserved, DB constraints, 60ms delayed transaction clock test and rollback no-phantom-event all PASS. `CAMPUS_JOURNEY_RESULT` includes `lateTransactionClock:true`.
+- **Existing regressions:** Rush Hour **3880/3880**, zero dropped/unexpected, **47** consistency snapshots, **877** receipt verifications, **zero** consistency violations, NAT 120 accepted / 10 throttled; privacy **29** projection checks; GPS **11** lifecycle cases; free pilot **3** zero-monetary synthetic bookings with **2** legacy obligations retained.
+- **Remaining non-CI review:** real low-end Android, focus/text scaling, accessibility/reduced motion, driver distraction, self-report fraud and dispute workflow, independently approved migration 010/release sequence. No staging/production change, no payments or live GPS contact.

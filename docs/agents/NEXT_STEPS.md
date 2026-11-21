@@ -371,3 +371,5 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 - **#59 motion code tested at 091a1ac:** VM 7/7, browser E2E 30, PostgreSQL/smoke pass. Next manual ticket animation review on phone, contrast/reduced motion, full stacked PR review before merge. No fake journey progress; G1 unchanged. [Rules](MOTION_LANGUAGE.md).
 
 - [Driver journey state](tasks/2026-11-21-journey-state-machine.md): add browser timeline and real HTTP regression, verify exact CI; migration 010/rollout not authorized.
+
+- **#60 driver-reported milestone implementation CI PASS at e1ea317**: next independent driver safety/false reporting, mobile accessibility/reduced motion and first-upgrade 010 migration review. No live deployment or migration authorized. [Task](tasks/2026-11-21-journey-state-machine.md).
