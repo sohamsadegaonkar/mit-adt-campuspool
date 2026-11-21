@@ -3,7 +3,7 @@ const {test}=require('node:test'),assert=require('node:assert/strict');
 const {Client}=require('pg');
 const {spawnSync}=require('node:child_process');
 const {
- STAGES,manifest,expectedObjects,checkCatalog,detectStage,readCatalog
+ STAGES,manifest,expectedObjects,parsePolicyRoles,checkCatalog,detectStage,readCatalog
 }=require('./scripts/migration-008-014-preflight');
 const {validateTarget}=require('./scripts/reviewer-onboarding-preflight');
 function fixture(version){
@@ -70,6 +70,19 @@ test('seven staged snapshots plus pre-008 baseline pass; all are explicitly NO-G
    assert.equal(out.migrationLedgerVerified,false);
  }
 });
+test('PostgreSQL name[] policy roles parse safely as array or brace-encoded string',()=>{
+ assert.deepEqual(parsePolicyRoles(['campuspool_staging_app']),['campuspool_staging_app']);
+ assert.deepEqual(parsePolicyRoles('{campuspool_staging_app}'),['campuspool_staging_app']);
+ assert.deepEqual(parsePolicyRoles('{anon,authenticated}'),['anon','authenticated']);
+ assert.deepEqual(parsePolicyRoles('garbage'),[]);
+ assert.deepEqual(parsePolicyRoles(null),[]);
+ const f=catalog(14);
+ f.policies=f.policies.map(x=>({...x,roles:'{campuspool_staging_app}'}));
+ assert.deepEqual(checkCatalog(f,14).failures,[]);
+ f.policies[0].roles='{PUBLIC}';
+ assert.ok(checkCatalog(f,14).failures.some(x=>x.includes('EXPOSED_POLICY')));
+});
+
 test('future objects in pre-migration DB and missing intermediate objects fail closed',()=>{
  let f=catalog(12);
  assert.ok(checkCatalog(f,11).failures.some(x=>x.startsWith('FUTURE_TABLE_PRESENT')));
