@@ -48,7 +48,7 @@ function bookingPublic(r){
     dept:r.dept,vehicleModel:r.vehicle_model,pickup:r.pickup,
     destination:r.destination,departureTime:r.departure_time,
     studentFare:Number(r.student_fare),paymentStatus:r.payment_status,
-    upiId:r.upi_id,paymentMode:r.payment_mode||'legacy',...journeyPublic(r),createdAt:asDate(r.created_at)
+    upiId:r.upi_id,paymentMode:r.payment_mode||'legacy',...journeyPublic(r),boardedAt:r.boarded_at?asDate(r.boarded_at):null,createdAt:asDate(r.created_at)
   };
 }
 function checkRideInput(r) {
@@ -71,12 +71,16 @@ function checkRideInput(r) {
 }
 
 class PgRidesStore {
-  constructor({pool,freePilot=false,journeyEnabled=false}={}) {
+  constructor({pool,freePilot=false,journeyEnabled=false,boardingPinEnabled=false,boardingPinKey=''}={}) {
     if(!pool||typeof pool.query!=='function'||typeof pool.connect!=='function')
       throw Error('PgRidesStore requires an existing private PostgreSQL pool');
     this.pool=pool;
     this.paymentMode=freePilot?'free_pilot':'legacy';
     this.journeyEnabled=journeyEnabled===true;
+    this.boardingPinEnabled=boardingPinEnabled===true;
+    if(this.boardingPinEnabled && (!this.journeyEnabled || Buffer.byteLength(boardingPinKey,'utf8')<32))
+      throw Error('Boarding PIN requires enabled journey and a strong private key');
+    this.boardingPinKey=this.boardingPinEnabled?Buffer.from(boardingPinKey,'utf8'):null;
   }
   async ready(){
     await this.pool.query('SELECT payment_mode FROM public.campus_rides LIMIT 0');
@@ -85,6 +89,10 @@ class PgRidesStore {
     if(rows[0].n!==3)throw Error('Migration 009 payment mode constraints are required');
     const journey=await this.pool.query("SELECT count(*)::int AS n FROM pg_constraint WHERE conrelid='public.campus_rides'::regclass AND conname='campus_ride_journey_stage_check' AND convalidated");
     if(journey.rows[0].n!==1)throw Error('Migration 010 journey constraints are required');
+    if(this.boardingPinEnabled){
+      const pin=await this.pool.query("SELECT count(*)::int AS n FROM pg_constraint WHERE conrelid='public.campus_bookings'::regclass AND conname='campus_booking_boarding_pin_check' AND convalidated");
+      if(pin.rows[0].n!==1)throw Error('Migration 011 boarding PIN constraints are required');
+    }
   }
   async tx(fn,externalClient){
     if(externalClient)return fn(externalClient);
@@ -283,6 +291,78 @@ class PgRidesStore {
       pendingBookings,
       reason:hasUnsettledCommission?'COMMISSION_DUE':hasUnpaidBooking?'UNPAID_BOOKING':'NONE'
     };
+  }
+
+
+  // PINs are derived only on demand with a server-secret HMAC and random nonce.
+  // The database never stores the six-digit code, and general booking reads never include it.
+  deriveBoardingPin(bookingId,nonce){
+    const digest=crypto.createHmac('sha256',this.boardingPinKey)
+      .update('campuspool:boarding:v1:'+bookingId+':'+nonce).digest();
+    return String(digest.readUInt32BE(0)%1000000).padStart(6,'0');
+  }
+  async lockedBoardingBooking(client,bookingId){
+    const result=await client.query('SELECT ride_id FROM public.campus_bookings WHERE booking_id=$1',[bookingId]);
+    if(!result.rows.length)throw new RidesError('BOOKING_NOT_FOUND',404);
+    // Reuse universal ride -> booking lock order to avoid cancellation deadlocks.
+    const ride=(await client.query('SELECT id,driver_user_id,status,journey_stage FROM public.campus_rides WHERE id=$1 FOR UPDATE',[result.rows[0].ride_id])).rows[0];
+    const booking=(await client.query('SELECT * FROM public.campus_bookings WHERE booking_id=$1 FOR UPDATE',[bookingId])).rows[0];
+    if(!ride||!booking)throw new RidesError('BOOKING_NOT_FOUND',404);
+    return {ride,booking};
+  }
+  async issueBoardingPin({bookingId,passengerUserId}={}){
+    if(!this.boardingPinEnabled)throw new RidesError('BOARDING_PIN_NOT_ENABLED',503);
+    if(typeof bookingId!=='string'||!/^BKG-[0-9a-f-]{36}$/.test(bookingId))throw new RidesError('INVALID_BOOKING',400);
+    if(typeof passengerUserId!=='string')throw new RidesError('AUTH_REQUIRED',401);
+    return this.tx(async client=>{
+      const {ride,booking}=await this.lockedBoardingBooking(client,bookingId);
+      if(booking.passenger_user_id!==passengerUserId)throw new RidesError('NOT_BOOKING_PASSENGER',403);
+      if(ride.status!=='active'||booking.status!=='active')throw new RidesError('BOOKING_NOT_ACTIVE',409);
+      if(booking.boarded_at)return {success:true,alreadyBoarded:true,boardedAt:asDate(booking.boarded_at)};
+      if(ride.journey_stage!=='pickup_ready')throw new RidesError('BOARDING_NOT_AT_PICKUP',409);
+      const now=(await client.query('SELECT clock_timestamp() AS observed_at')).rows[0].observed_at;
+      if(booking.boarding_pin_nonce&&booking.boarding_pin_expires_at>now){
+        if(booking.boarding_pin_attempts>=5)throw new RidesError('BOARDING_PIN_LOCKED',429);
+        return {success:true,pin:this.deriveBoardingPin(bookingId,booking.boarding_pin_nonce),
+          expiresAt:asDate(booking.boarding_pin_expires_at)};
+      }
+      const nonce=crypto.randomBytes(24).toString('hex');
+      const issued=await client.query(
+        "UPDATE public.campus_bookings SET boarding_pin_nonce=$2,boarding_pin_expires_at=clock_timestamp()+interval '20 minutes',boarding_pin_attempts=0 WHERE booking_id=$1 RETURNING boarding_pin_expires_at",
+        [bookingId,nonce]);
+      return {success:true,pin:this.deriveBoardingPin(bookingId,nonce),
+        expiresAt:asDate(issued.rows[0].boarding_pin_expires_at)};
+    });
+  }
+  async verifyBoardingPin({bookingId,driverUserId,pin,client:txClient}={}){
+    if(!this.boardingPinEnabled)throw new RidesError('BOARDING_PIN_NOT_ENABLED',503);
+    if(typeof bookingId!=='string'||!/^BKG-[0-9a-f-]{36}$/.test(bookingId))throw new RidesError('INVALID_BOOKING',400);
+    if(typeof driverUserId!=='string')throw new RidesError('AUTH_REQUIRED',401);
+    if(typeof pin!=='string'||!/^\d{6}$/.test(pin))throw new RidesError('INVALID_BOARDING_PIN',400);
+    return this.tx(async client=>{
+      const {ride,booking}=await this.lockedBoardingBooking(client,bookingId);
+      if(ride.driver_user_id!==driverUserId)throw new RidesError('NOT_RIDE_OWNER',403);
+      if(ride.status!=='active'||booking.status!=='active')throw new RidesError('BOOKING_NOT_ACTIVE',409);
+      if(booking.boarded_at)return {status:200,body:{success:true,alreadyBoarded:true,boardedAt:asDate(booking.boarded_at)}};
+      if(ride.journey_stage!=='pickup_ready')throw new RidesError('BOARDING_NOT_AT_PICKUP',409);
+      const now=(await client.query('SELECT clock_timestamp() AS observed_at')).rows[0].observed_at;
+      if(!booking.boarding_pin_nonce||!booking.boarding_pin_expires_at||booking.boarding_pin_expires_at<=now)
+        throw new RidesError('BOARDING_PIN_EXPIRED',409);
+      if(booking.boarding_pin_attempts>=5)
+        return {status:429,body:{success:false,error:'BOARDING_PIN_LOCKED'}};
+      const expected=this.deriveBoardingPin(bookingId,booking.boarding_pin_nonce);
+      if(!crypto.timingSafeEqual(Buffer.from(pin),Buffer.from(expected))){
+        const attempts=Number(booking.boarding_pin_attempts)+1;
+        await client.query('UPDATE public.campus_bookings SET boarding_pin_attempts=$2 WHERE booking_id=$1',
+          [bookingId,attempts]);
+        return {status:attempts>=5?429:409,body:{success:false,
+          error:attempts>=5?'BOARDING_PIN_LOCKED':'INVALID_BOARDING_PIN'}};
+      }
+      const done=await client.query(
+        'UPDATE public.campus_bookings SET boarded_at=clock_timestamp(),boarding_pin_nonce=NULL,boarding_pin_expires_at=NULL,boarding_pin_attempts=0 WHERE booking_id=$1 RETURNING boarded_at',
+        [bookingId]);
+      return {status:200,body:{success:true,boardedAt:asDate(done.rows[0].boarded_at)}};
+    },txClient);
   }
 
   async advanceJourney({rideId,driverUserId,action,client:txClient}={}){
