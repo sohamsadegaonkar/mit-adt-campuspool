@@ -373,3 +373,13 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 - [Driver journey state](tasks/2026-11-21-journey-state-machine.md): add browser timeline and real HTTP regression, verify exact CI; migration 010/rollout not authorized.
 
 - **#60 driver-reported milestone implementation CI PASS at e1ea317**: next independent driver safety/false reporting, mobile accessibility/reduced motion and first-upgrade 010 migration review. No live deployment or migration authorized. [Task](tasks/2026-11-21-journey-state-machine.md).
+
+
+## Journey release-safety next gates — 2026-11-21 UTC
+
+1. **P1 — product & safety:** decide dispute/no-show escalation, false driver report treatment, emergency ride cancellation history, Pending obligation handling and minimum audit trail; current draft PR #60 is NOT ready for release. Avoid silently charging a no-show or forgiving debt by inferring from self-report alone.
+2. **P1 — adversarial CI:** review exact head and \`CAMPUS_ADVERSARIAL_RESULT\` in disposable PostGIS CI on audit branch \`test/journey-release-safety-audit-2026-11-21\`. These tests deliberately reproduce unsafe behavior and cannot serve as a GO signal. Fix policy first and replace observational assertions with safety acceptance assertions.
+3. **P1 — Android manual:** connect an actual Android device and execute TalkBack, text scaling, focus/keyboard navigation, reduced motion, bad-network and parked-only driver safety review; capture no student PII. Desktop browser CI does not pass this gate.
+4. **P0 release dependency:** confirm G1 backup/independent recovery, 008→009→010 compatibility, validated 009/010 constraints and rollback/hotfix safety before any staging migrations. New binary needs 010 even when reporting is disabled; old binaries must not accept bookings on already-departed rides.
+5. **Integration order:** #47→#48→#49→#51→#52→#53→#54→#55→#56→#57→#58→#59→#60; separately review #50 and #36; CI-green does not authorize merges. Preserve default OFF and NO-GO.
+6. **Evidence/handoff:** [2026-11-21-journey-release-safety-audit.md](tasks/2026-11-21-journey-release-safety-audit.md). Keep separate from runtime production truth and get explicit owner approval for any staging, production or schema operation.
