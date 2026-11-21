@@ -398,6 +398,12 @@ async function runPickupAbort({t,pool,ids,request}){
  });
  await responseFlagOff.ready();
  assert.equal(responseFlagOff.responseSchemaReady,true);
+ assert.equal(responseFlagOff.reviewSchemaReady,true);
+ await assert.rejects(responseFlagOff.respondToBookingCase({
+   bookingId:one,actorUserId:ids[0],code:'present_at_pickup'
+ }),error=>error.code==='CASE_EVIDENCE_FROZEN',
+ 'disabling new review UI cannot reopen post-review evidence');
+
  assert.equal((await responseFlagOff.getBookingCase({
    bookingId:one,actorUserId:ids[1]})).responses.length,2,
    'case response history must remain readable even if pickup abort is switched off');
@@ -422,6 +428,61 @@ async function runPickupAbort({t,pool,ids,request}){
    '013_private_case_responses.sql'),'utf8'));
  const afterResponses=(await pool.query('SELECT count(*)::int AS n FROM public.campus_booking_case_responses')).rows[0].n;
  assert.equal(afterResponses,beforeResponses,'migration 013 replay keeps protected existing responses');
+
+ // Migration 014 replay must not reset reviewer grants or erase decisions.
+ const reviewBefore=(await pool.query(
+   'SELECT count(*)::int AS n FROM public.campus_case_review_decisions')).rows[0].n;
+ const appealsBefore=(await pool.query(
+   'SELECT count(*)::int AS n FROM public.campus_case_appeals')).rows[0].n;
+ await pool.query(fs.readFileSync(path.join(__dirname,'..','stage1-otp','migrations',
+   '014_case_review_appeals_foundation.sql'),'utf8'));
+ assert.equal((await pool.query(
+   'SELECT count(*)::int AS n FROM public.campus_case_review_decisions')).rows[0].n,reviewBefore);
+ assert.equal((await pool.query(
+   'SELECT count(*)::int AS n FROM public.campus_case_appeals')).rows[0].n,appealsBefore);
+ const protectedTables=['campus_case_review_decisions','campus_case_appeals','campus_case_appeal_reviews'];
+ for(const table of protectedTables){
+   const privilege=await pool.query(
+     'SELECT has_table_privilege($1, $2, $3) AS allowed',
+     ['campuspool_staging_app','public.'+table,'DELETE']);
+   assert.equal(privilege.rows[0].allowed,false,table+' cannot be erased via app role');
+ }
+ const grantRls=await pool.query(
+   "SELECT relrowsecurity FROM pg_class WHERE oid='public.campus_case_reviewer_grants'::regclass");
+ assert.equal(grantRls.rows[0].relrowsecurity,true);
+
+ // A case cannot be considered reviewed solely from an unsupported
+ // one-party allegation. Create one more disposable ride after old checks.
+ const oneSidedRide=await create();
+ assert.equal(oneSidedRide.status,201,JSON.stringify(oneSidedRide.body));
+ const oneSidedBook=await book(2,oneSidedRide.body.ride.id);
+ assert.equal(oneSidedBook.status,201,JSON.stringify(oneSidedBook.body));
+ const loneBooking=oneSidedBook.body.booking.bookingId;
+ assert.equal((await claim(2,loneBooking,'safety_emergency')).status,200);
+ const premature=await review(3,loneBooking,'no_action');
+ assert.equal(premature.status,409);
+ assert.equal(premature.body.error,'BOTH_PARTIES_NOT_HEARD');
+ assert.equal((await reply(0,loneBooking,'attempted_contact')).status,200);
+ assert.equal((await review(3,loneBooking,'no_action')).status,200);
+ assert.equal((await caseRead(2,loneBooking)).body.review.code,'no_action');
+ const postReviewStatus=await request('/api/user/settlement-status',{user:2});
+ assert.equal(postReviewStatus.status,200);
+ assert.ok(postReviewStatus.body.reviewRequiredBookings.some(x=>x.bookingId===loneBooking));
+ assert.equal(postReviewStatus.body.commissionDue,0);
+
+ t.diagnostic('CAMPUS_CASE_REVIEW_APPEALS_RESULT '+JSON.stringify({
+   disposableOnly:true,actors:ids.length,
+   manualOperatorGrantsOnly:true,noSelfProvision:true,
+   revokedRolesBlocked:true,conflictedReviewerDenied:true,
+   sameReviewerCannotDecideAppeal:true,oneSidedDecisionBlocked:true,
+   counterpartyRespondedBeforeDecision:true,initialReviewUnique:true,
+   participantAppealsUnique:true,independentAppealOutcomes:true,
+   participantAppealPrivacy:true,idempotentRetries:true,
+   immutableAuditGrants:true,featureRollbackEvidenceFrozen:true,
+   migration014Replay:true,noFinancialMutation:true,
+   noAutomaticFeesRefundsBansOrBookingRestrictions:true
+ }));
+
  t.diagnostic('CAMPUS_CASE_RESPONSE_RESULT '+JSON.stringify({
    disposableOnly:true,actors:ids.length,counterpartyOnly:true,
    caseReadAfterCancellation:true,flagRollbackRead:true,
@@ -429,7 +490,7 @@ async function runPickupAbort({t,pool,ids,request}){
    concurrentOpposingResponses:true,sameCodeRetryIdempotent:true,
    contradictoryResponseRejected:true,noPaymentOrSeatChange:true,
    immutableDatabaseGrants:true,migration013Replay:true,
-   reviewerAdjudicationDisabled:true,automaticSanctions:false
+   nonMonetaryReviewerRecordsOnly:true,automaticSanctions:false
  }));
 
  t.diagnostic('CAMPUS_PICKUP_ABORT_RESULT '+JSON.stringify({
