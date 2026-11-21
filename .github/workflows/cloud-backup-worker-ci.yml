@@ -345,8 +345,36 @@ jobs:
           printf '%s\n' "$GHCR_TOKEN" | docker login ghcr.io \
             --username "$GITHUB_ACTOR" --password-stdin >/dev/null
           unset GHCR_TOKEN
-          timeout -k 5s 45s docker manifest inspect "$IMAGE" >/dev/null
+          # The legacy 'docker manifest inspect' returned 'manifest unknown' after
+          # login; use Buildx's registry-aware raw manifest reader instead.
+          # A successful login alone never proves package-level Actions access.
+          timeout -k 5s 15s docker buildx version >/dev/null
+          tag="ghcr.io/sohamsadegaonkar/campuspool-backup-worker:review-35e37da37bb4"
+          expected="${IMAGE##*@sha256:}"
+          tag_manifest="$RUNNER_TEMP/campuspool-ghcr-tag-manifest.json"
+          digest_manifest="$RUNNER_TEMP/campuspool-ghcr-digest-manifest.json"
+          if ! timeout -k 5s 45s docker buildx imagetools inspect --raw "$tag" > "$tag_manifest" 2>/dev/null; then
+            echo "::error::GHCR_REVIEW_TAG_INACCESSIBLE: confirm package Actions access for this repository; no signature attempted"
+            exit 1
+          fi
+          tag_hash="$(sha256sum "$tag_manifest" | awk '{print $1}')"
+          if [ "$tag_hash" != "$expected" ]; then
+            echo "::error::GHCR_REVIEW_TAG_DIGEST_MISMATCH: target changed; no signature attempted"
+            exit 1
+          fi
+          echo "EXACT_REVIEW_TAG_VERIFIED=YES"
+          if ! timeout -k 5s 45s docker buildx imagetools inspect --raw "$IMAGE" > "$digest_manifest" 2>/dev/null; then
+            echo "::error::GHCR_DIGEST_INACCESSIBLE: package access or registry lookup blocked; no signature attempted"
+            exit 1
+          fi
+          digest_hash="$(sha256sum "$digest_manifest" | awk '{print $1}')"
+          if [ "$digest_hash" != "$expected" ]; then
+            echo "::error::GHCR_REMOTE_DIGEST_MISMATCH: no signature attempted"
+            exit 1
+          fi
+          rm -f "$tag_manifest" "$digest_manifest"
           echo "EXISTING_IMAGE_ACCESS_PASS=YES"
+          echo "REMOTE_EXACT_MANIFEST_VERIFIED=YES"
       - name: Sign only when exact GitHub OIDC identity signature is absent
         shell: bash
         env:
