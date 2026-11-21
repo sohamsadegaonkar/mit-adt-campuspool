@@ -31,7 +31,7 @@ node scripts/reviewer-onboarding-preflight.js \
   --approval "$APPROVAL_REFERENCE"
 ```
 
-Set `REVIEWER_OPERATOR_DB_URL` privately before invoking. **No grant is performed**. For a revoked or expired existing grant, preflight purposely refuses a reactivation; a separately approved renewal design and audit need to exist first. Revocation planning uses `--action revoke` with no `--expires-at` and likewise makes **no DB change**. Even a successful plan does **not authorize a SQL change or production rollout**.
+Set `REVIEWER_OPERATOR_DB_URL` privately before invoking. For a separately authorized staging read also set `REVIEWER_STAGING_READ_APPROVED=YES`; never use that environment flag as a substitute for a real approval. **No grant is performed**. For a revoked or expired existing grant, preflight purposely refuses a reactivation; a separately approved renewal design and audit need to exist first. Revocation planning uses `--action revoke` with no `--expires-at` and likewise makes **no DB change**. Even a successful plan does **not authorize a SQL change or production rollout**.
 
 ## Expected acceptance / release gates
 
