@@ -393,3 +393,10 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 4. Implement separate dispute/no-show handling and address cancelled-Pending history/settlement P1; do not charge, forgive or settle automatically based on status or PIN.
 5. Add real PG tests for multiple passengers/unique codes, wrong/expired/guessed PIN attempts, lockout, idempotent duplicate/concurrent verification, ownership/CSRF, cancellation & race at drop-off, reduced-motion/accessible status, disabled feature and no exposed PIN in receipts/logging. Physical Android and migration/recovery review still required.
 6. Minimal architecture: existing booking row + server verifier and existing app/session; no new service or paid provider. [Decision](DECISIONS.md), [handoff](tasks/2026-11-21-journey-release-safety-audit.md); PR #60 and #61 remain draft/unmerged.
+
+## 2026-11-21 — Boarding PIN implementation and verification gate
+
+- [In-app boarding PIN task](tasks/2026-11-21-in-app-boarding-pin.md): verify exact SHA CI including `CAMPUS_BOARDING_PIN_RESULT` on disposable PostGIS, app script VM and existing regression, then independently review passenger-only PIN view, driver-only verification, expiry/attempts, concurrent idempotency, multi-seat and canceled/arrived states. Fix failures on new stacked feature PR only.
+- Require security review of server-secret HMAC/nonce handling, idempotency receipt privacy, CSRF, cache/no-store, screen-reader and physical Android UX. **No SMS/email OTP** and no PIN in driver GET or local browser storage.
+- Resolve **P1 cancelled Pending/no-show dispute** from QA PR #61 before sign-off. Driver arrival is never passenger boarding proof, and PIN exchange does not automatically justify charges, refunds or debt waiver.
+- Obtain separate backup+restore/rollback and migration 008→009→010→011 approval; enable neither feature flag nor actual payments at staging/production without release owner GO. Parent #47→…→#60→#61 integration remains outstanding.
