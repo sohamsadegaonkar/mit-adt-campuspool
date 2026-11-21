@@ -6,8 +6,6 @@ const tls=require('node:tls');
 const {X509Certificate}=require('node:crypto');
 const {EventEmitter}=require('node:events');
 const {PassThrough}=require('node:stream');
-const {stagingTlsProbe,SQL}=require('./scripts/cloud-backup-tls-probe');
-const {main}=require('./scripts/azure-blob-backup');
 
 const dir=fs.mkdtempSync('/dev/shm/campuspool-tls-synthetic-');
 fs.chmodSync(dir,0o700);
@@ -18,6 +16,15 @@ const pem=tls.rootCertificates.find(s=>{
  catch{return false;}
 });
 fs.writeFileSync(ca,pem,{mode:0o600});
+// Synthetic tests only: replace the imported guard before loading the worker.
+// The runtime wrapper has no environment or CLI override for its pinned CA.
+const security=require('./scripts/cloud-backup-runtime-security');
+const realPinnedGuard=security.validCaFile;
+const testFingerprint=new X509Certificate(pem).fingerprint256.replace(/:/g,'');
+assert.equal(realPinnedGuard(ca),false,'unrelated public CA must fail production pin');
+test.mock.method(security,'validCaFile',file=>security.validCaFileAgainstFingerprint(file,testFingerprint));
+const {stagingTlsProbe,SQL}=require('./scripts/cloud-backup-tls-probe');
+const {main}=require('./scripts/azure-blob-backup');
 const host='aws-0-ap-southeast-1.pooler.supabase.com';
 const user='postgres.tnitksrlntrdxbvznxzf';
 const pass=dir+'/pgpass';
@@ -30,7 +37,7 @@ const env={
  AZURE_STORAGE_ACCOUNT:'011campuspoolbackup',AZURE_BACKUP_CONTAINER:'campuspool-staging-backups',
  AZURE_PRIVATE_CONTAINER_CONFIRMED:'YES'
 };
-function fakePsql(stdout,code=0){
+function fakePsql(stdout,code=0,stderr=''){
  return (bin,args,opts)=>{
   assert.equal(bin,'psql');
   assert.ok(args.includes('--no-psqlrc'));
@@ -42,8 +49,8 @@ function fakePsql(stdout,code=0){
   assert.equal(opts.env.PGPASSFILE,pass);
   assert.equal(opts.env.PGSSLMODE,'verify-full');
   const child=new EventEmitter();
-  child.stdout=new PassThrough();child.kill=()=>true;
-  process.nextTick(()=>{child.stdout.end(stdout);child.emit('close',code);});
+  child.stdout=new PassThrough();child.stderr=new PassThrough();child.kill=()=>true;
+  process.nextTick(()=>{child.stdout.end(stdout);child.stderr.end(stderr);child.emit('close',code);});
   return child;
  };
 }
@@ -54,8 +61,8 @@ test('staging-only read query checks actual pg_stat_ssl TLS version and no stude
  assert.equal(result.backupCreated,false);
 });
 test('psql TLS rejection or failed command never yields success',async()=>{
- await assert.rejects(()=>stagingTlsProbe(env,{spawnImpl:fakePsql('TLS_REJECTED\n')}),/STAGING_TLS_HANDSHAKE_BLOCKED/);
- await assert.rejects(()=>stagingTlsProbe(env,{spawnImpl:fakePsql('',1)}),/STAGING_TLS_HANDSHAKE_BLOCKED/);
+ await assert.rejects(()=>stagingTlsProbe(env,{spawnImpl:fakePsql('TLS_REJECTED\n')}),/STAGING_TLS_BACKEND_SESSION_REJECTED/);
+ await assert.rejects(()=>stagingTlsProbe(env,{spawnImpl:fakePsql('',1)}),/STAGING_TLS_PSQL_FAILED/);
 });
 test('non-verify-full SSL settings and missing valid CA fail before subprocess',async()=>{
  await assert.rejects(()=>stagingTlsProbe({...env,PGSSLMODE:'require'},{spawnImpl:()=>{throw Error('UNEXPECTED_CHILD')}}),
@@ -105,4 +112,18 @@ test('approved synthetic CLI TLS check uses protected Vault-file and no blob or 
  assert.equal(code,0);
  assert.ok(file);
  assert.equal(fs.existsSync(file),false,'temporary secret must not persist');
+});
+
+test('TLS probe failure categories are fixed codes, not sensitive stderr',async()=>{
+ for(const [message,code] of [
+  ['password authentication failed SECRET_CANARY','STAGING_TLS_DB_AUTH_BLOCKED'],
+  ['certificate verify failed SECRET_CANARY','STAGING_TLS_CERTIFICATE_BLOCKED'],
+  ['timeout expired SECRET_CANARY','STAGING_TLS_CONNECT_TIMEOUT'],
+  ['could not translate host name SECRET_CANARY','STAGING_TLS_DNS_BLOCKED'],
+  ['connection refused SECRET_CANARY','STAGING_TLS_NETWORK_BLOCKED'],
+  ['unrecognized SECRET_CANARY','STAGING_TLS_PSQL_FAILED']
+ ])await assert.rejects(()=>stagingTlsProbe(env,{spawnImpl:fakePsql('',2,message)}),e=>e.message===code);
+ await assert.rejects(()=>stagingTlsProbe(env,{spawnImpl:fakePsql('')}),e=>e.message==='STAGING_TLS_BACKEND_METADATA_UNEXPECTED');
+ await assert.rejects(()=>stagingTlsProbe(env,{spawnImpl:fakePsql('',2,'X'.repeat(4097))}),e=>e.message==='STAGING_TLS_OUTPUT_LIMIT');
+ await assert.rejects(()=>stagingTlsProbe(env,{spawnImpl:()=>{throw Error('SECRET_CANARY')}}),e=>e.message==='STAGING_TLS_CHILD_LAUNCH_BLOCKED');
 });

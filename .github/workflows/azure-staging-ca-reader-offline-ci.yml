@@ -1,0 +1,59 @@
+name: Azure staging CA reader role and review-job identity offline guard
+
+on:
+  push:
+    branches:
+      - ops/backup-three-gates-evidence-2026-11-06
+    paths:
+      - 'scripts/azure-staging-ca-reader-operator.py'
+      - 'test_azure_staging_ca_reader_operator.py'
+      - 'ops/cloud-backup/containerapp-job.private-ghcr.review.bicep'
+      - '.github/workflows/azure-staging-ca-reader-offline-ci.yml'
+  pull_request:
+    paths:
+      - 'scripts/azure-staging-ca-reader-operator.py'
+      - 'test_azure_staging_ca_reader_operator.py'
+      - 'ops/cloud-backup/containerapp-job.private-ghcr.review.bicep'
+      - '.github/workflows/azure-staging-ca-reader-offline-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-no-azure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Python syntax and isolated role guard tests
+        run: |
+          python3 -m py_compile scripts/azure-staging-ca-reader-operator.py
+          python3 -m unittest -v test_azure_staging_ca_reader_operator.py
+      - name: Verify image/data identity split in review template
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('ops/cloud-backup/containerapp-job.private-ghcr.review.bicep').read_text()
+          assert "type: 'UserAssigned'" in p
+          assert "registryPullVaultReaderIdentityResourceId}': {}" in p
+          assert "stagingDataIdentityResourceId}': {}" in p
+          assert "name: 'staging-pg-root-ca'\n          keyVaultUrl: postgresCaKeyVaultSecretUrl\n          identity: stagingDataIdentityResourceId" in p
+          assert "name: 'AZURE_CLIENT_ID', value: stagingDataIdentityClientId" in p
+          assert "name: 'ghcr-pull-token'\n          keyVaultUrl: ghcrPullTokenKeyVaultSecretUrl\n          identity: registryPullVaultReaderIdentityResourceId" in p
+          assert "triggerType: 'Manual'" in p
+          assert "replicaRetryLimit: 0" in p
+          assert "args: [\n            '--preflight'" in p
+          o=Path('scripts/azure-staging-ca-reader-operator.py').read_text()
+          assert 'CA_SECRET = "staging-pg-root-ca"' in o
+          assert 'ROLE_GUID = "4633458b-17de-408a-b874-0445c86b69e6"' in o
+          assert 'NO_AZURE_WRITES_OR_SECRET_VALUE_READ=YES' in o
+          print('CA_ONLY_RBAC_AND_REVIEW_JOB_IDENTITY_SPLIT_PASS')
+          PY
+      - name: No cloud writes in CI
+        run: |
+          echo 'SOURCE_ONLY_TESTS=YES'
+          echo 'NO_AZURE_LOGIN_IAM_BLOB_DATABASE_OR_JOB_EXECUTION=YES'

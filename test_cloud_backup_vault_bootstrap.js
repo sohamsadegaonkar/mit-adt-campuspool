@@ -9,7 +9,6 @@ const tls=require('node:tls');
 const {X509Certificate}=require('node:crypto');
 const {PassThrough,Readable}=require('node:stream');
 const {EventEmitter}=require('node:events');
-const {main,validate}=require('./scripts/azure-blob-backup');
 const {SECRET_NAME,vaultConfigOk,formatPgpass,fetchPassword,withProtectedPgpass,checkTmpfs}
   =require('./scripts/cloud-backup-vault-bootstrap');
 
@@ -24,6 +23,14 @@ const trusted=tls.rootCertificates.find(pem=>{
 });
 assert.ok(trusted,'need a synthetically selected public CA');
 fs.writeFileSync(ca,trusted,{mode:0o600});
+// Synthetic tests only: replace the imported guard before loading the worker.
+// The runtime wrapper has no environment or CLI override for its pinned CA.
+const security=require('./scripts/cloud-backup-runtime-security');
+const realPinnedGuard=security.validCaFile;
+const testFingerprint=new X509Certificate(trusted).fingerprint256.replace(/:/g,'');
+assert.equal(realPinnedGuard(ca),false,'unrelated public CA must fail production pin');
+test.mock.method(security,'validCaFile',file=>security.validCaFileAgainstFingerprint(file,testFingerprint));
+const {main,validate}=require('./scripts/azure-blob-backup');
 process.on('exit',()=>fs.rmSync(dir,{recursive:true,force:true}));
 
 const env={
@@ -51,7 +58,7 @@ const fetchImpl=async (url,request)=>{
   return secretResponse({value:PASSWORD});
 };
 
-function secretResponse(fields){
+function secretResponse(fields,includeLength=false){
   const payload=JSON.stringify({
     id:'https://campuspool-backup-kv-01.vault.azure.net/secrets/'+SECRET_NAME+'/'+
       'abcdef0123456789abcdef0123456789',
@@ -59,7 +66,7 @@ function secretResponse(fields){
     ...fields
   });
   return {
-    ok:true,headers:{get:()=>null},
+    ok:true,headers:{get:name=>includeLength&&name==='content-length'?String(Buffer.byteLength(payload,'utf8')):null},
     body:new ReadableStream({start(controller){
       controller.enqueue(new TextEncoder().encode(payload));
       controller.close();
@@ -128,6 +135,24 @@ test('rejects mismatched or disabled Key Vault secret identity',async()=>{
     await assert.rejects(
       ()=>fetchPassword(env,{getToken,fetchImpl:async()=>secretResponse({...fields,value:PASSWORD})}),
       e=>e.message==='VAULT_SECRET_READ_BLOCKED');
+  }
+});
+
+test('accepts valid numeric Content-Length on synthetic Key Vault response',async()=>{
+  const response=secretResponse({value:PASSWORD},true);
+  assert.equal(await fetchPassword(env,{getToken,fetchImpl:async()=>response}),PASSWORD);
+});
+
+test('rejects malformed or oversized Content-Length before reading response',async()=>{
+  for(const value of ['abc','-1','1.5','16385','1e2']){
+    const response=secretResponse({value:PASSWORD});
+    response.headers={get:name=>name==='content-length'?value:null};
+    let readerCalls=0;
+    response.body={getReader(){readerCalls++;throw Error('UNEXPECTED_BODY_READ');}};
+    await assert.rejects(
+      ()=>fetchPassword(env,{getToken,fetchImpl:async()=>response}),
+      e=>e.message==='VAULT_SECRET_READ_BLOCKED');
+    assert.equal(readerCalls,0);
   }
 });
 

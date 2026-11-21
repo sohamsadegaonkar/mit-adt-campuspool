@@ -44,7 +44,7 @@ async function readBoundedSecretResponse(response){
   if(!response.body||typeof response.body.getReader!=='function')
     throw Error('VAULT_RESPONSE_NOT_STREAMING');
   const contentLength=response.headers?.get?.('content-length');
-  if(contentLength && (!/^\\d+$/.test(contentLength)||Number(contentLength)>16384))
+  if(contentLength && (!/^\d+$/.test(contentLength)||Number(contentLength)>16384))
     throw Error('VAULT_RESPONSE_OVERSIZED');
   const reader=response.body.getReader();
   const chunks=[];let total=0;

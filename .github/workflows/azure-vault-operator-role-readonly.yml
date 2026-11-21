@@ -1,0 +1,75 @@
+name: Azure Vault Operator Role Audit (mocked/read only)
+
+on:
+  pull_request:
+    paths:
+      - 'ops/cloud-backup/azure-vault-operator-role-readonly.sh'
+      - 'scripts/azure-vault-operator-arm-readonly.py'
+      - 'test_azure_vault_operator_arm_readonly.py'
+      - 'scripts/azure-vault-temporary-operator-secrets-officer.py'
+      - 'test_azure_vault_temporary_operator_writer.py'
+      - 'scripts/azure-vault-ghcr-token-one-shot-import.py'
+      - 'test_azure_vault_ghcr_one_shot_import.py'
+      - 'scripts/azure-ghcr-secret-scope-rbac-plan.py'
+      - 'test_azure_ghcr_secret_scope_rbac_plan.py'
+      - 'scripts/azure-ghcr-secret-scope-rbac-operator.py'
+      - 'test_azure_ghcr_secret_scope_rbac_operator.py'
+      - 'scripts/azure-ghcr-pull-proof-readonly-plan.py'
+      - 'test_azure_ghcr_pull_proof_readonly_plan.py'
+      - 'scripts/azure-ghcr-pull-proof-job-operator.py'
+      - 'test_azure_ghcr_pull_proof_job_operator.py'
+      - 'scripts/azure-ghcr-pull-proof-create-failure-diagnostic.py'
+      - 'test_azure_ghcr_pull_proof_create_failure_diagnostic.py'
+      - '.github/workflows/azure-vault-operator-role-readonly.yml'
+  push:
+    branches:
+      - ops/backup-three-gates-evidence-2026-11-06
+    paths:
+      - 'ops/cloud-backup/azure-vault-operator-role-readonly.sh'
+      - 'scripts/azure-vault-operator-arm-readonly.py'
+      - 'test_azure_vault_operator_arm_readonly.py'
+      - 'scripts/azure-vault-temporary-operator-secrets-officer.py'
+      - 'test_azure_vault_temporary_operator_writer.py'
+      - 'scripts/azure-vault-ghcr-token-one-shot-import.py'
+      - 'test_azure_vault_ghcr_one_shot_import.py'
+      - 'scripts/azure-ghcr-secret-scope-rbac-plan.py'
+      - 'test_azure_ghcr_secret_scope_rbac_plan.py'
+      - 'scripts/azure-ghcr-secret-scope-rbac-operator.py'
+      - 'test_azure_ghcr_secret_scope_rbac_operator.py'
+      - 'scripts/azure-ghcr-pull-proof-readonly-plan.py'
+      - 'test_azure_ghcr_pull_proof_readonly_plan.py'
+      - 'scripts/azure-ghcr-pull-proof-job-operator.py'
+      - 'test_azure_ghcr_pull_proof_job_operator.py'
+      - 'scripts/azure-ghcr-pull-proof-create-failure-diagnostic.py'
+      - 'test_azure_ghcr_pull_proof_create_failure_diagnostic.py'
+      - '.github/workflows/azure-vault-operator-role-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mocked-operator-roles:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate no Azure writes and simulated operator role audit
+        run: |
+          bash -n ops/cloud-backup/azure-vault-operator-role-readonly.sh
+          python3 -m py_compile scripts/azure-vault-operator-arm-readonly.py
+          python3 -m unittest -v test_azure_vault_operator_arm_readonly.py
+          python3 -m py_compile scripts/azure-vault-temporary-operator-secrets-officer.py
+          python3 -m unittest -v test_azure_vault_temporary_operator_writer.py
+          python3 -m py_compile scripts/azure-vault-ghcr-token-one-shot-import.py
+          python3 -m unittest -v test_azure_vault_ghcr_one_shot_import.py
+          python3 -m py_compile scripts/azure-ghcr-secret-scope-rbac-plan.py
+          python3 -m unittest -v test_azure_ghcr_secret_scope_rbac_plan.py
+          python3 -m py_compile scripts/azure-ghcr-secret-scope-rbac-operator.py
+          python3 -m unittest -v test_azure_ghcr_secret_scope_rbac_operator.py
+          python3 -m py_compile scripts/azure-ghcr-pull-proof-readonly-plan.py
+          python3 -m unittest -v test_azure_ghcr_pull_proof_readonly_plan.py
+          python3 -m py_compile scripts/azure-ghcr-pull-proof-job-operator.py
+          python3 -m unittest -v test_azure_ghcr_pull_proof_job_operator.py
+          python3 -m py_compile scripts/azure-ghcr-pull-proof-create-failure-diagnostic.py
+          python3 -m unittest -v test_azure_ghcr_pull_proof_create_failure_diagnostic.py

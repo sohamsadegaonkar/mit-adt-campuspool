@@ -1,0 +1,51 @@
+name: Azure staging CA exact-name Key Vault operator offline guard
+
+on:
+  push:
+    branches:
+      - ops/backup-three-gates-evidence-2026-11-06
+    paths:
+      - 'scripts/azure-staging-ca-operator.py'
+      - 'test_azure_staging_ca_operator.py'
+      - '.github/workflows/azure-staging-ca-operator-offline-ci.yml'
+  pull_request:
+    paths:
+      - 'scripts/azure-staging-ca-operator.py'
+      - 'test_azure_staging_ca_operator.py'
+      - '.github/workflows/azure-staging-ca-operator-offline-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-no-azure-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile the exact CA operator
+        run: |
+          PYTHONDONTWRITEBYTECODE=1 python3 -m py_compile scripts/azure-staging-ca-operator.py
+      - name: Run offline mocked guard tests
+        run: |
+          PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v test_azure_staging_ca_operator.py
+          echo 'CA_OPERATOR_OFFLINE_GUARDS_PASS=YES; NO_AZURE_LOGIN_OR_IAM_CHANGE=YES'
+      - name: Confirm source-only workflow and exact CA scope
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          op=Path('scripts/azure-staging-ca-operator.py').read_text()
+          wf=Path('.github/workflows/azure-staging-ca-operator-offline-ci.yml').read_text()
+          assert "SECRET = 'staging-pg-root-ca'" in op
+          assert "StringEquals 'staging-pg-root-ca'" in op
+          assert "FINGERPRINT = '807025AD50D4ED219D2C9C7D299C004F824EB00CF7F65AFEF607D07B72E6CAFA'" in op
+          assert 'NO_AZURE_WRITES_OR_SECRET_VALUE_READ=YES' in op
+          assert 'NO_CA_IMPORT_OR_OTHER_SECRET_OPERATION=YES' in op
+          for line in wf.splitlines():
+              assert not line.strip().startswith(('az ', 'docker login', 'docker push'))
+          print('EXACT_CA_SCOPE_SOURCE_GUARD_PASS=YES')
+          PY

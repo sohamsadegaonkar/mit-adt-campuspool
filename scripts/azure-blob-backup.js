@@ -222,16 +222,21 @@ async function main(argv=process.argv.slice(2),env=process.env,overrides={}){
       process.stderr.write('AZURE_BACKUP_BLOCKED EXPLICIT_OPERATOR_APPROVAL_REQUIRED\n');
       return 1;
     }
+    let tlsProbeEntered=false;
     try{
       const {ManagedIdentityCredential}=(overrides.loadSdk||loadSdk)();
       const cred=env.AZURE_CLIENT_ID?
         new ManagedIdentityCredential({clientId:env.AZURE_CLIENT_ID}):
         new ManagedIdentityCredential();
       const result=await withProtectedPgpass(env,
-        protectedEnv=>argv[0]==='--check-tls'?
-          (overrides.tlsProbe||require('./cloud-backup-tls-probe').stagingTlsProbe)
-            (protectedEnv,overrides.tlsProbeOptions||{}):
-          run(protectedEnv,overrides.runOptions||{}),
+        protectedEnv=>{
+          if(argv[0]==='--check-tls'){
+            tlsProbeEntered=true;
+            return (overrides.tlsProbe||require('./cloud-backup-tls-probe').stagingTlsProbe)
+              (protectedEnv,overrides.tlsProbeOptions||{});
+          }
+          return run(protectedEnv,overrides.runOptions||{});
+        },
         {getToken:scope=>cred.getToken(scope),fetchImpl:overrides.fetchImpl||globalThis.fetch});
       process.stdout.write(JSON.stringify(result)+'\n');return 0;
     }catch(error){
@@ -240,8 +245,14 @@ async function main(argv=process.argv.slice(2),env=process.env,overrides={}){
         'VAULT_PGPASS_VALIDATION_BLOCKED','BACKUP_CONFIGURATION_BLOCKED',
         'EXPLICIT_OPERATOR_APPROVAL_REQUIRED','AZURE_UPLOAD_FAILED',
         'AZURE_READBACK_FAILED','AZURE_CIPHERTEXT_SHA256_MISMATCH']);
+      const tlsKnown=new Set(['STAGING_TLS_CONFIGURATION_BLOCKED','STAGING_TLS_DB_AUTH_BLOCKED',
+        'STAGING_TLS_CERTIFICATE_BLOCKED','STAGING_TLS_CONNECT_TIMEOUT','STAGING_TLS_DNS_BLOCKED',
+        'STAGING_TLS_NETWORK_BLOCKED','STAGING_TLS_PSQL_FAILED','STAGING_TLS_CHILD_LAUNCH_BLOCKED',
+        'STAGING_TLS_PROBE_TIMEOUT','STAGING_TLS_OUTPUT_LIMIT','STAGING_TLS_BACKEND_SESSION_REJECTED',
+        'STAGING_TLS_BACKEND_METADATA_UNEXPECTED']);
       const category=known.has(error?.message)?error.message:
-        argv[0]==='--check-tls'?'STAGING_TLS_HANDSHAKE_BLOCKED':'CLOUD_VAULT_EXPORT_BLOCKED';
+        argv[0]==='--check-tls'?(tlsKnown.has(error?.message)?error.message:
+          tlsProbeEntered?'STAGING_TLS_PROBE_UNCLASSIFIED':'STAGING_TLS_BOOTSTRAP_UNCLASSIFIED'):'CLOUD_VAULT_EXPORT_BLOCKED';
       process.stderr.write((argv[0]==='--check-tls'?'STAGING_TLS_BLOCKED ':'AZURE_BACKUP_BLOCKED ')+
         category+'; restore not verified\n');
       return 1;
