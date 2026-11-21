@@ -383,6 +383,222 @@ class PgRidesStore {
     },txClient);
   }
 
+
+  // Grants are provisioned ONLY out-of-band by a privileged operator.
+  // The app role cannot INSERT, UPDATE or DELETE reviewer grants.
+  async assertReviewer(client,userId,role){
+    if(!this.caseReviewEnabled||!this.reviewSchemaReady)
+      throw new RidesError('CASE_REVIEW_NOT_ENABLED',503);
+    if(typeof userId!=='string')throw new RidesError('AUTH_REQUIRED',401);
+    const r=await client.query([
+      'SELECT g.id FROM public.campus_case_reviewer_grants g',
+      'JOIN public.campus_users u ON u.id=g.user_id',
+      'WHERE g.user_id=$1 AND g.reviewer_role=$2',
+      'AND g.revoked_at IS NULL AND g.expires_at>clock_timestamp()',
+      'AND u.is_verified=true FOR SHARE OF g'
+    ].join(' '),[userId,role]);
+    if(!r.rows.length)throw new RidesError('REVIEWER_ROLE_REQUIRED',403);
+  }
+
+  async reviewerCases({reviewerUserId,role='case_reviewer',limit=20}={}){
+    if(!['case_reviewer','appeal_reviewer'].includes(role))
+      throw new RidesError('INVALID_REVIEWER_ROLE',400);
+    if(!Number.isInteger(limit)||limit<1||limit>50)
+      throw new RidesError('INVALID_HISTORY_PAGE',400);
+    // One consistent DB client and read snapshot; case list reveals no
+    // passenger identity, contact, money, PIN or exact location.
+    return this.tx(async client=>{
+      await this.assertReviewer(client,reviewerUserId,role);
+      if(role==='case_reviewer'){
+        const q=await client.query([
+          'SELECT c.id,c.booking_id,c.opened_at,c.state',
+          'FROM public.campus_booking_cases c',
+          'JOIN public.campus_bookings b ON b.booking_id=c.booking_id',
+          'JOIN public.campus_rides r ON r.id=b.ride_id',
+          'LEFT JOIN public.campus_case_review_decisions d ON d.case_id=c.id',
+          'WHERE d.id IS NULL AND b.passenger_user_id<>$1',
+          'AND r.driver_user_id<>$1',
+          'ORDER BY c.opened_at ASC,c.id ASC LIMIT $2'
+        ].join(' '),[reviewerUserId,limit]);
+        return {kind:'initial_review',cases:q.rows.map(row=>({
+          bookingId:row.booking_id,caseId:row.id,state:row.state,
+          openedAt:asDate(row.opened_at)
+        }))};
+      }
+      const q=await client.query([
+        'SELECT a.id,c.booking_id,c.id AS case_id,a.created_at',
+        'FROM public.campus_case_appeals a',
+        'JOIN public.campus_booking_cases c ON c.id=a.case_id',
+        'JOIN public.campus_case_review_decisions d ON d.case_id=c.id',
+        'JOIN public.campus_bookings b ON b.booking_id=c.booking_id',
+        'JOIN public.campus_rides r ON r.id=b.ride_id',
+        'LEFT JOIN public.campus_case_appeal_reviews ar ON ar.appeal_id=a.id',
+        'WHERE ar.id IS NULL AND d.reviewer_user_id<>$1',
+        'AND b.passenger_user_id<>$1 AND r.driver_user_id<>$1',
+        'ORDER BY a.created_at ASC,a.id ASC LIMIT $2'
+      ].join(' '),[reviewerUserId,limit]);
+      return {kind:'appeal_review',cases:q.rows.map(row=>({
+        bookingId:row.booking_id,caseId:row.case_id,appealId:row.id,
+        openedAt:asDate(row.created_at)
+      }))};
+    });
+  }
+
+  async reviewerCaseDetail({bookingId,reviewerUserId}={}){
+    if(!this.caseReviewEnabled||!this.reviewSchemaReady)
+      throw new RidesError('CASE_REVIEW_NOT_ENABLED',503);
+    if(typeof bookingId!=='string'||!/^BKG-[0-9a-f-]{36}$/.test(bookingId))
+      throw new RidesError('INVALID_BOOKING',400);
+    return this.tx(async client=>{
+      const proof=await client.query([
+        'SELECT b.passenger_user_id,r.driver_user_id,c.id,c.state,c.opened_at',
+        'FROM public.campus_booking_cases c',
+        'JOIN public.campus_bookings b ON b.booking_id=c.booking_id',
+        'JOIN public.campus_rides r ON r.id=b.ride_id',
+        'WHERE c.booking_id=$1'
+      ].join(' '),[bookingId]);
+      if(!proof.rows.length)throw new RidesError('PICKUP_CASE_NOT_FOUND',404);
+      if([proof.rows[0].passenger_user_id,proof.rows[0].driver_user_id].includes(reviewerUserId))
+        throw new RidesError('REVIEWER_CONFLICT_OF_INTEREST',403);
+      // Reviewers and appeal reviewers see only categorical case evidence.
+      let role='case_reviewer';
+      try{await this.assertReviewer(client,reviewerUserId,role);}
+      catch(error){
+        if(error.code!=='REVIEWER_ROLE_REQUIRED')throw error;
+        role='appeal_reviewer';await this.assertReviewer(client,reviewerUserId,role);
+      }
+      const caseId=proof.rows[0].id;
+      const [claims,responses,decisions,appeals]=await Promise.all([
+        client.query('SELECT actor_role,reason,created_at FROM public.campus_booking_case_events WHERE case_id=$1 ORDER BY created_at,id LIMIT 20',[caseId]),
+        client.query('SELECT actor_role,response_code,created_at FROM public.campus_booking_case_responses WHERE case_id=$1 ORDER BY created_at,id LIMIT 2',[caseId]),
+        client.query('SELECT decision_code,created_at FROM public.campus_case_review_decisions WHERE case_id=$1',[caseId]),
+        client.query([
+          'SELECT a.id,a.reason_code,a.created_at,ar.result_code',
+          'FROM public.campus_case_appeals a',
+          'LEFT JOIN public.campus_case_appeal_reviews ar ON ar.appeal_id=a.id',
+          'WHERE a.case_id=$1 ORDER BY a.created_at,a.id LIMIT 2'
+        ].join(' '),[caseId])
+      ]);
+      return {bookingId,caseId,role,state:proof.rows[0].state,
+        openedAt:asDate(proof.rows[0].opened_at),
+        claims:claims.rows.map(x=>({actorRole:x.actor_role,code:x.reason,at:asDate(x.created_at)})),
+        responses:responses.rows.map(x=>({actorRole:x.actor_role,code:x.response_code,at:asDate(x.created_at)})),
+        review:decisions.rows[0]?{
+          code:decisions.rows[0].decision_code,at:asDate(decisions.rows[0].created_at)
+        }:null,
+        appeals:appeals.rows.map(x=>({
+          appealId:x.id,code:x.reason_code,at:asDate(x.created_at),
+          outcome:x.result_code||null
+        })),
+        message:'Evidence is unverified and categorical. No payment or disciplinary action is authorized.'};
+    });
+  }
+
+  async recordReview({bookingId,reviewerUserId,code,client:txClient}={}){
+    if(!this.caseReviewEnabled||!this.reviewSchemaReady)
+      throw new RidesError('CASE_REVIEW_NOT_ENABLED',503);
+    if(typeof bookingId!=='string'||!/^BKG-[0-9a-f-]{36}$/.test(bookingId))
+      throw new RidesError('INVALID_BOOKING',400);
+    if(!['no_action','insufficient_evidence','follow_up_required'].includes(code))
+      throw new RidesError('INVALID_REVIEW_DECISION',400);
+    return this.tx(async client=>{
+      const {ride,booking}=await this.lockedBoardingBooking(client,bookingId);
+      if([ride.driver_user_id,booking.passenger_user_id].includes(reviewerUserId))
+        throw new RidesError('REVIEWER_CONFLICT_OF_INTEREST',403);
+      await this.assertReviewer(client,reviewerUserId,'case_reviewer');
+      const q=await client.query(
+        'SELECT id FROM public.campus_booking_cases WHERE booking_id=$1 FOR UPDATE',[bookingId]);
+      if(!q.rows.length)throw new RidesError('PICKUP_CASE_NOT_FOUND',404);
+      const caseId=q.rows[0].id;
+      const inserted=await client.query([
+        'INSERT INTO public.campus_case_review_decisions(case_id,reviewer_user_id,decision_code)',
+        'VALUES ($1,$2,$3) ON CONFLICT (case_id) DO NOTHING RETURNING id'
+      ].join(' '),[caseId,reviewerUserId,code]);
+      if(!inserted.rows.length){
+        const old=await client.query(
+          'SELECT reviewer_user_id,decision_code FROM public.campus_case_review_decisions WHERE case_id=$1',[caseId]);
+        if(old.rows[0]?.reviewer_user_id!==reviewerUserId||old.rows[0]?.decision_code!==code)
+          throw new RidesError('CASE_ALREADY_REVIEWED',409);
+      }
+      return {bookingId,caseId,recorded:!!inserted.rows.length,
+        code,message:'Administrative review record saved. No money, booking restriction or disciplinary action was taken.'};
+    },txClient);
+  }
+
+  async appealCase({bookingId,actorUserId,reason,client:txClient}={}){
+    if(!this.caseReviewEnabled||!this.reviewSchemaReady)
+      throw new RidesError('CASE_REVIEW_NOT_ENABLED',503);
+    if(typeof bookingId!=='string'||!/^BKG-[0-9a-f-]{36}$/.test(bookingId))
+      throw new RidesError('INVALID_BOOKING',400);
+    if(!['missing_evidence','mistaken_identity','technical_issue','safety_context','other'].includes(reason))
+      throw new RidesError('INVALID_APPEAL_REASON',400);
+    if(typeof actorUserId!=='string')throw new RidesError('AUTH_REQUIRED',401);
+    return this.tx(async client=>{
+      const {ride,booking}=await this.lockedBoardingBooking(client,bookingId);
+      if(![ride.driver_user_id,booking.passenger_user_id].includes(actorUserId))
+        throw new RidesError('NOT_BOOKING_PARTICIPANT',403);
+      const c=await client.query(
+        'SELECT id FROM public.campus_booking_cases WHERE booking_id=$1 FOR UPDATE',[bookingId]);
+      if(!c.rows.length)throw new RidesError('PICKUP_CASE_NOT_FOUND',404);
+      const review=await client.query(
+        'SELECT 1 FROM public.campus_case_review_decisions WHERE case_id=$1',[c.rows[0].id]);
+      if(!review.rows.length)throw new RidesError('REVIEW_NOT_RECORDED',409);
+      const inserted=await client.query([
+        'INSERT INTO public.campus_case_appeals(case_id,actor_user_id,reason_code)',
+        'VALUES ($1,$2,$3)',
+        'ON CONFLICT (case_id,actor_user_id) DO NOTHING RETURNING id'
+      ].join(' '),[c.rows[0].id,actorUserId,reason]);
+      if(!inserted.rows.length){
+        const old=await client.query(
+          'SELECT reason_code FROM public.campus_case_appeals WHERE case_id=$1 AND actor_user_id=$2',
+          [c.rows[0].id,actorUserId]);
+        if(old.rows[0]?.reason_code!==reason)
+          throw new RidesError('APPEAL_ALREADY_SUBMITTED',409);
+      }
+      return {bookingId,caseId:c.rows[0].id,recorded:!!inserted.rows.length,
+        message:'Appeal recorded for independent review. Payment, bookings and penalties remain unchanged.'};
+    },txClient);
+  }
+
+  async recordAppealReview({appealId,reviewerUserId,resultCode,client:txClient}={}){
+    if(!this.caseReviewEnabled||!this.reviewSchemaReady)
+      throw new RidesError('CASE_REVIEW_NOT_ENABLED',503);
+    if(typeof appealId!=='string'||!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(appealId))
+      throw new RidesError('INVALID_APPEAL',400);
+    if(!['review_record_unchanged','additional_review_required','insufficient_information'].includes(resultCode))
+      throw new RidesError('INVALID_APPEAL_RESULT',400);
+    return this.tx(async client=>{
+      // Authorization first: no probing private appeal existence without role.
+      await this.assertReviewer(client,reviewerUserId,'appeal_reviewer');
+      const q=await client.query([
+        'SELECT a.id,a.case_id,b.passenger_user_id,r.driver_user_id,',
+        'd.reviewer_user_id AS initial_reviewer',
+        'FROM public.campus_case_appeals a',
+        'JOIN public.campus_booking_cases c ON c.id=a.case_id',
+        'JOIN public.campus_bookings b ON b.booking_id=c.booking_id',
+        'JOIN public.campus_rides r ON r.id=b.ride_id',
+        'JOIN public.campus_case_review_decisions d ON d.case_id=c.id',
+        'WHERE a.id=$1 FOR UPDATE OF a'
+      ].join(' '),[appealId]);
+      if(!q.rows.length)throw new RidesError('APPEAL_NOT_FOUND',404);
+      const a=q.rows[0];
+      if([a.passenger_user_id,a.driver_user_id,a.initial_reviewer].includes(reviewerUserId))
+        throw new RidesError('REVIEWER_CONFLICT_OF_INTEREST',403);
+      const inserted=await client.query([
+        'INSERT INTO public.campus_case_appeal_reviews(appeal_id,reviewer_user_id,result_code)',
+        'VALUES($1,$2,$3) ON CONFLICT (appeal_id) DO NOTHING RETURNING id'
+      ].join(' '),[appealId,reviewerUserId,resultCode]);
+      if(!inserted.rows.length){
+        const old=await client.query(
+          'SELECT reviewer_user_id,result_code FROM public.campus_case_appeal_reviews WHERE appeal_id=$1',[appealId]);
+        if(old.rows[0]?.reviewer_user_id!==reviewerUserId||old.rows[0]?.result_code!==resultCode)
+          throw new RidesError('APPEAL_ALREADY_REVIEWED',409);
+      }
+      return {appealId,caseId:a.case_id,recorded:!!inserted.rows.length,
+        resultCode,message:'Independent appeal entry recorded; no monetary or account enforcement is possible.'};
+    },txClient);
+  }
+
   async pickupWaitStatus({bookingId,actorUserId}={}){
     if(!this.pickupAbortEnabled)throw new RidesError('PICKUP_ABORT_NOT_ENABLED',503);
     if(typeof bookingId!=='string'||!/^BKG-[0-9a-f-]{36}$/.test(bookingId))
