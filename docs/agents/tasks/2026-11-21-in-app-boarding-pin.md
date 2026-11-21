@@ -14,7 +14,7 @@ One existing Node app + existing PostgreSQL rides/bookings and existing session/
 
 - Migration `stage1-otp/migrations/011_in_app_boarding_pin.sql`: additive `boarded_at`, private random `boarding_pin_nonce`, expiry, attempt counter and validated constraint on existing RLS-protected booking table; no plaintext PIN column and no schema downgrade. `migrate.js` applies after 008, 009 and 010 in disposable CI.
 - `PgRidesStore.issueBoardingPin`: passenger-only, pickup-ready/active booking only; secure 24-byte random nonce, HMAC-SHA256 keyed with strong private `OTP_SECRET` and context-bound booking ID, six numeric digits, fixed 20-minute window; repeated request returns same code while current window active; expiry rotates nonce; 5 failed guesses lock until expiry. The PIN response is never stored in idempotency receipts. Server logs path/status only, no body.
-- `PgRidesStore.verifyBoardingPin`: driver-only, stage pickup_ready, CSRF and idempotency-key guarded, ride→booking locks, constant-time code compare and persisted failed-attempt counter, one `boarded_at` timestamp with atomic nonce clearing; same passenger retry gives stable alreadyBoarded response. One passenger cannot confirm another. No automatic `Paid` or commission change.
+- `PgRidesStore.verifyBoardingPin`: driver-only, stage pickup_ready, CSRF guarded, ride→booking locks (the booking row and `boarded_at` make successful retries idempotent without storing a PIN-bearing receipt), constant-time code compare and persisted failed-attempt counter, one `boarded_at` timestamp with atomic nonce clearing; same passenger retry gives stable alreadyBoarded response. One passenger cannot confirm another. No automatic `Paid` or commission change.
 - `POST /api/bookings/boarding-pin`: private passenger PIN reveal from server, no email/SMS provider and Cache-Control no-store.
 - `POST /api/bookings/verify-boarding-pin`: private driver check of booking ID and PIN, never returns the code; idempotent response contains only status/timestamp.
 - `/api/bookings`: authenticated booking view includes `boardedAt` but not nonce, PIN, attempts or expiry. Driver sees own active-booking roster; passenger sees their own booking; no passenger PIN stored client-side or in idempotency receipts.
@@ -49,3 +49,7 @@ Added strict disposable-only `bench/campus-boarding-pin.js` and `RIDES_HTTP_BOAR
 3. Resolve P1 cancelled-Pending dispute policy before any release; add negative/abuse acceptance tests.
 4. Physical Android TalkBack, large fonts, focus and slow-network tests; capture sanitized evidence.
 5. Coordinate backup/recovery + migrations and dependency-order merges only after explicit approval; retain release NO-GO.
+
+## CI correction checkpoint
+
+- The first disposable GitHub run reproduced a new test failure: incorrect PIN attempts were not counted through the generic success-only idempotency receipt wrapper. The implementation now uses an ordinary authenticated/CSRF-protected PostgreSQL transaction that commits 409/429 failed attempts, enforces five-try lockout, and returns alreadyBoarded for duplicate successful PINs. No sensitive PIN-bearing receipts are persisted. Repeat exact-head CI before sign-off; the initial failure must remain visible rather than being ignored.
