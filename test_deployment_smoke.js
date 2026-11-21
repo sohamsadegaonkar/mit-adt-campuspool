@@ -94,3 +94,13 @@ test('CLI arguments reject accidental extra commands and secrets in flags',async
   assert.ok(lines.join('').includes('BLOCKED_PREFLIGHT'));
   assert.ok(!lines.join('').includes('process.env'));
 });
+
+
+test('entirely inaccessible network is inconclusive, never an app outage claim',async()=>{
+  const result=await smoke({...base,fetchImpl:async()=>{
+    throw Error('isolated runner has no outbound network');
+  }});
+  assert.equal(result.verdict,'INCONCLUSIVE_NETWORK_UNAVAILABLE');
+  assert.deepEqual(result.failures,['/healthz','/','/api/auth/me']);
+  assert.equal(result.requestsMade,3);
+});
