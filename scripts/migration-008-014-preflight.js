@@ -135,8 +135,16 @@ function checkCatalog(data,expectedStage){
    }
  }
  const hashes=data.migrationHashes;
- if(!Array.isArray(hashes)||hashes.length!==7||hashes.some(x=>!SHA256.test(x.sha256)))
+ const approvedSourceShape=manifest();
+ if(!Array.isArray(hashes)||hashes.length!==approvedSourceShape.length||
+    hashes.some(x=>!x||!SHA256.test(x.sha256))){
    failures.push('MIGRATION_SOURCE_HASHES_MISSING');
+ }else if(hashes.some((x,i)=>x.version!==approvedSourceShape[i].version||
+   x.filename!==approvedSourceShape[i].filename||x.sha256!==approvedSourceShape[i].sha256)){
+   failures.push('MIGRATION_SOURCE_HASHES_MISMATCH');
+ }
+ // Local source SHA comparison prevents fake same-format hashes from passing;
+ // it is still NOT a separately signed owner-approved migration manifest.
  // Presence is NOT proof that migration history was recorded. The current
  // repository SQL uses IF NOT EXISTS but has no authoritative 008-014 ledger.
  return {expectedStage,detectedStage:detectStage(data),catalogMatches:failures.length===0,
