@@ -439,3 +439,10 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 2. Recheck in-app cancellation history for both driver and passenger, case status visibility, keyboard/Android TalkBack, 200% font, parked driver, and no automated popup while vehicle moves.
 3. Design but do **not enable** independent support reviewer RBAC, participant notice and appeals, retention, proven-abuse escalation, and owner-approved fairness for existing active undisputed `Pending`.
 4. Maintain #66→#64→#63→#62→#61→#60 unmerged stack, no staging/production schema 013, money, fines or deployment until G1 recovery and owner GO. [Task details](tasks/2026-11-21-participant-dispute-responses.md).
+
+## 2026-11-21 — Reviewer/appeals safety and rollout gates
+
+1. Run exact-head Stage1 disposable PG and real browser CI for migration 014, app-role grant immutability, revoked/expired reviewer roles, both-party evidence, independent appeal reviewer, duplicate/concurrent idempotency, private queue/detail, case/financial status unchanged and flag-OFF startup.
+2. Review the [reviewer and appeals foundation task](tasks/2026-11-21-reviewer-and-appeals-foundation.md), verifying **no production reviewer grant or API for self-promotion** and no payment/penalty side effect; secure staff governance remains needed before any role assignment.
+3. Owner policy must define active legacy Pending fairness/appeal, human staffing and reviewer standard, deadlines, notices, legal terms, retention, evidence retention and independent escalation; codes remain neutral/non-financial.
+4. Run physical Android TalkBack/large-text/keyboard and parked-driver safety, G1 independent restoration and staged 008–014 migration rollback test, full stacked PR integration and owner GO before any staging/production feature activation. No live data/payment writes authorized.
