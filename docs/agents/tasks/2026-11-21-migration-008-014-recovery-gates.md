@@ -55,3 +55,16 @@ A release approver must independently collect all of the following; **none is pr
 - **Release remains NO-GO** even if all synthetic CI checks are green. Real payment and sanctions remain OFF.
 
 Sources: [backup incident record](https://app.notion.com/p/40eca5237af58178a24def1da87a9005) · [CampusPool launch roadmap](https://app.notion.com/p/41dca5237af5819ba7d3c3f9bff9b088) · [reviewer onboarding PR #69](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/69).
+
+
+## CI evidence — verified on the exact code SHA (2026-11-21)
+
+**Tested source commit:** `609d517f49d5b44a03e5094c6b49ac62044b69f7`, prior to documentation-only updates. Both GitHub Actions workflows completed **SUCCESS**:
+
+- [008–014 Disposable Schema Recovery Drill #44899608141](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/44899608141): actual `CAMPUS_MIGRATION_RECOVERY_RESULT` confirms **007 baseline → sequential 008–014**, protected active and cancelled legacy `Pending` data, **two independent scratch DB restores** (pre-upgrade and final), authenticated AES-256-GCM PGDMP encryption + tamper detection, case/reviewer/appeal content parity, RLS/private grants, and cleanup; **no in-place DOWN**, `azureBackupVerified:false`, `offsiteRestoreVerified:false`, `releaseReady:false`.
+- Same recovery job’s read-only schema CLI reported **expectedStage=14, detectedStage=14, catalogMatches=true, failures=[]**, yet `migrationLedgerVerified:false` and `offsiteBackupVerified:false` by construction. A separate real-PG catalog integration test passed, including both PostgreSQL name[] role-array formats and misconfigured PUBLIC policy rejection.
+- [Stage 1 PostgreSQL OTP tests #44899608147](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/44899608147): **SUCCESS** across source syntax, migration-state offline guards and existing OTP, rides, idempotency, private mobility and security regressions. No real target.
+- Earlier red CI attempts were triaged, not hidden: (1) typo matching `08_` instead of actual `008_` filename; (2) new scratch workflow omitted the existing **CI-only** PostGIS extension relocation; (3) node-postgres returned `pg_policies.roles` as a PostgreSQL `{role}` string rather than a native JS array. These are test harness/catalog parsing issues; all addressed without relaxing role/row security or modifying migration DDL.
+- **Actual Azure image signing, encrypted offsite blob and an independent recovery operator are NOT verified.** The 014 schema and authorized historical data on actual staging were not queried. Synthetic PostgreSQL 16/PostGIS cannot prove real PostgreSQL major-version compatibility or recovery of any student record.
+
+**Release verdict remains NO-GO.** Do not close G1 or authorize staging/production migration based on this CI, and do not silently apply schema DOWN in a database containing newer bookings. No cloud/database/student/payment/reviewer provisioning writes happened. Operational recovery and approval require the separate contract above.
