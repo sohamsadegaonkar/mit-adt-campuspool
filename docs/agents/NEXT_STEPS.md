@@ -400,3 +400,12 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 - Require security review of server-secret HMAC/nonce handling, idempotency receipt privacy, CSRF, cache/no-store, screen-reader and physical Android UX. **No SMS/email OTP** and no PIN in driver GET or local browser storage.
 - Resolve **P1 cancelled Pending/no-show dispute** from QA PR #61 before sign-off. Driver arrival is never passenger boarding proof, and PIN exchange does not automatically justify charges, refunds or debt waiver.
 - Obtain separate backup+restore/rollback and migration 008→009→010→011 approval; enable neither feature flag nor actual payments at staging/production without release owner GO. Parent #47→…→#60→#61 integration remains outstanding.
+
+
+## 2026-11-21 — Booking dispute/no-show RFC execution gates (PLAN ONLY)
+
+1. Review [minimal dispute RFC](tasks/2026-11-21-booking-disputes-and-no-show-rfc.md), specifically invariants I1–I8, "can't find driver" vs true no-show, falsely claimed arrival, emergency interrupted journeys, and free vs legacy Pending review.
+2. **Owner/product decisions still OPEN:** minimum pickup wait/contact rules (no invented timer), who handles disputes/appeals and privacy retention, no-show consequence (recommended none during zero-fare pilot), policy for historical cancelled legacy \`Pending\` and ability to book further paid rides. Explicitly approve before implementation/adjudication.
+3. **Test-first P1:** on disposable PG reproduce cancelled \`Pending\` disappearing, duplicate cases, driver/pax concurrent claims, driver cancel vs boarding verification, missed/false arrival, multi-passenger independence. Add historical read path with strict participant/privacy projection; preserve finance metadata and do not derive money from seats_left.
+4. If owner approves, propose additive **012** private RLS-protected case+immutable event tables with ride→booking→case locking, idempotent creation and reviewer RBAC. Do not enable case resolution without a real reviewer identity role. Full Android/reader/slow network evidence still outstanding.
+5. Require owner-authorized G1 restore/backup, exact parent PR review and 008→009→010→011→012 compatibility before staging changes. Paid settlement/payout/escrow stays OFF; zero-fare pilot never develops debt. RFC is not a waiver of P1 or production NO-GO.
