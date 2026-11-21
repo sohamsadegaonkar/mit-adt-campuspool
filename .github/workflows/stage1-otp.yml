@@ -40,6 +40,7 @@ on:
       - 'test_browser_financial_review.js'
       - 'test_browser_case_response.js'
       - 'test_browser_case_review_appeals.js'
+      - 'test_reviewer_onboarding_preflight.js'
       - 'test_pg_mobility.js'
       - 'test_pg_mobility_http.js'
       - 'test_mobility_geo.js'
@@ -144,6 +145,8 @@ jobs:
           node --check test_browser_financial_review.js
           node --check test_browser_case_response.js
           node --check test_browser_case_review_appeals.js
+          node --check scripts/reviewer-onboarding-preflight.js
+          node --check test_reviewer_onboarding_preflight.js
           node --check test_production_auth.js
           node --check scripts/check-release-gates.js
           node --check test_release_gates.js
@@ -162,6 +165,7 @@ jobs:
           node --test test_browser_financial_review.js
           node --test test_browser_case_response.js
           node --test test_browser_case_review_appeals.js
+          node --test test_reviewer_onboarding_preflight.js
           npm run test:stage1
           npm run test:identity
           npm run test:rides
