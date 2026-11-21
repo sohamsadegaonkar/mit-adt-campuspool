@@ -676,7 +676,7 @@ const server = http.createServer(async (req, res) => {
   }
   function historicalBooking(booking){
     const result=pick(booking,['bookingId','rideId','passengerName','driverName','dept',
-      'vehicleModel','pickup','destination','departureTime','studentFare','paymentStatus','paymentMode','journeyStage','departedAt','pickupAt','arrivedAt','boardedAt','createdAt','status','cancelledAt','pickupCase']);
+      'vehicleModel','pickup','destination','departureTime','studentFare','paymentStatus','paymentMode','journeyStage','departedAt','pickupAt','arrivedAt','boardedAt','createdAt','status','cancelledAt','pickupCase','financialReview']);
     if(isSelf(booking.passengerEmail))result.passengerEmail=booking.passengerEmail;
     return result;
   }
@@ -689,6 +689,8 @@ const server = http.createServer(async (req, res) => {
   function safeSettlement(status){
     return {...status,...(Array.isArray(status.pendingBookings)
       ? {pendingBookings:status.pendingBookings.map(historicalBooking)} : {}),
+      ...(Array.isArray(status.reviewRequiredBookings)
+      ? {reviewRequiredBookings:status.reviewRequiredBookings.map(historicalBooking)} : {}),
       ...(Array.isArray(status.unpaidBookings)
       ? {unpaidBookings:status.unpaidBookings.map(historicalBooking)} : {}),
       ...(status.unpaidBooking ? {unpaidBooking:historicalBooking(status.unpaidBooking)} : {})};
