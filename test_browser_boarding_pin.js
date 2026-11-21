@@ -6,7 +6,7 @@ const begin=html.indexOf('// CAMPUSPOOL_BOARDING_BEGIN');
 const end=html.indexOf('// CAMPUSPOOL_BOARDING_END',begin);
 assert.ok(begin>=0&&end>begin);
 const source=html.slice(begin,end)+
-  '\nglobalThis.boarding={passengerPinMarkup,driverPinMarkup,boardingStatusMarkup,setRoster:function(items){driverJourneyBookings=items;}}';
+  '\nglobalThis.boarding={passengerPinMarkup,driverPinMarkup,boardingStatusMarkup,setRoster:function(items){driverJourneyBookings=items;driverJourneyBookingsKnown=true;}}';
 const sanitize=x=>String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 function fixture(enabled=true){
   const vmScope={appState:{boardingPinEnabled:enabled},sanitize};
