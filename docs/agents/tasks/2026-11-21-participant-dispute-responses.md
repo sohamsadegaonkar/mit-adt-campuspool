@@ -43,3 +43,12 @@ Pickup abort PR #64 stores a case and a report, and financial review PR #66 prev
 - [Cancelled Pending PR #66](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/66) and [handoff](2026-11-21-cancelled-pending-reconciliation.md).
 - [Five-minute pickup PR #64](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/64).
 - [Private production roadmap](https://app.notion.com/p/41dca5237af5819ba7d3c3f9bff9b088).
+
+## Verified CI evidence — exact tested code 2026-11-21
+
+**Exact application SHA: `febb384f09f653ad1dbc82e8933c9cda8522c347`. Five GitHub Actions workflows completed SUCCESS.**
+
+- [Stage 1 PostgreSQL/HTTP #44882640865](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/44882640865) — `CAMPUS_CASE_RESPONSE_RESULT` logs strictly disposable five actors, authenticated opponent-only replies, cancelled booking timeline, flag rollback read, private timeline, CSRF/anonymous/outsider denied, two concurrent opposing statements, same-code idempotent retries, contradictory second response 409, no money/seat mutation, migration 013 replay, app audit DELETE/UPDATE denied, no reviewer adjudication or automatic sanctions. Previous `CAMPUS_PICKUP_ABORT_RESULT` still passed including 300s pickup limit and financial review invariants.
+- [Real-browser E2E #44882640907](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/44882640907), [security smoke #44882640870](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/44882640870), [Places #44882640974](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/44882640974), [disposable PostGIS benchmark #44882640850](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/44882640850) all SUCCESS on exact code SHA.
+- Security refinement included in verified application: force-close case dialog and clear past actor's timeline on session switch/logout. No live student data or payment touched. Flag remains **DEFAULT OFF**. The full E2E browser suite is **not a substitute** for a physical Android phone, TalkBack/large-text/parked-driver and operational human support trial.
+- **Release NO-GO** remains for owner product fairness approval on active legacy Pending, named case reviewer RBAC and appeal support, actual billing/legality, data retention, G1 independent restoration, migrations 008–013 and PR stack review. A documentation-only commit after the verified SHA does not change tested application logic.
