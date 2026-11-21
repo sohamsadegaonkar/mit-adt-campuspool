@@ -5,7 +5,7 @@
 - **Baseline:** PR #60 \`bfaf7751573bb74e5db722fc345a0e4c433a3bf3\`; test branch stacked above #60, not main
 - **Scope:** CI latest-head, adversarial journey behavior, migration 010 dry-run and rollback review, Android accessibility and dependency reconciliation
 - **Environment:** public source + disposable \`campuspool_stage1_ci\` PostGIS CI only; NO staging/production writes or feature enablement
-- **Status:** automated adversarial test added; fresh branch CI and device review pending; release NO-GO
+- **Status:** adversarial disposable PostgreSQL CI PASS at `3f66b29c21c369b07568217d6726f6dc6cb1ec30`; physical device + policy review blocked; release NO-GO
 
 ## Evidence and precise current limitations
 
@@ -65,3 +65,12 @@ Main <- #47 <- #48 <- #49 <- #51 <- #52 <- #53 <- #54 <- #55 <- #56 <- #57 <- #5
 - Physical Android device tests above remain **BLOCKED**, no claim of execution without device evidence.
 - Review the complete stacked PR chain; integrate in dependency order only with owner approval, required checks, migration+backup controls and a compatible rollback plan.
 - No staging, production, Azure or student data changed during this audit.
+
+
+## Verified independent CI — 2026-11-21 05:40 UTC
+
+- **Audit commit:** \`3f66b29c21c369b07568217d6726f6dc6cb1ec30\`, with the adversarial test code at commit \`288bc86481967087fc9b9d7eb21bd7699a457f1c\`.
+- **Actual ephemeral PostgreSQL/PostGIS GitHub workflow:** [Stage 1 tests run #44871822116](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/44871822116) **completed SUCCESS**; job \`postgres-otp\`, syntax and isolated DB tests PASSED.
+- **Observed output:** \`CAMPUS_ADVERSARIAL_RESULT\` confirms \`driverSelfReportsWithoutGpsOrPassengerConfirmation=true\`, \`noShowPassengerCancellationBlocked=true\`, \`emergencyDriverCancelAllowed=true\`, \`cancelledBookingMissingFromNormalHistory=true\`, \`cancelledPendingObligationStillStored=true\`, \`cancelledPendingIgnoredBySettlementGuard=true\`, \`followOnBookingAfterEmergencyAllowed=true\`, \`selfReportedArrivalDoesNotSettlePending=true\`, \`migration010ReplayWithData=true\`.
+- **Existing journey result:** \`CAMPUS_JOURNEY_RESULT\` confirms five synthetic actors, driver-only authorization/CSRF, concurrent idempotent key, invalid order, passenger readback, GPS revocation, financial preservation on normal arrived ride and delayed transaction timestamp.
+- **Verdict:** Automated reproduction completed, but <b>P1 release hold remains</b>. The successful tests intentionally document unsafe behavior; financial/dispute decisions, physical Android/device accessibility, driver safety, recovery approval, staged rollout and all predecessor PR reviews remain open. No live data or environment changed.
