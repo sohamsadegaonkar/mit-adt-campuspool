@@ -516,6 +516,16 @@ class PgRidesStore {
         'SELECT id FROM public.campus_booking_cases WHERE booking_id=$1 FOR UPDATE',[bookingId]);
       if(!q.rows.length)throw new RidesError('PICKUP_CASE_NOT_FOUND',404);
       const caseId=q.rows[0].id;
+      // Do not finalize even a non-monetary review solely from one actor's
+      // allegation. At least one statement from EACH party must be recorded.
+      const evidence=await client.query([
+        'SELECT count(DISTINCT actor_user_id)::int AS actors FROM (',
+        'SELECT actor_user_id FROM public.campus_booking_case_events WHERE case_id=$1',
+        'UNION SELECT actor_user_id FROM public.campus_booking_case_responses WHERE case_id=$1',
+        ') statements'
+      ].join(' '),[caseId]);
+      if(evidence.rows[0].actors<2)
+        throw new RidesError('BOTH_PARTIES_NOT_HEARD',409);
       const inserted=await client.query([
         'INSERT INTO public.campus_case_review_decisions(case_id,reviewer_user_id,decision_code)',
         'VALUES ($1,$2,$3) ON CONFLICT (case_id) DO NOTHING RETURNING id'
