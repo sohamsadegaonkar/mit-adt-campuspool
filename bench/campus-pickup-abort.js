@@ -172,6 +172,133 @@ async function runPickupAbort({t,pool,ids,request}){
    'SELECT status,payment_status,boarded_at FROM public.campus_bookings WHERE booking_id=$1',[one])).rows[0],beforeReplies,
    'responses never change booking, boarding or financial facts');
 
+
+ // --- Strictly synthetic, manually provisioned reviewer/appeal identities. ---
+ // No application/API endpoint can grant privileges to itself.
+ const reviewerQueue=(user,role='case_reviewer')=>request(
+   '/api/reviewer/cases?role='+encodeURIComponent(role),{user});
+ const reviewerDetail=(user,bookingId)=>request(
+   '/api/reviewer/case-detail?bookingId='+encodeURIComponent(bookingId),{user});
+ const review=(user,bookingId,code='insufficient_evidence',opts={})=>
+   request('/api/reviewer/cases/decision',{method:'POST',user,
+     csrf:opts.noCsrf?undefined:csrf[user],idempotencyKey:opts.key||crypto.randomUUID(),
+     body:{bookingId,code}});
+ const appeal=(user,bookingId,reason='technical_issue',opts={})=>
+   request('/api/bookings/cases/appeal',{method:'POST',user,
+     csrf:opts.noCsrf?undefined:csrf[user],idempotencyKey:opts.key||crypto.randomUUID(),
+     body:{bookingId,reason}});
+ const appealDecision=(user,appealId,resultCode='additional_review_required',opts={})=>
+   request('/api/reviewer/appeals/decision',{method:'POST',user,
+     csrf:opts.noCsrf?undefined:csrf[user],idempotencyKey:opts.key||crypto.randomUUID(),
+     body:{appealId,resultCode}});
+ assert.equal((await reviewerQueue(3)).status,403,'no reviewer is seeded by default');
+ assert.equal((await reviewerDetail(3,one)).status,403);
+ assert.equal((await review(3,one)).status,403);
+ assert.equal((await appeal(1,one)).status,409,'no appeal before review record');
+ assert.equal((await appeal(2,one)).status,403,'other passenger cannot appeal');
+ assert.equal((await reviewerQueue(4,'invalid')).status,400);
+ // CI-only grant creation uses the privileged disposable SQL test connection,
+ // not an HTTP endpoint or the application's restricted DB role.
+ await pool.query([
+   'INSERT INTO public.campus_case_reviewer_grants',
+   '(user_id,reviewer_role,expires_at)',
+   "VALUES ($1,'case_reviewer',now()+interval '1 day'),",
+   "($1,'appeal_reviewer',now()+interval '1 day'),",
+   "($2,'appeal_reviewer',now()+interval '1 day'),",
+   "($3,'case_reviewer',now()+interval '1 day')"
+ ].join(' '),[ids[3],ids[4],ids[0]]);
+ assert.equal((await reviewerQueue(4,'case_reviewer')).status,403);
+ const queue=await reviewerQueue(3);
+ assert.equal(queue.status,200,JSON.stringify(queue.body));
+ assert.equal(queue.body.kind,'initial_review');
+ assert.ok(queue.body.cases.some(x=>x.bookingId===one));
+ assert.equal(queue.body.cases[0].passengerEmail,undefined);
+ assert.equal(queue.body.cases[0].studentFare,undefined);
+ assert.equal((await reviewerDetail(0,one)).status,403,
+   'participant cannot review own case even if operator granted role');
+ assert.equal((await review(0,one)).status,403);
+ assert.equal((await reviewerDetail(3,one)).status,200);
+ assert.equal((await reviewerDetail(2,one)).status,403);
+ assert.equal((await review(3,one,'invalid')).status,400);
+ assert.equal((await review(3,one,'insufficient_evidence',{noCsrf:true})).status,403);
+ assert.equal((await request('/api/reviewer/cases/decision',{method:'POST',
+   anonymous:true,body:{bookingId:one,code:'no_action'}})).status,401);
+ const originalBooking=(await pool.query(
+   'SELECT status,payment_status,boarded_at,student_fare FROM public.campus_bookings WHERE booking_id=$1',
+   [one])).rows[0];
+ const reviewed=await review(3,one);
+ assert.equal(reviewed.status,200,JSON.stringify(reviewed.body));
+ assert.equal(reviewed.body.recorded,true);
+ assert.equal((await review(3,one)).body.recorded,false,
+   'identical review safely retries with a distinct idempotency key');
+ assert.equal((await review(3,one,'no_action')).status,409);
+ assert.equal((await review(4,one)).status,403,'appeal reviewer is not initial reviewer');
+ const reviewedCase=await caseRead(1,one);
+ assert.equal(reviewedCase.status,200);
+ assert.equal(reviewedCase.body.review.code,'insufficient_evidence');
+ assert.equal(reviewedCase.body.canAppeal,true);
+ assert.equal(reviewedCase.body.canRespond,false);
+ assert.equal((await reply(0,one,'present_at_pickup')).status,409,
+   'evidence frozen after review, even if same actor previously responded');
+ assert.equal((await appeal(1,one,'unknown')).status,400);
+ assert.equal((await appeal(1,one,'technical_issue',{noCsrf:true})).status,403);
+ assert.equal((await request('/api/bookings/cases/appeal',{method:'POST',
+   anonymous:true,body:{bookingId:one,reason:'technical_issue'}})).status,401);
+ const paxAppeal=await appeal(1,one);
+ assert.equal(paxAppeal.status,200,JSON.stringify(paxAppeal.body));
+ assert.equal(paxAppeal.body.recorded,true);
+ assert.equal((await appeal(1,one)).body.recorded,false);
+ assert.equal((await appeal(1,one,'safety_context')).status,409,
+   'no contradictory appeal overwrite');
+ const driverAppeal=await appeal(0,one,'missing_evidence');
+ assert.equal(driverAppeal.status,200);
+ const paxCase=await caseRead(1,one),drvCase=await caseRead(0,one);
+ assert.equal(paxCase.body.appeals.length,2);
+ assert.equal(paxCase.body.canAppeal,false);
+ assert.equal(paxCase.body.appeals.find(a=>a.mine).reason,'technical_issue');
+ assert.equal(paxCase.body.appeals.find(a=>!a.mine).reason,null);
+ assert.equal(drvCase.body.appeals.find(a=>a.mine).reason,'missing_evidence');
+ const pendingAppeals=await reviewerQueue(4,'appeal_reviewer');
+ assert.equal(pendingAppeals.status,200,JSON.stringify(pendingAppeals.body));
+ assert.equal(pendingAppeals.body.cases.length,2);
+ const appealId=pendingAppeals.body.cases[0].appealId;
+ assert.equal((await appealDecision(3,appealId)).status,403,
+   'initial reviewer cannot affirm their own review even with appeal role');
+ assert.equal((await appealDecision(0,appealId)).status,403,
+   'a participant cannot review their own case');
+ assert.equal((await appealDecision(4,appealId,'invalid')).status,400);
+ assert.equal((await appealDecision(4,appealId,'additional_review_required',
+   {noCsrf:true})).status,403);
+ const appealReview=await appealDecision(4,appealId);
+ assert.equal(appealReview.status,200,JSON.stringify(appealReview.body));
+ assert.equal(appealReview.body.recorded,true);
+ assert.equal((await appealDecision(4,appealId)).body.recorded,false);
+ assert.equal((await appealDecision(4,appealId,'review_record_unchanged')).status,409);
+ const secondAppealId=pendingAppeals.body.cases[1].appealId;
+ assert.equal((await appealDecision(4,secondAppealId)).status,200);
+ assert.equal((await reviewerQueue(4,'appeal_reviewer')).body.cases.length,0);
+ const postOutcome=await caseRead(1,one);
+ assert.ok(postOutcome.body.appeals.every(x=>x.outcome==='additional_review_required'));
+ assert.equal(postOutcome.body.state,'open','review outcomes never change protected case status');
+ assert.deepEqual((await pool.query(
+   'SELECT status,payment_status,boarded_at,student_fare FROM public.campus_bookings WHERE booking_id=$1',
+   [one])).rows[0],originalBooking,'review and appeals cannot mutate financial or boarding facts');
+ const paymentRows=await pool.query(
+   'SELECT count(*)::int AS n FROM public.campus_case_review_decisions WHERE case_id=$1',[readCase.id]);
+ assert.equal(paymentRows.rows[0].n,1);
+ await pool.query(
+   'UPDATE public.campus_case_reviewer_grants SET revoked_at=clock_timestamp() WHERE user_id=$1 AND reviewer_role=$2',
+   [ids[4],'appeal_reviewer']);
+ assert.equal((await reviewerQueue(4,'appeal_reviewer')).status,403,'revoked role cannot view appeal queue');
+ assert.equal((await reviewerDetail(4,one)).status,403,'revoked reviewer cannot open cases');
+ const appGrants=await pool.query([
+   "SELECT has_table_privilege('campuspool_staging_app','public.campus_case_reviewer_grants','INSERT') AS i,",
+   "has_table_privilege('campuspool_staging_app','public.campus_case_reviewer_grants','UPDATE') AS u,",
+   "has_table_privilege('campuspool_staging_app','public.campus_case_reviewer_grants','DELETE') AS d"
+ ].join(' '));
+ assert.deepEqual(appGrants.rows[0],{i:false,u:false,d:false},
+   'backend identity cannot self-assign, alter or delete reviewer grants');
+
  const disputedFinance=await request('/api/user/settlement-status',{user:1});
  assert.equal(disputedFinance.status,200);
  assert.equal(disputedFinance.body.isBlocked,false,
