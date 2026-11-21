@@ -8,6 +8,7 @@ This directory is the **shared continuity system** for multiple development agen
 | [NEXT_STEPS.md](NEXT_STEPS.md) | Ordered work queue, owner, dependencies, acceptance criteria | Every implementation PR; when priorities change |
 | [ARCHITECTURE_MAP.md](ARCHITECTURE_MAP.md) | Current technology, modules, flags, trust boundaries and relevant docs | Whenever architecture/runtime behavior changes |
 | [DECISIONS.md](DECISIONS.md) | Decisions and deliberately deferred technologies with evidence | Every substantive architecture or release decision |
+| [MOTION_LANGUAGE.md](MOTION_LANGUAGE.md) | Meaningful motion semantics, reduced motion, and state-truth design rules | When adding or reviewing animated UI |
 | [tasks/TEMPLATE.md](tasks/TEMPLATE.md) | Required per-task plan, progress log, verification and handoff fields | Copy for each independent task |
 | [tasks/](tasks/) | Individual agent/PR logs; unfinished work can be resumed without chat | Start, checkpoints, and completion |
 
