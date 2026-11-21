@@ -349,6 +349,17 @@
 .cp-history-entry strong{font-size:12px;color:#fff}
 .cp-history-entry p{font-size:11px;color:#d1d5db}
 </style>
+
+<style id="campuspool-case-response">
+.cp-case-view{background:#2b2821;color:#facc15;border:1px solid #bdad68;border-radius:9px;min-height:44px;font-size:12px;padding:9px 12px;font-weight:750}
+.cp-case-view:focus-visible{outline:3px solid #fff;outline-offset:2px}
+.cp-case-events{list-style:decimal;padding-left:22px;display:grid;gap:8px;max-height:35vh;overflow:auto}
+.cp-case-events li{font-size:12px;line-height:1.5;color:#ddd;overflow-wrap:anywhere}
+.cp-case-events time{display:block;color:#a3a3a3;font-size:11px}
+#caseResponseForm[hidden]{display:none}
+#caseResponseCode{width:100%;min-height:44px;border-radius:8px;padding:10px;background:#fff;color:#151515}
+@media(prefers-reduced-motion:reduce){#caseResponseDialog{animation:none!important;transition:none!important}}
+</style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-brand-500 selection:text-white radial-bg">
   <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
@@ -1556,6 +1567,29 @@
   </div>
 
 
+
+  <dialog id="caseResponseDialog" class="cp-abort-dialog" aria-labelledby="caseResponseTitle" aria-describedby="caseResponseHelp">
+    <div class="space-y-3">
+      <h2 id="caseResponseTitle" class="text-lg font-extrabold">Pickup case · participant statements</h2>
+      <p id="caseResponseHelp" class="text-sm text-slate-300">These are unverified reports. No participant can decide fault or change payments here.</p>
+      <p id="caseResponseState" class="text-xs text-amber-300" role="status">Retrieving case…</p>
+      <ol id="caseResponseTimeline" aria-label="Pickup case statements" class="cp-case-events"></ol>
+      <form id="caseResponseForm" class="space-y-3" hidden>
+        <label class="text-sm font-bold block" for="caseResponseCode">Your response</label>
+        <select id="caseResponseCode" required>
+          <option value="present_at_pickup">I was at the agreed pickup point</option>
+          <option value="could_not_find_partner">I could not find the other person</option>
+          <option value="attempted_contact">I tried to contact the other person</option>
+          <option value="other_party_not_present">The other person was not at pickup</option>
+          <option value="safety_concern">I had a safety concern</option>
+          <option value="other">Other pickup issue</option>
+        </select>
+        <p class="text-xs text-slate-400">Submit once. This becomes part of the private audit record; it cannot be edited or used to charge anyone automatically.</p>
+        <button id="caseResponseSubmit" class="cp-pickup-open" type="submit">Submit my response</button>
+      </form>
+      <button id="caseResponseClose" class="cp-pickup-open cp-pickup-safety" type="button">Close case</button>
+    </div>
+  </dialog>
   <dialog id="pickupAbortDialog" class="cp-abort-dialog" aria-labelledby="pickupAbortTitle" aria-describedby="pickupAbortHelp">
     <form id="pickupAbortForm" class="space-y-4">
       <h2 id="pickupAbortTitle" class="text-lg font-extrabold">Pickup still unresolved?</h2>
@@ -1611,6 +1645,7 @@
       journeyEnabled: false,
       boardingPinEnabled: false,
       pickupAbortEnabled: false,
+      caseResponseEnabled: false,
 
       pendingAuth: {
         name: "",
@@ -1627,6 +1662,7 @@
 
       myBookings: [],
       myBookingHistory: [],
+      driverCaseHistory: [],
       myOfferedRides: [],
 
       leaderboard: []
@@ -1656,7 +1692,7 @@
     // random keys and expiry timestamps are stored; never request JSON or PII.
     const idempotentDomainRoutes = new Set([
       '/api/rides', '/api/bookings', '/api/rides/cancel',
-      '/api/bookings/cancel', '/api/bookings/pickup-abort', '/api/mobility/intents',
+      '/api/bookings/cancel', '/api/bookings/pickup-abort', '/api/bookings/cases/respond', '/api/mobility/intents',
       '/api/mobility/intents/cancel'
     ]);
     const pendingDomainMutations = new Map();
@@ -1805,6 +1841,7 @@
         appState.journeyEnabled=data.journeyEnabled===true;
         appState.boardingPinEnabled=data.boardingPinEnabled===true;
         appState.pickupAbortEnabled=data.pickupAbortEnabled===true;
+        appState.caseResponseEnabled=data.caseResponseEnabled===true;
         csrfToken = data.csrfToken;
         window.dispatchEvent(new Event('campuspool:session-changed'));
         return true;
@@ -1844,11 +1881,11 @@
     window.addEventListener('campuspool:session-changed',()=>{
       privateReadGeneration++;
       journeyReadReady=false;seenJourneyStages.clear();pendingJourneyAnimations.clear();driverJourneyBookings=[];driverJourneyBookingsKnown=false;
-      if(!appState.currentUser){appState.freeRidesPilot=false;appState.journeyEnabled=false;appState.boardingPinEnabled=false;appState.pickupAbortEnabled=false;}
+      if(!appState.currentUser){appState.freeRidesPilot=false;appState.journeyEnabled=false;appState.boardingPinEnabled=false;appState.pickupAbortEnabled=false;appState.caseResponseEnabled=false;}
       applyFreePilotOfferMode();
       lastRidesEtag=null;
       pendingSeatTransitions.clear();
-      appState.rides=[];appState.myBookings=[];appState.myBookingHistory=[];appState.myOfferedRides=[];appState.settlementReview=null;pickupServerClockOffset=0;
+      appState.rides=[];appState.myBookings=[];appState.myBookingHistory=[];appState.driverCaseHistory=[];appState.myOfferedRides=[];appState.settlementReview=null;pickupServerClockOffset=0;
       appState.selectedRideForBooking=null;appState.selectedBookingForPayment=null;
       renderRidesGrid();renderMyRidesViews();
       hideModal('bookingModal',{restoreFocus:false});hideModal('paymentModal',{restoreFocus:false});
@@ -1943,6 +1980,8 @@
           if(Array.isArray(hData.bookings)){
             const mine=hData.bookings.filter(b=>b.passengerEmail&&b.passengerEmail.toLowerCase()===email.toLowerCase());
             appState.myBookingHistory=mine.filter(b=>b.status==='cancelled');
+            appState.driverCaseHistory=hData.bookings.filter(b=>
+              b.actorRole==='driver'&&b.status==='cancelled'&&b.pickupCase?.id);
             const indexed=new Map(hData.bookings.map(b=>[b.bookingId,b]));
             appState.myBookings=appState.myBookings.map(b=>({...b,pickupCase:indexed.get(b.bookingId)?.pickupCase||null}));
             if(allUserBookings)allUserBookings=allUserBookings.map(b=>({...b,pickupCase:indexed.get(b.bookingId)?.pickupCase||null}));
@@ -1951,6 +1990,7 @@
         }else if(hResp.status===503){
           if(!current())return;
           appState.myBookingHistory=[];
+          appState.driverCaseHistory=[];
         }
         if(!current())return;
         const sResp = await apiFetch(`/api/user/settlement-status?email=${encodeURIComponent(email)}`);
@@ -2546,6 +2586,7 @@
           <div class="cp-driver-booking">
             <strong>${sanitize(String(b.passengerName||'Passenger'))}</strong>
             ${pickupAbortMarkup(b)}
+            ${caseResponseMarkup(b)}
             ${b.boardedAt?'<span class="cp-boarding-status">Boarding PIN verified</span>'
               :ride.journeyStage==='arrived'
                 ?'<span class="cp-boarding-note">Boarding not confirmed — driver reported arrival</span>'
@@ -2652,6 +2693,94 @@
     window.setInterval(updatePickupWaitDisplays,1000);
     // CAMPUSPOOL_PICKUP_END
 
+
+    // CAMPUSPOOL_CASE_RESPONSE_BEGIN
+    function caseResponseMarkup(booking){
+      if(!appState.caseResponseEnabled||!booking?.pickupCase?.id)return '';
+      const id=sanitize(String(booking.bookingId||''));
+      return `<button type="button" class="cp-case-view" data-booking-id="${id}">View pickup case / respond</button>`;
+    }
+    let caseResponseCurrent=null;
+    const caseReasonLabels=Object.freeze({
+      no_response:'Reported no response',could_not_locate:'Could not locate pickup partner',
+      changed_plans:'Reported change of plans',safety_emergency:'Reported a safety concern',
+      other:'Reported other pickup problem',
+      present_at_pickup:'Says they were at pickup',could_not_find_partner:'Could not find partner',
+      attempted_contact:'Says they attempted contact',
+      other_party_not_present:'Says other person was absent',
+      safety_concern:'Reports a safety concern'
+    });
+    async function showBookingCase(bookingId){
+      if(!appState.caseResponseEnabled)return;
+      const email=appState.currentUser?.email,proof=csrfToken;
+      if(!email||!proof)return;
+      const response=await apiFetch('/api/bookings/cases?bookingId='+encodeURIComponent(bookingId));
+      const data=await response.json();
+      if(email!==appState.currentUser?.email||proof!==csrfToken)return;
+      if(!response.ok){
+        showMutationFailure(response,data,'Cannot read this private case.');return;
+      }
+      const list=document.getElementById('caseResponseTimeline');
+      const form=document.getElementById('caseResponseForm');
+      const status=document.getElementById('caseResponseState');
+      if(!list||!form||!status)return;
+      list.replaceChildren();
+      const timeline=[
+        ...(Array.isArray(data.claims)?data.claims:[]).map(x=>({...x,kind:'Claim',label:x.reason})),
+        ...(Array.isArray(data.responses)?data.responses:[]).map(x=>({...x,kind:'Response',label:x.code}))
+      ].sort((a,b)=>Date.parse(a.createdAt)-Date.parse(b.createdAt));
+      for(const item of timeline.slice(0,22)){
+        const line=document.createElement('li');
+        const description=document.createElement('span');
+        description.textContent=item.kind+' · '+(item.actorRole==='driver'?'Driver':'Passenger')+
+          ' · '+(caseReasonLabels[item.label]||'Pickup issue recorded');
+        const stamp=document.createElement('time');
+        stamp.textContent=new Date(item.createdAt).toLocaleString();
+        line.append(description,stamp);
+        list.append(line);
+      }
+      status.textContent='Case open · awaiting neutral review. No monetary action taken.';
+      form.hidden=!(data.canRespond===true&&data.state==='open');
+      caseResponseCurrent=bookingId;
+      const dialog=document.getElementById('caseResponseDialog');
+      if(dialog&&!dialog.open)dialog.showModal();
+    }
+    document.addEventListener('click',async event=>{
+      const btn=event.target.closest('.cp-case-view');
+      if(!btn||!appState.caseResponseEnabled)return;
+      btn.disabled=true;
+      try{await showBookingCase(btn.dataset.bookingId);}
+      catch(_){showToast('Case status could not be confirmed. Refresh and retry.','⚠️');}
+      finally{btn.disabled=false;}
+    });
+    document.getElementById('caseResponseClose')?.addEventListener('click',()=>document.getElementById('caseResponseDialog')?.close());
+    document.getElementById('caseResponseDialog')?.addEventListener('close',()=>{caseResponseCurrent=null;});
+    document.getElementById('caseResponseForm')?.addEventListener('submit',async event=>{
+      event.preventDefault();
+      const code=document.getElementById('caseResponseCode')?.value;
+      const bookingId=caseResponseCurrent;
+      const allowed=new Set(['present_at_pickup','could_not_find_partner','attempted_contact',
+        'other_party_not_present','safety_concern','other']);
+      if(!appState.caseResponseEnabled||!bookingId||!allowed.has(code))return;
+      const actor=appState.currentUser?.email,proof=csrfToken;
+      const button=document.getElementById('caseResponseSubmit');
+      button.disabled=true;
+      try{
+        const response=await apiFetch('/api/bookings/cases/respond',{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({bookingId,code})
+        });
+        const data=await response.json();
+        if(actor!==appState.currentUser?.email||proof!==csrfToken)return;
+        if(!response.ok){showMutationFailure(response,data,'Response not recorded.');return;}
+        await showBookingCase(bookingId);
+        if(actor===appState.currentUser?.email&&proof===csrfToken)
+          showToast('Your statement was recorded for review. No penalty or payment change.','ℹ️');
+      }catch(_){showToast('Response unconfirmed; reopen the case to check before retrying.','⚠️');}
+      finally{button.disabled=false;}
+    });
+    // CAMPUSPOOL_CASE_RESPONSE_END
+
     function renderMyRidesViews() {
       const passengerContainer = document.getElementById('passengerBookingsSection');
       const driverContainer = document.getElementById('driverRidesSection');
@@ -2687,6 +2816,7 @@
                 ${journeyTimelineMarkup(b,pendingJourneyAnimations.get(b.rideId))}
                 ${passengerPinMarkup(b)}
                 ${pickupAbortMarkup(b)}
+                ${caseResponseMarkup(b)}
                 ${b.journeyStage&&b.journeyStage!=='scheduled'?`<p class="text-xs text-slate-300">${b.journeyStage==='arrived'?'Driver reported arrival. This booking remains in your history.':'Booking changes are locked after reported departure. Contact your driver for assistance.'}</p>`:'' }
 
                 <div class="pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
@@ -2794,6 +2924,7 @@
                     ?'Historical Pending · requires review, not an invoice'
                     :'Historical payment status: '+sanitize(String(b.paymentStatus||'unknown'))}</p>
                 ${b.pickupCase?.id?'<p>Pickup report recorded for review.</p>':''}
+                ${caseResponseMarkup(b)}
               </article>`).join('')}
           </section>`);
       }
@@ -2905,6 +3036,18 @@
               }
             });
           });
+        }
+        if(appState.caseResponseEnabled&&appState.driverCaseHistory.length){
+          driverContainer.insertAdjacentHTML('beforeend',`
+            <section class="cp-history" aria-label="Cancelled driver bookings under review">
+              <h3>Past pickup reports · driver history</h3>
+              ${appState.driverCaseHistory.map(b=>`
+                <article class="cp-history-entry">
+                  <strong>${sanitize(String(b.pickup||'Pickup'))} to ${sanitize(String(b.destination||'Destination'))}</strong>
+                  <p>Cancelled booking · ${b.boardedAt?'Boarding PIN confirmed':'Boarding not confirmed'} · Pending is review-only</p>
+                  ${caseResponseMarkup(b)}
+                </article>`).join('')}
+            </section>`);
         }
         updateDriverCommissionBanner();
       }
