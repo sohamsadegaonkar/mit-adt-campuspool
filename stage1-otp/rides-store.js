@@ -151,7 +151,7 @@ class PgRidesStore {
       'SELECT b.*,r.journey_stage,r.departed_at,r.pickup_at,r.arrived_at FROM public.campus_bookings b',
       'JOIN public.campus_rides r ON r.id=b.ride_id',
       "WHERE b.status='active' AND (b.passenger_user_id=$1 OR r.driver_user_id=$1)",
-      'ORDER BY created_at DESC'
+      'ORDER BY b.created_at DESC'
     ].join(' '),[userId]);
     return r.rows.map(bookingPublic);
   }

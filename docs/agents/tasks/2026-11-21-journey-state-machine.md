@@ -41,3 +41,5 @@ PostgreSQL-backed, driver-attested scheduled -> departed -> pickup_ready -> arri
 - Next: complete UI, run exact-head CI, reconcile failures, document tested SHA, product/safety/accessibility review, then owner approval before any rollout.
 
 - 2026-11-21 UTC — added real 5-actor PG HTTP journey verification, duplicate-key race, privacy/seat/financial assertions; CI script staged, browser timeline still pending.
+
+- 2026-11-21 UTC — UI driver report button with parked-only confirmation, server re-read of milestone; yellow-black timeline for driver and active passengers from persisted timestamps, replay/real-state distinction; browser VM pending.

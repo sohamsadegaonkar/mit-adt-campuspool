@@ -283,6 +283,34 @@
   }
 </style>
 
+<style id="campuspool-journey-motion">
+/* Driver-reported and persisted milestones, not GPS progress. */
+.cp-journey{--cp-stage:0%;--cp-from:0%;position:relative;margin:12px 0 3px;padding:13px 12px 10px;background:#1c1c1c;border-radius:14px;border:1px solid #444;overflow:hidden;color:#f9fafb}
+.cp-journey-label{font-size:10px;letter-spacing:.075em;font-weight:850;color:#facc15;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.cp-journey-source{font-size:10px;color:#d4d4d4;margin:6px 0 11px}
+.cp-journey-track{height:5px;background:#515151;position:relative;border-radius:5px;margin:15px 10px 21px}
+.cp-journey-progress{height:100%;width:var(--cp-stage);background:#facc15;border-radius:5px}
+.cp-journey-car{position:absolute;top:-18px;left:var(--cp-stage);width:34px;height:24px;transform:translateX(-50%)}
+.cp-journey-car svg{width:34px;height:24px;overflow:visible}
+.cp-journey-advanced .cp-journey-progress{animation:cp-journey-progress .7s cubic-bezier(.3,.7,.2,1) both}
+.cp-journey-advanced .cp-journey-car{animation:cp-journey-car .7s cubic-bezier(.3,.7,.2,1) both}
+@keyframes cp-journey-progress{from{width:var(--cp-from)}to{width:var(--cp-stage)}}
+@keyframes cp-journey-car{from{left:var(--cp-from)}to{left:var(--cp-stage)}}
+.cp-journey-steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+.cp-journey-step{text-align:center;min-width:0;font-size:10px;color:#aaa;line-height:1.3}
+.cp-journey-step strong{display:block;font-size:10px;font-weight:800;overflow-wrap:anywhere}
+.cp-journey-step.is-complete{color:#facc15}
+.cp-journey-step small{font-size:9px;color:#d2d2d2;display:block;margin-top:3px}
+.cp-journey-current{border:1px solid #806d29;background:#3b331a;border-radius:9px;padding:5px 2px}
+.cp-journey-action{display:inline-flex;align-items:center;gap:7px;justify-content:center;background:#facc15;color:#161616;border-radius:12px;padding:10px 12px;font-weight:850;font-size:12px;min-height:40px}
+.cp-journey-action:hover{background:#fde68a}
+.cp-journey-action:focus-visible{outline:3px solid #fff;outline-offset:3px}
+.cp-journey-action:disabled{opacity:.5;cursor:progress}
+@media (max-width:380px){.cp-journey-step,.cp-journey-step strong{font-size:9px}.cp-journey{padding:10px 7px}}
+@media (prefers-reduced-motion:reduce){
+  .cp-journey,.cp-journey-progress,.cp-journey-car{animation:none!important;transition:none!important}
+}
+</style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-brand-500 selection:text-white radial-bg">
   <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
@@ -1520,6 +1548,7 @@
       selectedBookingForPayment: null,
       settledCommissionAmount: 0,
       freeRidesPilot: false,
+      journeyEnabled: false,
 
       pendingAuth: {
         name: "",
@@ -1710,6 +1739,7 @@
         }
         appState.currentUser = data.user;
         appState.freeRidesPilot=data.freeRidesPilot===true;
+        appState.journeyEnabled=data.journeyEnabled===true;
         csrfToken = data.csrfToken;
         window.dispatchEvent(new Event('campuspool:session-changed'));
         return true;
@@ -1748,7 +1778,8 @@
     let lastRidesEtag = null;
     window.addEventListener('campuspool:session-changed',()=>{
       privateReadGeneration++;
-      if(!appState.currentUser)appState.freeRidesPilot=false;
+      journeyReadReady=false;seenJourneyStages.clear();pendingJourneyAnimations.clear();
+      if(!appState.currentUser){appState.freeRidesPilot=false;appState.journeyEnabled=false;}
       applyFreePilotOfferMode();
       lastRidesEtag=null;
       pendingSeatTransitions.clear();
@@ -1844,6 +1875,8 @@
           }
         }
         if(!current())return;
+        if(appState.journeyEnabled && verifiedBookings && Array.isArray(appState.myOfferedRides))
+          recordVerifiedJourneySnapshot(appState.myBookings,appState.myOfferedRides);
         saveState();
         renderMyRidesViews();
         updateSettlementWarningBanner();
@@ -2300,6 +2333,83 @@
       }else showToast('CampusPool Privacy Shield: book a seat to unlock driver contact.','🔒');
     }
 
+
+    // CAMPUSPOOL_JOURNEY_BEGIN
+    const journeySteps=[
+      {stage:'scheduled',label:'Seat ready',action:'depart',cta:'Report departure'},
+      {stage:'departed',label:'Departed',action:'pickup',cta:'Report at pickup'},
+      {stage:'pickup_ready',label:'Pickup ready',action:'arrive',cta:'Report arrival'},
+      {stage:'arrived',label:'Arrived',action:null,cta:null}
+    ];
+    function journeyRank(stage){
+      const at=journeySteps.findIndex(step=>step.stage===stage);
+      return at>=0?at:0;
+    }
+    function nextJourneyAction(stage){
+      return journeySteps[journeyRank(stage)]?.action||null;
+    }
+    function journeyStageSnapshot(records){
+      const seen=new Map();
+      for(const item of Array.isArray(records)?records:[]){
+        if(typeof item?.rideId==='string' && typeof item.journeyStage==='string')
+          seen.set(item.rideId,item.journeyStage);
+        if(typeof item?.id==='string' && typeof item.journeyStage==='string')
+          seen.set(item.id,item.journeyStage);
+      }
+      return seen;
+    }
+    function verifiedJourneyAdvances(previous,next){
+      const changes=new Map();
+      for(const [id,stage] of next){
+        if(!previous.has(id))continue;
+        const old=journeyRank(previous.get(id)),now=journeyRank(stage);
+        if(now>old)changes.set(id,{from:old,to:now});
+      }
+      return changes;
+    }
+    function journeyTimelineMarkup(item,changed){
+      if(!appState.journeyEnabled)return '';
+      const stage=typeof item?.journeyStage==='string'?item.journeyStage:'scheduled';
+      const rank=journeyRank(stage);
+      const from=(changed&&Number.isInteger(changed.from))?Math.min(rank,Math.max(0,changed.from)):rank;
+      const pct=rank*100/3,start=from*100/3;
+      const timestamps=[null,item.departedAt,item.pickupAt,item.arrivedAt];
+      const stamp=t=>t&&Number.isFinite(Date.parse(t))?
+        new Date(t).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}):'';
+      const labels=journeySteps.map((step,i)=>`
+        <div class="cp-journey-step ${i<=rank?'is-complete':''} ${i===rank?'cp-journey-current':''}">
+          <strong>${sanitize(step.label)}</strong>
+          ${i>0&&timestamps[i]?`<small>${sanitize(stamp(timestamps[i]))}</small>`:''}
+        </div>`).join('');
+      return `
+        <section class="cp-journey ${changed?'cp-journey-advanced':''}"
+          style="--cp-stage:${pct}%;--cp-from:${start}%"
+          aria-label="Driver-reported journey timeline: ${sanitize(journeySteps[rank].label)}">
+          <div class="cp-journey-label"><span>YOUR JOURNEY</span><span>${sanitize(journeySteps[rank].label)}</span></div>
+          <p class="cp-journey-source">Driver-reported milestone · not independently GPS verified</p>
+          <div class="cp-journey-track" aria-hidden="true">
+            <div class="cp-journey-progress"></div>
+            <span class="cp-journey-car">
+              <svg viewBox="0 0 34 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M4 9L9 4H24L29 9L32 12V19H2V12Z" fill="#facc15" stroke="#171717" stroke-width="1.3"/>
+                <path d="M10 5H17V10H6ZM19 5H23L27 10H19Z" fill="#171717"/>
+                <circle cx="9" cy="19" r="4" fill="#171717"/><circle cx="26" cy="19" r="4" fill="#171717"/>
+              </svg>
+            </span>
+          </div>
+          <div class="cp-journey-steps">${labels}</div>
+        </section>`;
+    }
+    let journeyReadReady=false;
+    let seenJourneyStages=new Map(),pendingJourneyAnimations=new Map();
+    function recordVerifiedJourneySnapshot(bookings,offers){
+      const incoming=journeyStageSnapshot([...bookings,...offers]);
+      pendingJourneyAnimations=journeyReadReady?verifiedJourneyAdvances(seenJourneyStages,incoming):new Map();
+      seenJourneyStages=incoming;
+      journeyReadReady=true;
+    }
+    // CAMPUSPOOL_JOURNEY_END
+
     function renderMyRidesViews() {
       const passengerContainer = document.getElementById('passengerBookingsSection');
       const driverContainer = document.getElementById('driverRidesSection');
@@ -2332,6 +2442,7 @@
             return `
               <article class="cp-boarding-pass p-3 sm:p-4 space-y-3" data-booking-id="${sanitize(String(b.bookingId||''))}">
                 ${boardingPassMarkup(b)}
+                ${journeyTimelineMarkup(b,pendingJourneyAnimations.get(b.rideId))}
 
                 <div class="pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
                   <div class="flex items-center gap-1.5">
@@ -2353,7 +2464,7 @@
                         <svg class="cp-icon" aria-hidden="true"><use href="#cp-wallet"></use></svg> Payment unavailable
                       </button>
                     `}
-                    <button class="cancel-booking-btn bg-slate-900 hover:bg-rose-950/80 text-slate-400 hover:text-rose-300 font-semibold px-2.5 py-1.5 rounded-xl transition border border-slate-800 hover:border-rose-900/60 cursor-pointer text-[11px]" data-booking-id="${b.bookingId}">
+                    <button ${appState.journeyEnabled&&b.journeyStage!=='scheduled'?'disabled title="Contact the driver for changes after departure"':''} class="cancel-booking-btn bg-slate-900 hover:bg-rose-950/80 text-slate-400 hover:text-rose-300 font-semibold px-2.5 py-1.5 rounded-xl transition border border-slate-800 hover:border-rose-900/60 cursor-pointer text-[11px]" data-booking-id="${b.bookingId}">
                       Cancel
                     </button>
                   </div>
@@ -2417,14 +2528,41 @@
                 <div>Time: <strong class="text-white">${sanitize(r.departureTime)}</strong> • Vehicle: <strong class="text-white">${sanitize(r.vehicleModel)}</strong></div>
                 <div>Seats Available: <strong class="text-white">${r.seatsLeft} of ${r.seatsTotal} left</strong></div>
               </div>
+              ${journeyTimelineMarkup(r,pendingJourneyAnimations.get(r.id))}
+              ${appState.journeyEnabled&&nextJourneyAction(r.journeyStage)?`<button type="button" class="cp-journey-action" data-ride-id="${sanitize(r.id)}" data-action="${nextJourneyAction(r.journeyStage)}">${journeySteps[journeyRank(r.journeyStage)].cta}</button>`:''}
               <div class="pt-2 border-t border-slate-800 flex items-center justify-between">
                 <span class="text-[11px] text-slate-500">MIT ADT Campus Corridor</span>
-                <button class="cancel-ride-btn bg-slate-900 hover:bg-rose-950/80 text-slate-400 hover:text-rose-300 font-semibold px-2.5 py-1 rounded-lg transition border border-slate-800 hover:border-rose-900/60 cursor-pointer text-[11px]" data-ride-id="${r.id}">
+                <button ${appState.journeyEnabled&&r.journeyStage==='arrived'?'disabled title="Arrived rides remain in your history"':''} class="cancel-ride-btn bg-slate-900 hover:bg-rose-950/80 text-slate-400 hover:text-rose-300 font-semibold px-2.5 py-1 rounded-lg transition border border-slate-800 hover:border-rose-900/60 cursor-pointer text-[11px]" data-ride-id="${r.id}">
                   Cancel Ride
                 </button>
               </div>
             </div>
           `).join('');
+
+          driverContainer.querySelectorAll('.cp-journey-action').forEach(button=>{
+            button.addEventListener('click',async()=>{
+              const id=button.dataset.rideId,action=button.dataset.action;
+              const ride=appState.myOfferedRides.find(r=>r.id===id);
+              if(!appState.journeyEnabled||!ride||nextJourneyAction(ride.journeyStage)!==action)return;
+              if(!confirm('Report this milestone only while safely parked. Your peers will see a DRIVER-REPORTED update, not GPS verification. Continue?'))return;
+              const proof=csrfToken,actor=appState.currentUser?.email;
+              button.disabled=true;button.textContent='Saving reported event…';
+              try{
+                const response=await apiFetch('/api/rides/journey',{method:'POST',headers:{'Content-Type':'application/json'},
+                  body:JSON.stringify({rideId:id,action})});
+                const data=await response.json();
+                if(!response.ok){showMutationFailure(response,data,'Milestone not confirmed');return;}
+                await syncUserBookings();
+                if(proof!==csrfToken||appState.currentUser?.email!==actor)return;
+                const actual=appState.myOfferedRides.find(r=>r.id===id);
+                if(actual&&journeyRank(actual.journeyStage)>journeyRank(ride.journeyStage))
+                  showToast('Driver-reported milestone saved and verified.','📍');
+                else showToast('Report received. Refresh My Rides to verify current state.','ℹ️');
+                syncLiveRides();
+              }catch(_){showToast('Milestone not confirmed. Retry the same action.','⚠️');}
+              finally{button.disabled=false;button.textContent=ride?journeySteps[journeyRank(ride.journeyStage)].cta||'Refresh':'Refresh';}
+            });
+          });
 
           driverContainer.querySelectorAll('.cancel-ride-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
@@ -2453,6 +2591,7 @@
         }
         updateDriverCommissionBanner();
       }
+      pendingJourneyAnimations.clear();
     }
 
     function calculateWeeklyCommission() {
