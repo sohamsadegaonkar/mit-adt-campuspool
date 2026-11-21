@@ -327,6 +327,20 @@
 .cp-pin-input{color:#171717;background:#fff;border-radius:8px;padding:10px;width:100%;min-height:44px}
 @media (prefers-reduced-motion:reduce){.cp-pin-panel,.cp-pin-button{animation:none!important;transition:none!important}}
 </style>
+
+<style id="campuspool-pickup-abort">
+.cp-pickup-panel{background:#202020;border:1px solid #6b5a22;border-radius:12px;padding:12px;display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+.cp-pickup-clock{color:#facc15;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
+.cp-pickup-case{color:#facc15;font-size:12px;font-weight:700}
+.cp-pickup-open{background:#facc15;color:#161616;border-radius:9px;font-size:12px;padding:9px 12px;min-height:44px;font-weight:750}
+.cp-pickup-open:disabled{opacity:.45}
+.cp-pickup-safety{background:#303030;color:#fff;border:1px solid #777}
+.cp-pickup-open:focus-visible,.cp-abort-dialog button:focus-visible,.cp-abort-dialog select:focus-visible{outline:3px solid #fff;outline-offset:2px}
+.cp-abort-dialog{background:#171717;color:#fff;border:1px solid #776729;border-radius:18px;padding:20px;width:min(94vw,450px);box-shadow:0 15px 50px #0008}
+.cp-abort-dialog::backdrop{background:#050505b9}
+.cp-abort-dialog select{width:100%;background:#fff;color:#141414;border-radius:8px;padding:12px;min-height:44px}
+@media(prefers-reduced-motion:reduce){.cp-pickup-panel,.cp-abort-dialog{transition:none!important;animation:none!important}}
+</style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-brand-500 selection:text-white radial-bg">
   <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
@@ -1533,6 +1547,27 @@
     </div>
   </div>
 
+
+  <dialog id="pickupAbortDialog" class="cp-abort-dialog" aria-labelledby="pickupAbortTitle" aria-describedby="pickupAbortHelp">
+    <form id="pickupAbortForm" class="space-y-4">
+      <h2 id="pickupAbortTitle" class="text-lg font-extrabold">Pickup still unresolved?</h2>
+      <p id="pickupAbortHelp" class="text-sm text-slate-300">You may abort a pickup attempt after five minutes. No automatic penalty applies.</p>
+      <label for="pickupAbortReason" class="block text-sm font-bold">What happened?</label>
+      <select id="pickupAbortReason" required>
+        <option value="no_response">Other person is not responding</option>
+        <option value="could_not_locate">Could not locate the pickup partner</option>
+        <option value="changed_plans">Other person's plans changed</option>
+        <option value="safety_emergency">Safety or emergency concern</option>
+        <option value="other">Other pickup issue</option>
+      </select>
+      <p class="text-xs text-slate-400">This reports an issue for review. It does not cancel every passenger, release a seat, charge a fee or decide blame.</p>
+      <div class="flex flex-wrap gap-2 justify-end">
+        <button type="button" class="rounded-lg bg-slate-700 text-white px-4 py-3 font-bold" id="pickupAbortKeep" onclick="document.getElementById('pickupAbortDialog').close()">Keep coordinating</button>
+        <button id="pickupAbortSubmit" type="submit" class="cp-pickup-open">Submit pickup report</button>
+      </div>
+    </form>
+  </dialog>
+
   <!-- Toast Notification Alert -->
   <div id="toastNotification" hidden style="display: none;" role="status" aria-live="polite" aria-atomic="true" class="hidden fixed bottom-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 text-xs font-semibold border border-slate-700 fade-in">
     <span id="toastIcon" class="text-base"><svg class="cp-icon" aria-hidden="true"><use href="#cp-bell"></use></svg></span>
@@ -1566,6 +1601,7 @@
       freeRidesPilot: false,
       journeyEnabled: false,
       boardingPinEnabled: false,
+      pickupAbortEnabled: false,
 
       pendingAuth: {
         name: "",
@@ -1581,6 +1617,7 @@
       rides: [],
 
       myBookings: [],
+      myBookingHistory: [],
       myOfferedRides: [],
 
       leaderboard: []
@@ -1758,6 +1795,7 @@
         appState.freeRidesPilot=data.freeRidesPilot===true;
         appState.journeyEnabled=data.journeyEnabled===true;
         appState.boardingPinEnabled=data.boardingPinEnabled===true;
+        appState.pickupAbortEnabled=data.pickupAbortEnabled===true;
         csrfToken = data.csrfToken;
         window.dispatchEvent(new Event('campuspool:session-changed'));
         return true;
@@ -1797,11 +1835,11 @@
     window.addEventListener('campuspool:session-changed',()=>{
       privateReadGeneration++;
       journeyReadReady=false;seenJourneyStages.clear();pendingJourneyAnimations.clear();driverJourneyBookings=[];driverJourneyBookingsKnown=false;
-      if(!appState.currentUser){appState.freeRidesPilot=false;appState.journeyEnabled=false;appState.boardingPinEnabled=false;}
+      if(!appState.currentUser){appState.freeRidesPilot=false;appState.journeyEnabled=false;appState.boardingPinEnabled=false;appState.pickupAbortEnabled=false;}
       applyFreePilotOfferMode();
       lastRidesEtag=null;
       pendingSeatTransitions.clear();
-      appState.rides=[];appState.myBookings=[];appState.myOfferedRides=[];
+      appState.rides=[];appState.myBookings=[];appState.myBookingHistory=[];appState.myOfferedRides=[];pickupServerClockOffset=0;
       appState.selectedRideForBooking=null;appState.selectedBookingForPayment=null;
       renderRidesGrid();renderMyRidesViews();
       hideModal('bookingModal',{restoreFocus:false});hideModal('paymentModal',{restoreFocus:false});
@@ -1859,6 +1897,7 @@
     }
 
     let privateReadGeneration=0;
+    let pickupServerClockOffset=0;
     async function syncUserBookings() {
       if (!appState.currentUser || !csrfToken || !appState.currentUser.email) return;
       const email=appState.currentUser.email, proof=csrfToken, generation=++privateReadGeneration;
@@ -1884,6 +1923,25 @@
             appState.myOfferedRides = rData.rides;
             verifiedOwnerRides=true;
           }
+        }
+        if(!current())return;
+        // A separate authenticated history read preserves cancelled bookings and
+        // never treats their Pending marker as paid, owed, or waived.
+        const hResp=await apiFetch('/api/bookings/history?limit=50');
+        if(hResp.ok){
+          const hData=await hResp.json();
+          if(!current())return;
+          if(Array.isArray(hData.bookings)){
+            const mine=hData.bookings.filter(b=>b.passengerEmail&&b.passengerEmail.toLowerCase()===email.toLowerCase());
+            appState.myBookingHistory=mine.filter(b=>b.status==='cancelled');
+            const indexed=new Map(hData.bookings.map(b=>[b.bookingId,b]));
+            appState.myBookings=appState.myBookings.map(b=>({...b,pickupCase:indexed.get(b.bookingId)?.pickupCase||null}));
+            if(allUserBookings)allUserBookings=allUserBookings.map(b=>({...b,pickupCase:indexed.get(b.bookingId)?.pickupCase||null}));
+            if(Number.isFinite(Date.parse(hData.serverNow)))pickupServerClockOffset=Date.parse(hData.serverNow)-Date.now();
+          }
+        }else if(hResp.status===503){
+          if(!current())return;
+          appState.myBookingHistory=[];
         }
         if(!current())return;
         const sResp = await apiFetch(`/api/user/settlement-status?email=${encodeURIComponent(email)}`);
@@ -2477,6 +2535,7 @@
         ${entries.length ? entries.map(b=>`
           <div class="cp-driver-booking">
             <strong>${sanitize(String(b.passengerName||'Passenger'))}</strong>
+            ${pickupAbortMarkup(b)}
             ${b.boardedAt?'<span class="cp-boarding-status">Boarding PIN verified</span>'
               :ride.journeyStage==='arrived'
                 ?'<span class="cp-boarding-note">Boarding not confirmed — driver reported arrival</span>'
@@ -2491,6 +2550,96 @@
       </section>`;
     }
     // CAMPUSPOOL_BOARDING_END
+
+
+    // CAMPUSPOOL_PICKUP_BEGIN
+    // Client countdown is presentation only. PostgreSQL verifies the deadline.
+    const pickupReasons=new Set(['no_response','could_not_locate','changed_plans','safety_emergency','other']);
+    let pickupAbortCurrent=null;
+    function pickupAbortMarkup(booking){
+      if(!appState.pickupAbortEnabled||booking?.journeyStage!=='pickup_ready'||booking?.boardedAt||booking?.status==='cancelled')return '';
+      const id=sanitize(String(booking.bookingId||''));
+      const timestamp=String(booking.pickupAt||'');
+      const due=Date.parse(timestamp)+300000;
+      if(!Number.isFinite(due))return '';
+      const opened=Boolean(booking.pickupCase?.id);
+      return `<section class="cp-pickup-panel" data-pickup-booking="${id}" data-pickup-due="${sanitize(String(due))}" aria-label="Pickup coordination">
+        <p class="cp-pickup-clock" aria-live="off">Driver-reported pickup: checking five-minute window…</p>
+        <p class="cp-boarding-note">If you can't locate each other, try contacting your confirmed ride partner. The driver-reported time is not proof of presence.</p>
+        ${opened?'<p class="cp-pickup-case">Pickup report received · under review. No penalty applied.</p>'
+          :`<button type="button" class="cp-pickup-open" data-booking-id="${id}" disabled>Abort unresolved pickup</button>`}
+        <button type="button" class="cp-pickup-open cp-pickup-safety" data-booking-id="${id}" data-emergency="true">Report safety issue</button>
+      </section>`;
+    }
+    function updatePickupWaitDisplays(){
+      if(!appState.pickupAbortEnabled||!appState.currentUser)return;
+      document.querySelectorAll('[data-pickup-booking]').forEach(section=>{
+        const due=Number(section.dataset.pickupDue);
+        if(!Number.isFinite(due))return;
+        const remaining=Math.max(0,Math.ceil((due-(Date.now()+pickupServerClockOffset))/1000));
+        const clock=section.querySelector('.cp-pickup-clock');
+        const normal=section.querySelector('.cp-pickup-open:not(.cp-pickup-safety)');
+        if(clock)clock.textContent=remaining
+          ?'Pickup window · '+Math.floor(remaining/60)+':'+String(remaining%60).padStart(2,'0')+' remaining (driver-reported)'
+          :'Five-minute pickup window elapsed. You may request an abort if pickup is unresolved.';
+        if(normal)normal.disabled=remaining>0;
+      });
+    }
+    function openPickupAbortDialog(bookingId,emergency=false){
+      const all=[...appState.myBookings,...driverJourneyBookings];
+      const b=all.find(x=>x.bookingId===bookingId);
+      if(!appState.pickupAbortEnabled||!b||b.status==='cancelled'||b.boardedAt||b.journeyStage!=='pickup_ready')return;
+      const dlg=document.getElementById('pickupAbortDialog');
+      const reason=document.getElementById('pickupAbortReason');
+      if(!dlg||!reason)return;
+      pickupAbortCurrent=bookingId;
+      reason.value=emergency?'safety_emergency':'no_response';
+      document.getElementById('pickupAbortHelp').textContent=emergency
+        ?'Safety first. You may report an emergency immediately; no waiting period or automatic penalty applies.'
+        :'Five minutes is the maximum pickup waiting period. Only report what happened. Deliberately false or repeated unjustified reports may be reviewed; no automatic penalty applies.';
+      document.getElementById('pickupAbortTitle').textContent=emergency?'Report a pickup safety issue':'Pickup still unresolved?';
+      if(typeof dlg.showModal==='function')dlg.showModal();
+    }
+    document.addEventListener('click',event=>{
+      const button=event.target.closest('.cp-pickup-open');
+      if(!button||button.disabled)return;
+      openPickupAbortDialog(button.dataset.bookingId,button.dataset.emergency==='true');
+    });
+    document.getElementById('pickupAbortDialog')?.addEventListener('close',()=>{
+      pickupAbortCurrent=null;
+    });
+    document.getElementById('pickupAbortForm')?.addEventListener('submit',async event=>{
+      event.preventDefault();
+      const bookingId=pickupAbortCurrent,reason=document.getElementById('pickupAbortReason')?.value;
+      if(!bookingId||!pickupReasons.has(reason)||!appState.pickupAbortEnabled)return;
+      const actor=appState.currentUser?.email,proof=csrfToken;
+      const button=document.getElementById('pickupAbortSubmit');
+      button.disabled=true;
+      try{
+        const status=await apiFetch('/api/bookings/pickup-status?bookingId='+encodeURIComponent(bookingId));
+        const snap=await status.json();
+        if(actor!==appState.currentUser?.email||proof!==csrfToken)return;
+        if(!status.ok){showMutationFailure(status,snap,'Pickup status unavailable.');return;}
+        if(reason!=='safety_emergency'&&!snap.eligible){
+          showToast('The server has not completed the five-minute pickup window.','ℹ️');
+          return;
+        }
+        const response=await apiFetch('/api/bookings/pickup-abort',{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({bookingId,reason})
+        });
+        const data=await response.json();
+        if(actor!==appState.currentUser?.email||proof!==csrfToken)return;
+        if(!response.ok){showMutationFailure(response,data,'Pickup report not saved.');return;}
+        document.getElementById('pickupAbortDialog')?.close();
+        await syncUserBookings();
+        if(actor===appState.currentUser?.email&&proof===csrfToken)
+          showToast('Pickup report recorded for review. No penalty or payment change.','ℹ️');
+      }catch(_){showToast('Report not confirmed. Refresh your booking to check status.','⚠️');}
+      finally{button.disabled=false;}
+    });
+    window.setInterval(updatePickupWaitDisplays,1000);
+    // CAMPUSPOOL_PICKUP_END
 
     function renderMyRidesViews() {
       const passengerContainer = document.getElementById('passengerBookingsSection');
@@ -2526,6 +2675,7 @@
                 ${boardingPassMarkup(b)}
                 ${journeyTimelineMarkup(b,pendingJourneyAnimations.get(b.rideId))}
                 ${passengerPinMarkup(b)}
+                ${pickupAbortMarkup(b)}
                 ${b.journeyStage&&b.journeyStage!=='scheduled'?`<p class="text-xs text-slate-300">${b.journeyStage==='arrived'?'Driver reported arrival. This booking remains in your history.':'Booking changes are locked after reported departure. Contact your driver for assistance.'}</p>`:'' }
 
                 <div class="pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
