@@ -9,7 +9,8 @@ const source=html.slice(begin,end)+
   '\nglobalThis.boarding={passengerPinMarkup,driverPinMarkup,boardingStatusMarkup,setRoster:function(items){driverJourneyBookings=items;driverJourneyBookingsKnown=true;}}';
 const sanitize=x=>String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 function fixture(enabled=true){
-  const vmScope={appState:{boardingPinEnabled:enabled},sanitize};
+  // The pickup module renders separately; this test isolates boarding markup.
+  const vmScope={appState:{boardingPinEnabled:enabled},sanitize,pickupAbortMarkup:()=>''};
   vm.runInNewContext(source,vmScope);
   return vmScope.boarding;
 }

@@ -37,6 +37,12 @@ if(RIDES_JOURNEY_ENABLED && RIDES_BACKEND!=='postgres')throw Error('Journey life
 const BOARDING_PIN_ENABLED_VALUE=process.env.BOARDING_PIN_ENABLED||'false';
 if(!['true','false'].includes(BOARDING_PIN_ENABLED_VALUE))throw Error('BOARDING_PIN_ENABLED must be true or false');
 const BOARDING_PIN_ENABLED=BOARDING_PIN_ENABLED_VALUE==='true';
+const PICKUP_ABORT_ENABLED_VALUE=process.env.PICKUP_ABORT_ENABLED||'false';
+if(!['true','false'].includes(PICKUP_ABORT_ENABLED_VALUE))
+  throw Error('PICKUP_ABORT_ENABLED must be true or false');
+const PICKUP_ABORT_ENABLED=PICKUP_ABORT_ENABLED_VALUE==='true';
+if(PICKUP_ABORT_ENABLED && (!BOARDING_PIN_ENABLED||!RIDES_JOURNEY_ENABLED||RIDES_BACKEND!=='postgres'))
+  throw Error('Pickup abort requires PostgreSQL ride journeys and in-app boarding PIN');
 if(BOARDING_PIN_ENABLED && (!RIDES_JOURNEY_ENABLED||RIDES_BACKEND!=='postgres'))
   throw Error('Boarding PIN requires PostgreSQL rides and journey reporting');
 const FREE_RIDES_PILOT_VALUE=process.env.FREE_RIDES_PILOT||'false';
@@ -46,8 +52,8 @@ if(FREE_RIDES_PILOT && RIDES_BACKEND!=='postgres')throw Error('Free rides pilot 
 const CAMPUS_WIFI_FAIRNESS = process.env.CAMPUS_WIFI_FAIRNESS === 'true';
 if (CAMPUS_WIFI_FAIRNESS && RIDES_BACKEND !== 'postgres')
   throw new Error('Campus Wi-Fi fairness requires PostgreSQL Rides');
-const FAIR_READ_PATHS = new Set(['/api/rides','/api/bookings','/api/my-rides','/api/user/settlement-status']);
-const FAIR_WRITE_PATHS = new Set(['/api/rides','/api/bookings','/api/rides/cancel','/api/bookings/cancel','/api/rides/journey','/api/bookings/boarding-pin','/api/bookings/verify-boarding-pin']);
+const FAIR_READ_PATHS = new Set(['/api/rides','/api/bookings','/api/my-rides','/api/user/settlement-status','/api/bookings/history','/api/bookings/pickup-status']);
+const FAIR_WRITE_PATHS = new Set(['/api/rides','/api/bookings','/api/rides/cancel','/api/bookings/cancel','/api/rides/journey','/api/bookings/boarding-pin','/api/bookings/verify-boarding-pin','/api/bookings/pickup-abort']);
 const MOBILITY_MATCHING_ENABLED = process.env.MOBILITY_MATCHING_ENABLED === 'true';
 if(FREE_RIDES_PILOT && MOBILITY_MATCHING_ENABLED)throw Error('Free rides pilot requires mobility matching disabled');
 // Cost-bearing Places calls stay OFF without an explicitly approved server flag.
@@ -207,7 +213,7 @@ const gpsCleanupTimer=setInterval(pruneGps,30000);gpsCleanupTimer.unref();
 const pgOtpStore = AUTH_OTP_BACKEND === 'postgres' ? new PgOtpStore() : null;
 const pgIdentity = pgOtpStore ? new PgIdentity(pgOtpStore) : null;
 const pgRidesStore = RIDES_BACKEND === 'postgres'
-  ? new PgRidesStore({pool:pgOtpStore.pool,freePilot:FREE_RIDES_PILOT,journeyEnabled:RIDES_JOURNEY_ENABLED,boardingPinEnabled:BOARDING_PIN_ENABLED,boardingPinKey:OTP_SECRET}) : null;
+  ? new PgRidesStore({pool:pgOtpStore.pool,freePilot:FREE_RIDES_PILOT,journeyEnabled:RIDES_JOURNEY_ENABLED,boardingPinEnabled:BOARDING_PIN_ENABLED,boardingPinKey:OTP_SECRET,pickupAbortEnabled:PICKUP_ABORT_ENABLED}) : null;
 const pgMobilityStore = MOBILITY_MATCHING_ENABLED
   ? new PgMobilityStore({pool:pgOtpStore.pool}) : null;
 const pgIdempotency = pgRidesStore ? new PgIdempotencyStore(pgOtpStore.pool) : null;
@@ -670,7 +676,7 @@ const server = http.createServer(async (req, res) => {
   }
   function historicalBooking(booking){
     const result=pick(booking,['bookingId','rideId','passengerName','driverName','dept',
-      'vehicleModel','pickup','destination','departureTime','studentFare','paymentStatus','paymentMode','journeyStage','departedAt','pickupAt','arrivedAt','boardedAt','createdAt']);
+      'vehicleModel','pickup','destination','departureTime','studentFare','paymentStatus','paymentMode','journeyStage','departedAt','pickupAt','arrivedAt','boardedAt','createdAt','status','cancelledAt','pickupCase']);
     if(isSelf(booking.passengerEmail))result.passengerEmail=booking.passengerEmail;
     return result;
   }
@@ -823,7 +829,7 @@ const server = http.createServer(async (req, res) => {
     if (!authenticatedUser) {
       return sendJson(401, { success: false, error: 'AUTH_REQUIRED' });
     }
-    return sendJson(200, { success: true, user: authenticatedUser, csrfToken: csrfForSession(sessionToken), freeRidesPilot:FREE_RIDES_PILOT,journeyEnabled:RIDES_JOURNEY_ENABLED,boardingPinEnabled:BOARDING_PIN_ENABLED });
+    return sendJson(200, { success: true, user: authenticatedUser, csrfToken: csrfForSession(sessionToken), freeRidesPilot:FREE_RIDES_PILOT,journeyEnabled:RIDES_JOURNEY_ENABLED,boardingPinEnabled:BOARDING_PIN_ENABLED,pickupAbortEnabled:PICKUP_ABORT_ENABLED });
   }
   if (pathname.startsWith('/api/') && (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE')
     && authenticatedUser && (!pathname.startsWith('/api/auth/') || pathname === '/api/auth/logout')
@@ -1673,6 +1679,58 @@ const server = http.createServer(async (req, res) => {
       const known=err instanceof RidesError;
       return sendJson(known?err.status:500,{success:false,
         error:known?err.code:'DATABASE_ERROR'});
+    }
+  }
+
+
+  // Private history includes cancelled rows: a cancellation never deletes a
+  // legacy Pending marker or makes it a collectible debt.
+  if(method==='GET' && pathname==='/api/bookings/history'){
+    if(!pgRidesStore)return sendJson(503,{success:false,error:'HISTORY_REQUIRES_POSTGRES'});
+    const limit=parsedUrl.query?.limit===undefined?30:Number(parsedUrl.query.limit);
+    const offset=parsedUrl.query?.offset===undefined?0:Number(parsedUrl.query.offset);
+    try{
+      const history=await pgRidesStore.getBookingHistory(authenticatedUser.id,{limit,offset});
+      return sendJson(200,{success:true,bookings:history.map(historicalBooking),
+        limit,offset,serverNow:new Date().toISOString(),
+        message:'Cancelled Pending records remain visible for review; not a bill or a waiver.'});
+    }catch(err){
+      if(PgPoolBusyError&&err instanceof PgPoolBusyError)throw err;
+      const known=err instanceof RidesError;
+      return sendJson(known?err.status:500,{success:false,error:known?err.code:'DATABASE_ERROR'});
+    }
+  }
+
+  if(method==='GET' && pathname==='/api/bookings/pickup-status'){
+    if(!PICKUP_ABORT_ENABLED||!pgRidesStore)
+      return sendJson(503,{success:false,error:'PICKUP_ABORT_NOT_ENABLED'});
+    try{
+      const status=await pgRidesStore.pickupWaitStatus({
+        bookingId:parsedUrl.query?.bookingId,actorUserId:authenticatedUser.id});
+      return sendJson(200,{success:true,...status});
+    }catch(err){
+      if(PgPoolBusyError&&err instanceof PgPoolBusyError)throw err;
+      const known=err instanceof RidesError;
+      return sendJson(known?err.status:500,{success:false,error:known?err.code:'DATABASE_ERROR'});
+    }
+  }
+
+  // This creates a booking-scoped, reviewable *claim* only.
+  // No cancellation, no fee, no strike, no reputation and no seat release.
+  if(method==='POST' && pathname==='/api/bookings/pickup-abort'){
+    if(!PICKUP_ABORT_ENABLED||!pgRidesStore)
+      return sendJson(503,{success:false,error:'PICKUP_ABORT_NOT_ENABLED'});
+    const body=await parseBody();
+    try{
+      return await executeIdempotentMutation(pathname,body,client=>
+        pgRidesStore.reportPickupAbort({
+          bookingId:body.bookingId,reason:body.reason,
+          actorUserId:authenticatedUser.id,client
+        }).then(result=>({status:200,body:{success:true,...result}})));
+    }catch(err){
+      if(PgPoolBusyError&&err instanceof PgPoolBusyError)throw err;
+      const known=err instanceof RidesError;
+      return sendJson(known?err.status:500,{success:false,error:known?err.code:'DATABASE_ERROR'});
     }
   }
 

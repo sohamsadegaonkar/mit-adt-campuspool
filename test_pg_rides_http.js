@@ -22,7 +22,8 @@ const gps=process.env.RIDES_HTTP_GPS_DISPOSABLE_DB==='YES';
 const pilot=process.env.RIDES_HTTP_FREE_PILOT_DISPOSABLE_DB==='YES';
 const journey=process.env.RIDES_HTTP_JOURNEY_DISPOSABLE_DB==='YES';
 const boarding=process.env.RIDES_HTTP_BOARDING_DISPOSABLE_DB==='YES';
-if(stress||rush||fairness||privacy||gps||pilot||journey||boarding){
+const pickup=process.env.RIDES_HTTP_PICKUP_DISPOSABLE_DB==='YES';
+if(stress||rush||fairness||privacy||gps||pilot||journey||boarding||pickup){
   assert.ok(url,'Stress requires disposable PostgreSQL');
   const u=new URL(url);
   assert.ok(['postgres:','postgresql:'].includes(u.protocol));
@@ -58,12 +59,12 @@ function waitForServer(child){
     child.once('exit',code=>{clearTimeout(timer);reject(Error('server exited '+code+': '+output.slice(-600)))});
   });
 }
-test(boarding?'Boarding PIN: passenger-specific private in-app verification':journey?'Journey milestones: authenticated driver-reported events':pilot?'Free rides pilot: no new debt, legacy obligations retained':gps?'Smart GPS Privacy: explicit leases and freshness':privacy?'Privacy Shield: discovery, participants and historical receipts':fairness?'Campus Wi-Fi fairness: verified actors and IP hard ceilings':rush?'Campus Rush Hour: sustained real HTTP load':'HTTP rides and bookings switch to verified PostgreSQL user identities',
+test(pickup?'Pickup abort: five-minute mutual deadline, private case and cancelled booking history':boarding?'Boarding PIN: passenger-specific private in-app verification':journey?'Journey milestones: authenticated driver-reported events':pilot?'Free rides pilot: no new debt, legacy obligations retained':gps?'Smart GPS Privacy: explicit leases and freshness':privacy?'Privacy Shield: discovery, participants and historical receipts':fairness?'Campus Wi-Fi fairness: verified actors and IP hard ceilings':rush?'Campus Rush Hour: sustained real HTTP load':'HTTP rides and bookings switch to verified PostgreSQL user identities',
  {skip:!url?'requires local isolated CI PostgreSQL':false,timeout:180000},async t=>{
   await migrate({connectionString:url,ssl:false});
   const pool=new Pool({connectionString:url,ssl:false});
   const temp=fs.mkdtempSync(path.join(os.tmpdir(),'cp-rides-http-'));
-  const ids=Array.from({length:rush?96:fairness?8:pilot?7:boarding?5:journey?5:privacy||gps?4:stress?6:2},()=>crypto.randomUUID());
+  const ids=Array.from({length:rush?96:fairness?8:pilot?7:pickup?5:boarding?5:journey?5:privacy||gps?4:stress?6:2},()=>crypto.randomUUID());
   const email=i=>'rides-http-'+crypto.randomBytes(6).toString('hex')+'@students.mituniversity.edu.in';
   const emails=ids.map((_,i)=>email(i));
   const phoneBase=crypto.randomInt(1000000,9000000);
@@ -80,7 +81,7 @@ test(boarding?'Boarding PIN: passenger-specific private in-app verification':jou
     if(!anonymous)headers.Cookie='cp_session='+tokens[user];
     if(body!==undefined)headers['Content-Type']='application/json';
     if(csrf)headers['x-csrf-token']=csrf;
-    if(method==='POST' && ['/api/rides','/api/bookings','/api/rides/cancel','/api/bookings/cancel','/api/rides/journey','/api/bookings/verify-boarding-pin'].includes(endpoint))
+    if(method==='POST' && ['/api/rides','/api/bookings','/api/rides/cancel','/api/bookings/cancel','/api/rides/journey','/api/bookings/verify-boarding-pin','/api/bookings/pickup-abort'].includes(endpoint))
       headers['Idempotency-Key']=idempotencyKey||crypto.randomUUID();
     const response=await fetch(base+endpoint,{method,headers,signal:AbortSignal.timeout(15000),body:body===undefined?undefined:JSON.stringify(body)});
     let json;try{json=await response.json();}catch{json=null;}
@@ -106,9 +107,14 @@ test(boarding?'Boarding PIN: passenger-specific private in-app verification':jou
         OTP_SECRET:crypto.randomBytes(32).toString('hex'),ENABLE_CLUSTER:'false',
         DATABASE_PATH:path.join(temp,'ephemeral.db'),
         EMAIL_PROVIDER:'disabled',SMS_PROVIDER:'disabled',PGAPPNAME:appName,
-        CAMPUS_WIFI_FAIRNESS:fairness?'true':'false',FREE_RIDES_PILOT:pilot?'true':'false',RIDES_JOURNEY_ENABLED:journey||boarding?'true':'false',BOARDING_PIN_ENABLED:boarding?'true':'false',MOBILITY_MATCHING_ENABLED:'false',TRUSTED_PROXY_ADDRESSES:''
+        CAMPUS_WIFI_FAIRNESS:fairness?'true':'false',FREE_RIDES_PILOT:pilot?'true':'false',RIDES_JOURNEY_ENABLED:journey||boarding||pickup?'true':'false',BOARDING_PIN_ENABLED:boarding||pickup?'true':'false',PICKUP_ABORT_ENABLED:pickup?'true':'false',MOBILITY_MATCHING_ENABLED:'false',TRUSTED_PROXY_ADDRESSES:''
       },stdio:rush?['ignore','pipe','pipe','ipc']:['ignore','pipe','pipe']});
     await waitForServer(child);
+    if(pickup){
+      child.stdout.on('data',()=>{});
+      await require('./bench/campus-pickup-abort').runPickupAbort({t,pool,ids,request});
+      return;
+    }
     if(boarding){
       child.stdout.on('data',()=>{});
       await require('./bench/campus-boarding-pin').runBoardingPin({t,pool,ids,request});
@@ -443,6 +449,19 @@ test(boarding?'Boarding PIN: passenger-specific private in-app verification':jou
         child.once('exit',()=>{clearTimeout(timer);resolve()});
       });
     }
+    // CI-only order: protected case/event history intentionally uses RESTRICT.
+    // Clean synthetic audit children explicitly before synthetic booking parents.
+    await pool.query([
+      'DELETE FROM public.campus_booking_case_events e USING public.campus_booking_cases c,',
+      'public.campus_bookings b,public.campus_rides r',
+      'WHERE e.case_id=c.id AND c.booking_id=b.booking_id AND b.ride_id=r.id',
+      'AND r.driver_user_id=ANY($1::uuid[])'
+    ].join(' '),[ids]);
+    await pool.query([
+      'DELETE FROM public.campus_booking_cases c USING public.campus_bookings b,public.campus_rides r',
+      'WHERE c.booking_id=b.booking_id AND b.ride_id=r.id',
+      'AND r.driver_user_id=ANY($1::uuid[])'
+    ].join(' '),[ids]);
     await pool.query('DELETE FROM public.campus_bookings WHERE ride_id IN (SELECT id FROM public.campus_rides WHERE driver_user_id=ANY($1::uuid[]))',[ids]);
     await pool.query('DELETE FROM public.campus_rides WHERE driver_user_id=ANY($1::uuid[])',[ids]);
     await pool.query('DELETE FROM public.campus_sessions WHERE user_id=ANY($1::uuid[])',[ids]);
