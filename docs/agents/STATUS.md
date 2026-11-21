@@ -387,3 +387,5 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 
 
 - **PR #59 code 091a1ac CI passed (21 Nov 2026):** motion VM 7/7, browser idempotency 12/12, GPS VM 3/3, Rush 3880/3880 (zero unexpected; 47 invariant snapshots), browser E2E 30. Draft/unmerged; physical Android and accessibility review pending. [Task](tasks/2026-11-21-campuspool-motion-boarding-pass.md). [Motion language](MOTION_LANGUAGE.md).
+
+- **Journey draft only (21 Nov):** new driver-reported PG state and 010 migration candidate. Not tested or deployed. [Task](tasks/2026-11-21-journey-state-machine.md).
