@@ -2124,13 +2124,13 @@
             <div class="cp-pass-place"><small>TO</small><strong>${sanitize(b.destination)}</strong></div>
           </div>
           <div class="cp-pass-facts">
-            <span>DEPARTURE · ${sanitize(String(b.departureTime||''))"}</span>
-            <span>${free?'FREE SEAT · ₹0':'FARE · ₹'+sanitize(String(b.studentFare))"}</span>
+            <span>DEPARTURE · ${sanitize(String(b.departureTime||''))}</span>
+            <span>${free?'FREE SEAT · ₹0':'FARE · ₹'+sanitize(String(b.studentFare))}</span>
           </div>
         </div>
         <div class="cp-pass-perforation" aria-hidden="true">BOARDING PASS ${sanitize(reference)}</div>
         <div class="cp-pass-info">
-          <strong>${sanitize(b.driverName)}</strong> · ${sanitize(b.vehicleModel)}" } · pickup coordination only.
+          <strong>${sanitize(b.driverName)}</strong> · ${sanitize(b.vehicleModel)} · pickup coordination only.
           <span class="block mt-1 cp-pass-payment">${free?'No payment required':b.paymentStatus==='Pending'?'Payment pending · verification unavailable':'Payment status: '+sanitize(String(b.paymentStatus||'Unknown'))}</span>
         </div>
       `;

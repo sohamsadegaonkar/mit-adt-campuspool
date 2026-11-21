@@ -53,3 +53,5 @@ No real movement/progress animation until a trustworthy journey lifecycle exists
 2. Independent reviewer inspects booking+logout races and low-end mobile behavior; verify contrast, focus, WCAG reduced-motion and text scaling.
 3. Review and integrate stacked PRs; do not deploy or enable pilot based on this UI work. Next design independent ride lifecycle events if backend state is implemented and measured.
 4. Files changed: index.html, test_browser_motion.js, .github/workflows/stage1-otp.yml, docs/agents/STATUS.md, NEXT_STEPS.md, task file; no runtime server/schema change.
+
+- 2026-11-21 IST — corrected three template literal interpolation syntax errors before PR; inline script parse checkpoint: Inline classic JavaScript parsed with Function. New VM/CI still required.
