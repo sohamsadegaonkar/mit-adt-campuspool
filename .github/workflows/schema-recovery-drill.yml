@@ -20,10 +20,18 @@ permissions:
 jobs:
   disposable-recovery:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - postgres_major: 16
+            postgis_image: postgis/postgis:16-3.4
+          - postgres_major: 17
+            postgis_image: postgis/postgis:17-3.5
     services:
       postgres:
-        image: postgis/postgis:16-3.4
+        image: ${{ matrix.postgis_image }}
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: stage1-ci-only
@@ -54,11 +62,38 @@ jobs:
           node -e "const {Client}=require('pg');(async()=>{const c=new Client({connectionString:process.env.OTP_DATABASE_URL});await c.connect();try{await c.query('DROP EXTENSION IF EXISTS postgis CASCADE; CREATE SCHEMA IF NOT EXISTS extensions;')}finally{await c.end();}})().catch(e=>{console.error(e.message);process.exit(1)})"
       - name: Locate container-bound PostgreSQL 16 backup tools
         run: |
-          CID="$(docker ps --quiet --filter ancestor=postgis/postgis:16-3.4 | head -n 1)"
+          CID="$(docker ps --quiet --filter "ancestor=${{ matrix.postgis_image }}" | head -n 1)"
           test -n "$CID"
           echo "POSTGIS_CI_CONTAINER_ID=$CID" >> "$GITHUB_ENV"
+          echo "EXPECTED_PG_MAJOR=${{ matrix.postgres_major }}" >> "$GITHUB_ENV"
           docker exec "$CID" pg_dump --version
           docker exec "$CID" pg_restore --version
+          docker exec "$CID" psql -U postgres -d campuspool_stage1_ci -qAt -c 'SHOW server_version_num' | grep -E '^${{ matrix.postgres_major }}[0-9]{4}
+      - name: Syntax and offline migration-state guards
+        run: |
+          node --check scripts/migration-008-014-preflight.js
+          node --check scripts/recovery-g1-evidence-preflight.js
+          node --check test_recovery_g1_evidence_preflight.js
+          node --test test_recovery_g1_evidence_preflight.js
+          node --check test_migration_008_014_preflight.js
+          node --check test_pg_migration_recovery_drill.js
+          node --test test_migration_008_014_preflight.js
+      - name: Migrate only isolated local CI database and read back schema 014
+        run: |
+          node stage1-otp/migrate.js
+          SCHEMA_RECOVERY_SCHEMA_READY=YES node --test test_migration_008_014_preflight.js
+          node scripts/migration-008-014-preflight.js --expected-stage=014
+      - name: Perform independent synthetic 007 and 014 archive restore
+        run: |
+          node --test test_pg_migration_recovery_drill.js
+      - name: Assert no real cloud backup or release authorization
+        run: |
+          echo "SYNTHETIC_RECOVERY_ONLY=YES"
+          echo "STAGING_DATABASE_CONNECTED=NO"
+          echo "AZURE_BACKUP_RETRIEVED=NO"
+          echo "OFFSITE_RESTORE_G1_VERIFIED=NO"
+          echo "NO_PRODUCTION_MIGRATION_OR_ROLLBACK=YES"
+
       - name: Syntax and offline migration-state guards
         run: |
           node --check scripts/migration-008-014-preflight.js
