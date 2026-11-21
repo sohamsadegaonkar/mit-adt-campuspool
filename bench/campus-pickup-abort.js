@@ -451,24 +451,50 @@ async function runPickupAbort({t,pool,ids,request}){
    "SELECT relrowsecurity FROM pg_class WHERE oid='public.campus_case_reviewer_grants'::regclass");
  assert.equal(grantRls.rows[0].relrowsecurity,true);
 
- // A case cannot be considered reviewed solely from an unsupported
- // one-party allegation. Create one more disposable ride after old checks.
- const oneSidedRide=await create();
- assert.equal(oneSidedRide.status,201,JSON.stringify(oneSidedRide.body));
- const oneSidedBook=await book(2,oneSidedRide.body.ride.id);
- assert.equal(oneSidedBook.status,201,JSON.stringify(oneSidedBook.body));
- const loneBooking=oneSidedBook.body.booking.bookingId;
- assert.equal((await claim(2,loneBooking,'safety_emergency')).status,200);
- const premature=await review(3,loneBooking,'no_action');
- assert.equal(premature.status,409);
- assert.equal(premature.body.error,'BOTH_PARTIES_NOT_HEARD');
- assert.equal((await reply(0,loneBooking,'attempted_contact')).status,200);
- assert.equal((await review(3,loneBooking,'no_action')).status,200);
- assert.equal((await caseRead(2,loneBooking)).body.review.code,'no_action');
- const postReviewStatus=await request('/api/user/settlement-status',{user:2});
- assert.equal(postReviewStatus.status,200);
- assert.ok(postReviewStatus.body.reviewRequiredBookings.some(x=>x.bookingId===loneBooking));
- assert.equal(postReviewStatus.body.commissionDue,0);
+ // Test one-sided decision gating directly against the same disposable
+ // PostgreSQL store. Do not bypass or weaken the real HTTP mutation limiter:
+ // the preceding HTTP security tests intentionally consume its actor budget.
+ const directStore=new PgRidesStore({
+   pool,journeyEnabled:true,boardingPinEnabled:true,
+   boardingPinKey:'ci-synthetic-only-private-key-abcdef0123456789',
+   pickupAbortEnabled:true,caseResponseEnabled:true,caseReviewEnabled:true
+ });
+ await directStore.ready();
+ const created=await directStore.createRide({
+   driverUserId:ids[0],ride:{
+     vehicle:'Car',vehicleModel:'CI hatch',pickup:'CI gate',
+     destination:'CI station',departureTime:'2027-01-02T09:00:00',
+     seatsTotal:2,uberBenchmark:100,studentFare:30,driverPayout:27,upiId:''
+   }
+ });
+ const booking=await directStore.bookRide({
+   rideId:created.id,passengerUserId:ids[2]
+ });
+ const loneBooking=booking.bookingId;
+ await directStore.reportPickupAbort({
+   bookingId:loneBooking,actorUserId:ids[2],reason:'safety_emergency'
+ });
+ await assert.rejects(
+   directStore.recordReview({
+     bookingId:loneBooking,reviewerUserId:ids[3],code:'no_action'
+   }),
+   error=>error.code==='BOTH_PARTIES_NOT_HEARD',
+   'one-sided claims cannot become review decisions'
+ );
+ const otherStatement=await directStore.respondToBookingCase({
+   bookingId:loneBooking,actorUserId:ids[0],code:'attempted_contact'
+ });
+ assert.equal(otherStatement.recorded,true);
+ const afterBoth=await directStore.recordReview({
+   bookingId:loneBooking,reviewerUserId:ids[3],code:'no_action'
+ });
+ assert.equal(afterBoth.recorded,true);
+ assert.equal((await directStore.getBookingCase({
+   bookingId:loneBooking,actorUserId:ids[2]
+ })).review.code,'no_action');
+ const postReviewStatus=await directStore.checkUserSettlementBlock(ids[2]);
+ assert.ok(postReviewStatus.reviewRequiredBookings.some(x=>x.bookingId===loneBooking));
+ assert.equal(postReviewStatus.commissionDue,0);
 
  t.diagnostic('CAMPUS_CASE_REVIEW_APPEALS_RESULT '+JSON.stringify({
    disposableOnly:true,actors:ids.length,
