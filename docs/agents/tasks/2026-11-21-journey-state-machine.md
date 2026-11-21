@@ -45,3 +45,5 @@ PostgreSQL-backed, driver-attested scheduled -> departed -> pickup_ready -> arri
 - 2026-11-21 UTC — UI driver report button with parked-only confirmation, server re-read of milestone; yellow-black timeline for driver and active passengers from persisted timestamps, replay/real-state distinction; browser VM pending.
 
 - 2026-11-21 UTC — new VM test verifies initial timeline is static, real server snapshot changes only, false-progress guards, reduced-motion and script syntax. Owner/booking refresh both required before status animation.
+
+- 2026-11-21 UTC — reviewed access side channels: unauthorized cancellation must yield 403 before revealing journey stage. Added outsider regression before stage check. Exact-head CI pending rerun.

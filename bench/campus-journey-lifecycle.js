@@ -36,6 +36,8 @@ async function runJourney({t,pool,ids,request}){
   const lateBooking=await request('/api/bookings',{method:'POST',user:2,csrf:csrf[2],body:{rideId:rid}});
   assert.equal(lateBooking.status,409);assert.equal(lateBooking.body.error,'JOURNEY_BOOKING_CLOSED');
   const before=(await pool.query('SELECT seats_left FROM public.campus_rides WHERE id=$1',[rid])).rows[0].seats_left;
+  const unauthorizedCancel=await request('/api/bookings/cancel',{method:'POST',user:2,csrf:csrf[2],body:{bookingId:bid}});
+  assert.equal(unauthorizedCancel.status,403,'outsider cannot infer lifecycle status from cancellation');
   const lateCancel=await request('/api/bookings/cancel',{method:'POST',user:1,csrf:csrf[1],body:{bookingId:bid}});
   assert.equal(lateCancel.status,409);assert.equal(lateCancel.body.error,'JOURNEY_ALREADY_STARTED');
   assert.equal((await pool.query('SELECT seats_left FROM public.campus_rides WHERE id=$1',[rid])).rows[0].seats_left,before);

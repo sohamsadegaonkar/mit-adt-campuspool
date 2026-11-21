@@ -204,12 +204,12 @@ class PgRidesStore {
         'SELECT ride_id FROM public.campus_bookings WHERE booking_id=$1',[bookingId]);
       if(!found.rows.length)throw new RidesError('BOOKING_NOT_FOUND',404);
       const lockedRide=await client.query('SELECT journey_stage FROM public.campus_rides WHERE id=$1 FOR UPDATE',[found.rows[0].ride_id]);
-      if(lockedRide.rows[0]?.journey_stage!=='scheduled')throw new RidesError('JOURNEY_ALREADY_STARTED',409);
       const current=await client.query(
         'SELECT * FROM public.campus_bookings WHERE booking_id=$1 FOR UPDATE',[bookingId]);
       const booking=current.rows[0];
       if(!booking||booking.status!=='active')throw new RidesError('BOOKING_NOT_FOUND',404);
       if(booking.passenger_user_id!==passengerUserId)throw new RidesError('NOT_BOOKING_PASSENGER',403);
+      if(lockedRide.rows[0]?.journey_stage!=='scheduled')throw new RidesError('JOURNEY_ALREADY_STARTED',409);
       await client.query(
         "UPDATE public.campus_bookings SET status='cancelled',cancelled_at=now() WHERE booking_id=$1",
         [bookingId]);
