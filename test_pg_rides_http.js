@@ -81,7 +81,7 @@ test(pickup?'Pickup abort: five-minute mutual deadline, private case and cancell
     if(!anonymous)headers.Cookie='cp_session='+tokens[user];
     if(body!==undefined)headers['Content-Type']='application/json';
     if(csrf)headers['x-csrf-token']=csrf;
-    if(method==='POST' && ['/api/rides','/api/bookings','/api/rides/cancel','/api/bookings/cancel','/api/rides/journey','/api/bookings/verify-boarding-pin','/api/bookings/pickup-abort'].includes(endpoint))
+    if(method==='POST' && ['/api/rides','/api/bookings','/api/rides/cancel','/api/bookings/cancel','/api/rides/journey','/api/bookings/verify-boarding-pin','/api/bookings/pickup-abort','/api/bookings/cases/respond'].includes(endpoint))
       headers['Idempotency-Key']=idempotencyKey||crypto.randomUUID();
     const response=await fetch(base+endpoint,{method,headers,signal:AbortSignal.timeout(15000),body:body===undefined?undefined:JSON.stringify(body)});
     let json;try{json=await response.json();}catch{json=null;}
@@ -107,7 +107,7 @@ test(pickup?'Pickup abort: five-minute mutual deadline, private case and cancell
         OTP_SECRET:crypto.randomBytes(32).toString('hex'),ENABLE_CLUSTER:'false',
         DATABASE_PATH:path.join(temp,'ephemeral.db'),
         EMAIL_PROVIDER:'disabled',SMS_PROVIDER:'disabled',PGAPPNAME:appName,
-        CAMPUS_WIFI_FAIRNESS:fairness?'true':'false',FREE_RIDES_PILOT:pilot?'true':'false',RIDES_JOURNEY_ENABLED:journey||boarding||pickup?'true':'false',BOARDING_PIN_ENABLED:boarding||pickup?'true':'false',PICKUP_ABORT_ENABLED:pickup?'true':'false',MOBILITY_MATCHING_ENABLED:'false',TRUSTED_PROXY_ADDRESSES:''
+        CAMPUS_WIFI_FAIRNESS:fairness?'true':'false',FREE_RIDES_PILOT:pilot?'true':'false',RIDES_JOURNEY_ENABLED:journey||boarding||pickup?'true':'false',BOARDING_PIN_ENABLED:boarding||pickup?'true':'false',PICKUP_ABORT_ENABLED:pickup?'true':'false',CASE_RESPONSE_ENABLED:pickup?'true':'false',MOBILITY_MATCHING_ENABLED:'false',TRUSTED_PROXY_ADDRESSES:''
       },stdio:rush?['ignore','pipe','pipe','ipc']:['ignore','pipe','pipe']});
     await waitForServer(child);
     if(pickup){
@@ -449,6 +449,13 @@ test(pickup?'Pickup abort: five-minute mutual deadline, private case and cancell
         child.once('exit',()=>{clearTimeout(timer);resolve()});
       });
     }
+    // Only synthetic CI identities: response rows have RESTRICT FKs to case.
+    await pool.query([
+      'DELETE FROM public.campus_booking_case_responses x',
+      'USING public.campus_booking_cases c,public.campus_bookings b,public.campus_rides r',
+      'WHERE x.case_id=c.id AND c.booking_id=b.booking_id AND b.ride_id=r.id',
+      'AND r.driver_user_id=ANY($1::uuid[])'
+    ].join(' '),[ids]);
     // CI-only order: protected case/event history intentionally uses RESTRICT.
     // Clean synthetic audit children explicitly before synthetic booking parents.
     await pool.query([
