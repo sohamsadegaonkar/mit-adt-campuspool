@@ -3,7 +3,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
-const {validateTarget,parseArgs,assessPlan}=require('./scripts/reviewer-onboarding-preflight');
+const {validateTarget,parseArgs,checkReadApproval,assessPlan}=require('./scripts/reviewer-onboarding-preflight');
 const project='tnitksrlntrdxbvznxzf';
 const uuid='d2ef39d1-c9f4-4dc0-9a06-bad3d6dcf1c4';
 const now=Date.parse('2026-11-21T10:00:00Z');
@@ -54,6 +54,15 @@ test('only exact local CI and dedicated staging can be read; production and TLS 
    'postgresql://campuspool_staging_app@db.'+project+'.supabase.co/postgres'
  ])assert.throws(()=>validateTarget(bad),'must reject unapproved target');
 });
+test('staging read requires explicit owner opt-in even when credentials are present',()=>{
+ const staging={kind:'staging',database:'postgres',ssl:true};
+ const local={kind:'disposable',database:'campuspool_stage1_ci',ssl:false};
+ assert.throws(()=>checkReadApproval(staging,{}),/opt-in/);
+ assert.throws(()=>checkReadApproval(staging,{REVIEWER_STAGING_READ_APPROVED:'true'}),/opt-in/);
+ assert.doesNotThrow(()=>checkReadApproval(staging,{REVIEWER_STAGING_READ_APPROVED:'YES'}));
+ assert.doesNotThrow(()=>checkReadApproval(local,{}));
+});
+
 test('requires explicit bounded role, UUID, approval, action and UTC expiry; never accepts apply',()=>{
  assert.equal(parseArgs(args(),now).role,'case_reviewer');
  assert.equal(parseArgs(args('revoke'),now).expiresAt,null);
