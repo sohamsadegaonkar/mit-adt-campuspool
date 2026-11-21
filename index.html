@@ -360,6 +360,11 @@
 #caseResponseCode{width:100%;min-height:44px;border-radius:8px;padding:10px;background:#fff;color:#151515}
 @media(prefers-reduced-motion:reduce){#caseResponseDialog{animation:none!important;transition:none!important}}
 </style>
+<style id="campuspool-case-appeals">
+#caseAppealForm[hidden],#caseReviewStatus[hidden]{display:none}
+#caseAppealReason{width:100%;min-height:44px;border-radius:8px;padding:10px;background:#fff;color:#151515}
+#caseAppealReason:focus-visible{outline:3px solid #fff;outline-offset:2px}
+</style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-brand-500 selection:text-white radial-bg">
   <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
@@ -1574,6 +1579,20 @@
       <p id="caseResponseHelp" class="text-sm text-slate-300">These are unverified reports. No participant can decide fault or change payments here.</p>
       <p id="caseResponseState" class="text-xs text-amber-300" role="status">Retrieving case…</p>
       <ol id="caseResponseTimeline" aria-label="Pickup case statements" class="cp-case-events"></ol>
+      <p id="caseReviewStatus" role="status" class="text-xs text-amber-300" hidden></p>
+      <ol id="caseAppealHistory" aria-label="Your appeals and review outcomes" class="cp-case-events"></ol>
+      <form id="caseAppealForm" class="space-y-3" hidden>
+        <label class="text-sm font-bold block" for="caseAppealReason">Request independent appeal review</label>
+        <select id="caseAppealReason" required>
+          <option value="missing_evidence">Important evidence was not considered</option>
+          <option value="mistaken_identity">The report concerns the wrong person</option>
+          <option value="technical_issue">A technical problem affected the pickup</option>
+          <option value="safety_context">There was a safety concern</option>
+          <option value="other">Other reason for reconsideration</option>
+        </select>
+        <p class="text-xs text-slate-400">One appeal per person. This does not charge, forgive or penalize anyone, and no reply time is guaranteed.</p>
+        <button type="submit" id="caseAppealSubmit" class="cp-pickup-open">Submit appeal request</button>
+      </form>
       <form id="caseResponseForm" class="space-y-3" hidden>
         <label class="text-sm font-bold block" for="caseResponseCode">Your response</label>
         <select id="caseResponseCode" required>
@@ -1646,6 +1665,7 @@
       boardingPinEnabled: false,
       pickupAbortEnabled: false,
       caseResponseEnabled: false,
+      caseReviewEnabled: false,
 
       pendingAuth: {
         name: "",
@@ -1692,7 +1712,7 @@
     // random keys and expiry timestamps are stored; never request JSON or PII.
     const idempotentDomainRoutes = new Set([
       '/api/rides', '/api/bookings', '/api/rides/cancel',
-      '/api/bookings/cancel', '/api/bookings/pickup-abort', '/api/bookings/cases/respond', '/api/mobility/intents',
+      '/api/bookings/cancel', '/api/bookings/pickup-abort', '/api/bookings/cases/respond', '/api/bookings/cases/appeal', '/api/mobility/intents',
       '/api/mobility/intents/cancel'
     ]);
     const pendingDomainMutations = new Map();
@@ -1842,6 +1862,7 @@
         appState.boardingPinEnabled=data.boardingPinEnabled===true;
         appState.pickupAbortEnabled=data.pickupAbortEnabled===true;
         appState.caseResponseEnabled=data.caseResponseEnabled===true;
+        appState.caseReviewEnabled=data.caseReviewEnabled===true;
         csrfToken = data.csrfToken;
         window.dispatchEvent(new Event('campuspool:session-changed'));
         return true;
@@ -1881,7 +1902,7 @@
     window.addEventListener('campuspool:session-changed',()=>{
       privateReadGeneration++;
       journeyReadReady=false;seenJourneyStages.clear();pendingJourneyAnimations.clear();driverJourneyBookings=[];driverJourneyBookingsKnown=false;
-      if(!appState.currentUser){appState.freeRidesPilot=false;appState.journeyEnabled=false;appState.boardingPinEnabled=false;appState.pickupAbortEnabled=false;appState.caseResponseEnabled=false;}
+      if(!appState.currentUser){appState.freeRidesPilot=false;appState.journeyEnabled=false;appState.boardingPinEnabled=false;appState.pickupAbortEnabled=false;appState.caseResponseEnabled=false;appState.caseReviewEnabled=false;}
       applyFreePilotOfferMode();
       lastRidesEtag=null;
       pendingSeatTransitions.clear();
@@ -1892,6 +1913,8 @@
       const privateCaseDialog=document.getElementById('caseResponseDialog');
       if(privateCaseDialog?.open)privateCaseDialog.close();
       document.getElementById('caseResponseTimeline')?.replaceChildren();
+      document.getElementById('caseAppealHistory')?.replaceChildren();
+      const appealForm=document.getElementById('caseAppealForm');if(appealForm)appealForm.hidden=true;
       renderRidesGrid();renderMyRidesViews();
       hideModal('bookingModal',{restoreFocus:false});hideModal('paymentModal',{restoreFocus:false});
       closeGpsTrackingModal();
@@ -2744,8 +2767,46 @@
         line.append(description,stamp);
         list.append(line);
       }
-      status.textContent='Case open · awaiting neutral review. No monetary action taken.';
-      form.hidden=!(data.canRespond===true&&data.state==='open');
+      status.textContent=data.review
+        ?'Review entry recorded · no automatic money or account enforcement.'
+        :'Case open · awaiting neutral review. No monetary action taken.';
+      form.hidden=!(data.canRespond===true&&data.state==='open'&&!data.review);
+      const summary=document.getElementById('caseReviewStatus');
+      const appealHistory=document.getElementById('caseAppealHistory');
+      const appealForm=document.getElementById('caseAppealForm');
+      if(summary){
+        summary.hidden=!data.review;
+        summary.textContent=data.review
+          ?'Recorded review: '+({
+            no_action:'No action indicated',insufficient_evidence:'Insufficient evidence',
+            follow_up_required:'Further review required'
+          }[data.review.code]||'Under review')+
+          ' · This does not determine payment or create penalties.':'';
+      }
+      if(appealHistory){
+        appealHistory.replaceChildren();
+        for(const item of (Array.isArray(data.appeals)?data.appeals:[]).slice(0,2)){
+          const li=document.createElement('li');
+          li.textContent=item.mine
+            ?'Your appeal · '+({
+              missing_evidence:'Missing evidence',mistaken_identity:'Mistaken identity',
+              technical_issue:'Technical issue',safety_context:'Safety concern',
+              other:'Other reason'
+            }[item.reason]||'Reason recorded')
+            :'Other participant appealed · reason kept private';
+          if(item.outcome){
+            const result=document.createElement('span');
+            result.textContent=' · '+({
+              review_record_unchanged:'Review record unchanged',
+              additional_review_required:'Further independent review required',
+              insufficient_information:'Insufficient information'
+            }[item.outcome]||'Appeal result recorded');
+            li.append(result);
+          }
+          appealHistory.append(li);
+        }
+      }
+      if(appealForm)appealForm.hidden=!(appState.caseReviewEnabled&&data.canAppeal===true);
       caseResponseCurrent=bookingId;
       const dialog=document.getElementById('caseResponseDialog');
       if(dialog&&!dialog.open)dialog.showModal();
@@ -2782,6 +2843,30 @@
         if(actor===appState.currentUser?.email&&proof===csrfToken)
           showToast('Your statement was recorded for review. No penalty or payment change.','ℹ️');
       }catch(_){showToast('Response unconfirmed; reopen the case to check before retrying.','⚠️');}
+      finally{button.disabled=false;}
+    });
+
+    document.getElementById('caseAppealForm')?.addEventListener('submit',async event=>{
+      event.preventDefault();
+      const reason=document.getElementById('caseAppealReason')?.value;
+      const allowed=new Set(['missing_evidence','mistaken_identity','technical_issue','safety_context','other']);
+      const bookingId=caseResponseCurrent;
+      if(!appState.caseReviewEnabled||!bookingId||!allowed.has(reason))return;
+      const actor=appState.currentUser?.email,proof=csrfToken;
+      const button=document.getElementById('caseAppealSubmit');
+      button.disabled=true;
+      try{
+        const res=await apiFetch('/api/bookings/cases/appeal',{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({bookingId,reason})
+        });
+        const data=await res.json();
+        if(actor!==appState.currentUser?.email||proof!==csrfToken)return;
+        if(!res.ok){showMutationFailure(res,data,'Appeal not recorded.');return;}
+        await showBookingCase(bookingId);
+        if(actor===appState.currentUser?.email&&proof===csrfToken)
+          showToast('Your appeal was recorded. There is no automatic penalty or payment change.','ℹ️');
+      }catch(_){showToast('Appeal unconfirmed. Reopen the case to check before retrying.','⚠️');}
       finally{button.disabled=false;}
     });
     // CAMPUSPOOL_CASE_RESPONSE_END
