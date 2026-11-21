@@ -42,3 +42,11 @@ Set `REVIEWER_OPERATOR_DB_URL` privately before invoking. **No grant is performe
 - **Do not merge, deploy, run against staging, grant or revoke reviewers, collect funds, issue fines, mark debts paid or ban anybody** as a result of this task.
 
 **Code review status:** candidate in [PR #69](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/69). Exact-head CI pending at initial handoff; replace with verified run SHA/IDs only after checking workflows.
+
+## Verified CI result — 2026-11-21
+
+- **Exactly tested code SHA:** `a85f113ccabf2555d80621f35f36f85f855863cf`. The only new workflow triggered by the changed onboarding script and Stage 1 config was [Stage 1 PostgreSQL #44888752526](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/44888752526), **completed SUCCESS**.
+- Actual job log confirms syntax and **all 7 new `test_reviewer_onboarding_preflight.js` assertions PASS**: exact local/dedicated staging target whitelist, strict approval/UTC TTL inputs and `--apply` rejection, entirely read-only SQL + ROLLBACK, matching active-grant revoke planning, no silent revoked/expired renewal or dual-role assignment, unverified-user denial, least privilege/RLS/DB-identity fail-closed, and policy bans self-service promotion, financial sanctions and imaginary SLAs.
+- The remainder of the Stage 1 PostgreSQL/OTP/rides/HTTP suite finished SUCCESS, so earlier pickup, booking, reviewer/appeal and security regressions remain protected. This branch changes **no application ride/finance code or database schema** and does **not** trigger a separate browser/security/Places/load workflow; those were independently verified on the parent PR #68 exact code SHA `be358d6518c9fe69a42e2ded36f59e5f80b1d237`.
+- All commits after the tested code SHA added **documentation only**, no runtime logic. **No actual database connection to Supabase**, reviewer grant/revoke, student account, permission, payment, fine, deployment or other remote operational write occurred. The CLI's approved operator use is future work and requires a separate owner decision.
+- **NO-GO** unchanged: private approved staffing/security/legal policy, verified independent reviewer grants, physical Android/TalkBack/parked driver checks, backup G1 independently restored, staging migration 008–014 and rollback approval, full stacked PR integration and production owner GO.
