@@ -417,3 +417,11 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 3. Add disposable PostgreSQL tests W01–W15: shared server timestamp, 4:59 vs 5:00, reconnect/no response, two passengers, PIN vs abort race, false early pickup, no penalty from one claim, progressive **review-confirmed** repeated abuse, accessibility and secure case/audit readback.
 4. Separate future sanction policy: owner to approve qualifying offense thresholds, fine amounts, terms and legal/payment controls, reviewer permissions, appeals, strike reversal, privacy and retention. **Do not implement fines/bans or payment collection now.** The rides-only pilot is zero-payment; pre-existing Pending stays for review.
 5. Resolve cancelled Pending/history P1, then additive case migration 012 behind default-OFF design, physical Android driver safety, parent PR/CI and recovery gates. No live staging/production migration or merge authorized.
+
+## 2026-11-21 — Follow-up for five-minute pickup implementation
+
+1. Run exact-head GitHub CI, check `CAMPUS_PICKUP_ABORT_RESULT`, confirm real HTTP and disposable PostgreSQL W01–W15 coverage, fix failing regressions before any merge. Child PR should stack above design #63, source-only.
+2. Independent security/product review of driver vs passenger authorization, clock boundary, false early pickup, app receipt idempotency, RLS restrictions, emergency bypass, session expiry, race with PIN and driver cancellation, history and contact privacy.
+3. Resolve P1 historical cancelled Pending financial review/booking restrictions with explicit policy; never use seat capacity as collectible commission. No automatic fee/strike/ban, even after five minutes.
+4. Add authorized reviewer/response/appeal later only after owner defines thresholds, fine amount, terms, legal/payment provider, privacy retention and support role; staged escalation is design only.
+5. Physical Android TalkBack/large text/offline focus and parked-driver review; migration 012 plus 008–011 G1 backup/restore, combined parent PR checks and owner GO before staging/production writes. [Task](tasks/2026-11-21-pickup-five-minute-implementation.md).
