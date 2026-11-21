@@ -341,6 +341,14 @@
 .cp-abort-dialog select{width:100%;background:#fff;color:#141414;border-radius:8px;padding:12px;min-height:44px}
 @media(prefers-reduced-motion:reduce){.cp-pickup-panel,.cp-abort-dialog{transition:none!important;animation:none!important}}
 </style>
+
+<style id="campuspool-past-bookings">
+.cp-history{background:#202020;border:1px solid #504a35;border-radius:14px;padding:14px;margin-top:16px;display:grid;gap:10px}
+.cp-history h3{font-size:14px;color:#facc15;font-weight:850}
+.cp-history-entry{padding:12px;border:1px solid #444;border-radius:10px;display:grid;gap:4px}
+.cp-history-entry strong{font-size:12px;color:#fff}
+.cp-history-entry p{font-size:11px;color:#d1d5db}
+</style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-brand-500 selection:text-white radial-bg">
   <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
@@ -1562,7 +1570,7 @@
       </select>
       <p class="text-xs text-slate-400">This reports an issue for review. It does not cancel every passenger, release a seat, charge a fee or decide blame.</p>
       <div class="flex flex-wrap gap-2 justify-end">
-        <button type="button" class="rounded-lg bg-slate-700 text-white px-4 py-3 font-bold" id="pickupAbortKeep" onclick="document.getElementById('pickupAbortDialog').close()">Keep coordinating</button>
+        <button type="button" class="rounded-lg bg-slate-700 text-white px-4 py-3 font-bold" id="pickupAbortKeep">Keep coordinating</button>
         <button id="pickupAbortSubmit" type="submit" class="cp-pickup-open">Submit pickup report</button>
       </div>
     </form>
@@ -2605,6 +2613,7 @@
       if(!button||button.disabled)return;
       openPickupAbortDialog(button.dataset.bookingId,button.dataset.emergency==='true');
     });
+    document.getElementById('pickupAbortKeep')?.addEventListener('click',()=>document.getElementById('pickupAbortDialog')?.close());
     document.getElementById('pickupAbortDialog')?.addEventListener('close',()=>{
       pickupAbortCurrent=null;
     });
@@ -2765,6 +2774,26 @@
             });
           });
         }
+      }
+
+      // Historical bookings remain visible after either side cancels a ride.
+      // Pending is a record requiring review, not a verified debt or invoice.
+      if(passengerContainer && appState.myBookingHistory.length){
+        passengerContainer.insertAdjacentHTML('beforeend',`
+          <section class="cp-history" aria-label="Previous and cancelled bookings">
+            <h3>Previous bookings · retained history</h3>
+            ${appState.myBookingHistory.map(b=>`
+              <article class="cp-history-entry">
+                <strong>${sanitize(String(b.pickup||'Pickup'))} to ${sanitize(String(b.destination||'Destination'))}</strong>
+                <p>Booking cancelled · ${b.boardedAt?'Boarding PIN verified':'Boarding not verified'}</p>
+                <p>${b.paymentMode==='free_pilot'||b.paymentStatus==='NoPaymentRequired'
+                  ?'Free pilot · no payment required'
+                  :b.paymentStatus==='Pending'
+                    ?'Historical Pending · requires review, not an invoice'
+                    :'Historical payment status: '+sanitize(String(b.paymentStatus||'unknown'))}</p>
+                ${b.pickupCase?.id?'<p>Pickup report recorded for review.</p>':''}
+              </article>`).join('')}
+          </section>`);
       }
 
       if (driverContainer) {
