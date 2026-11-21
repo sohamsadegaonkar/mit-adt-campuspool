@@ -29,3 +29,33 @@ This runbook is for a *single benign email-provider probe* without OTPs or datab
 ## Source and CI
 
 `scripts/otp-email-provider-probe.js` defaults to safe preflight-only if explicitly invoked with `--preflight` and refuses unapproved real sends. `test_otp_delivery_recovery.js` tests missing consent, exact-recipient confirmation, one-message limit, no OTP content, redacted provider errors and no network on preflight. CI runs all tests with fakes; it does not call Resend or Brevo with real credentials.
+
+
+## No-domain Resend sandbox (separate from real-recipient proof)
+
+Official Resend examples support a fixed test sender `onboarding@resend.dev` and simulated delivered recipient `delivered@resend.dev`. The simulator proves the provider API accepts the request and exercises Resend's synthetic delivered event. **It never proves that an MIT-ADT student can receive OTP email.** No custom domain is needed for this particular test.
+
+- Create a Resend **Sending access** API key named for CampusPool development. Do not give Full access or paste the key into ChatGPT, Notion, GitHub, or CI logs.
+- Use `scripts/otp-resend-sandbox-probe.js` in a separate local checkout of this review branch, with a locally entered key; it never reads student addresses and always sends to the Resend official simulator address.
+- This command requires an explicit, single-invocation approval flag, never runs in CI against a real provider, does not create an OTP and cannot update CampusPool state.
+
+Example for a local Bash/WSL shell with the reviewed source and Node.js dependencies present:
+
+```bash
+read -r -s -p "Resend sending-only API key: " RESEND_API_KEY
+printf '\n'
+export RESEND_API_KEY
+node scripts/otp-resend-sandbox-probe.js --preflight
+
+# Manual owner approval required: calls Resend once using its published
+# fixed simulation sender/recipient. It does NOT email a student.
+OTP_RESEND_TEST_APPROVAL=SEND_ONE_RESEND_SIMULATED_EMAIL \
+  node scripts/otp-resend-sandbox-probe.js --execute
+
+unset RESEND_API_KEY
+```
+
+- On a preflight pass, expect `RESEND_SANDBOX_PREFLIGHT_PASSED=YES` and `NO_EMAIL_SENT=YES` (the key's actual validity is **not** checked).
+- On an approved accepted probe, expect `RESEND_SANDBOX_API_ACCEPTED=YES` and `SIMULATED_DELIVERY_ONLY_NOT_STUDENT_INBOX=YES`. Check provider Events/Emails in the authenticated Resend dashboard for its simulation, never paste raw provider logs or API keys.
+- On error, stop and inspect key authorization and account state privately. The probe fails closed and has **no automatic retries**. This guard is one message *per approved execution*, not permanent deduplication across manual reruns.
+- Use the original `otp-email-provider-probe.js` only when you later own/are authorized for a **verified real sender domain** and have consent from the actual test mailbox owner. MSG91/DLT and real email delivery still require separate evidence and approvals.
