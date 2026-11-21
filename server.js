@@ -17,7 +17,7 @@ const { PgIdempotencyStore, SqliteIdempotencyStore, IdempotencyError } = require
 // when the standard per-IP mutation rate limit has already been exhausted.
 const IDEMPOTENT_MUTATION_PATHS = new Set([
   '/api/rides', '/api/bookings', '/api/rides/cancel', '/api/rides/journey',
-  '/api/bookings/cancel', '/api/bookings/verify-boarding-pin', '/api/mobility/intents',
+  '/api/bookings/cancel', '/api/mobility/intents',
   '/api/mobility/intents/cancel'
 ]);
 const AUTH_OTP_BACKEND = process.env.AUTH_OTP_BACKEND || 'sqlite';
@@ -1660,11 +1660,14 @@ const server = http.createServer(async (req, res) => {
       return sendJson(503,{success:false,error:'BOARDING_PIN_NOT_ENABLED'});
     const body=await parseBody();
     try{
-      return await executeIdempotentMutation(pathname,body,client=>
-        pgRidesStore.verifyBoardingPin({
-          bookingId:body.bookingId,pin:body.pin,
-          driverUserId:authenticatedUser.id,client
-        }));
+      // The booking row itself is the one-time idempotency guard. A direct
+      // transaction is required: a wrong PIN must commit its failed-attempt
+      // counter, while generic success-only receipts reject 4xx outcomes.
+      const result=await pgRidesStore.verifyBoardingPin({
+        bookingId:body.bookingId,pin:body.pin,
+        driverUserId:authenticatedUser.id
+      });
+      return sendJson(result.status,result.body);
     }catch(err){
       if(PgPoolBusyError && err instanceof PgPoolBusyError)throw err;
       const known=err instanceof RidesError;
