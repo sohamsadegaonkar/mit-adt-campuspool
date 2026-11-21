@@ -47,6 +47,9 @@ jobs:
           cache: npm
       - name: Install pinned dependencies
         run: npm ci
+      - name: Prepare isolated PostGIS extension placement
+        run: |
+          node -e "const {Client}=require('pg');(async()=>{const c=new Client({connectionString:process.env.OTP_DATABASE_URL});await c.connect();try{await c.query('DROP EXTENSION IF EXISTS postgis CASCADE; CREATE SCHEMA IF NOT EXISTS extensions;')}finally{await c.end();}})().catch(e=>{console.error(e.message);process.exit(1)})"
       - name: Locate container-bound PostgreSQL 16 backup tools
         run: |
           CID="$(docker ps --quiet --filter ancestor=postgis/postgis:16-3.4 | head -n 1)"
