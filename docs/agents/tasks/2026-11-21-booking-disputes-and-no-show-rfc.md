@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-21 (Asia/Kolkata)  
 **Type:** DESIGN / PLANNING ONLY — no implementation, migration execution, feature enablement, payments or deployment  
-**Status:** PROPOSED for owner + safety/security review; not approved policy  
+**Status:** Proposed architecture; owner has now decided mutual maximum 5-minute pickup waiting window and contextual warning/flag/fine/ban ladder (21 Nov 2026). Implementation and sanction thresholds, fine amounts, legal/provider policy and adjudication remain UNAPPROVED.  
 **Parent code:** draft PR #62 (per-passenger in-app boarding PIN), stacked on #61 QA audit → #60 driver milestones  
 **Risk:** P1 release hold; current canceled Pending and driver-arrival semantics cannot safely determine payment liability  
 **Decision source:** user resolved pickup "can't find each other" via authorized contact; "driver reached drop-off but passenger never boarded" via in-app PIN; separate boarding from vehicle journey
@@ -42,8 +42,8 @@ Source review of `stage1-otp/rides-store.js` and `server.js` on feature branch `
 
 1. Driver reports `pickup_ready`, passenger sees driver-reported pickup readiness, pickup location and authorized contact **Call / Contact driver**.
 2. Passenger may tap **"Can't find my driver"**; driver may tap **"Can't find passenger"**. These are support/coordination flags, **not** no-show, boarding, cancellation, payment confirmation or a clock proving fault.
-3. Both can coordinate through already-authorized contact. No additional SMS, GPS tracking, live chat, new worker, auto no-show timer or countdown required for the minimum safe release.
-4. If unresolved, either may open an authenticated **Pickup issue** case; it remains in review. A driver may *request* no-show classification only after an **owner-approved pickup grace period** and sufficient documented contact attempt policy. Do not invent a fixed number of minutes.
+3. Both can coordinate through already-authorized contact. The five-minute countdown is optional in-app presentation based on the persisted driver-reported pickup timestamp; no SMS, GPS provider, live chat, new worker or automatic cancellation is required.
+4. At **300 seconds** from server-recorded driver-reported pickup, **either** party may request to abort an unresolved pickup, after identifying the absent/unresponsive party and the reason. Prompt the waiting user only when necessary; do not auto-cancel. Neither party must wait beyond five minutes. An early safety/emergency report remains permitted. No no-show adjudication, penalty, debt change or seat release is implied. [Five-minute policy detail](2026-11-21-five-minute-pickup-abort-enforcement.md).
 
 ### Case B — "Driver reported destination arrival; I was never picked up"
 
@@ -56,7 +56,7 @@ Source review of `stage1-otp/rides-store.js` and `server.js` on feature branch `
 ### Case C — Driver marks passenger "no-show"
 
 - Driver can **report a no-show claim**, not mark the passenger culpable. If user confirmed PIN, never silently change `boarded_at` to null; a contradictory no-show claim is flagged for manual review.
-- Report may be filed only for a booked passenger on that driver's ride with pickup-relevant journey stage and approved waiting/contact rules. Passenger sees the claim, can dispute it, and booking status/payment cannot be silently overwritten.
+- An ordinary unanswered-pickup claim may be filed by **either verified booked party** after the shared five-minute server-verified window; a safety/emergency case is allowed immediately. The other participant can dispute the claim; neither response absence nor driver-reported pickup is proof of guilt. No booking/payment field is silently overwritten. Progressive warning/flag/fine/ban escalation applies only to **review-confirmed repeat misconduct**, with separate policy and appeal approvals. See the five-minute policy addendum.
 - **No auto fee** and no imposed "no-show" debit. Owner must decide whether any future rider consequence exists; pilot recommendation is **none**.
 
 ### Case D — Emergency driver cancellation (before or after pickup)
@@ -156,12 +156,12 @@ CI should emit `CAMPUS_DISPUTE_RESULT` with all safety acceptance booleans only 
 
 | Decision | Recommendation for MVP | Status |
 | --- | --- | --- |
-| How long must driver wait before submitting a no-show claim? | Define campus-approved grace period, communication attempt requirements; no automated fault assignment | **OPEN** |
-| Does a driver claim by itself penalize passenger? | **No** | Proposed, not owner-approved |
+| Maximum pickup wait for driver AND passenger? | **5 minutes maximum (300 seconds)** from authoritative pickup_ready timestamp; early safety abort; contextual abort after unresolved no response, not auto-cancel | **OWNER DECIDED; implementation pending** |
+| Does a driver or passenger claim by itself penalize the other? | **No**. Only independently reviewed unjustified repeat cases can be considered for warning, flag, conditional fine then suspension/ban; appeal required | **PRINCIPLE DECIDED; enforcement thresholds pending** |
 | Does a verified boarding PIN defeat a passenger dispute? | **No**; it is strong but rebuttable evidence | Proposed |
 | Who may resolve disputes and what appeal window? | Named trusted CampusPool reviewer role + rationale/event trail; support owner, SLAs and retention approved first | **OPEN** |
 | What happens to legacy cancelled `Pending` and old "commission due"? | Visible as unsettled review; no silent waiver, automatic debt collection or irrebuttable access ban. Stop legacy paid rollout until policy defined | **OPEN / P1** |
-| Free rides pilot no-show money consequence? | **No fees, no payout, no penalty amount** | Proposed |
+| Free rides pilot no-show money consequence? | **No live monetary penalty**; future fines require separate published terms, amount, reviewer, legal/provider authorization and appeal process | **Enforcement not approved** |
 | Emergency cancellation after boarding | Interrupted-service case; prioritized human support, no automated settlement | Proposed |
 | Dispute note retention, user notice and campus policy | Minimize notes; owner/privacy/legal sign-off, no arbitrary TTL | **OPEN** |
 
@@ -176,7 +176,7 @@ CI should emit `CAMPUS_DISPUTE_RESULT` with all safety acceptance booleans only 
 5. Owner chooses dispute/no-show/reviewer/legacy Pending policy, implements restricted resolution, adversarial security/finance tests and support operations.
 6. Only after parent #47→…→#62 stacked review, exact CI, full 008→009→010→011→012 compatibility and **independently recovered** staging data, consider owner-authorized staging migration and later production. Never backfill a collectible debt automatically or destructively roll back schema.
 
-**Out of scope:** real payments/escrow/wallet, claims adjudicated by AI, automatic fines, passenger geolocation proving boarding, new backend microservices, background worker/no-show timer, legal determination of student financial liability.
+**Out of scope:** live payments/escrow/wallet, AI dispute adjudication, *automatic or unapproved* fines/bans, passenger location proving boarding, new microservices, server timer worker for auto-cancel, and legal conclusions about liability. A client-visible five-minute countdown is permitted, but server timestamp verifies claim eligibility.
 
 ## References / evidence links (dated 2026-11-21)
 
@@ -187,3 +187,13 @@ CI should emit `CAMPUS_DISPUTE_RESULT` with all safety acceptance booleans only 
 - Repository [existing product decision](../DECISIONS.md), [#61 release safety audit](2026-11-21-journey-release-safety-audit.md), [#62 boarding PIN handoff](2026-11-21-in-app-boarding-pin.md).
 
 **Release verdict: design drafted; implementation NOT STARTED in this RFC; production still NO-GO.**
+
+## 12. Owner-selected five-minute wait and progressive abort policy (21 Nov 2026)
+
+**Supersedes previous TBD wait rule:** both driver and passenger can stop waiting at a common **5-minute maximum**, measured from the existing server-persisted driver-reported pickup milestone. The driver-reported timestamp is not independent proof of actual presence. An unresolved no-response claim becomes eligible at 5:00; the waiting user gets a **contextual confirmation** (Continue / Abort pickup / Safety help), not an automatic trip or booking cancellation. A genuine emergency can be reported earlier.
+
+**Abort consequence is NOT immediately punitive:** the user selects the reason, the server records a booking-scoped claim with original evidence preserved, and the other party can respond. Missing app messages, phone calls, connectivity and driver-reported location do not prove deliberate refusal. No seat/payment/commission or debt mutation follows the button alone; multi-passenger boarding stays independent.
+
+**Context-aware notices:** ordinary first-time abort = a short statement that deliberately false or unjustified reports can be reviewed; a person with prior **confirmed** misuse = a targeted warning about account flags/restrictions; persistent verified misconduct could later lead to a reviewed fine, and subsequent further misconduct to suspension/ban, with notice and appeal. **Do not show every consequence at once** and never impose any fine/ban based on unreviewed claims. Fine amounts/count thresholds, terms, reviewer RBAC and permitted collection are OPEN; no current fines are collected, and free rides remain NoPaymentRequired.
+
+**Full source of truth and test plan:** [2026-11-21-five-minute-pickup-abort-enforcement.md](2026-11-21-five-minute-pickup-abort-enforcement.md), test cases W01–W15. Rollout remains blocked by historical cancelled Pending discrepancy, independent mobile/accessibility QA, G1 backup/restore, product/legal review, and the unmerged PR stack. Planning only, no live code or database changes.
