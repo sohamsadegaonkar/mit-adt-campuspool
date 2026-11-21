@@ -432,3 +432,10 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 2. Independently audit **active unchallenged Pending** restriction fairness; user has NOT authorized automatic debt collection, waiver, suspension or fine. Define how verified service, provider payment, reviewer appeal and due process may change restrictions in a future policy task.
 3. Ensure POST APIs continue to use a transaction-snapshot authoritatively; `reviewRequiredBookings` is **read-only** and never automatically changes `Pending` or booking/seat state. No actual finance transaction or automatic settlement.
 4. Combined parent PR #47→…→#64→#66, G1 verified backup and independent restore, migrations through 012, physical Android/200% text/TalkBack and parked-driver safety before stage/prod GO. No live writes authorized.
+
+## 2026-11-21 — Participant dispute response verification gates
+
+1. Verify current branch exact-head CI: migration 013 replays without loss; 5-actor PostgreSQL tests assert read/write privacy and CSRF, counterparty-only responses, duplicate retry, simultaneous opposing responses, and cancelled/flag-OFF case read. Keep original booking/boarding/payment untouched.
+2. Recheck in-app cancellation history for both driver and passenger, case status visibility, keyboard/Android TalkBack, 200% font, parked driver, and no automated popup while vehicle moves.
+3. Design but do **not enable** independent support reviewer RBAC, participant notice and appeals, retention, proven-abuse escalation, and owner-approved fairness for existing active undisputed `Pending`.
+4. Maintain #66→#64→#63→#62→#61→#60 unmerged stack, no staging/production schema 013, money, fines or deployment until G1 recovery and owner GO. [Task details](tasks/2026-11-21-participant-dispute-responses.md).

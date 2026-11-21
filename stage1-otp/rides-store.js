@@ -48,7 +48,7 @@ function bookingPublic(r){
     dept:r.dept,vehicleModel:r.vehicle_model,pickup:r.pickup,
     destination:r.destination,departureTime:r.departure_time,
     studentFare:Number(r.student_fare),paymentStatus:r.payment_status,
-    upiId:r.upi_id,paymentMode:r.payment_mode||'legacy',status:r.status,cancelledAt:r.cancelled_at?asDate(r.cancelled_at):null,...journeyPublic(r),boardedAt:r.boarded_at?asDate(r.boarded_at):null,createdAt:asDate(r.created_at),...(r.pickup_case_id?{pickupCase:{id:r.pickup_case_id,state:r.pickup_case_state,openedAt:asDate(r.pickup_case_opened_at)}}:{})
+    upiId:r.upi_id,paymentMode:r.payment_mode||'legacy',...(r.actor_role?{actorRole:r.actor_role}:{}),status:r.status,cancelledAt:r.cancelled_at?asDate(r.cancelled_at):null,...journeyPublic(r),boardedAt:r.boarded_at?asDate(r.boarded_at):null,createdAt:asDate(r.created_at),...(r.pickup_case_id?{pickupCase:{id:r.pickup_case_id,state:r.pickup_case_state,openedAt:asDate(r.pickup_case_opened_at)}}:{})
   };
 }
 function checkRideInput(r) {
@@ -71,7 +71,7 @@ function checkRideInput(r) {
 }
 
 class PgRidesStore {
-  constructor({pool,freePilot=false,journeyEnabled=false,boardingPinEnabled=false,boardingPinKey='',pickupAbortEnabled=false}={}) {
+  constructor({pool,freePilot=false,journeyEnabled=false,boardingPinEnabled=false,boardingPinKey='',pickupAbortEnabled=false,caseResponseEnabled=false}={}) {
     if(!pool||typeof pool.query!=='function'||typeof pool.connect!=='function')
       throw Error('PgRidesStore requires an existing private PostgreSQL pool');
     this.pool=pool;
@@ -80,6 +80,8 @@ class PgRidesStore {
     this.boardingPinEnabled=boardingPinEnabled===true;
     this.pickupAbortEnabled=pickupAbortEnabled===true;
     this.caseSchemaReady=false;
+    this.caseResponseEnabled=caseResponseEnabled===true;
+    this.responseSchemaReady=false;
     if(this.pickupAbortEnabled && (!this.journeyEnabled||!this.boardingPinEnabled))
       throw Error('Pickup abort requires journey + per-passenger boarding proof');
     if(this.boardingPinEnabled && (!this.journeyEnabled || Buffer.byteLength(boardingPinKey,'utf8')<32))
@@ -105,6 +107,14 @@ class PgRidesStore {
     this.caseSchemaReady=caseTables.rows[0].n===2;
     if(this.pickupAbortEnabled&&!this.caseSchemaReady)
       throw Error('Migration 012 pickup cases are required');
+    if(this.caseResponseEnabled){
+      if(!this.caseSchemaReady)throw Error('Case responses require pickup case migration 012');
+      const responses=await this.pool.query(
+        "SELECT count(*)::int AS n FROM information_schema.tables WHERE table_schema='public' AND table_name='campus_booking_case_responses'");
+      this.responseSchemaReady=responses.rows[0].n===1;
+      if(!this.responseSchemaReady)
+        throw Error('Migration 013 private case responses are required');
+    }
   }
   async tx(fn,externalClient){
     if(externalClient)return fn(externalClient);
@@ -188,7 +198,8 @@ class PgRidesStore {
       ? ",c.id AS pickup_case_id,c.state AS pickup_case_state,c.opened_at AS pickup_case_opened_at"
       : "";
     const r=await this.pool.query([
-      'SELECT b.*,r.journey_stage,r.departed_at,r.pickup_at,r.arrived_at'+caseColumns,
+      'SELECT b.*,r.journey_stage,r.departed_at,r.pickup_at,r.arrived_at,',
+      "CASE WHEN r.driver_user_id=$1 THEN 'driver' ELSE 'passenger' END AS actor_role"+caseColumns,
       'FROM public.campus_bookings b JOIN public.campus_rides r ON r.id=b.ride_id',
       joinCase,
       'WHERE (b.passenger_user_id=$1 OR r.driver_user_id=$1)',
@@ -236,6 +247,97 @@ class PgRidesStore {
       return {caseId:current.id,bookingId,state:current.state,
         openedAt:asDate(current.opened_at),recorded:event.rows.length===1,
         message:'Pickup report recorded for review. No penalty or payment change was made.'};
+    },txClient);
+  }
+
+
+  // Read-only case timeline. Return role and bounded categorical claims,
+  // never actor IDs, contact details, PIN material or settlement identifiers.
+  async getBookingCase({bookingId,actorUserId}={}){
+    if(!this.caseResponseEnabled||!this.responseSchemaReady)
+      throw new RidesError('CASE_RESPONSE_NOT_ENABLED',503);
+    if(typeof bookingId!=='string'||!/^BKG-[0-9a-f-]{36}$/.test(bookingId))
+      throw new RidesError('INVALID_BOOKING',400);
+    if(typeof actorUserId!=='string')throw new RidesError('AUTH_REQUIRED',401);
+    const r=await this.pool.query([
+      'SELECT b.booking_id,b.passenger_user_id,r.driver_user_id,',
+      'c.id AS case_id,c.state,c.opened_at',
+      'FROM public.campus_bookings b',
+      'JOIN public.campus_rides r ON r.id=b.ride_id',
+      'LEFT JOIN public.campus_booking_cases c ON c.booking_id=b.booking_id',
+      'WHERE b.booking_id=$1'
+    ].join(' '),[bookingId]);
+    const row=r.rows[0];
+    if(!row)throw new RidesError('BOOKING_NOT_FOUND',404);
+    const actorRole=row.passenger_user_id===actorUserId?'passenger'
+      :row.driver_user_id===actorUserId?'driver':null;
+    if(!actorRole)throw new RidesError('NOT_BOOKING_PARTICIPANT',403);
+    if(!row.case_id)throw new RidesError('PICKUP_CASE_NOT_FOUND',404);
+    const [claims,responses]=await Promise.all([
+      this.pool.query([
+        'SELECT actor_role,reason,created_at',
+        'FROM public.campus_booking_case_events WHERE case_id=$1',
+        'ORDER BY created_at ASC,id ASC LIMIT 20'
+      ].join(' '),[row.case_id]),
+      this.pool.query([
+        'SELECT actor_role,response_code,created_at,actor_user_id',
+        'FROM public.campus_booking_case_responses WHERE case_id=$1',
+        'ORDER BY created_at ASC,id ASC LIMIT 2'
+      ].join(' '),[row.case_id])
+    ]);
+    const otherClaim=claims.rows.some(x=>x.actor_role!==actorRole);
+    return {bookingId,caseId:row.case_id,state:row.state,openedAt:asDate(row.opened_at),
+      actorRole,canRespond:otherClaim&&!responses.rows.some(x=>x.actor_user_id===actorUserId),
+      claims:claims.rows.map(x=>({
+        actorRole:x.actor_role,reason:x.reason,createdAt:asDate(x.created_at)
+      })),
+      responses:responses.rows.map(x=>({
+        actorRole:x.actor_role,code:x.response_code,createdAt:asDate(x.created_at)
+      })),
+      message:'All statements are unverified reports. Human review, appeals and financial decisions are not enabled.'};
+  }
+
+  async respondToBookingCase({bookingId,actorUserId,code,client:txClient}={}){
+    if(!this.caseResponseEnabled||!this.responseSchemaReady)
+      throw new RidesError('CASE_RESPONSE_NOT_ENABLED',503);
+    if(typeof bookingId!=='string'||!/^BKG-[0-9a-f-]{36}$/.test(bookingId))
+      throw new RidesError('INVALID_BOOKING',400);
+    const responseCodes=new Set(['present_at_pickup','could_not_find_partner',
+      'attempted_contact','other_party_not_present','safety_concern','other']);
+    if(!responseCodes.has(code)||typeof code!=='string')
+      throw new RidesError('INVALID_CASE_RESPONSE',400);
+    if(typeof actorUserId!=='string')throw new RidesError('AUTH_REQUIRED',401);
+    return this.tx(async client=>{
+      const {ride,booking}=await this.lockedBoardingBooking(client,bookingId);
+      const role=booking.passenger_user_id===actorUserId?'passenger'
+        :ride.driver_user_id===actorUserId?'driver':null;
+      if(!role)throw new RidesError('NOT_BOOKING_PARTICIPANT',403);
+      const c=await client.query(
+        'SELECT id,state FROM public.campus_booking_cases WHERE booking_id=$1 FOR UPDATE',[bookingId]);
+      if(!c.rows.length)throw new RidesError('PICKUP_CASE_NOT_FOUND',404);
+      if(c.rows[0].state!=='open')throw new RidesError('CASE_NOT_OPEN',409);
+      const hasOther=await client.query([
+        'SELECT 1 FROM public.campus_booking_case_events',
+        'WHERE case_id=$1 AND actor_user_id<>$2::uuid LIMIT 1'
+      ].join(' '),[c.rows[0].id,actorUserId]);
+      if(!hasOther.rows.length)
+        throw new RidesError('COUNTERPARTY_CLAIM_REQUIRED',409);
+      const recorded=await client.query([
+        'INSERT INTO public.campus_booking_case_responses(case_id,actor_user_id,actor_role,response_code)',
+        'VALUES ($1,$2,$3,$4)',
+        'ON CONFLICT (case_id,actor_user_id) DO NOTHING RETURNING id,created_at'
+      ].join(' '),[c.rows[0].id,actorUserId,role,code]);
+      if(!recorded.rows.length){
+        const previous=await client.query([
+          'SELECT response_code FROM public.campus_booking_case_responses',
+          'WHERE case_id=$1 AND actor_user_id=$2'
+        ].join(' '),[c.rows[0].id,actorUserId]);
+        if(previous.rows[0]?.response_code!==code)
+          throw new RidesError('CASE_RESPONSE_ALREADY_RECORDED',409);
+      }
+      return {bookingId,caseId:c.rows[0].id,state:'open',
+        recorded:recorded.rows.length===1,
+        message:'Response recorded for neutral review. No fee, strike, ban or payment decision was made.'};
     },txClient);
   }
 

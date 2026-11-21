@@ -36,6 +36,13 @@ async function runPickupAbort({t,pool,ids,request}){
    });
  const wait=(user,bookingId)=>request('/api/bookings/pickup-status?bookingId='+encodeURIComponent(bookingId),{user});
  const history=(user,params='')=>request('/api/bookings/history'+params,{user});
+ const caseRead=(user,bookingId)=>request(
+   '/api/bookings/cases?bookingId='+encodeURIComponent(bookingId),{user});
+ const reply=(user,bookingId,code='present_at_pickup',opts={})=>request(
+   '/api/bookings/cases/respond',{method:'POST',user,
+     csrf:opts.noCsrf?undefined:csrf[user],
+     idempotencyKey:opts.key||crypto.randomUUID(),body:{bookingId,code}});
+
  const ride=await create();
  assert.equal(ride.status,201,JSON.stringify(ride.body));
  const rid=ride.body.ride.id;
@@ -43,6 +50,10 @@ async function runPickupAbort({t,pool,ids,request}){
  assert.equal(first.status,201,JSON.stringify(first.body));
  assert.equal(second.status,201,JSON.stringify(second.body));
  const one=first.body.booking.bookingId,two=second.body.booking.bookingId;
+ assert.equal((await caseRead(1,one)).status,404,
+   'case not invented until one participant reports a pickup problem');
+ assert.equal((await reply(1,one)).status,404,'cannot reply without a case');
+
  const initialPassengerFinance=await request('/api/user/settlement-status',{user:1});
  const initialDriverFinance=await request('/api/user/settlement-status',{user:0});
  assert.equal(initialPassengerFinance.status,200);
@@ -83,6 +94,16 @@ async function runPickupAbort({t,pool,ids,request}){
  assert.equal(emergency.status,200,JSON.stringify(emergency.body));
  assert.equal(emergency.body.recorded,true);
  assert.equal(Object.hasOwn(emergency.body,'penalty'),false);
+ // Original reporter cannot use the response endpoint to fabricate a
+ // second-party confirmation; only the counterparty may respond.
+ assert.equal((await reply(2,two,'safety_concern')).status,409);
+ assert.equal((await caseRead(3,two)).status,403);
+ assert.equal((await reply(3,two,'present_at_pickup')).status,403);
+ const earlyReply=await reply(0,two,'attempted_contact');
+ assert.equal(earlyReply.status,200,JSON.stringify(earlyReply.body));
+ assert.equal(earlyReply.body.recorded,true);
+ assert.equal((await caseRead(2,two)).body.canRespond,false);
+
 
  // Test exactly the 4m59 boundary using controlled synthetic timestamps on disposable DB.
  const setPickup=async(seconds)=>pool.query(
@@ -108,6 +129,49 @@ async function runPickupAbort({t,pool,ids,request}){
    'SELECT c.id,c.state,count(e.id)::int AS events FROM public.campus_booking_cases c JOIN public.campus_booking_case_events e ON e.case_id=c.id WHERE c.booking_id=$1 GROUP BY c.id,c.state',[one])).rows[0];
  assert.equal(readCase.events,2);
  assert.equal(readCase.state,'open');
+ // Opposing claims are evidence, not adjudication. Both participants can
+ // provide a single immutable response without changing money or seats.
+ assert.equal((await caseRead(3,one)).status,403);
+ assert.equal((await reply(3,one)).status,403);
+ assert.equal((await reply(1,one,'unknown')).status,400);
+ assert.equal((await reply(1,one,'attempted_contact',{noCsrf:true})).status,403);
+ assert.equal((await request('/api/bookings/cases/respond',{anonymous:true,
+   method:'POST',body:{bookingId:one,code:'attempted_contact'}})).status,401);
+ const beforeReplies=(await pool.query(
+   'SELECT status,payment_status,boarded_at FROM public.campus_bookings WHERE booking_id=$1',[one])).rows[0];
+ const responses=await Promise.all([
+   reply(0,one,'present_at_pickup',{key:crypto.randomUUID()}),
+   reply(1,one,'could_not_find_partner',{key:crypto.randomUUID()})
+ ]);
+ assert.ok(responses.every(x=>x.status===200),JSON.stringify(responses));
+ assert.equal(responses[0].body.caseId,readCase.id);
+ assert.equal(responses[1].body.caseId,readCase.id);
+ assert.ok(responses.every(x=>x.body.recorded));
+ const replay=await reply(1,one,'could_not_find_partner');
+ assert.equal(replay.status,200);
+ assert.equal(replay.body.recorded,false,
+   'same person/response may be retried safely with a fresh idempotency key');
+ assert.equal((await reply(1,one,'attempted_contact')).status,409,
+   'a contradictory second response is rejected, not silently overwritten');
+ const caseDetails=await caseRead(1,one);
+ assert.equal(caseDetails.status,200,JSON.stringify(caseDetails.body));
+ assert.equal(caseDetails.body.state,'open');
+ assert.equal(caseDetails.body.claims.length,2);
+ assert.equal(caseDetails.body.responses.length,2);
+ assert.equal(caseDetails.body.actorRole,'passenger');
+ assert.equal(caseDetails.body.canRespond,false);
+ assert.ok(caseDetails.body.claims.every(c=>['driver','passenger'].includes(c.actorRole)));
+ assert.ok(caseDetails.body.responses.every(c=>!Object.hasOwn(c,'actorUserId')&&!Object.hasOwn(c,'actor_user_id')));
+ assert.equal(caseDetails.body.driverPhone,undefined);
+ assert.equal(caseDetails.body.pin,undefined);
+ assert.equal(caseDetails.body.paymentStatus,undefined);
+ assert.equal((await pool.query(
+   'SELECT count(*)::int AS n FROM public.campus_booking_case_responses WHERE case_id=$1',
+   [readCase.id])).rows[0].n,2);
+ assert.deepEqual((await pool.query(
+   'SELECT status,payment_status,boarded_at FROM public.campus_bookings WHERE booking_id=$1',[one])).rows[0],beforeReplies,
+   'responses never change booking, boarding or financial facts');
+
  const disputedFinance=await request('/api/user/settlement-status',{user:1});
  assert.equal(disputedFinance.status,200);
  assert.equal(disputedFinance.body.isBlocked,false,
@@ -164,6 +228,11 @@ async function runPickupAbort({t,pool,ids,request}){
  assert.ok(past.cancelledAt);
  assert.equal(past.paymentStatus,'Pending','no automatic waiver, charge, or Paid');
  assert.equal(past.pickupCase.state,'open');
+ const afterCancelCase=await caseRead(1,one);
+ assert.equal(afterCancelCase.status,200,'case evidence survives ride cancellation');
+ assert.equal(afterCancelCase.body.responses.length,2);
+ assert.equal(afterCancelCase.body.state,'open');
+
  const cancelledFinance=await request('/api/user/settlement-status',{user:1});
  assert.equal(cancelledFinance.status,200);
  assert.equal(cancelledFinance.body.hasUnpaidBooking,false);
@@ -197,16 +266,45 @@ async function runPickupAbort({t,pool,ids,request}){
  const offHistory=await flagOffStore.getBookingHistory(ids[1]);
  assert.ok(offHistory.some(x=>x.bookingId===one&&x.pickupCase?.id===readCase.id),
    'dispute proof stays readable when feature flag is disabled');
+ const responseFlagOff=new PgRidesStore({
+   pool,journeyEnabled:true,pickupAbortEnabled:false,caseResponseEnabled:true
+ });
+ await responseFlagOff.ready();
+ assert.equal(responseFlagOff.responseSchemaReady,true);
+ assert.equal((await responseFlagOff.getBookingCase({
+   bookingId:one,actorUserId:ids[1]})).responses.length,2,
+   'case response history must remain readable even if pickup abort is switched off');
  const rls=await pool.query("SELECT relrowsecurity FROM pg_class WHERE oid='public.campus_booking_cases'::regclass");
  assert.equal(rls.rows[0].relrowsecurity,true);
  const noDeletes=await pool.query("SELECT has_table_privilege('campuspool_staging_app','public.campus_booking_case_events','DELETE') AS d,has_table_privilege('campuspool_staging_app','public.campus_booking_case_events','UPDATE') AS u");
  assert.deepEqual(noDeletes.rows[0],{d:false,u:false});
+ const responseGrants=await pool.query([
+   "SELECT has_table_privilege('campuspool_staging_app','public.campus_booking_case_responses','DELETE') AS d,",
+   "has_table_privilege('campuspool_staging_app','public.campus_booking_case_responses','UPDATE') AS u"
+ ].join(' '));
+ assert.deepEqual(responseGrants.rows[0],{d:false,u:false});
+
 
  // Migration replay with persisted case/events. CI database is explicitly disposable.
  const beforeReplay=(await pool.query('SELECT count(*)::int AS n FROM public.campus_booking_case_events')).rows[0].n;
  await pool.query(fs.readFileSync(path.join(__dirname,'..','stage1-otp','migrations','012_pickup_abort_cases.sql'),'utf8'));
  const afterReplay=(await pool.query('SELECT count(*)::int AS n FROM public.campus_booking_case_events')).rows[0].n;
  assert.equal(afterReplay,beforeReplay);
+ const beforeResponses=(await pool.query('SELECT count(*)::int AS n FROM public.campus_booking_case_responses')).rows[0].n;
+ await pool.query(fs.readFileSync(path.join(__dirname,'..','stage1-otp','migrations',
+   '013_private_case_responses.sql'),'utf8'));
+ const afterResponses=(await pool.query('SELECT count(*)::int AS n FROM public.campus_booking_case_responses')).rows[0].n;
+ assert.equal(afterResponses,beforeResponses,'migration 013 replay keeps protected existing responses');
+ t.diagnostic('CAMPUS_CASE_RESPONSE_RESULT '+JSON.stringify({
+   disposableOnly:true,actors:ids.length,counterpartyOnly:true,
+   caseReadAfterCancellation:true,flagRollbackRead:true,
+   privateTimeline:true,csrfRequired:true,anonymousBlocked:true,
+   concurrentOpposingResponses:true,sameCodeRetryIdempotent:true,
+   contradictoryResponseRejected:true,noPaymentOrSeatChange:true,
+   immutableDatabaseGrants:true,migration013Replay:true,
+   reviewerAdjudicationDisabled:true,automaticSanctions:false
+ }));
+
  t.diagnostic('CAMPUS_PICKUP_ABORT_RESULT '+JSON.stringify({
   disposableOnly:true,actors:ids.length,sharedFiveMinuteWait:true,
   earlyClaimsBlocked:true,emergencyEarlyAllowed:true,privateRead:true,

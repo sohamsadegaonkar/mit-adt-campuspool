@@ -10,7 +10,7 @@ const source=html.slice(begin,end)+
 const sanitize=x=>String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 function fixture(enabled=true){
   // The pickup module renders separately; this test isolates boarding markup.
-  const vmScope={appState:{boardingPinEnabled:enabled},sanitize,pickupAbortMarkup:()=>''};
+  const vmScope={appState:{boardingPinEnabled:enabled},sanitize,pickupAbortMarkup:()=>'',caseResponseMarkup:()=>''};
   vm.runInNewContext(source,vmScope);
   return vmScope.boarding;
 }

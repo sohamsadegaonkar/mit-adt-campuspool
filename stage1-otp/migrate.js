@@ -34,7 +34,9 @@ async function migrate({
     await pool.query(boardingSql);
     const pickupSql=fs.readFileSync(path.join(__dirname,'migrations','012_pickup_abort_cases.sql'),'utf8');
     await pool.query(pickupSql);
-    console.log('[OTP MIGRATION] Applied OTP, identity, rides, PostGIS, idempotency, payment-mode, journey, boarding PIN and pickup-case schema migrations');
+    const responseSql=fs.readFileSync(path.join(__dirname,'migrations','013_private_case_responses.sql'),'utf8');
+    await pool.query(responseSql);
+    console.log('[OTP MIGRATION] Applied OTP, identity, rides, PostGIS, idempotency, payment-mode, journey, boarding PIN, pickup cases and private responses');
   } finally {
     await pool.end();
   }
