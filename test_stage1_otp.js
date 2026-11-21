@@ -156,6 +156,30 @@ test('Stage 1 PostgreSQL OTP lifecycle', {skip:!connectionString?'OTP_DATABASE_U
   await Promise.all(stores.map(s=>s.close()));
 });
 
+test('provider failure releases pending PostgreSQL OTP retry without bypassing rate limits',{
+  skip:!connectionString?'OTP_DATABASE_URL test database required':false
+},async()=>{
+  const store=await makeStore();
+  const target=unique('provider-failed');
+  const ip='203.0.113.119';
+  await assert.rejects(store.issue({purpose:'signup_email',channel:'email',target,ip,
+    deliver:async()=>{throw Error('synthetic provider outage');}
+  }),error=>error.code==='DELIVERY_UNAVAILABLE');
+  const failed=await store.pool.query(
+    'SELECT state FROM otp_challenges WHERE target_hash=$1',[store.targetDigest('email',target)]);
+  assert.equal(failed.rows[0].state,'failed');
+  const captureCode=capture();
+  const issued=await store.issue({purpose:'signup_email',channel:'email',target,ip,
+    deliver:captureCode.deliver
+  });
+  assert.equal(issued.ok,true);
+  assert.equal(captureCode.sent.length,1);
+  const good=await store.verify({purpose:'signup_email',channel:'email',target,
+    code:captureCode.sent[0].code,ip});
+  assert.equal(good.ok,true);
+  await store.close();
+});
+
 test('Transactional email adapter requires credentials and validates response',async()=>{
   assert.equal(configured({}),false);
   const env={EMAIL_PROVIDER:'resend',RESEND_API_KEY:'test-only',EMAIL_FROM:'CampusPool <verified@example.org>'};
@@ -223,6 +247,11 @@ test('Stage 1 API contract: email signup, phone signup, registration and login',
 
   const requestEmail=await call('/api/auth/send-email-otp',{name:'Sample Student',email,phone});
   assert.equal(requestEmail.status,200);
+  // The HTTPS provider accepted the API request, but no inbox receipt has
+  // been independently observed. Never claim final delivery in public API.
+  assert.equal(requestEmail.providerAccepted,true);
+  assert.equal(requestEmail.deliveredToInbox,undefined);
+  assert.match(requestEmail.message,/provider/i);
   assert.equal(emailCodes.length,1);
   const verifiedEmail=await call('/api/auth/verify-email-otp',{email,otp:emailCodes[0].code});
   assert.equal(verifiedEmail.status,200);
@@ -259,4 +288,33 @@ test('Stage 1 API contract: email signup, phone signup, registration and login',
   assert.equal(signedIn.isLogin,true);
   assert.equal(sessions,2);
   await store.close();
+});
+
+
+test('PostgreSQL identity lookup never maps email-local phone digits to another account',async()=>{
+  const {PgIdentity}=require('./stage1-otp/identity');
+  const queries=[];
+  const store={pool:{query:async(sql,params)=>{
+    queries.push({sql,params});
+    return {rows:[]};
+  }}};
+  const identity=new PgIdentity(store);
+  const digitEmail='9123456788@students.mituniversity.edu.in';
+  assert.equal(await identity.getProfileByIdentifier(digitEmail),null);
+  assert.equal(queries.length,1);
+  assert.match(queries[0].sql,/WHERE email=\$1 LIMIT 1/);
+  assert.doesNotMatch(queries[0].sql,/phone/);
+  assert.deepEqual(queries[0].params,[digitEmail]);
+
+  assert.equal(await identity.getProfileByIdentifier('+91 9123456788'),null);
+  assert.equal(queries.length,2);
+  assert.match(queries[1].sql,/WHERE phone=\$1 LIMIT 1/);
+  assert.doesNotMatch(queries[1].sql,/email=/);
+  assert.deepEqual(queries[1].params,['9123456788']);
+
+  // An entirely different identifier must not be resolved via accidental
+  // substring matching or an ambiguous OR predicate.
+  assert.equal(await identity.getProfileByIdentifier('student@mituniversity.edu.in'),null);
+  assert.equal(queries.length,3);
+  assert.deepEqual(queries[2].params,['student@mituniversity.edu.in']);
 });

@@ -45,14 +45,23 @@ test('real subprocess streaming and independent synthetic encrypted restore',
       '--network','none','--tmpfs','/var/lib/postgresql/data:rw,size=256m',
       '-e','POSTGRES_HOST_AUTH_METHOD=trust','postgres:17']);
     started=true;
+    // The official postgres image briefly starts a temporary init server
+    // and stops it before starting the final server. pg_isready alone can
+    // pass during that transient phase; wait for init completion AND readiness.
     let ready=false;
-    for(let i=0;i<60;i++){
-      const p=spawnSync('docker',['exec',cid,'pg_isready','-q','-U','postgres'],
-        {stdio:'ignore',timeout:3000});
-      if(p.status===0){ready=true;break;}
+    for(let i=0;i<120;i++){
+      const log=spawnSync('docker',['logs',cid],
+        {encoding:'utf8',stdio:['ignore','pipe','pipe'],timeout:3000});
+      const initComplete=(String(log.stdout||'')+String(log.stderr||''))
+        .includes('PostgreSQL init process complete; ready for start up.');
+      if(initComplete){
+        const p=spawnSync('docker',['exec',cid,'pg_isready','-q','-U','postgres'],
+          {stdio:'ignore',timeout:3000});
+        if(p.status===0){ready=true;break;}
+      }
       await pause(250);
     }
-    assert.ok(ready,'Disposable PostgreSQL 17 was not ready');
+    assert.ok(ready,'Disposable PostgreSQL 17 final server was not ready');
     const createSQL=[
       'CREATE TABLE public.backup_probe(id integer PRIMARY KEY)',
       'INSERT INTO public.backup_probe VALUES (1),(2)',

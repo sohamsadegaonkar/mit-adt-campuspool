@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY package*.json ./
 
 # Install production dependencies (glibc prebuilts link seamlessly without musl SIGSEGV)
-RUN npm install --omit=dev
+RUN npm ci --omit=dev
 
 # Copy application code
 COPY . .

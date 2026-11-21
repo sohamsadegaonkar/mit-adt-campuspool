@@ -777,6 +777,16 @@ class SQLiteCampusDatabase {
     });
   }
 
+  // Roll back a failed provider attempt by the exact challenge id.
+  // Never delete an OTP that was successfully verified or a newer retry.
+  deleteOtp(id) {
+    if (typeof id !== 'string') return false;
+    const result = this.db.prepare(
+      'DELETE FROM otp_verifications WHERE id = ? AND is_verified = 0'
+    ).run(id);
+    return result.changes === 1;
+  }
+
   cleanExpiredOtps(identifier) {
     const now = Date.now();
     if (identifier) {

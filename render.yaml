@@ -1,31 +1,37 @@
+# Production service specification — intentionally NOT synced or deployed.
+# Matches the existing Render Docker service in Singapore. No automatic deploy.
+# Production promotion remains blocked by independent data recovery, provider
+# delivery and migration validation. Do not point this at staging PostgreSQL.
 services:
   - type: web
     name: mit-adt-campuspool
-    env: node
+    runtime: docker
     plan: free
-    region: oregon
-    buildCommand: npm ci --omit=dev
-    startCommand: node server.js
+    region: singapore
+    branch: main
+    autoDeployTrigger: 'off'
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     healthCheckPath: /healthz
     envVars:
       - key: NODE_ENV
         value: production
+      - key: APP_ENV
+        value: production
       - key: NODE_VERSION
-        value: 22.23.2
+        value: "22.23.2"
       - key: PORT
         value: "10000"
-      - key: SMTP_HOST
-        value: smtp.gmail.com
-      - key: SMTP_PORT
-        value: "465"
-      - key: SMTP_SECURE
-        value: "true"
-      # Enter private SMTP details in Render; never commit them.
-      - key: SMTP_USER
+      # HTTPS transactional mail only; sender must be verified by provider.
+      # Credentials are private settings on the existing Render Docker service.
+      - key: EMAIL_PROVIDER
+        value: resend
+      - key: RESEND_API_KEY
         sync: false
-      - key: SMTP_PASS
-        sync: false
-      - key: SMTP_FROM
+      - key: EMAIL_FROM
         sync: false
       - key: OTP_SECRET
-        generateValue: true
+        sync: false
+      # Before a separately approved PostgreSQL production migration, keep
+      # existing live backend settings unchanged. Configure PG identity/rides
+      # and isolated credentials in Render only after verified recovery.

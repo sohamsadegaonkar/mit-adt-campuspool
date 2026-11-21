@@ -57,20 +57,27 @@ function checkRuntime({target,env=process.env,fsImpl=fs}={}){
   const isStaging=target==='staging';
 
   if(!isStaging){
-    // Mirrors the currently deployed, legacy SQLite runtime profile.
-    // A PostgreSQL production promotion is a DIFFERENT supervised release.
-    check('PRODUCTION_NOT_MARKED_STAGING',env.APP_ENV!=='staging');
-    check('LEGACY_AUTH_BACKEND',!env.AUTH_OTP_BACKEND || env.AUTH_OTP_BACKEND==='sqlite');
-    check('LEGACY_RIDES_BACKEND',!env.RIDES_BACKEND || env.RIDES_BACKEND==='sqlite');
-    check('MOBILITY_FLAG_OFF',env.MOBILITY_MATCHING_ENABLED!=='true');
-    check('SMTP_SENDER_CONFIGURED',emailLike(env.SMTP_USER) && hasValue(env.SMTP_PASS)
-      && hasValue(env.SMTP_FROM) && emailLike(env.SMTP_FROM.match(/<([^<>]+)>/)?.[1]||env.SMTP_FROM));
-    check('SMTP_HOST_CONFIGURED',hasValue(env.SMTP_HOST)&&!/\s/.test(env.SMTP_HOST));
-    const port=env.SMTP_PORT||'465',secure=env.SMTP_SECURE||'true';
-    check('SMTP_PORT_TLS_CONSISTENT',(port==='465' && secure==='true')||
-      (port==='587' && secure==='false'));
-    manual.push('LEGACY_SQLITE_DATA_PERSISTENCE_NOT_PRODUCTION_DURABILITY');
-    manual.push('SMTP_PASSWORD_ROTATION_AND_REAL_DELIVERY_UNVERIFIED');
+    // Production promotion must never present ephemeral local SQLite as
+    // acceptable identity/rides persistence, even when mail is configured.
+    // This checks configuration only; manual delivery and restore gates remain.
+    check('PRODUCTION_APP_ENV_EXPLICIT',env.APP_ENV==='production');
+    check('POSTGRES_IDENTITY_BACKEND',env.AUTH_OTP_BACKEND==='postgres');
+    check('POSTGRES_RIDES_BACKEND',env.RIDES_BACKEND==='postgres');
+    check('POSTGRES_DATABASE_URL_PRIVATE_POOLER',privatePostgresUrl(env.OTP_DATABASE_URL));
+    check('POSTGRES_TLS_ENABLED',env.OTP_DB_SSL==='true');
+    check('POSTGRES_CA_SECRET_FILE_PRESENT',certificateFile(env.NODE_EXTRA_CA_CERTS,fsImpl));
+    check('OTP_HMAC_KEY_PRIVATE_AND_DISTINCT',privateSecret(env.OTP_HMAC_KEY) &&
+      env.OTP_HMAC_KEY!==env.OTP_SECRET);
+    check('MOBILITY_FLAG_OFF_UNTIL_PRIVACY_REVIEW',env.MOBILITY_MATCHING_ENABLED!=='true');
+    const verifiedSender=emailLike((env.EMAIL_FROM||'').match(/<([^<>]+)>/)?.[1]||env.EMAIL_FROM);
+    check('TRANSACTIONAL_EMAIL_PROVIDER_CONFIGURED',verifiedSender && (
+      (env.EMAIL_PROVIDER==='resend' && hasValue(env.RESEND_API_KEY)) ||
+      (env.EMAIL_PROVIDER==='brevo' && hasValue(env.BREVO_API_KEY))));
+    check('SMS_MSG91_PROVIDER_CONFIGURED',env.SMS_PROVIDER==='msg91' &&
+      hasValue(env.MSG91_AUTHKEY) && hasValue(env.MSG91_FLOW_TEMPLATE_ID));
+    manual.push('PRODUCTION_DATABASE_MIGRATION_AND_ROLLBACK_UNVERIFIED');
+    manual.push('PRODUCTION_HTTPS_EMAIL_AND_SMS_RECEIPT_UNVERIFIED');
+    manual.push('PRODUCTION_POSTGRES_DATA_AND_TLS_CONNECTIVITY_NOT_TESTED');
   }else{
     check('STAGING_ISOLATED_APP_ENV',env.APP_ENV==='staging');
     check('STAGING_BASIC_AUTH_PRIVATE',hasValue(env.STAGING_BASIC_AUTH_PASSWORD) &&
@@ -83,8 +90,10 @@ function checkRuntime({target,env=process.env,fsImpl=fs}={}){
     check('OTP_HMAC_KEY_PRIVATE_AND_DISTINCT',privateSecret(env.OTP_HMAC_KEY) &&
       env.OTP_HMAC_KEY!==env.OTP_SECRET);
     const mail=env.EMAIL_PROVIDER;
-    check('TRANSACTIONAL_EMAIL_PROVIDER_CONFIGURED',mail==='resend' &&
-      hasValue(env.RESEND_API_KEY) && emailLike(env.EMAIL_FROM));
+    check('TRANSACTIONAL_EMAIL_PROVIDER_CONFIGURED',
+      emailLike((env.EMAIL_FROM||'').match(/<([^<>]+)>/)?.[1]||env.EMAIL_FROM) &&
+      ((mail==='resend' && hasValue(env.RESEND_API_KEY)) ||
+       (mail==='brevo' && hasValue(env.BREVO_API_KEY))));
     const sms=env.SMS_PROVIDER||'disabled';
     check('SMS_PROVIDER_EXPLICITLY_SAFE',sms==='disabled' ||
       (sms==='msg91' && hasValue(env.MSG91_AUTHKEY) && hasValue(env.MSG91_FLOW_TEMPLATE_ID)));

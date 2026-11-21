@@ -120,7 +120,9 @@ class PgOtpStore {
       const result=await deliver({target:normalized,code,purpose,channel});
       if(!result?.accepted) throw Error('PROVIDER_REJECTED');
     } catch(_) {
-      await this.pool.query("UPDATE otp_challenges SET state='failed',updated_at=now() WHERE id=$1 AND state='pending'",[id]);
+      // Failed deliveries must not impose a new 60-second resend cooldown.
+      // Shared IP/target request budgets still count each attempt.
+      await this.pool.query("UPDATE otp_challenges SET state='failed',resend_at=now(),updated_at=now() WHERE id=$1 AND state='pending'",[id]);
       throw new OtpError('DELIVERY_UNAVAILABLE',503);
     }
     const active=await this.pool.query(

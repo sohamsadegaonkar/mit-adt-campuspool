@@ -179,7 +179,8 @@ test('Real local email OTP verification creates a session and rejects code repla
     assert.equal(login.status,200);
     const payload=await login.json();
     assert.match(payload.devOtpHint,/^[0-9]{6}$/);
-    assert.equal(payload.deliveredToInbox,false);
+    assert.equal(payload.providerAccepted,false);
+    assert.equal(payload.deliveredToInbox,undefined);
     const verification=await fetch(base+'/api/auth/verify-email-otp',{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({email:loginEmail,otp:payload.devOtpHint})
