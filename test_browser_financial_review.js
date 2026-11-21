@@ -57,7 +57,9 @@ test('review dispute never becomes automatic fine or payment due',()=>{
   assert.equal(r.hasReviewRequired,true);
 });
 test('driver card and warning avoid fake numeric debts from seat counts',()=>{
-  assert.doesNotMatch(source,/seatsTotal\s*[-+]\s*seatsLeft/);
+  // Check executable markup logic, not the explanatory comment rejecting it.
+  const executable=source.replace(/\/\/[^\n]*/g,'');
+  assert.doesNotMatch(executable,/seatsTotal\s*[-+]\s*seatsLeft/);
   assert.match(html,/if \(dueEl\) dueEl\.textContent = 'Not payable'/);
   assert.match(html,/Historical or disputed Pending booking: review required/);
   assert.match(html,/no automatic charge/i);
