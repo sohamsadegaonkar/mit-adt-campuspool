@@ -1,0 +1,27 @@
+name: CampusPool deployment read-only QA harness
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/deployment-smoke.js'
+      - 'test_deployment_smoke.js'
+      - 'docs/ops/DEPLOYMENT_QA.md'
+      - '.github/workflows/deployment-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-harness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check read-only script syntax
+        run: node --check scripts/deployment-smoke.js
+      - name: Verify smoke gates with mocked requests only
+        run: node --test test_deployment_smoke.js
