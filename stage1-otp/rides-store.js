@@ -119,13 +119,13 @@ class PgRidesStore {
       if(!this.responseSchemaReady)
         throw Error('Migration 013 private case responses are required');
     }
-    if(this.caseReviewEnabled){
-      const reviews=await this.pool.query(
-        "SELECT count(*)::int AS n FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('campus_case_reviewer_grants','campus_case_review_decisions','campus_case_appeals','campus_case_appeal_reviews')");
-      this.reviewSchemaReady=reviews.rows[0].n===4;
-      if(!this.reviewSchemaReady)
-        throw Error('Migration 014 guarded review and appeals schema is required');
-    }
+    // A disabled reviewer UI must not unfreeze historical evidence.
+    // Detect the schema even when the feature flag is OFF, as with case 012.
+    const reviews=await this.pool.query(
+      "SELECT count(*)::int AS n FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('campus_case_reviewer_grants','campus_case_review_decisions','campus_case_appeals','campus_case_appeal_reviews')");
+    this.reviewSchemaReady=reviews.rows[0].n===4;
+    if(this.caseReviewEnabled&&!this.reviewSchemaReady)
+      throw Error('Migration 014 guarded review and appeals schema is required');
   }
   async tx(fn,externalClient){
     if(externalClient)return fn(externalClient);
@@ -358,6 +358,12 @@ class PgRidesStore {
         'SELECT id,state FROM public.campus_booking_cases WHERE booking_id=$1 FOR UPDATE',[bookingId]);
       if(!c.rows.length)throw new RidesError('PICKUP_CASE_NOT_FOUND',404);
       if(c.rows[0].state!=='open')throw new RidesError('CASE_NOT_OPEN',409);
+      if(this.reviewSchemaReady){
+        const frozen=await client.query(
+          'SELECT 1 FROM public.campus_case_review_decisions WHERE case_id=$1',
+          [c.rows[0].id]);
+        if(frozen.rows.length)throw new RidesError('CASE_EVIDENCE_FROZEN',409);
+      }
       const hasOther=await client.query([
         'SELECT 1 FROM public.campus_booking_case_events',
         'WHERE case_id=$1 AND actor_user_id<>$2::uuid LIMIT 1'
