@@ -1606,6 +1606,7 @@
       selectedRideForBooking: null,
       selectedBookingForPayment: null,
       settledCommissionAmount: 0,
+      settlementReview: null,
       freeRidesPilot: false,
       journeyEnabled: false,
       boardingPinEnabled: false,
@@ -1847,7 +1848,7 @@
       applyFreePilotOfferMode();
       lastRidesEtag=null;
       pendingSeatTransitions.clear();
-      appState.rides=[];appState.myBookings=[];appState.myBookingHistory=[];appState.myOfferedRides=[];pickupServerClockOffset=0;
+      appState.rides=[];appState.myBookings=[];appState.myBookingHistory=[];appState.myOfferedRides=[];appState.settlementReview=null;pickupServerClockOffset=0;
       appState.selectedRideForBooking=null;appState.selectedBookingForPayment=null;
       renderRidesGrid();renderMyRidesViews();
       hideModal('bookingModal',{restoreFocus:false});hideModal('paymentModal',{restoreFocus:false});
@@ -1956,6 +1957,7 @@
         if (sResp.ok) {
           const sData = await sResp.json();
           if(!current())return;
+          appState.settlementReview=Array.isArray(sData.reviewRequiredBookings)?sData:null;
           if (sData.driverCommission && typeof sData.driverCommission.settled === 'number') {
             appState.settledCommissionAmount = sData.driverCommission.settled;
           }
@@ -2910,32 +2912,14 @@
     }
 
     function calculateWeeklyCommission() {
-      let totalRides = 0;
-      let grossFare = 0;
-      let driverNet = 0;
-      let commissionDue = 0;
-
-      appState.myOfferedRides.forEach(r => {
-        // BUG-01 Fix: Check live ride seatsLeft from appState.rides
-        const liveRide = appState.rides.find(live => live.id === r.id);
-        const seatsRemaining = (liveRide !== undefined) ? liveRide.seatsLeft : (r.seatsLeft || 0);
-        const seatsSold = (r.seatsTotal || 1) - seatsRemaining;
-        if (seatsSold > 0) {
-          const rideGross = seatsSold * (r.studentFare || 0);
-          const rideComm = Math.round(rideGross * 0.10);
-          const rideDriverTake = rideGross - rideComm;
-
-          totalRides += seatsSold;
-          grossFare += rideGross;
-          commissionDue += rideComm;
-          driverNet += rideDriverTake;
-        }
-      });
-
-      const settled = appState.settledCommissionAmount || 0;
-      const netDue = Math.max(0, commissionDue - settled);
-
-      return { totalRides, grossFare, driverNet, netDue, settled };
+      // Seat availability is capacity, NOT proof of transport or money due.
+      // Do not generate a collectible commission from seatsTotal-seatsLeft.
+      const verified=appState.settlementReview;
+      return {
+        totalRides:0,grossFare:0,driverNet:0,netDue:0,settled:0,
+        reviewCount:verified?Number(verified.driverReviewCount||0):0,
+        verified:!!verified
+      };
     }
 
     function updateDriverCommissionBanner() {
@@ -2950,10 +2934,11 @@
         const grossEl = document.getElementById('settlementGrossEarned');
         const netEl = document.getElementById('settlementDriverNet');
 
-        if (dueEl) dueEl.textContent = `₹${comm.netDue}`;
-        if (countEl) countEl.textContent = comm.totalRides;
-        if (grossEl) grossEl.textContent = `₹${comm.grossFare}`;
-        if (netEl) netEl.textContent = `₹${comm.driverNet}`;
+        if (dueEl) dueEl.textContent = 'Not payable';
+        if (countEl) countEl.textContent = comm.reviewCount
+          ?comm.reviewCount+' historical booking(s) for review':'—';
+        if (grossEl) grossEl.textContent = 'Unverified';
+        if (netEl) netEl.textContent = 'Not settled';
       } else {
         banner.classList.add('hidden');
       }
@@ -2964,65 +2949,47 @@
     // ANTI-DEFAULTER & COMMUTE SETTLEMENT ENFORCEMENT
     // -------------------------------------------------------------
     function checkUserSettlementRestriction() {
-      if (!appState.currentUser || !appState.currentUser.email) {
-        return { isBlocked: false, hasUnsettledCommission: false, hasUnpaidBooking: false, reason: 'NONE', message: '' };
+      const snapshot=appState.settlementReview;
+      if(!appState.currentUser?.email||!snapshot){
+        // A missing backend read is *unknown*, not evidence of payment,
+        // collectible debt or an authorization to bypass server write checks.
+        return {isBlocked:false,hasUnsettledCommission:false,hasUnpaidBooking:false,
+          reason:'NONE',hasReviewRequired:false,message:'Financial review status unavailable. Refresh to check.'};
       }
-
-      // 1. Check Driver Commission Due (after 1 or more rides)
-      const comm = calculateWeeklyCommission();
-      const hasUnsettledCommission = (comm.netDue > 0);
-
-      // 2. Check Unsettled / Unpaid Passenger Bookings (after completing 1 ride)
-      const unpaidBookings = (appState.myBookings || []).filter(b => b.paymentStatus === 'Pending');
-      const hasUnpaidBooking = (unpaidBookings.length > 0);
-
-      const isBlocked = hasUnsettledCommission || hasUnpaidBooking;
-
-      let reason = 'NONE';
-      let message = '';
-
-      if (hasUnsettledCommission) {
-        reason = 'COMMISSION_DUE';
-        message = `Platform Settlement Required: You have ₹${comm.netDue} in pending platform commission from your previous commute. Payment verification is unavailable; existing obligations require review.`;
-      } else if (hasUnpaidBooking) {
-        const b = unpaidBookings[0];
-        reason = 'UNPAID_BOOKING';
-        message = `Ride Payment Required: You have an unpaid ride booking (₹${b.studentFare} with ${b.driverName}). Payment verification is unavailable; existing obligations require review.`;
-      }
-
+      const pending=Array.isArray(snapshot.pendingBookings)?snapshot.pendingBookings:[];
+      const review=Array.isArray(snapshot.reviewRequiredBookings)?snapshot.reviewRequiredBookings:[];
       return {
-        isBlocked,
-        hasUnsettledCommission,
-        hasUnpaidBooking,
-        commissionDue: comm.netDue,
-        unpaidBooking: unpaidBookings[0] || null,
-        unpaidBookings,
-        reason,
-        message
+        isBlocked:snapshot.isBlocked===true,
+        hasUnsettledCommission:false,
+        hasUnpaidBooking:snapshot.hasUnpaidBooking===true,
+        commissionDue:0,
+        unpaidBooking:pending[0]||null,
+        unpaidBookings:pending,
+        reviewRequiredBookings:review,
+        hasReviewRequired:snapshot.hasReviewRequired===true,
+        driverReviewCount:Number(snapshot.driverReviewCount||0),
+        reason:snapshot.reason||'NONE',
+        message:snapshot.isBlocked===true
+          ?'An active legacy booking has an unverified Pending marker. New legacy bookings are restricted until review; this is not a bill or a payment confirmation.'
+          :'Some legacy booking records may require review. Cancelled Pending is not a collectible invoice, automatic waiver or fee.'
       };
     }
 
     function updateSettlementWarningBanner() {
-      const banner = document.getElementById('settlementWarningBanner');
-      const text = document.getElementById('settlementWarningText');
-      if (!banner) return;
-
-      const restriction = checkUserSettlementRestriction();
-      if (restriction.isBlocked) {
+      const banner=document.getElementById('settlementWarningBanner');
+      const text=document.getElementById('settlementWarningText');
+      if(!banner)return;
+      const restriction=checkUserSettlementRestriction();
+      if(restriction.isBlocked||restriction.hasReviewRequired){
         banner.removeAttribute('hidden');
-        banner.style.display = 'block';
+        banner.style.display='block';
         banner.classList.remove('hidden');
-        if (text) {
-          if (restriction.hasUnsettledCommission) {
-            text.innerHTML = `You have <strong class="text-white">₹${restriction.commissionDue}</strong> in unsettled platform commission from your previous commute. Booking rides and asking riders are locked until settled.`;
-          } else if (restriction.hasUnpaidBooking) {
-            const b = restriction.unpaidBooking;
-            text.innerHTML = `You have an unpaid ride (<strong class="text-white">₹${b.studentFare}</strong> with ${b.driverName}). Booking other rides and asking riders are locked until settled.`;
-          }
-        }
-      } else {
-        banner.setAttribute('hidden', '');
-        banner.style.display = 'none';
+        if(text)text.textContent=restriction.isBlocked
+          ?'Active legacy Pending booking: booking restrictions continue until review. No payment has been verified, and no charge is being made.'
+          :'Historical or disputed Pending booking: review required. No automatic charge, waived debt, driver commission or restriction from this record.';
+      }else{
+        banner.setAttribute('hidden','');
+        banner.style.display='none';
         banner.classList.add('hidden');
       }
     }
@@ -3030,7 +2997,7 @@
     function openSettlementLockModal(restriction){
       if(!restriction)restriction=checkUserSettlementRestriction();
       const content=document.getElementById('settleBreakdownContent');
-      if(content)content.textContent=(restriction.message||'Outstanding ride dues or commission require review.')+
+      if(content)content.textContent=(restriction.message||'Unverified booking markers require review.')+
         ' Payment verification is not available. Do not send a payment through CampusPool.';
       showModal('settlementLockModal');
     }
@@ -3044,7 +3011,7 @@
     });
 
     document.getElementById('confirmSettleDoneBtn')?.addEventListener('click', () => {
-      showToast('Commission payment must be verified by the payment provider.', '⚠️');
+      showToast('No commission payment can be made until verified policy and provider integration are approved.', '⚠️');
     });
 
     function renderLeaderboard() {
