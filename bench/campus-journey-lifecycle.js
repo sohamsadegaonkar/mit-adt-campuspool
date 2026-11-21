@@ -68,11 +68,28 @@ async function runJourney({t,pool,ids,request}){
   assert.equal(rejected?.code,'23514');
   assert.deepEqual((await pool.query('SELECT journey_stage,departed_at,pickup_at,arrived_at FROM public.campus_rides WHERE id=$1',[rid])).rows[0],snapshot);
   const backup=await create(4);assert.equal(backup.status,201);
+  // A long transaction must stamp the milestone at UPDATE time, not BEGIN.
+  const {PgRidesStore}=require('../stage1-otp/rides-store');
+  const store=new PgRidesStore({pool,journeyEnabled:true});
+  const client=await pool.connect();
+  try{
+    await client.query('BEGIN');
+    const txnStart=(await client.query('SELECT now() AS started')).rows[0].started;
+    await client.query('SELECT pg_sleep(0.06)');
+    const reported=await store.advanceJourney({rideId:backup.body.ride.id,driverUserId:ids[4],action:'depart',client});
+    assert.ok(Date.parse(reported.departedAt)-txnStart.getTime()>=40,
+      'milestone must use the actual write clock after lock acquisition');
+    await client.query('ROLLBACK');
+  }catch(e){await client.query('ROLLBACK');throw e;}
+  finally{client.release();}
+  // The rollback cannot fabricate a departure in the authoritative row.
+  assert.equal((await pool.query('SELECT journey_stage FROM public.campus_rides WHERE id=$1',
+    [backup.body.ride.id])).rows[0].journey_stage,'scheduled');
   assert.equal((await request('/api/rides/cancel',{method:'POST',user:4,csrf:csrf[4],body:{rideId:backup.body.ride.id}})).status,200);
   assert.equal((await event(4,'depart',crypto.randomUUID(),backup.body.ride.id)).status,404);
   t.diagnostic('CAMPUS_JOURNEY_RESULT '+JSON.stringify({actors:ids.length,stages:['scheduled','departed','pickup_ready','arrived'],
     driverOnly:true,csrfRequired:true,concurrentSameKey:true,invalidOrderRejected:true,
     lateBookingClosed:true,lateCancelBlocked:true,passengerReadback:true,gpsRevokedAfterArrival:true,
-    historicalPendingUnchanged:true,dbConstraint:true,arrivalHistoryRetained:true}));
+    historicalPendingUnchanged:true,dbConstraint:true,arrivalHistoryRetained:true,lateTransactionClock:true}));
 }
 module.exports={runJourney};
