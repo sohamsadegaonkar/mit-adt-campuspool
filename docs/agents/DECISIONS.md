@@ -173,3 +173,11 @@
 - **Commission invariant:** `seats_total-seats_left` is mutable seat capacity, NOT proof of a completed paid journey. Without bank/provider-confirmed payment and service evidence, calculate **zero collectible commission**; show old legacy booking counts as review candidates instead. Do not charge or block based on phantom commission.
 - **Free pilot:** `NoPaymentRequired` stays outside legacy Pending financial reviews; never convert it to a debt or fine.
 - **No new money authority:** reviewer RBAC, resolved-case status, appeal, rules for active Pending/legacy ledger/driver payout and payment verification remain unapproved. Source [corrective task](tasks/2026-11-21-cancelled-pending-reconciliation.md), draft PR #66, stacked on PR #64. Production still NO-GO.
+
+## 2026-11-21 — Review/appeal architecture is non-enforcing and independent
+
+- Product decision for current engineering milestone: **record independent neutral review and appeals only**; no automatic fault, entitlement, debt, charge, waiver, fine, account flag, ban or ride-capacity mutation. The prior 5-minute mutual pickup and cancelled/disputed Pending review rules remain intact.
+- Safety rule: initial case reviewer must be an **explicit, currently authorized and unexpired verified user**, not either ride participant, and must consider statements from **both** participants before recording one immutable `no_action` / `insufficient_evidence` / `follow_up_required` record.
+- Fairness rule: each participant can appeal once using bounded categories without exposing their reason to the other side; the appeal reviewer must have a **separately granted** role and must not be case participant or original reviewer. Reviewer decisions do not change payment state, booking restrictions or case status.
+- Permission grants are **operator-only**, never through a live application endpoint. No reviewers are enrolled by this engineering task. Role expiry and revocation are enforced at query time, with DB grant row locking on writes.
+- **Open owner/legal policy:** staffing, reviewer qualifications, appeals and response deadlines, evidentiary standard, retention, notice, compensation/financial settlement, consequences and reinstatement. Do not implement automatic sanctions or financial effects until separately authorized. [Code task](tasks/2026-11-21-reviewer-and-appeals-foundation.md).
