@@ -38,7 +38,7 @@ Only three anonymous GET requests are sent, with no cookies, query strings, redi
 | / | HTTP 200 and CampusPool home page | HTTP 401 Basic Auth gate |
 | /api/auth/me | HTTP 401, no session | HTTP 401, no session/Basic Auth |
 
-A mismatch, timeout, bad status, degraded JSON, unsafe origin or unexpected public access to staging means BLOCKED. A positive verdict is **PASS_READ_ONLY_SMOKE_NOT_RELEASE_APPROVAL**: not proof of real inbox/handset OTP, physical-device UX, durable PostgreSQL state, backup restore, rollback or payment safety. Response bodies and student identifiers are never printed. No domain purchase is required for these limited checks.
+A mismatch, bad HTTP status, degraded JSON, unsafe origin or unexpected public access to staging means BLOCKED. If **all three GET requests fail before receiving any HTTP response**, verdict is INCONCLUSIVE_NETWORK_UNAVAILABLE (often isolated container networking), not proof that Render is down. A positive verdict is **PASS_READ_ONLY_SMOKE_NOT_RELEASE_APPROVAL**: not proof of real inbox/handset OTP, physical-device UX, durable PostgreSQL state, backup restore, rollback or payment safety. Response bodies and student identifiers are never printed. No domain purchase is required for these limited checks.
 
 ## Manual QA record for every new deployment
 
