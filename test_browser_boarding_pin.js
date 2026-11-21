@@ -21,6 +21,17 @@ test('default-off has no new passenger/driver UI',()=>{
   assert.equal(ui.passengerPinMarkup(booking()),'');
   assert.equal(ui.driverPinMarkup({id:'ride-123',journeyStage:'pickup_ready'}),'');
 });
+test('flag-off preserves already verified boarding history without new PIN actions',()=>{
+  const ui=fixture(false);
+  const proved=booking({journeyStage:'arrived',boardedAt:'2026-11-21T05:40:00Z'});
+  const passenger=ui.passengerPinMarkup(proved);
+  assert.match(passenger,/Boarding confirmed with in-app PIN/);
+  assert.doesNotMatch(passenger,/Show my boarding PIN/);
+  ui.setRoster([proved]);
+  const driver=ui.driverPinMarkup({id:'ride-123',journeyStage:'arrived'});
+  assert.match(driver,/Previously verified boarding/);
+  assert.doesNotMatch(driver,/Verify boarding/);
+});
 test('unverified passenger sees separate stage and opt-in private reveal',()=>{
   const ui=fixture();
   const text=ui.passengerPinMarkup(booking());
