@@ -290,7 +290,7 @@ class PgRidesStore {
     if(typeof driverUserId!=='string')throw new RidesError('AUTH_REQUIRED',401);
     if(typeof rideId!=='string'||rideId.length>64||!rideId.startsWith('ride_'))throw new RidesError('INVALID_RIDE');
     const transitions={depart:['scheduled','departed','departed_at'],pickup:['departed','pickup_ready','pickup_at'],arrive:['pickup_ready','arrived','arrived_at']};
-    const step=transitions[action];
+    const step=typeof action==='string' && Object.hasOwn(transitions,action)?transitions[action]:null;
     if(!step)throw new RidesError('INVALID_JOURNEY_ACTION',400);
     return this.tx(async client=>{
       const current=await client.query('SELECT * FROM public.campus_rides WHERE id=$1 FOR UPDATE',[rideId]);
