@@ -43,3 +43,5 @@ PostgreSQL-backed, driver-attested scheduled -> departed -> pickup_ready -> arri
 - 2026-11-21 UTC — added real 5-actor PG HTTP journey verification, duplicate-key race, privacy/seat/financial assertions; CI script staged, browser timeline still pending.
 
 - 2026-11-21 UTC — UI driver report button with parked-only confirmation, server re-read of milestone; yellow-black timeline for driver and active passengers from persisted timestamps, replay/real-state distinction; browser VM pending.
+
+- 2026-11-21 UTC — new VM test verifies initial timeline is static, real server snapshot changes only, false-progress guards, reduced-motion and script syntax. Owner/booking refresh both required before status animation.

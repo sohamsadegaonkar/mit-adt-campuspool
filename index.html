@@ -1845,7 +1845,7 @@
       if (!appState.currentUser || !csrfToken || !appState.currentUser.email) return;
       const email=appState.currentUser.email, proof=csrfToken, generation=++privateReadGeneration;
       const current=()=>generation===privateReadGeneration && proof===csrfToken && appState.currentUser?.email===email;
-      let verifiedBookings=null;
+      let verifiedBookings=null,verifiedOwnerRides=false;
       try {
         const bResp = await apiFetch(`/api/bookings?email=${encodeURIComponent(email)}`);
         if (bResp.ok) {
@@ -1863,6 +1863,7 @@
           if(!current())return;
           if (Array.isArray(rData.rides)) {
             appState.myOfferedRides = rData.rides;
+            verifiedOwnerRides=true;
           }
         }
         if(!current())return;
@@ -1875,7 +1876,7 @@
           }
         }
         if(!current())return;
-        if(appState.journeyEnabled && verifiedBookings && Array.isArray(appState.myOfferedRides))
+        if(appState.journeyEnabled && verifiedBookings && verifiedOwnerRides)
           recordVerifiedJourneySnapshot(appState.myBookings,appState.myOfferedRides);
         saveState();
         renderMyRidesViews();
