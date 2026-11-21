@@ -15,27 +15,17 @@ on:
       - 'test_cloud_backup_auth.js'
       - 'test_cloud_worker_image_policy.js'
       - 'test_cloud_backup_scope.js'
+      - 'test_cloud_worker_release_policy.js'
       - 'scripts/cloud-backup-scope.js'
       - 'ops/cloud-backup/**'
       - '.github/workflows/cloud-backup-worker-ci.yml'
   workflow_dispatch:
-    inputs:
-      sign_existing_oci:
-        description: 'Sign one independently verified GHCR digest; never rebuild or deploy'
-        type: boolean
-        default: false
-        required: true
-      sign_approval:
-        description: 'Type SIGN_EXACT_35E37DA_GHCR to approve public workflow identity and signature'
-        type: string
-        required: false
 
 permissions:
   contents: read
 
 jobs:
   zlib-source-provenance:
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.sign_existing_oci != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -49,7 +39,6 @@ jobs:
         run: node scripts/verify-alpine-zlib-patch.js
 
   dependency-supply-chain:
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.sign_existing_oci != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
@@ -65,7 +54,6 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
 
   managed-identity-guards:
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.sign_existing_oci != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -79,6 +67,7 @@ jobs:
           node --check test_cloud_backup_auth.js
           node --test test_cloud_backup_auth.js
           node --test test_cloud_backup_scope.js
+          node --test test_cloud_worker_release_policy.js
           node --test test_age_ciphertext_guard.js
           node --test test_cloud_backup_tls_probe.js
           node --test test_cloud_backup_vault_bootstrap.js
@@ -90,7 +79,6 @@ jobs:
           test -n "$(grep -E '^FROM .*@sha256:[0-9a-f]{64}' ops/cloud-backup/Dockerfile)"
 
   worker-image:
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.sign_existing_oci != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -161,7 +149,6 @@ jobs:
           echo "EXPECTED: no live export without secrets and explicit approval"
 
   image-os-vulnerability-scan:
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.sign_existing_oci != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -312,102 +299,3 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-  manually-sign-reviewed-ghcr:
-    # Disabled except one explicit branch-scoped manual authorization.
-    if: >-
-      ${{ github.event_name == 'workflow_dispatch' &&
-          github.ref == 'refs/heads/ops/backup-three-gates-evidence-2026-11-06' &&
-          inputs.sign_existing_oci == true &&
-          inputs.sign_approval == 'SIGN_EXACT_35E37DA_GHCR' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 12
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
-    env:
-      IMAGE: ghcr.io/sohamsadegaonkar/campuspool-backup-worker@sha256:35e37da37bb4b7790b5582dc73b7c11aad24068d4040a0b6401034d656698a4c
-      EXPECTED_IDENTITY: https://github.com/sohamsadegaonkar/mit-adt-campuspool/.github/workflows/cloud-backup-worker-ci.yml@refs/heads/ops/backup-three-gates-evidence-2026-11-06
-    steps:
-      - name: Verify repository, branch and immutable target
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$GITHUB_REPOSITORY" = "sohamsadegaonkar/mit-adt-campuspool"
-          test "$GITHUB_REF" = "refs/heads/ops/backup-three-gates-evidence-2026-11-06"
-          test "$IMAGE" = "ghcr.io/sohamsadegaonkar/campuspool-backup-worker@sha256:35e37da37bb4b7790b5582dc73b7c11aad24068d4040a0b6401034d656698a4c"
-          echo "IMMUTABLE_RELEASE_TARGET_GUARD_PASS=YES"
-      - name: Install reviewed Cosign
-        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6
-      - name: Authenticate to the existing private GHCR package
-        env:
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          printf '%s\n' "$GHCR_TOKEN" | docker login ghcr.io \
-            --username "$GITHUB_ACTOR" --password-stdin >/dev/null
-          unset GHCR_TOKEN
-          # The legacy 'docker manifest inspect' returned 'manifest unknown' after
-          # login; use Buildx's registry-aware raw manifest reader instead.
-          # A successful login alone never proves package-level Actions access.
-          timeout -k 5s 15s docker buildx version >/dev/null
-          tag="ghcr.io/sohamsadegaonkar/campuspool-backup-worker:review-35e37da37bb4"
-          expected="${IMAGE##*@sha256:}"
-          tag_manifest="$RUNNER_TEMP/campuspool-ghcr-tag-manifest.json"
-          digest_manifest="$RUNNER_TEMP/campuspool-ghcr-digest-manifest.json"
-          if ! timeout -k 5s 45s docker buildx imagetools inspect --raw "$tag" > "$tag_manifest" 2>/dev/null; then
-            echo "::error::GHCR_REVIEW_TAG_INACCESSIBLE: confirm package Actions access for this repository; no signature attempted"
-            exit 1
-          fi
-          tag_hash="$(sha256sum "$tag_manifest" | awk '{print $1}')"
-          if [ "$tag_hash" != "$expected" ]; then
-            echo "::error::GHCR_REVIEW_TAG_DIGEST_MISMATCH: target changed; no signature attempted"
-            exit 1
-          fi
-          echo "EXACT_REVIEW_TAG_VERIFIED=YES"
-          if ! timeout -k 5s 45s docker buildx imagetools inspect --raw "$IMAGE" > "$digest_manifest" 2>/dev/null; then
-            echo "::error::GHCR_DIGEST_INACCESSIBLE: package access or registry lookup blocked; no signature attempted"
-            exit 1
-          fi
-          digest_hash="$(sha256sum "$digest_manifest" | awk '{print $1}')"
-          if [ "$digest_hash" != "$expected" ]; then
-            echo "::error::GHCR_REMOTE_DIGEST_MISMATCH: no signature attempted"
-            exit 1
-          fi
-          rm -f "$tag_manifest" "$digest_manifest"
-          echo "EXISTING_IMAGE_ACCESS_PASS=YES"
-          echo "REMOTE_EXACT_MANIFEST_VERIFIED=YES"
-      - name: Sign only when exact GitHub OIDC identity signature is absent
-        shell: bash
-        env:
-          COSIGN_YES: 'true'
-        run: |
-          set -euo pipefail
-          set +e
-          timeout -k 5s 60s cosign verify \
-            --certificate-identity "$EXPECTED_IDENTITY" \
-            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-            "$IMAGE" >/dev/null 2>&1
-          verify_code=$?
-          set -e
-          if [ "$verify_code" -eq 0 ]; then
-            echo "EXACT_WORKFLOW_SIGNATURE_ALREADY_VERIFIED=YES"
-            exit 0
-          fi
-          if [ "$verify_code" -ne 10 ]; then
-            echo "SIGNATURE_STATE_AMBIGUOUS; NO_SIGN=YES"
-            exit 1
-          fi
-          timeout -k 10s 180s cosign sign --yes "$IMAGE"
-          echo "EXACT_REGISTRY_SIGNATURE_REQUEST_COMPLETED=YES"
-      - name: Verify signed digest and exact workflow OIDC issuer
-        shell: bash
-        run: |
-          set -euo pipefail
-          timeout -k 5s 90s cosign verify \
-            --certificate-identity "$EXPECTED_IDENTITY" \
-            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-            "$IMAGE" >/dev/null
-          echo "REGISTRY_SIGNATURE_VERIFIED=YES"
-          echo "NO_IMAGE_REBUILD_NO_AZURE_OR_DB_ACTION=YES"
