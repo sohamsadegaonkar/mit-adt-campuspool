@@ -85,6 +85,26 @@ async function countDigest(db,tables){
  }
  return result;
 }
+async function legacyDigest(db){
+ // Compare original columns only: additive migrations 009-011 add fields
+ // with defaults, so whole-row JSON hashes would give false migration drift.
+ const tables={
+   campus_users:[],
+   campus_rides:['payment_mode','journey_stage','departed_at','pickup_at','arrived_at'],
+   campus_bookings:['payment_mode','boarded_at','boarding_pin_nonce',
+     'boarding_pin_expires_at','boarding_pin_attempts']
+ };
+ const out={};
+ for(const [table,added] of Object.entries(tables)){
+   const base=added.length?'to_jsonb(t)-ARRAY['+
+     added.map(x=>"'"+x+"'").join(',')+']':'to_jsonb(t)';
+   const q=await db.query(
+     'SELECT count(*)::int AS n,md5(coalesce(string_agg(('+base+
+     ')::text,\'|\' ORDER BY ('+base+')::text),\'\')) AS digest FROM public.'+table+' t');
+   out[table]=q.rows[0];
+ }
+ return out;
+}
 async function seed007(db){
  const identities=Array.from({length:5},()=>crypto.randomUUID());
  for(let i=0;i<identities.length;i++)
@@ -179,14 +199,14 @@ test('real isolated 007→014 upgrade, authenticated archive and separate rollba
    post=await conn(uri(url,dbs[2]));
    for(let version=1;version<=7;version++)await migrate(forward,version);
    const ids=await seed007(forward);
-   const baseline=await countDigest(forward,['campus_users','campus_rides','campus_bookings']);
+   const baseline=await legacyDigest(forward);
    assert.equal((await readCatalog(forward)).tables.some(x=>x.name==='campus_idempotency_keys'),false);
    const preAudit=checkCatalog(await readCatalog(forward),7);
    assert.equal(preAudit.catalogMatches,true,JSON.stringify(preAudit.failures));
    const archiveBefore=seal(dockerPg(url,'pg_dump',dbs[0]));
    assert.ok(archiveBefore.encrypted.length>100);
    dockerPg(url,'pg_restore',dbs[1],archiveBefore.recovered);
-   const beforeRestore=await countDigest(pre,['campus_users','campus_rides','campus_bookings']);
+   const beforeRestore=await legacyDigest(pre);
    assert.deepEqual(beforeRestore,baseline,'pre-upgrade restore must preserve full baseline row digests');
    const preRollback=checkCatalog(await readCatalog(pre),7);
    assert.equal(preRollback.catalogMatches,true,JSON.stringify(preRollback.failures));
@@ -199,7 +219,7 @@ test('real isolated 007→014 upgrade, authenticated archive and separate rollba
        'Stage '+version+' catalog drift: '+JSON.stringify(verdict.failures));
      assert.equal(verdict.detectedStage,version);
      milestones.push(version);
-     assert.deepEqual(await countDigest(forward,['campus_users','campus_rides','campus_bookings']),
+     assert.deepEqual(await legacyDigest(forward),
        baseline,'Stage '+version+' must not rewrite legacy ride/booking rows');
    }
    const status=await forward.query(
