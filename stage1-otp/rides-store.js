@@ -71,7 +71,7 @@ function checkRideInput(r) {
 }
 
 class PgRidesStore {
-  constructor({pool,freePilot=false,journeyEnabled=false,boardingPinEnabled=false,boardingPinKey='',pickupAbortEnabled=false,caseResponseEnabled=false}={}) {
+  constructor({pool,freePilot=false,journeyEnabled=false,boardingPinEnabled=false,boardingPinKey='',pickupAbortEnabled=false,caseResponseEnabled=false,caseReviewEnabled=false}={}) {
     if(!pool||typeof pool.query!=='function'||typeof pool.connect!=='function')
       throw Error('PgRidesStore requires an existing private PostgreSQL pool');
     this.pool=pool;
@@ -82,6 +82,10 @@ class PgRidesStore {
     this.caseSchemaReady=false;
     this.caseResponseEnabled=caseResponseEnabled===true;
     this.responseSchemaReady=false;
+    this.caseReviewEnabled=caseReviewEnabled===true;
+    this.reviewSchemaReady=false;
+    if(this.caseReviewEnabled&&!this.caseResponseEnabled)
+      throw Error('Case review requires private case response feature');
     if(this.pickupAbortEnabled && (!this.journeyEnabled||!this.boardingPinEnabled))
       throw Error('Pickup abort requires journey + per-passenger boarding proof');
     if(this.boardingPinEnabled && (!this.journeyEnabled || Buffer.byteLength(boardingPinKey,'utf8')<32))
@@ -114,6 +118,13 @@ class PgRidesStore {
       this.responseSchemaReady=responses.rows[0].n===1;
       if(!this.responseSchemaReady)
         throw Error('Migration 013 private case responses are required');
+    }
+    if(this.caseReviewEnabled){
+      const reviews=await this.pool.query(
+        "SELECT count(*)::int AS n FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('campus_case_reviewer_grants','campus_case_review_decisions','campus_case_appeals','campus_case_appeal_reviews')");
+      this.reviewSchemaReady=reviews.rows[0].n===4;
+      if(!this.reviewSchemaReady)
+        throw Error('Migration 014 guarded review and appeals schema is required');
     }
   }
   async tx(fn,externalClient){
@@ -286,15 +297,46 @@ class PgRidesStore {
       ].join(' '),[row.case_id])
     ]);
     const otherClaim=claims.rows.some(x=>x.actor_role!==actorRole);
+    let review=null,appeals=[],canAppeal=false;
+    if(this.caseReviewEnabled){
+      const [decision,appealRows]=await Promise.all([
+        this.pool.query([
+          'SELECT decision_code,created_at FROM public.campus_case_review_decisions',
+          'WHERE case_id=$1'
+        ].join(' '),[row.case_id]),
+        this.pool.query([
+          'SELECT a.id,a.actor_user_id,a.reason_code,a.created_at,',
+          'ar.result_code,ar.created_at AS result_at',
+          'FROM public.campus_case_appeals a',
+          'LEFT JOIN public.campus_case_appeal_reviews ar ON ar.appeal_id=a.id',
+          'WHERE a.case_id=$1 ORDER BY a.created_at,a.id'
+        ].join(' '),[row.case_id])
+      ]);
+      if(decision.rows[0])review={
+        code:decision.rows[0].decision_code,
+        recordedAt:asDate(decision.rows[0].created_at)
+      };
+      // Appeal reasoning is private to its submitting actor; other party
+      // can see that an appeal exists, never the actor ID or safety context.
+      appeals=appealRows.rows.map(a=>({
+        mine:a.actor_user_id===actorUserId,
+        reason:a.actor_user_id===actorUserId?a.reason_code:null,
+        filedAt:asDate(a.created_at),
+        outcome:a.result_code||null,
+        outcomeAt:a.result_at?asDate(a.result_at):null
+      }));
+      canAppeal=!!review&&!appealRows.rows.some(a=>a.actor_user_id===actorUserId);
+    }
     return {bookingId,caseId:row.case_id,state:row.state,openedAt:asDate(row.opened_at),
       actorRole,canRespond:otherClaim&&!responses.rows.some(x=>x.actor_user_id===actorUserId),
+      review,appeals,canAppeal,
       claims:claims.rows.map(x=>({
         actorRole:x.actor_role,reason:x.reason,createdAt:asDate(x.created_at)
       })),
       responses:responses.rows.map(x=>({
         actorRole:x.actor_role,code:x.response_code,createdAt:asDate(x.created_at)
       })),
-      message:'All statements are unverified reports. Human review, appeals and financial decisions are not enabled.'};
+      message:'Statements are unverified. Reviewer and appeal entries are administrative records, not payment, account penalties or proof of fault.'};
   }
 
   async respondToBookingCase({bookingId,actorUserId,code,client:txClient}={}){
