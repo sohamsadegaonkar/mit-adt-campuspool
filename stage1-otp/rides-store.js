@@ -298,7 +298,12 @@ class PgRidesStore {
       if(!ride||ride.status!=='active')throw new RidesError('RIDE_NOT_FOUND',404);
       if(ride.driver_user_id!==driverUserId)throw new RidesError('NOT_RIDE_OWNER',403);
       if(ride.journey_stage!==step[0])throw new RidesError('JOURNEY_INVALID_TRANSITION',409);
-      const result=await client.query('UPDATE public.campus_rides SET journey_stage=$2,'+step[2]+'=now(),updated_at=now() WHERE id=$1 RETURNING *',[rideId,step[1]]);
+      // now() is frozen at transaction start; a queued request can acquire
+      // the row lock later. clock_timestamp() reflects the write instant, and
+      // GREATEST enforces monotonic timestamps even across clock adjustments.
+      const predecessor=action==='pickup'?'departed_at':action==='arrive'?'pickup_at':null;
+      const stampedAt=predecessor?'GREATEST(clock_timestamp(),'+predecessor+')':'clock_timestamp()';
+      const result=await client.query('UPDATE public.campus_rides SET journey_stage=$2,'+step[2]+'='+stampedAt+',updated_at=clock_timestamp() WHERE id=$1 RETURNING *',[rideId,step[1]]);
       return ridePublic(result.rows[0]);
     },txClient);
   }

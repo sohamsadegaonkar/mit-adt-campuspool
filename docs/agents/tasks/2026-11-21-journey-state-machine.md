@@ -51,3 +51,5 @@ PostgreSQL-backed, driver-attested scheduled -> departed -> pickup_ready -> arri
 - 2026-11-21 UTC — post-arrival private booking DTO revokes driver-phone disclosure on subsequent reads (cannot reclaim previously seen numbers); journey endpoint rejects non-object bodies with 400. Real PG regression added. Exact CI pending.
 
 - 2026-11-21 UTC — passenger UX labels clarify that arrival is driver-reported, hide stale contact after arrival and explain why cancellation is locked after departure. No driver reimbursement promises added. CI pending.
+
+- 2026-11-21 UTC — corrected potential timestamp inversion across PostgreSQL row-lock waits: use clock_timestamp() at UPDATE and GREATEST with previous milestone; now() at transaction start can predate a serialized earlier event. CI pending.
