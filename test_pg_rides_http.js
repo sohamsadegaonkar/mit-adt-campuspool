@@ -449,6 +449,19 @@ test(pickup?'Pickup abort: five-minute mutual deadline, private case and cancell
         child.once('exit',()=>{clearTimeout(timer);resolve()});
       });
     }
+    // CI-only order: protected case/event history intentionally uses RESTRICT.
+    // Clean synthetic audit children explicitly before synthetic booking parents.
+    await pool.query([
+      'DELETE FROM public.campus_booking_case_events e USING public.campus_booking_cases c,',
+      'public.campus_bookings b,public.campus_rides r',
+      'WHERE e.case_id=c.id AND c.booking_id=b.booking_id AND b.ride_id=r.id',
+      'AND r.driver_user_id=ANY($1::uuid[])'
+    ].join(' '),[ids]);
+    await pool.query([
+      'DELETE FROM public.campus_booking_cases c USING public.campus_bookings b,public.campus_rides r',
+      'WHERE c.booking_id=b.booking_id AND b.ride_id=r.id',
+      'AND r.driver_user_id=ANY($1::uuid[])'
+    ].join(' '),[ids]);
     await pool.query('DELETE FROM public.campus_bookings WHERE ride_id IN (SELECT id FROM public.campus_rides WHERE driver_user_id=ANY($1::uuid[]))',[ids]);
     await pool.query('DELETE FROM public.campus_rides WHERE driver_user_id=ANY($1::uuid[])',[ids]);
     await pool.query('DELETE FROM public.campus_sessions WHERE user_id=ANY($1::uuid[])',[ids]);
