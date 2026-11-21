@@ -53,7 +53,7 @@ test('all migrations 008-014 present and manifest hashes form exactly one ordere
  const entries=manifest();
  assert.deepEqual(entries.map(x=>x.version),[8,9,10,11,12,13,14]);
  for(const row of entries){assert.match(row.sha256,/^[a-f0-9]{64}$/);
-   assert.match(row.filename,new RegExp('^0'+row.version+'_'));}
+   assert.match(row.filename,new RegExp('^'+String(row.version).padStart(3,'0')+'_'));}
  assert.deepEqual([...expectedObjects(14).tables.keys()].sort(),
    ['campus_idempotency_keys','campus_booking_cases','campus_booking_case_events',
     'campus_booking_case_responses','campus_case_reviewer_grants',
