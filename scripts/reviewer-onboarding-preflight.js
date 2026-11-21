@@ -136,10 +136,18 @@ async function assessPlan(client,target,request,now=new Date()){
   }
 }
 
+function checkReadApproval(target,env){
+  if(target.kind==='staging' && env.REVIEWER_STAGING_READ_APPROVED!=='YES')
+    throw Error('Explicit owner-approved staging read opt-in required');
+  // This env value is a safety gate for accidental reads, NOT a verifiable
+  // approval ticket or permission to use real credentials.
+}
+
 async function main(argv=process.argv.slice(2),env=process.env){
   const request=parseArgs(argv);
   const value=env.REVIEWER_OPERATOR_DB_URL;
   const target=validateTarget(value);
+  checkReadApproval(target,env);
   const db=new Client({connectionString:value,ssl:target.ssl?{rejectUnauthorized:true}:false,
     application_name:'campuspool-reviewer-preflight-readonly',
     connectionTimeoutMillis:5000,query_timeout:5000,statement_timeout:5000});
@@ -157,4 +165,4 @@ if(require.main===module)main().catch(()=>{
   console.error('[REVIEWER PREFLIGHT] BLOCKED: plan/target/access requirements not met. No changes made.');
   process.exitCode=1;
 });
-module.exports={validateTarget,parseArgs,assessPlan,main};
+module.exports={validateTarget,parseArgs,checkReadApproval,assessPlan,main};
