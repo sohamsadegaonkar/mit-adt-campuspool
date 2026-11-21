@@ -73,6 +73,13 @@ test('previous cancelled bookings remain visible with payment and boarding uncer
  assert.match(html,/Boarding not verified/);
  assert.match(html,/pickupCase\?\.id/);
 });
+test('driver cancellation review stays visible without pretending collectible debt',()=>{
+  assert.match(html,/Cancelled-booking records retained/);
+  assert.match(html,/historical legacy booking\(s\) still marked Pending/);
+  assert.match(html,/do not establish earned commission or an invoice/);
+  assert.match(html,/appState\.financialReview=null/);
+  assert.match(html,/collectionAuthorized:false/);
+});
 test('all inline HTML scripts compile and reduced motion remains safe',()=>{
  for(const m of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)){
   if(m[1].trim())assert.doesNotThrow(()=>new vm.Script(m[1]));
