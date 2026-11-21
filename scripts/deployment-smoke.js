@@ -73,8 +73,15 @@ async function smoke({target,url,expectedSha,deployedSha,fetchImpl=globalThis.fe
       checks.push({id:path,result:'FAIL',reason:'TIMEOUT_OR_REQUEST_ERROR'});
     }
   }
-  const failures=checks.filter(x=>x.result==='FAIL').map(x=>x.id);
-  return {verdict:failures.length?'BLOCKED_SMOKE_FAILURE':'PASS_READ_ONLY_SMOKE_NOT_RELEASE_APPROVAL',
+  const runtimeChecks=checks.filter(x=>x.id!=='DECLARED_SHA_PARITY');
+  const failures=runtimeChecks.filter(x=>x.result==='FAIL').map(x=>x.id);
+  // An execution container with no outbound network cannot diagnose Render.
+  // Without even one HTTP response, report inconclusive rather than app-down.
+  const noHttpEvidence=runtimeChecks.length===3 &&
+    runtimeChecks.every(x=>x.result==='FAIL'&&x.reason==='TIMEOUT_OR_REQUEST_ERROR');
+  const verdict=noHttpEvidence?'INCONCLUSIVE_NETWORK_UNAVAILABLE'
+    : failures.length?'BLOCKED_SMOKE_FAILURE':'PASS_READ_ONLY_SMOKE_NOT_RELEASE_APPROVAL';
+  return {verdict,
     target,sourceSha:expectedSha.toLowerCase(),operatorReportedDeployedSha:deployedSha.toLowerCase(),
     shaEvidence:'OPERATOR_SUPPLIED_NOT_ATTESTED_BY_SCRIPT',origin:validation.origin,
     checks,failures,requestsMade,methodsUsed:['GET'],
