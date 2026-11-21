@@ -2369,7 +2369,8 @@
       return changes;
     }
     function journeyTimelineMarkup(item,changed){
-      if(!appState.journeyEnabled)return '';
+      // Rollback stops new reports but must retain readable committed milestones.
+      if(!appState.journeyEnabled && (!item?.journeyStage||item.journeyStage==='scheduled'))return '';
       const stage=typeof item?.journeyStage==='string'?item.journeyStage:'scheduled';
       const rank=journeyRank(stage);
       const from=(changed&&Number.isInteger(changed.from))?Math.min(rank,Math.max(0,changed.from)):rank;
@@ -2444,7 +2445,7 @@
               <article class="cp-boarding-pass p-3 sm:p-4 space-y-3" data-booking-id="${sanitize(String(b.bookingId||''))}">
                 ${boardingPassMarkup(b)}
                 ${journeyTimelineMarkup(b,pendingJourneyAnimations.get(b.rideId))}
-                ${appState.journeyEnabled&&b.journeyStage!=='scheduled'?`<p class="text-xs text-slate-300">${b.journeyStage==='arrived'?'Driver reported arrival. This booking remains in your history.':'Booking changes are locked after reported departure. Contact your driver for assistance.'}</p>`:'' }
+                ${b.journeyStage&&b.journeyStage!=='scheduled'?`<p class="text-xs text-slate-300">${b.journeyStage==='arrived'?'Driver reported arrival. This booking remains in your history.':'Booking changes are locked after reported departure. Contact your driver for assistance.'}</p>`:'' }
 
                 <div class="pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
                   <div class="flex items-center gap-1.5">
@@ -2453,7 +2454,7 @@
                     </a>
                     <a href="tel:${cleanDriverPhone}" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-3 py-1.5 rounded-xl transition">
                       <svg class="cp-icon" aria-hidden="true"><use href="#cp-phone"></use></svg> Call
-                    </a>` : `<span class="text-slate-400">${appState.journeyEnabled&&b.journeyStage==='arrived'?'Driver contact closed after reported arrival':'Contact available after refresh'}</span>`}
+                    </a>` : `<span class="text-slate-400">${b.journeyStage==='arrived'?'Driver contact closed after reported arrival':'Contact available after refresh'}</span>`}
                   </div>
 
                   <div class="flex items-center gap-2">
@@ -2466,7 +2467,7 @@
                         <svg class="cp-icon" aria-hidden="true"><use href="#cp-wallet"></use></svg> Payment unavailable
                       </button>
                     `}
-                    <button ${appState.journeyEnabled&&b.journeyStage!=='scheduled'?'disabled title="Contact the driver for changes after departure"':''} class="cancel-booking-btn bg-slate-900 hover:bg-rose-950/80 text-slate-400 hover:text-rose-300 font-semibold px-2.5 py-1.5 rounded-xl transition border border-slate-800 hover:border-rose-900/60 cursor-pointer text-[11px]" data-booking-id="${b.bookingId}">
+                    <button ${b.journeyStage&&b.journeyStage!=='scheduled'?'disabled title="Contact the driver for changes after departure"':''} class="cancel-booking-btn bg-slate-900 hover:bg-rose-950/80 text-slate-400 hover:text-rose-300 font-semibold px-2.5 py-1.5 rounded-xl transition border border-slate-800 hover:border-rose-900/60 cursor-pointer text-[11px]" data-booking-id="${b.bookingId}">
                       Cancel
                     </button>
                   </div>
@@ -2534,7 +2535,7 @@
               ${appState.journeyEnabled&&nextJourneyAction(r.journeyStage)?`<button type="button" class="cp-journey-action" data-ride-id="${sanitize(r.id)}" data-action="${nextJourneyAction(r.journeyStage)}">${journeySteps[journeyRank(r.journeyStage)].cta}</button>`:''}
               <div class="pt-2 border-t border-slate-800 flex items-center justify-between">
                 <span class="text-[11px] text-slate-500">MIT ADT Campus Corridor</span>
-                <button ${appState.journeyEnabled&&r.journeyStage==='arrived'?'disabled title="Arrived rides remain in your history"':''} class="cancel-ride-btn bg-slate-900 hover:bg-rose-950/80 text-slate-400 hover:text-rose-300 font-semibold px-2.5 py-1 rounded-lg transition border border-slate-800 hover:border-rose-900/60 cursor-pointer text-[11px]" data-ride-id="${r.id}">
+                <button ${r.journeyStage==='arrived'?'disabled title="Arrived rides remain in your history"':''} class="cancel-ride-btn bg-slate-900 hover:bg-rose-950/80 text-slate-400 hover:text-rose-300 font-semibold px-2.5 py-1 rounded-lg transition border border-slate-800 hover:border-rose-900/60 cursor-pointer text-[11px]" data-ride-id="${r.id}">
                   Cancel Ride
                 </button>
               </div>

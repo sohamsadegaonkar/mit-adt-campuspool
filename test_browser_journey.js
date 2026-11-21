@@ -48,7 +48,12 @@ test('malicious stage text is not injected; disabled feature renders nothing',()
   const j=fixture();
   const htmlView=j.journeyTimelineMarkup({...ride('scheduled'),journeyStage:'<img src=x onerror=alert(1)>'});
   assert.ok(!htmlView.includes('<img'));assert.ok(htmlView.includes('Seat ready'));
-  assert.equal(fixture(false).journeyTimelineMarkup(ride('arrived')), '');
+  assert.equal(fixture(false).journeyTimelineMarkup(ride('scheduled')), '');
+  const historical=fixture(false).journeyTimelineMarkup(ride('arrived'));
+  assert.ok(historical.includes('Driver-reported milestone'));
+  assert.ok(historical.includes('Arrived'));
+  assert.ok(!historical.includes('cp-journey-advanced'));
+
 });
 test('reduced-motion and parked-only consent; browser does not infer fake arrival',()=>{
   assert.ok(html.includes('@media (prefers-reduced-motion:reduce)'));

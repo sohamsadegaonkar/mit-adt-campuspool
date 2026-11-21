@@ -57,3 +57,5 @@ PostgreSQL-backed, driver-attested scheduled -> departed -> pickup_ready -> arri
 - 2026-11-21 UTC — added actual PostgreSQL transaction-start lag regression: hold transaction 60ms, assert milestone uses write-time DB clock (at least 40ms after BEGIN), rollback proves no phantom event, then owner cancel. Exact test CI pending.
 
 - 2026-11-21 UTC — related mobility candidate query now filters journey_stage='scheduled' so departed rides cannot be offered via matching after disappearing from ride discovery. The same 010 migration readiness applies to PG mobility. CI pending.
+
+- 2026-11-21 UTC — flag-off disables new reports but cannot hide previously committed journey state. Render arrived/departed milestones read-only and retain stage-based cancellation restrictions; VM test added. CI pending.
