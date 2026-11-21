@@ -379,3 +379,8 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 
 
 - Free rides-only pilot candidate OFF: explicit 009 payment mode and zero fare NoPaymentRequired, legacy obligations retained. CI pending. [Task](tasks/2026-11-20-free-rides-pilot.md).
+
+
+## 2026-11-21 — CampusPool Motion Language branch-only
+
+- PR candidate: seat indicator motion only on authenticated verified ride-feed deltas and one-time yellow/black boarding pass ticket confirmation only after a fresh active booking GET. Pure HTML/CSS/inline SVG, reduced-motion option; no GPS progress or paid claim. CI pending. [Task](tasks/2026-11-21-campuspool-motion-boarding-pass.md). No live change.

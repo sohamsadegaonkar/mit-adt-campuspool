@@ -30,6 +30,7 @@ on:
       - 'bench/campus-gps-privacy.js'
       - 'bench/campus-free-pilot.js'
       - 'test_browser_gps_privacy.js'
+      - 'test_browser_motion.js'
       - 'test_pg_mobility.js'
       - 'test_pg_mobility_http.js'
       - 'test_mobility_geo.js'
@@ -124,6 +125,7 @@ jobs:
           node --check bench/campus-gps-privacy.js
           node --check bench/campus-free-pilot.js
           node --check test_browser_gps_privacy.js
+          node --check test_browser_motion.js
           node --check test_production_auth.js
           node --check scripts/check-release-gates.js
           node --check test_release_gates.js
@@ -135,6 +137,7 @@ jobs:
           npm run test:staging-preflight
           npm run test:browser-idempotency
           node --test test_browser_gps_privacy.js
+          node --test test_browser_motion.js
           npm run test:stage1
           npm run test:identity
           npm run test:rides

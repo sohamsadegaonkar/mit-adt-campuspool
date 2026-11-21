@@ -363,3 +363,6 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 
 
 - [Free rides pilot](tasks/2026-11-20-free-rides-pilot.md): verify CI, review owner-approved policy, 009 preflight and integration; no live changes.
+
+
+- [CampusPool boarding-pass motion](tasks/2026-11-21-campuspool-motion-boarding-pass.md): check exact CI and current active-booking/session race; real narrow Android, screen reader, contrast and reduced-motion review before integration. No fake journey progress; backend lifecycle first. G1 remains NO-GO.
