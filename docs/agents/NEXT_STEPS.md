@@ -383,3 +383,13 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 4. **P0 release dependency:** confirm G1 backup/independent recovery, 008→009→010 compatibility, validated 009/010 constraints and rollback/hotfix safety before any staging migrations. New binary needs 010 even when reporting is disabled; old binaries must not accept bookings on already-departed rides.
 5. **Integration order:** #47→#48→#49→#51→#52→#53→#54→#55→#56→#57→#58→#59→#60; separately review #50 and #36; CI-green does not authorize merges. Preserve default OFF and NO-GO.
 6. **Evidence/handoff:** [2026-11-21-journey-release-safety-audit.md](tasks/2026-11-21-journey-release-safety-audit.md). Keep separate from runtime production truth and get explicit owner approval for any staging, production or schema operation.
+
+
+## 2026-11-21 — Product decision: in-app passenger boarding PIN (NOT IMPLEMENTED)
+
+1. At pickup, authorized driver and confirmed passenger use existing contact flow to resolve "can't find driver/passenger"; pickup-ready is not proof of boarding.
+2. Add a **passenger-specific** in-app boarding PIN: passenger reads code in their authenticated booking card, gives it to driver *after getting into vehicle*, driver enters code in authenticated driver view, server atomically records booking-level boarding confirmation. Never use SMS/email/OTP provider; never expose passenger PIN to driver or other bookings.
+3. Split **driver-reported vehicle milestone** from **passenger boarding verification**. Driver can report arrival at destination, but a booking with no validated boarding PIN must remain "boarding unverified", not "completed".
+4. Implement separate dispute/no-show handling and address cancelled-Pending history/settlement P1; do not charge, forgive or settle automatically based on status or PIN.
+5. Add real PG tests for multiple passengers/unique codes, wrong/expired/guessed PIN attempts, lockout, idempotent duplicate/concurrent verification, ownership/CSRF, cancellation & race at drop-off, reduced-motion/accessible status, disabled feature and no exposed PIN in receipts/logging. Physical Android and migration/recovery review still required.
+6. Minimal architecture: existing booking row + server verifier and existing app/session; no new service or paid provider. [Decision](DECISIONS.md), [handoff](tasks/2026-11-21-journey-release-safety-audit.md); PR #60 and #61 remain draft/unmerged.
