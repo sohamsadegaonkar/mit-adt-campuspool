@@ -2654,7 +2654,7 @@
               input.value='';
               try{
                 const response=await apiFetch('/api/bookings/verify-boarding-pin',{
-                  method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':secureRequestId()},
+                  method:'POST',headers:{'Content-Type':'application/json'},
                   body:JSON.stringify({bookingId:id,pin:code})
                 });
                 const data=await response.json();
