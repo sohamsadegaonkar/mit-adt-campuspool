@@ -384,3 +384,6 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 ## 2026-11-21 — CampusPool Motion Language branch-only
 
 - PR candidate: seat indicator motion only on authenticated verified ride-feed deltas and one-time yellow/black boarding pass ticket confirmation only after a fresh active booking GET. Pure HTML/CSS/inline SVG, reduced-motion option; no GPS progress or paid claim. CI pending. [Task](tasks/2026-11-21-campuspool-motion-boarding-pass.md). No live change.
+
+
+- **PR #59 code 091a1ac CI passed (21 Nov 2026):** motion VM 7/7, browser idempotency 12/12, GPS VM 3/3, Rush 3880/3880 (zero unexpected; 47 invariant snapshots), browser E2E 30. Draft/unmerged; physical Android and accessibility review pending. [Task](tasks/2026-11-21-campuspool-motion-boarding-pass.md). [Motion language](MOTION_LANGUAGE.md).

@@ -1,7 +1,7 @@
 # CampusPool Motion Language — booking and boarding pass (v1)
 
 - **Task ID / file:** 2026-11-21-campuspool-motion-boarding-pass
-- **Status:** implementation candidate, CI pending, unmerged and undeployed
+- **Status:** tested at exact code; manual visual/device review pending, unmerged and undeployed
 - **Agent / owner:** application engineering; design/product review pending
 - **Last updated:** 2026-11-21 IST
 - **Baseline:** main 1020e2e; parent PR #58 at ddc8932; minimum-complexity policy PR #50
@@ -38,9 +38,9 @@ PR #58 ddc8932 6/6 reported CI checks passed; pilot is proposed/default-off and 
 
 | Check | Evidence | Status |
 |---|---|---|
-| New motion VM regression | node --test test_browser_motion.js | pending CI |
-| Browser idempotency and GPS | existing CI | pending |
-| PostgreSQL end-to-end and Rush Hour | existing CI | pending |
+| New motion VM regression | node --test test_browser_motion.js | PASS 7/7 |
+| Browser idempotency and GPS | existing CI | PASS 12/12 and 3/3 |
+| PostgreSQL end-to-end and Rush Hour | existing CI | PASS; 3880/3880 |
 | Visual accessibility and device QA | real browser/phone | not run |
 
 ## Risks and decisions
@@ -55,3 +55,11 @@ No real movement/progress animation until a trustworthy journey lifecycle exists
 4. Files changed: index.html, test_browser_motion.js, .github/workflows/stage1-otp.yml, docs/agents/STATUS.md, NEXT_STEPS.md, task file; no runtime server/schema change.
 
 - 2026-11-21 IST — corrected three template literal interpolation syntax errors before PR; inline script parse checkpoint: Inline classic JavaScript parsed with Function. New VM/CI still required.
+
+## Exact-code CI evidence — 2026-11-21 UTC
+
+- **Tested application code:** 091a1ac6ba21bf095b4b29f0d2b7e7fa9cd34249. [PostgreSQL job](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/44865054322/job/136726755613) PASS; [smoke job](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/44865054344/job/136726755731) PASS; [browser E2E job](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/44865054260/job/136726755496) PASS.
+- New motion VM tests **7/7 PASS** (verified feed seat deltas, bounded glyphs, HTML escaping, payment copy, active booking requirement, logout race, reduced motion, all inline JS parsing). Existing browser idempotency **12/12 PASS** and GPS browser VM **3/3 PASS**.
+- Disposable PostgreSQL Rush Hour **3880/3880**, zero dropped/unexpected, 47 consistent snapshots, 875 verified receipts, zero database consistency violations. Privacy projection 29 checks; GPS lifecycle 11 cases; free-pilot fixture 3 zero-fare bookings / zero monetary violations / 2 preserved legacy obligations.
+- Real-browser mobility QA across desktop/mobile configurations **30 tests passed**. Not a physical phone or dedicated ticket-animation visual inspection; real screen reader and large-text/reduced-motion device review remain pending.
+- **Do not merge/deploy without stacked app PR review and release approval.** No live changes.
