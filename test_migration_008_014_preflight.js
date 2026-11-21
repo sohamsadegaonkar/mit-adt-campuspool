@@ -70,6 +70,16 @@ test('seven staged snapshots plus pre-008 baseline pass; all are explicitly NO-G
    assert.equal(out.migrationLedgerVerified,false);
  }
 });
+test('same-format but unapproved migration source SHA or reordered versions fail closed',()=>{
+ const f=catalog(14);
+ f.migrationHashes=f.migrationHashes.map(x=>({...x}));
+ f.migrationHashes[3].sha256='a'.repeat(64);
+ assert.ok(checkCatalog(f,14).failures.includes('MIGRATION_SOURCE_HASHES_MISMATCH'));
+ f.migrationHashes=manifest().map(x=>({...x}));
+ [f.migrationHashes[0],f.migrationHashes[1]]=[f.migrationHashes[1],f.migrationHashes[0]];
+ assert.ok(checkCatalog(f,14).failures.includes('MIGRATION_SOURCE_HASHES_MISMATCH'));
+});
+
 test('PostgreSQL name[] policy roles parse safely as array or brace-encoded string',()=>{
  assert.deepEqual(parsePolicyRoles(['campuspool_staging_app']),['campuspool_staging_app']);
  assert.deepEqual(parsePolicyRoles('{campuspool_staging_app}'),['campuspool_staging_app']);
