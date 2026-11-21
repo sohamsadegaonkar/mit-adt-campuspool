@@ -456,6 +456,14 @@ class PgRidesStore {
     if(typeof bookingId!=='string'||!/^BKG-[0-9a-f-]{36}$/.test(bookingId))
       throw new RidesError('INVALID_BOOKING',400);
     return this.tx(async client=>{
+      // Role check happens BEFORE fetching a case to avoid existence probing
+      // by an unprivileged student with a guessed booking identifier.
+      let role='case_reviewer';
+      try{await this.assertReviewer(client,reviewerUserId,role);}
+      catch(error){
+        if(error.code!=='REVIEWER_ROLE_REQUIRED')throw error;
+        role='appeal_reviewer';await this.assertReviewer(client,reviewerUserId,role);
+      }
       const proof=await client.query([
         'SELECT b.passenger_user_id,r.driver_user_id,c.id,c.state,c.opened_at',
         'FROM public.campus_booking_cases c',
@@ -466,13 +474,7 @@ class PgRidesStore {
       if(!proof.rows.length)throw new RidesError('PICKUP_CASE_NOT_FOUND',404);
       if([proof.rows[0].passenger_user_id,proof.rows[0].driver_user_id].includes(reviewerUserId))
         throw new RidesError('REVIEWER_CONFLICT_OF_INTEREST',403);
-      // Reviewers and appeal reviewers see only categorical case evidence.
-      let role='case_reviewer';
-      try{await this.assertReviewer(client,reviewerUserId,role);}
-      catch(error){
-        if(error.code!=='REVIEWER_ROLE_REQUIRED')throw error;
-        role='appeal_reviewer';await this.assertReviewer(client,reviewerUserId,role);
-      }
+      // Both reviewer roles see only categorical case evidence.
       const caseId=proof.rows[0].id;
       const [claims,responses,decisions,appeals]=await Promise.all([
         client.query('SELECT actor_role,reason,created_at FROM public.campus_booking_case_events WHERE case_id=$1 ORDER BY created_at,id LIMIT 20',[caseId]),
