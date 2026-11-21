@@ -16,6 +16,7 @@ on:
       - 'test_cloud_worker_image_policy.js'
       - 'test_cloud_backup_scope.js'
       - 'test_cloud_worker_release_policy.js'
+      - 'scripts/cloud-backup-release-source-inventory.js'
       - 'scripts/cloud-backup-scope.js'
       - 'ops/cloud-backup/**'
       - '.github/workflows/cloud-backup-worker-ci.yml'
@@ -274,6 +275,22 @@ jobs:
             --output type=oci,dest=campuspool-backup-worker-linux-amd64.oci.tar .
           sha256sum campuspool-backup-worker-linux-amd64.oci.tar \
             > campuspool-backup-worker-linux-amd64.oci.tar.sha256
+      - name: Record unsigned source to local OCI archive inventory
+        env:
+          REVIEW_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          node scripts/cloud-backup-release-source-inventory.js \
+            campuspool-backup-worker-linux-amd64.oci.tar \
+            > campuspool-backup-source-inventory.json
+          node -e '
+            const x=require("./campuspool-backup-source-inventory.json");
+            if(x.releaseReady!==false ||
+               x.ghcrImageManifestDigest!==null ||
+               x.authenticatedBuildProvenanceVerified!==false)
+              process.exit(1);
+            console.log("LOCAL_OCI_SOURCE_INVENTORY_RECORDED_NO_REGISTRY_PROVENANCE=YES");
+          '
       - name: Sign the exact OCI archive with GitHub OIDC and verify its signer
         env:
           COSIGN_YES: "true"
@@ -296,6 +313,7 @@ jobs:
             campuspool-backup-worker-linux-amd64.oci.tar
             campuspool-backup-worker-linux-amd64.oci.tar.sha256
             campuspool-backup-worker-linux-amd64.sigstore.json
+            campuspool-backup-source-inventory.json
           retention-days: 1
           if-no-files-found: error
 
