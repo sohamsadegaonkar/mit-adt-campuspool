@@ -184,6 +184,19 @@ async function runPickupAbort({t,pool,ids,request}){
    'SELECT status,payment_status,student_fare FROM public.campus_bookings WHERE booking_id=$1',[one]);
  assert.equal(financial.rows[0].payment_status,'Pending');
  assert.equal(financial.rows[0].status,'cancelled');
+ // Turning off pickup reporting must NOT reinstate punitive restrictions
+ // on an already-open case. Historical review survives as a read-only fact.
+ const {PgRidesStore}=require('../stage1-otp/rides-store');
+ const flagOffStore=new PgRidesStore({pool,journeyEnabled:true,pickupAbortEnabled:false});
+ await flagOffStore.ready();
+ assert.equal(flagOffStore.caseSchemaReady,true);
+ const offReview=await flagOffStore.checkUserSettlementBlock(ids[1]);
+ assert.equal(offReview.isBlocked,false);
+ assert.ok(offReview.reviewRequiredBookings.some(x=>
+   x.bookingId===one && x.pickupCase?.id===readCase.id));
+ const offHistory=await flagOffStore.getBookingHistory(ids[1]);
+ assert.ok(offHistory.some(x=>x.bookingId===one&&x.pickupCase?.id===readCase.id),
+   'dispute proof stays readable when feature flag is disabled');
  const rls=await pool.query("SELECT relrowsecurity FROM pg_class WHERE oid='public.campus_booking_cases'::regclass");
  assert.equal(rls.rows[0].relrowsecurity,true);
  const noDeletes=await pool.query("SELECT has_table_privilege('campuspool_staging_app','public.campus_booking_case_events','DELETE') AS d,has_table_privilege('campuspool_staging_app','public.campus_booking_case_events','UPDATE') AS u");
@@ -199,7 +212,8 @@ async function runPickupAbort({t,pool,ids,request}){
   earlyClaimsBlocked:true,emergencyEarlyAllowed:true,privateRead:true,
   csrfRequired:true,concurrentClaimsSingleCase:true,idempotentRepeatedReason:true,
   perPassengerBoardingIndependent:true,noSeatOrPaymentMutation:true,
-  cancelledPendingHistoryPreserved:true,financialReviewSeparateFromActiveRestriction:true,
+  cancelledPendingHistoryPreserved:true,flagRollbackKeepsDisputedPendingReview:true,
+  financialReviewSeparateFromActiveRestriction:true,
   noCapacityDerivedCommission:true,disputedPendingQuarantined:true,
   caseEventsAppendOnly:true,
   migration012Replay:true,automaticFineOrBan:false,
