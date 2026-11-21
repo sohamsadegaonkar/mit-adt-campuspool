@@ -302,13 +302,13 @@ test('PostgreSQL identity lookup never maps email-local phone digits to another 
   const digitEmail='9123456788@students.mituniversity.edu.in';
   assert.equal(await identity.getProfileByIdentifier(digitEmail),null);
   assert.equal(queries.length,1);
-  assert.match(queries[0].sql,/WHERE email=\\$1 LIMIT 1/);
+  assert.match(queries[0].sql,/WHERE email=\$1 LIMIT 1/);
   assert.doesNotMatch(queries[0].sql,/phone/);
   assert.deepEqual(queries[0].params,[digitEmail]);
 
   assert.equal(await identity.getProfileByIdentifier('+91 9123456788'),null);
   assert.equal(queries.length,2);
-  assert.match(queries[1].sql,/WHERE phone=\\$1 LIMIT 1/);
+  assert.match(queries[1].sql,/WHERE phone=\$1 LIMIT 1/);
   assert.doesNotMatch(queries[1].sql,/email=/);
   assert.deepEqual(queries[1].params,['9123456788']);
 
