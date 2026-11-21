@@ -676,7 +676,7 @@ const server = http.createServer(async (req, res) => {
   }
   function historicalBooking(booking){
     const result=pick(booking,['bookingId','rideId','passengerName','driverName','dept',
-      'vehicleModel','pickup','destination','departureTime','studentFare','paymentStatus','paymentMode','journeyStage','departedAt','pickupAt','arrivedAt','boardedAt','createdAt','status','cancelledAt','pickupCase']);
+      'vehicleModel','pickup','destination','departureTime','studentFare','paymentStatus','paymentMode','journeyStage','departedAt','pickupAt','arrivedAt','boardedAt','createdAt','status','cancelledAt','pickupCase','financialReview']);
     if(isSelf(booking.passengerEmail))result.passengerEmail=booking.passengerEmail;
     return result;
   }
@@ -689,6 +689,8 @@ const server = http.createServer(async (req, res) => {
   function safeSettlement(status){
     return {...status,...(Array.isArray(status.pendingBookings)
       ? {pendingBookings:status.pendingBookings.map(historicalBooking)} : {}),
+      ...(Array.isArray(status.reviewRequiredBookings)
+      ? {reviewRequiredBookings:status.reviewRequiredBookings.map(historicalBooking)} : {}),
       ...(Array.isArray(status.unpaidBookings)
       ? {unpaidBookings:status.unpaidBookings.map(historicalBooking)} : {}),
       ...(status.unpaidBooking ? {unpaidBooking:historicalBooking(status.unpaidBooking)} : {})};
@@ -1548,7 +1550,7 @@ const server = http.createServer(async (req, res) => {
         if (settlementCheck.hasUnsettledCommission) {
           rejectMutation(403, {
             success:false,error:'COMMISSION_SETTLEMENT_REQUIRED',
-            message:`Commission Settlement Required: You have ₹${settlementCheck.commissionDue} in pending platform commission from a previous commute. Payment verification is unavailable; existing obligations require review.`,
+            message:`Legacy active-booking commission estimate (₹${settlementCheck.commissionDue}) requires review before another legacy ride. This is not a verified charge, invoice or payment request.`,
             ...safeSettlement(settlementCheck)
           });
         }
@@ -1764,8 +1766,8 @@ const server = http.createServer(async (req, res) => {
         const finish=settlementCheck=>{
           if(settlementCheck.isBlocked){
             const errorMsg=settlementCheck.hasUnsettledCommission
-              ? `Settlement Required: You have ₹${settlementCheck.commissionDue} in pending platform commission from a previous ride. Payment verification is unavailable; existing obligations require review.`
-              : `Payment Settlement Required: You have an unpaid ride booking (₹${settlementCheck.pendingBookings[0].studentFare} with ${settlementCheck.pendingBookings[0].driverName}). Payment verification is unavailable; existing obligations require review.`;
+              ? `Legacy active-booking commission estimate (₹${settlementCheck.commissionDue}) requires review. No payment has been verified and no charge is authorized.`
+              : `A legacy active booking (₹${settlementCheck.pendingBookings[0].studentFare}) is marked Pending and requires review before another legacy booking. This is not a verified debt or automatic charge.`;
             rejectMutation(403,{
               success:false,error:'SETTLEMENT_REQUIRED',message:errorMsg,...safeSettlement(settlementCheck)
             });

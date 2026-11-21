@@ -58,11 +58,21 @@ async function runPilot({t,pool,ids,tokens,basic,port}){
   assert.equal((await pool.query("UPDATE public.campus_bookings SET payment_mode='free_pilot',payment_status='NoPaymentRequired' WHERE booking_id=$1",[oldZeroBooking.bookingId]).then(()=>null,e=>e))?.code,'23503');
   await assert.rejects(legacy.bookRide({rideId:rid2,passengerUserId:ids[6]}),{code:'RIDE_PAYMENT_MODE_UNAVAILABLE'});
   assert.equal((await req('/api/bookings/cancel',1,{bookingId:bid})).status,200);
+  const freeAfterCancel=await req('/api/user/settlement-status',1);
+  assert.equal(freeAfterCancel.status,200);
+  assert.equal(freeAfterCancel.data.isBlocked,false);
+  assert.equal(freeAfterCancel.data.hasReviewRequired,false);
+  assert.deepEqual(freeAfterCancel.data.reviewRequiredBookings,[]);
+  assert.equal(freeAfterCancel.data.commissionDue,0);
+  const freeDriverReview=await req('/api/user/settlement-status',0);
+  assert.equal(freeDriverReview.data.driverCancellationReview.count,0);
+  assert.equal(freeDriverReview.data.collectionAuthorized,false);
+
   const replay=await req('/api/bookings',1,{rideId:rid},bk);assert.equal(replay.replayed,'true');assert.equal(replay.data.booking.bookingId,bid);
   const state=(await pool.query("SELECT r.seats_left::int AS available,r.seats_total::int AS total,(SELECT count(*)::int FROM public.campus_bookings b WHERE b.ride_id=r.id AND b.status='active')::int AS active FROM public.campus_rides r WHERE r.id=$1",[rid])).rows[0];
   assert.deepEqual(state,{available:1,total:2,active:1});assert.deepEqual(await snapshot(),before);
   const counts=(await pool.query("SELECT count(*)::int AS n,count(*) FILTER(WHERE b.student_fare<>0 OR b.payment_status<>'NoPaymentRequired' OR b.upi_id<>'')::int AS bad FROM public.campus_bookings b JOIN public.campus_rides r ON r.id=b.ride_id WHERE r.driver_user_id=ANY($1::uuid[]) AND r.payment_mode='free_pilot'",[ids])).rows[0];
   assert.deepEqual(counts,{n:3,bad:0});
-  t.diagnostic('CAMPUS_FREE_PILOT_RESULT '+JSON.stringify({actors:ids.length,freeBookings:counts.n,monetaryViolations:counts.bad,legacyObligationsPreserved:2,zeroFareLegacyStillBlocked:true,repeatBooking:true,driverCanOfferAgain:true,duplicateReplay:true,modeIsolation:true,dbConstraints:true,migrationReapply:true,cancelSeatInvariant:true,paymentApisDisabled:true}));
+  t.diagnostic('CAMPUS_FREE_PILOT_RESULT '+JSON.stringify({actors:ids.length,freeBookings:counts.n,monetaryViolations:counts.bad,legacyObligationsPreserved:2,zeroFareLegacyStillBlocked:true,repeatBooking:true,driverCanOfferAgain:true,duplicateReplay:true,modeIsolation:true,dbConstraints:true,migrationReapply:true,cancelSeatInvariant:true,paymentApisDisabled:true,freeCancelNeverDebtOrReview:true}));
 }
 module.exports={runPilot};

@@ -129,10 +129,15 @@ async function runJourney({t,pool,ids,request}){
     'cancelled booking disappears from normal passenger history (known gap)');
   const afterEmergency=await request('/api/user/settlement-status',{user:2});
   assert.equal(afterEmergency.status,200);
-  assert.equal(afterEmergency.body.hasUnpaidBooking,false,
-    'known gap: cancelled Pending booking no longer participates in settlement guard');
-  assert.equal(afterEmergency.body.isBlocked,false,
-    'known gap: without dispute ledger, passenger may immediately book again');
+  assert.equal(afterEmergency.body.hasUnpaidBooking,false,'cancelled Pending is not an active reservation');
+  assert.equal(afterEmergency.body.isBlocked,false,'cancelled records alone may not auto-block');
+  assert.equal(afterEmergency.body.hasReviewRequired,true,'cancelled Pending must remain visible for review');
+  assert.equal(afterEmergency.body.collectionAuthorized,false);
+  assert.equal(afterEmergency.body.reviewRequiredBookings.length,1);
+  assert.equal(afterEmergency.body.reviewRequiredBookings[0].bookingId,emergencyBookingId);
+  assert.equal(afterEmergency.body.reviewRequiredBookings[0].financialReview.state,'CANCELLED_PENDING_REVIEW');
+  assert.equal(afterEmergency.body.reviewRequiredBookings[0].financialReview.collectionAuthorized,false);
+  assert.equal(afterEmergency.body.driverCancellationReview.count,0);
 
   // Separate ride: driver can self-attest every milestone without a GPS fix
   // or passenger check-in; the UI must never claim independent verification.
@@ -184,7 +189,7 @@ async function runJourney({t,pool,ids,request}){
     noShowPassengerCancellationBlocked:true,emergencyDriverCancelAllowed:true,
     cancelledBookingMissingFromNormalHistory:true,
     cancelledPendingObligationStillStored:true,
-    cancelledPendingIgnoredBySettlementGuard:true,
+    cancelledPendingCapturedForReview:true,automaticCollectionAuthorized:false,
     followOnBookingAfterEmergencyAllowed:true,
     selfReportedArrivalDoesNotSettlePending:true,migration010ReplayWithData:true,
     releaseVerdict:'NO_GO_DISPUTE_AND_OBLIGATION_POLICY_UNRESOLVED'

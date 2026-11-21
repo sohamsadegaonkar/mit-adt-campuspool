@@ -425,3 +425,10 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 3. Resolve P1 historical cancelled Pending financial review/booking restrictions with explicit policy; never use seat capacity as collectible commission. No automatic fee/strike/ban, even after five minutes.
 4. Add authorized reviewer/response/appeal later only after owner defines thresholds, fine amount, terms, legal/payment provider, privacy retention and support role; staged escalation is design only.
 5. Physical Android TalkBack/large text/offline focus and parked-driver review; migration 012 plus 008–011 G1 backup/restore, combined parent PR checks and owner GO before staging/production writes. [Task](tasks/2026-11-21-pickup-five-minute-implementation.md).
+
+## 2026-11-21 — Verify and review cancelled Pending reconciliation
+
+1. Verify exact application SHA for draft PR #65 in all CI workflows (PostgreSQL Stage 1 including one-snapshot settlement parity, free pilot, journey and pickup case; real browser, security, Places and PostGIS). Do not infer PASS from source parse; inspect logs and record precise commit/run IDs.
+2. Independently audit cancelled Pending visibility for booking passenger and driver aggregate, with no phone/UPI/PIN leak; seat-counter drift must not fabricate commission; cancelled-only review never auto-blocks/collects. Preserve original `Pending` and cancellation timestamps through migration and rollback.
+3. Resolve human review / dispute adjudication, appeal, payment provider/legal policy **before** adding any payable ledger or reviewer mutation endpoints. Legacy active-Pending booking restriction remains a separate policy question and no payment verification provider is enabled.
+4. Optimize historical review retrieval with bounded page/count if measured growth warrants; do not compromise single-snapshot authorization for cache speed. Real Android accessibility, physical driver safety, independent G1 backup restore and ancestor PR #47→#65 review still required. No live merge, migration, deployment or payment until explicit GO.
