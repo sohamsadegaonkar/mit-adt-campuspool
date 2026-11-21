@@ -474,6 +474,17 @@ class PgRidesStore {
       if(!proof.rows.length)throw new RidesError('PICKUP_CASE_NOT_FOUND',404);
       if([proof.rows[0].passenger_user_id,proof.rows[0].driver_user_id].includes(reviewerUserId))
         throw new RidesError('REVIEWER_CONFLICT_OF_INTEREST',403);
+      if(role==='appeal_reviewer'){
+        // Do not grant general browsing of all pickup complaints to an appeal
+        // reviewer. They may inspect only a case with an appeal filed, and not
+        // a case on which they issued the initial review.
+        const eligible=await client.query([
+          'SELECT 1 FROM public.campus_case_appeals a',
+          'JOIN public.campus_case_review_decisions d ON d.case_id=a.case_id',
+          'WHERE a.case_id=$1 AND d.reviewer_user_id<>$2::uuid LIMIT 1'
+        ].join(' '),[proof.rows[0].id,reviewerUserId]);
+        if(!eligible.rows.length)throw new RidesError('APPEAL_REVIEW_NOT_ASSIGNED',403);
+      }
       // Both reviewer roles see only categorical case evidence.
       const caseId=proof.rows[0].id;
       const [claims,responses,decisions,appeals]=await Promise.all([
