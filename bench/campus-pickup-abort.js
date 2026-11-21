@@ -139,6 +139,27 @@ async function runPickupAbort({t,pool,ids,request}){
  assert.equal(past.paymentStatus,'Pending','no automatic waiver, charge, or Paid');
  assert.equal(past.pickupCase.state,'open');
  assert.equal(historyDriver.body.bookings.find(x=>x.bookingId===two).boardedAt!==null,true);
+
+ const passengerReview=await request('/api/user/settlement-status',{user:1});
+ const driverReview=await request('/api/user/settlement-status',{user:0});
+ assert.equal(passengerReview.status,200);
+ assert.equal(passengerReview.body.hasReviewRequired,true);
+ assert.equal(passengerReview.body.collectionAuthorized,false);
+ assert.equal(passengerReview.body.hasUnpaidBooking,false);
+ assert.equal(passengerReview.body.isBlocked,false);
+ assert.equal(passengerReview.body.reviewRequiredBookings.length,1);
+ assert.equal(passengerReview.body.reviewRequiredBookings[0].financialReview.state,'CANCELLED_PENDING_REVIEW');
+ assert.equal(passengerReview.body.reviewRequiredBookings[0].financialReview.collectionAuthorized,false);
+ assert.equal(passengerReview.body.reviewRequiredBookings[0].driverPhone,undefined);
+ assert.equal(passengerReview.body.reviewRequiredBookings[0].upiId,undefined);
+ assert.equal(driverReview.body.driverCancellationReview.count,2);
+ assert.equal(driverReview.body.driverCancellationReview.originalFareTotal,60);
+ assert.equal(driverReview.body.driverCancellationReview.collectionAuthorized,false);
+ assert.equal(driverReview.body.commissionDue,0,'cancelled seats do not create collectible commission');
+ assert.equal(driverReview.body.collectionAuthorized,false);
+ assert.equal(driverReview.body.isBlocked,false);
+ assert.equal(driverReview.body.reviewRequiredBookings.length,0,
+   'driver receives aggregate review only, not other passengers private records');
  assert.equal((await claim(1,one)).status,409,'no ordinary no-show after ride cancellation');
  const financial=await pool.query(
    'SELECT status,payment_status,student_fare FROM public.campus_bookings WHERE booking_id=$1',[one]);
@@ -159,7 +180,8 @@ async function runPickupAbort({t,pool,ids,request}){
   earlyClaimsBlocked:true,emergencyEarlyAllowed:true,privateRead:true,
   csrfRequired:true,concurrentClaimsSingleCase:true,idempotentRepeatedReason:true,
   perPassengerBoardingIndependent:true,noSeatOrPaymentMutation:true,
-  cancelledPendingHistoryPreserved:true,caseEventsAppendOnly:true,
+  cancelledPendingHistoryPreserved:true,cancelledPendingSettlementReviewVisible:true,
+  noAutomaticCollection:true,driverReviewAggregated:true,caseEventsAppendOnly:true,
   migration012Replay:true,automaticFineOrBan:false,
   releaseVerdict:'HOLD_PENDING_POLICY_RECOVERY_AND_PHYSICAL_QA'
  }));
