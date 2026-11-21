@@ -66,6 +66,12 @@ function expectedObjects(upto){
  }
  return {tables,columns,constraints,indexes};
 }
+function parsePolicyRoles(value){
+ if(Array.isArray(value))return value.map(x=>String(x));
+ if(typeof value==='string' && /^\{[^{}]*\}$/.test(value))
+   return value.slice(1,-1).split(',').filter(Boolean).map(x=>x.replace(/^"|"$/g,''));
+ return [];
+}
 function checkCatalog(data,expectedStage){
  validateStage(expectedStage);
  if(!data||typeof data!=='object')throw Error('Missing catalog snapshot');
@@ -100,7 +106,8 @@ function checkCatalog(data,expectedStage){
      if(row.publicRead||row.publicWrite||row.anonRead||row.anonWrite||
        row.authRead||row.authWrite)
        failures.push('EXPOSED_TABLE:'+name);
-     const policyRows=(data.policies||[]).filter(p=>p.table===name);
+     const policyRows=(data.policies||[]).filter(p=>p.table===name)
+       .map(p=>({...p,roles:parsePolicyRoles(p.roles)}));
      const required=access==='rw'?['campuspool_backend_access']:
        access==='read'?['campuspool_backend_review_select']:
        stage.version===12?['campuspool_backend_case_read','campuspool_backend_case_write']:
@@ -242,5 +249,5 @@ if(require.main===module)main().catch(()=>{
  console.error('[MIGRATION PREFLIGHT] BLOCKED: unapproved target or schema drift. No changes made.');
  process.exitCode=1;
 });
-module.exports={STAGES,ALL_TABLES,manifest,expectedObjects,checkCatalog,
+module.exports={STAGES,ALL_TABLES,manifest,expectedObjects,parsePolicyRoles,checkCatalog,
  detectStage,readCatalog,main};
