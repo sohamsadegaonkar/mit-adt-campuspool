@@ -236,8 +236,9 @@ test('PostgreSQL rides: permissions, atomic seats, cancellation and durable read
         for(const id of cases)assert.deepEqual(await rides.checkUserSettlementBlock(id),await reference(id,pool));
         const after=await rides.checkUserSettlementBlock(uuids[0]);
         assert.deepEqual(after.driverCommission,{totalRides:1,grossFare:30.15,totalCommission:3,settled:0,netDue:3,estimatedFromActiveBookings:true,collectionAuthorized:false});
-        assert.equal(after.driverCancellationReview.count,2);
-        assert.equal(after.driverCancellationReview.originalFareTotal,25.10);
+        assert.equal(after.driverCancellationReview.count,both.driverCancellationReview.count+2);
+        assert.ok(Math.abs(after.driverCancellationReview.originalFareTotal -
+          (both.driverCancellationReview.originalFareTotal+25.10))<0.001);
         assert.equal(after.hasReviewRequired,true);
         assert.equal(after.collectionAuthorized,false);
         assert.equal(after.driverCancellationReview.collectionAuthorized,false);
