@@ -64,7 +64,7 @@ test('no adjudication, fee or booking mutation from a response UI action',()=>{
   const part=html.slice(html.indexOf('// CAMPUSPOOL_CASE_RESPONSE_BEGIN'),
     html.indexOf('// CAMPUSPOOL_CASE_RESPONSE_END'));
   assert.doesNotMatch(part,/\/api\/driver\/settle-commission|\/api\/bookings\/payment-status/);
-  assert.match(part,/No fee, strike, ban or payment decision/);
+  assert.match(part,/No penalty or payment change/);
   assert.match(html,/@media\(prefers-reduced-motion:reduce\)/);
 });
 test('all standalone inline JavaScript compiles',()=>{
