@@ -17,7 +17,7 @@ const { PgIdempotencyStore, SqliteIdempotencyStore, IdempotencyError } = require
 // when the standard per-IP mutation rate limit has already been exhausted.
 const IDEMPOTENT_MUTATION_PATHS = new Set([
   '/api/rides', '/api/bookings', '/api/rides/cancel', '/api/rides/journey',
-  '/api/bookings/cancel', '/api/mobility/intents',
+  '/api/bookings/cancel', '/api/bookings/verify-boarding-pin', '/api/mobility/intents',
   '/api/mobility/intents/cancel'
 ]);
 const AUTH_OTP_BACKEND = process.env.AUTH_OTP_BACKEND || 'sqlite';
@@ -34,6 +34,11 @@ const RIDES_JOURNEY_ENABLED_VALUE=process.env.RIDES_JOURNEY_ENABLED||'false';
 if(!['true','false'].includes(RIDES_JOURNEY_ENABLED_VALUE))throw Error('RIDES_JOURNEY_ENABLED must be true or false');
 const RIDES_JOURNEY_ENABLED=RIDES_JOURNEY_ENABLED_VALUE==='true';
 if(RIDES_JOURNEY_ENABLED && RIDES_BACKEND!=='postgres')throw Error('Journey lifecycle requires PostgreSQL Rides');
+const BOARDING_PIN_ENABLED_VALUE=process.env.BOARDING_PIN_ENABLED||'false';
+if(!['true','false'].includes(BOARDING_PIN_ENABLED_VALUE))throw Error('BOARDING_PIN_ENABLED must be true or false');
+const BOARDING_PIN_ENABLED=BOARDING_PIN_ENABLED_VALUE==='true';
+if(BOARDING_PIN_ENABLED && (!RIDES_JOURNEY_ENABLED||RIDES_BACKEND!=='postgres'))
+  throw Error('Boarding PIN requires PostgreSQL rides and journey reporting');
 const FREE_RIDES_PILOT_VALUE=process.env.FREE_RIDES_PILOT||'false';
 if(!['true','false'].includes(FREE_RIDES_PILOT_VALUE))throw Error('FREE_RIDES_PILOT must be true or false');
 const FREE_RIDES_PILOT=FREE_RIDES_PILOT_VALUE==='true';
@@ -42,7 +47,7 @@ const CAMPUS_WIFI_FAIRNESS = process.env.CAMPUS_WIFI_FAIRNESS === 'true';
 if (CAMPUS_WIFI_FAIRNESS && RIDES_BACKEND !== 'postgres')
   throw new Error('Campus Wi-Fi fairness requires PostgreSQL Rides');
 const FAIR_READ_PATHS = new Set(['/api/rides','/api/bookings','/api/my-rides','/api/user/settlement-status']);
-const FAIR_WRITE_PATHS = new Set(['/api/rides','/api/bookings','/api/rides/cancel','/api/bookings/cancel','/api/rides/journey']);
+const FAIR_WRITE_PATHS = new Set(['/api/rides','/api/bookings','/api/rides/cancel','/api/bookings/cancel','/api/rides/journey','/api/bookings/boarding-pin','/api/bookings/verify-boarding-pin']);
 const MOBILITY_MATCHING_ENABLED = process.env.MOBILITY_MATCHING_ENABLED === 'true';
 if(FREE_RIDES_PILOT && MOBILITY_MATCHING_ENABLED)throw Error('Free rides pilot requires mobility matching disabled');
 // Cost-bearing Places calls stay OFF without an explicitly approved server flag.
@@ -202,7 +207,7 @@ const gpsCleanupTimer=setInterval(pruneGps,30000);gpsCleanupTimer.unref();
 const pgOtpStore = AUTH_OTP_BACKEND === 'postgres' ? new PgOtpStore() : null;
 const pgIdentity = pgOtpStore ? new PgIdentity(pgOtpStore) : null;
 const pgRidesStore = RIDES_BACKEND === 'postgres'
-  ? new PgRidesStore({pool:pgOtpStore.pool,freePilot:FREE_RIDES_PILOT,journeyEnabled:RIDES_JOURNEY_ENABLED}) : null;
+  ? new PgRidesStore({pool:pgOtpStore.pool,freePilot:FREE_RIDES_PILOT,journeyEnabled:RIDES_JOURNEY_ENABLED,boardingPinEnabled:BOARDING_PIN_ENABLED,boardingPinKey:OTP_SECRET}) : null;
 const pgMobilityStore = MOBILITY_MATCHING_ENABLED
   ? new PgMobilityStore({pool:pgOtpStore.pool}) : null;
 const pgIdempotency = pgRidesStore ? new PgIdempotencyStore(pgOtpStore.pool) : null;
@@ -665,7 +670,7 @@ const server = http.createServer(async (req, res) => {
   }
   function historicalBooking(booking){
     const result=pick(booking,['bookingId','rideId','passengerName','driverName','dept',
-      'vehicleModel','pickup','destination','departureTime','studentFare','paymentStatus','paymentMode','journeyStage','departedAt','pickupAt','arrivedAt','createdAt']);
+      'vehicleModel','pickup','destination','departureTime','studentFare','paymentStatus','paymentMode','journeyStage','departedAt','pickupAt','arrivedAt','boardedAt','createdAt']);
     if(isSelf(booking.passengerEmail))result.passengerEmail=booking.passengerEmail;
     return result;
   }
@@ -818,7 +823,7 @@ const server = http.createServer(async (req, res) => {
     if (!authenticatedUser) {
       return sendJson(401, { success: false, error: 'AUTH_REQUIRED' });
     }
-    return sendJson(200, { success: true, user: authenticatedUser, csrfToken: csrfForSession(sessionToken), freeRidesPilot:FREE_RIDES_PILOT,journeyEnabled:RIDES_JOURNEY_ENABLED });
+    return sendJson(200, { success: true, user: authenticatedUser, csrfToken: csrfForSession(sessionToken), freeRidesPilot:FREE_RIDES_PILOT,journeyEnabled:RIDES_JOURNEY_ENABLED,boardingPinEnabled:BOARDING_PIN_ENABLED });
   }
   if (pathname.startsWith('/api/') && (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE')
     && authenticatedUser && (!pathname.startsWith('/api/auth/') || pathname === '/api/auth/logout')
@@ -1627,6 +1632,47 @@ const server = http.createServer(async (req, res) => {
   }
 
   // -----------------------------------------------------------------------
+
+  // The passenger creates/reads their own short-lived in-app PIN here.
+  // Never use idempotency receipts for PIN issuance: receipts persist responses.
+  // This endpoint returns a PIN only to the verified passenger, never drivers.
+  if(method==='POST' && pathname==='/api/bookings/boarding-pin'){
+    if(!BOARDING_PIN_ENABLED||!pgRidesStore)
+      return sendJson(503,{success:false,error:'BOARDING_PIN_NOT_ENABLED'});
+    const body=await parseBody();
+    try{
+      const issued=await pgRidesStore.issueBoardingPin({
+        bookingId:body.bookingId,passengerUserId:authenticatedUser.id
+      });
+      return sendJson(200,issued);
+    }catch(err){
+      if(PgPoolBusyError && err instanceof PgPoolBusyError)throw err;
+      const known=err instanceof RidesError;
+      return sendJson(known?err.status:500,{success:false,
+        error:known?err.code:'DATABASE_ERROR'});
+    }
+  }
+
+  // Only the ride's authenticated driver can attest passenger boarding.
+  // PIN is NEVER echoed back or written into idempotency response receipts.
+  if(method==='POST' && pathname==='/api/bookings/verify-boarding-pin'){
+    if(!BOARDING_PIN_ENABLED||!pgRidesStore)
+      return sendJson(503,{success:false,error:'BOARDING_PIN_NOT_ENABLED'});
+    const body=await parseBody();
+    try{
+      return await executeIdempotentMutation(pathname,body,client=>
+        pgRidesStore.verifyBoardingPin({
+          bookingId:body.bookingId,pin:body.pin,
+          driverUserId:authenticatedUser.id,client
+        }));
+    }catch(err){
+      if(PgPoolBusyError && err instanceof PgPoolBusyError)throw err;
+      const known=err instanceof RidesError;
+      return sendJson(known?err.status:500,{success:false,
+        error:known?err.code:'DATABASE_ERROR'});
+    }
+  }
+
   // REST API: /api/bookings (List, Filter by user & Create with Settlement Check)
   // -----------------------------------------------------------------------
   if (method === 'GET' && pathname === '/api/bookings') {
