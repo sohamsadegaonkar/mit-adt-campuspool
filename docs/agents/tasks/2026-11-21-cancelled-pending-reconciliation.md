@@ -44,3 +44,16 @@ CI earlier found a **test fixture** expecting exactly two cancelled rows when ea
 Close any failing regression, verify exact commit evidence, then plan the **read-only authorized operator reconciliation queue / appeal workflow**—not an automatic payments engine. The review queue must apply fairness, retention, role checks and human decisions to historical Pending records. Do not add "pay now" buttons or user punishment.
 
 [PR #65](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/65) · [5-minute abort PR #64](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/64) · [dispute RFC #63](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/63).
+
+## Exact-code disposable PostgreSQL verification — 2026-11-21
+
+**Tested application SHA:** `86df5eadd384ef077402cda81e9965382e92d0b8` (follow-up docs commits do not modify tested source).
+
+[Stage 1 PostgreSQL CI run 44880106037](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/44880106037): **SUCCESS** with zero failed tests and explicit logs:
+- `SETTLEMENT_QUERY_RESULT`: six actor cases, **one** SQL query per status read vs **three** independent reference queries (6 vs 18), exact parity, same-transaction consistency, rollback and cancellation parity.
+- `CAMPUS_FREE_PILOT_RESULT`: seven synthetic actors, zero monetary violations, legacy restrictions preserved, **free cancelled booking never creates debt or financial review**.
+- `CAMPUS_ADVERSARIAL_RESULT`: cancelled Pending remains in SQL *and* returned as review-required; automatic collection false; driver arrival alone cannot establish boarding or payment. Normal active-only bookings list remains separate from history and review.
+- `CAMPUS_PICKUP_ABORT_RESULT`: five actors, shared five-minute clock, concurrent actor claims, privacy/CSRF, independent boarding, unchanged payments and seats, **cancelled Pending settlement review visible** for passenger and driver aggregate, no automatic collection or disciplinary action.
+- The existing unit test's initial absolute review-count assertion failed because previous fixtures already had cancelled bookings; corrected to assert the exact **+2 cancellation delta** and reran the full Stage 1 suite successfully. There was **no production table deletion or loss of historical data**.
+
+Security/Places CI also completed successfully at the same SHA; real-browser E2E was still running at this documentation checkpoint. Do **not** mark full release-ready; reviewer/legal, physical Android, G1 restore and legacy active-block policy remain NO-GO.
