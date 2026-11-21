@@ -6,6 +6,8 @@ on:
       - 'stage1-otp/migrations/**'
       - 'stage1-otp/migrate.js'
       - 'scripts/migration-008-014-preflight.js'
+      - 'scripts/recovery-g1-evidence-preflight.js'
+      - 'test_recovery_g1_evidence_preflight.js'
       - 'scripts/reviewer-onboarding-preflight.js'
       - 'test_migration_008_014_preflight.js'
       - 'test_pg_migration_recovery_drill.js'
@@ -60,6 +62,9 @@ jobs:
       - name: Syntax and offline migration-state guards
         run: |
           node --check scripts/migration-008-014-preflight.js
+          node --check scripts/recovery-g1-evidence-preflight.js
+          node --check test_recovery_g1_evidence_preflight.js
+          node --test test_recovery_g1_evidence_preflight.js
           node --check test_migration_008_014_preflight.js
           node --check test_pg_migration_recovery_drill.js
           node --test test_migration_008_014_preflight.js
