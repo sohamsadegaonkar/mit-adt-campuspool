@@ -170,3 +170,27 @@ test('pinned CA guard rejects unrelated public CA, multiple roots and loose perm
   fs.chmodSync(loose,0o666);
   assert.equal(security.validCaFileAgainstFingerprint(loose,testFingerprint),false);
 });
+
+test('projected CA Secret may resolve inside its exact mount, never outside',()=>{
+  const mount=tmp+'/projected-ca';
+  const targetDir=mount+'/..2026_11_21';
+  fs.mkdirSync(targetDir,{recursive:true,mode:0o700});
+  fs.writeFileSync(targetDir+'/ca.pem',publicCa,{mode:0o444});
+  fs.symlinkSync('..2026_11_21',mount+'/..data');
+  const projected=mount+'/ca.pem';
+  fs.symlinkSync('..data/ca.pem',projected);
+  const opts={projectedCaMount:mount};
+  assert.equal(security.validCaFileAgainstFingerprint(projected,testFingerprint,opts),true);
+  assert.equal(security.validCaFileAgainstFingerprint(projected,testFingerprint),false,
+    'symlinks never accepted outside the exact projected CA mount opt-in');
+  assert.equal(security.validCloudPassFile(projected,env),false,
+    'PGPASSFILE must never accept projected symlinks');
+  fs.chmodSync(targetDir+'/ca.pem',0o666);
+  assert.equal(security.validCaFileAgainstFingerprint(projected,testFingerprint,opts),false);
+  fs.chmodSync(targetDir+'/ca.pem',0o444);
+  fs.unlinkSync(mount+'/..data');
+  fs.symlinkSync('..',mount+'/..data');
+  fs.writeFileSync(tmp+'/ca.pem',publicCa,{mode:0o600});
+  assert.equal(security.validCaFileAgainstFingerprint(projected,testFingerprint,opts),false,
+    'symlink pointing outside its mount must be rejected even with matching fingerprint');
+});
