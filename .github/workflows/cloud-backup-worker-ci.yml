@@ -309,7 +309,7 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-manually-sign-reviewed-ghcr:
+  manually-sign-reviewed-ghcr:
     # Disabled except one explicit branch-scoped manual authorization.
     if: >-
       ${{ github.event_name == 'workflow_dispatch' &&
