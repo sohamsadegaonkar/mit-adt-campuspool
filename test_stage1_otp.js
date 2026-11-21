@@ -247,6 +247,11 @@ test('Stage 1 API contract: email signup, phone signup, registration and login',
 
   const requestEmail=await call('/api/auth/send-email-otp',{name:'Sample Student',email,phone});
   assert.equal(requestEmail.status,200);
+  // The HTTPS provider accepted the API request, but no inbox receipt has
+  // been independently observed. Never claim final delivery in public API.
+  assert.equal(requestEmail.providerAccepted,true);
+  assert.equal(requestEmail.deliveredToInbox,undefined);
+  assert.match(requestEmail.message,/provider/i);
   assert.equal(emailCodes.length,1);
   const verifiedEmail=await call('/api/auth/verify-email-otp',{email,otp:emailCodes[0].code});
   assert.equal(verifiedEmail.status,200);

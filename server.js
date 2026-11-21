@@ -793,7 +793,7 @@ const server = http.createServer(async (req, res) => {
       email: user.email,
       name: user.name,
       phone: user.phone,
-      deliveredToInbox: isRealDelivery,
+      providerAccepted: isRealDelivery,
       devOtpHint: ALLOW_DEV_OTP && !isRealDelivery ? otp : undefined
     });
   }
@@ -912,8 +912,8 @@ const server = http.createServer(async (req, res) => {
       success: true,
       isLogin: !!uniqueCheck.isExistingUser,
       existingUser: uniqueCheck.user || null,
-      deliveredToInbox: isRealDelivery,
-      message: 'A 6-digit verification code has been sent to your university inbox.',
+      providerAccepted: isRealDelivery,
+      message: 'Verification request submitted to the email provider. Please check your university inbox.',
       expiresInSeconds: 600,
       devOtpHint: ALLOW_DEV_OTP && !isRealDelivery ? otp : undefined
     });

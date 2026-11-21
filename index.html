@@ -1080,9 +1080,9 @@
           <div id="emailOtpInboxBanner" class="p-3 bg-brand-950/60 border border-brand-500/30 rounded-xl flex items-start gap-2.5 text-xs text-brand-200">
             <span class="text-base shrink-0 mt-0.5"><svg class="cp-icon" aria-hidden="true"><use href="#cp-mail"></use></svg></span>
             <div class="space-y-0.5">
-              <span class="font-bold text-white block">Real-Time SMTP Dispatch Active</span>
+              <span class="font-bold text-white block">Email Verification Requested</span>
               <p class="text-[11px] text-slate-300 leading-snug">
-                A 6-digit verification code has been dispatched to your official university webmail. Please check your inbox and spam folder.
+                The provider has accepted the verification request. Inbox delivery is not yet confirmed; please check your inbox and spam folder.
               </p>
             </div>
           </div>
@@ -2822,7 +2822,7 @@
           banner.innerHTML = `
             <span class="text-base shrink-0 mt-0.5"><svg class="cp-icon" aria-hidden="true"><use href="#cp-user"></use></svg></span>
             <div class="space-y-1.5 flex-1">
-              <span class="font-bold text-white block">Sign-In Verification Code Dispatched</span>
+              <span class="font-bold text-white block">Sign-In Verification Requested</span>
               <p class="text-[11px] text-slate-300 leading-snug">
                 If this identifier belongs to a verified student, a 6-digit sign-in code will be sent to the registered campus email. Check that inbox, including Spam/Junk.
               </p>
@@ -2952,9 +2952,9 @@
           banner.innerHTML = `
             <span class="text-base shrink-0 mt-0.5"><svg class="cp-icon" aria-hidden="true"><use href="#cp-mail"></use></svg></span>
             <div class="space-y-1.5 flex-1">
-              <span class="font-bold text-white block">Verification Code Dispatched</span>
+              <span class="font-bold text-white block">Verification Request Submitted</span>
               <p class="text-[11px] text-slate-300 leading-snug">
-                A 6-digit verification code has been dispatched to <strong class="text-white">${email}</strong>. Please check your inbox (including Spam/Junk folder).
+                The email provider accepted the verification request for <strong class="text-white">${email}</strong>. Check your inbox (including Spam/Junk); receipt is not yet confirmed.
               </p>
 
             </div>
@@ -2963,7 +2963,7 @@
 
         clearInterval(emailTimerInterval);
         emailTimerInterval = startOtpTimer('emailTimerText', 'resendEmailOtpBtn');
-        showToast(data.message || `Verification code sent to ${email}`, "✉️");
+        showToast(data.message || `Verification request submitted for ${email}`, "✉️");
 
         setTimeout(() => {
           document.getElementById('inputEmailOtp')?.focus();
