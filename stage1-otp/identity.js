@@ -18,8 +18,15 @@ class PgIdentity {
   async getProfileByIdentifier(identifier){
     if(typeof identifier!=='string')return null;
     const value=identifier.trim().toLowerCase();
-    const phone=value.replace(/\D/g,'').slice(-10);
-    const {rows}=await this.pool.query('SELECT * FROM campus_users WHERE email=$1 OR phone=$2 LIMIT 1',[value,phone]);
+    // Keep email and phone lookups disjoint. Email local parts can contain
+    // phone-like digits and must never resolve a different account by phone.
+    if(value.includes('@')){
+      const email=normalize('email',value);
+      const {rows}=await this.pool.query('SELECT * FROM campus_users WHERE email=$1 LIMIT 1',[email]);
+      return publicUser(rows[0]);
+    }
+    const phone=normalize('sms',value);
+    const {rows}=await this.pool.query('SELECT * FROM campus_users WHERE phone=$1 LIMIT 1',[phone]);
     return publicUser(rows[0]);
   }
   async checkUniqueness(name,email,phone){
