@@ -412,3 +412,10 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 - New feature-flagged, **default OFF** `BOARDING_PIN_ENABLED` requires PG rides + journey reporting. Backend candidate stores no plaintext code, uses server-secret HMAC on random booking nonce, private passenger PIN issuance and driver-only per-booking verification, 20-minute expiry and five wrong attempts. Additive migration `011_in_app_boarding_pin.sql` follows 010; rollout not authorized.
 - Passenger and driver My Rides UI distinguish driver-reported vehicle arrival from confirmed boarding; no SMS/email provider, no payment status changes. New strict disposable HTTP/PG and browser VM tests in workflow; **CI pending** until exact-head checked. [Handoff](tasks/2026-11-21-in-app-boarding-pin.md).
 - **NO-GO unchanged:** independent P1 cancelled-Pending/false-report dispute handling unresolved; physical Android/TalkBack/large text/focus not tested, staged migrations and recovery not approved, parent #61/#60 and entire stack unmerged. No staging/production writes or deployment.
+
+
+## 2026-11-21 — No-show and disputed-trip architecture drafted (no runtime change)
+
+- Inspected draft #62 exact source. \`getBookingsByUser\` filters active bookings; driver \`cancelRide\` cancels booking rows/restores seats; \`checkUserSettlementBlock\` scans active \`Pending\` only and derives commission from seats_left. Driver-reported arrival is independent of boarding PIN.
+- **RFC only:** immutable booking/history and per-passenger \`boarded_at\`, one unresolved case per booking plus append-only event trail, reviewer-only adjudication, no-show claim ≠ penalty, pickup mismatch via contact, emergency cancellation after boarding ≠ never boarded. Design avoids new infrastructure, leaves legacy \`Pending\` visible for review and avoids asserting collectible debt.
+- No schema 012 committed or executed; no API/UI/payment change. Parent #62/#61/#60 remain draft. P1 cancelled Pending, physical Android, stage G1 backup/restore and rollback NO-GO unchanged. [Detailed RFC](tasks/2026-11-21-booking-disputes-and-no-show-rfc.md).
