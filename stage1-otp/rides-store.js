@@ -21,6 +21,12 @@ function validText(value,max,optional=false) {
     (optional || value.trim().length>0) && !/[<>\u0000-\u001f]/.test(value);
 }
 function asDate(value){return value instanceof Date?value.toISOString():String(value);}
+function journeyPublic(r){
+ return {journeyStage:r.journey_stage||'scheduled',
+ departedAt:r.departed_at?asDate(r.departed_at):null,
+ pickupAt:r.pickup_at?asDate(r.pickup_at):null,
+ arrivedAt:r.arrived_at?asDate(r.arrived_at):null};
+}
 function ridePublic(r){
   if(!r)return null;
   return {
@@ -30,7 +36,7 @@ function ridePublic(r){
     departureTime:r.departure_time,seatsTotal:Number(r.seats_total),
     seatsLeft:Number(r.seats_left),uberBenchmark:Number(r.uber_benchmark),
     studentFare:Number(r.student_fare),driverPayout:Number(r.driver_payout),
-    note:r.note,upiId:r.upi_id,paymentMode:r.payment_mode||'legacy',createdAt:asDate(r.created_at)
+    note:r.note,upiId:r.upi_id,paymentMode:r.payment_mode||'legacy',...journeyPublic(r),createdAt:asDate(r.created_at)
   };
 }
 function bookingPublic(r){
@@ -42,7 +48,7 @@ function bookingPublic(r){
     dept:r.dept,vehicleModel:r.vehicle_model,pickup:r.pickup,
     destination:r.destination,departureTime:r.departure_time,
     studentFare:Number(r.student_fare),paymentStatus:r.payment_status,
-    upiId:r.upi_id,paymentMode:r.payment_mode||'legacy',createdAt:asDate(r.created_at)
+    upiId:r.upi_id,paymentMode:r.payment_mode||'legacy',...journeyPublic(r),createdAt:asDate(r.created_at)
   };
 }
 function checkRideInput(r) {
@@ -65,17 +71,20 @@ function checkRideInput(r) {
 }
 
 class PgRidesStore {
-  constructor({pool,freePilot=false}={}) {
+  constructor({pool,freePilot=false,journeyEnabled=false}={}) {
     if(!pool||typeof pool.query!=='function'||typeof pool.connect!=='function')
       throw Error('PgRidesStore requires an existing private PostgreSQL pool');
     this.pool=pool;
     this.paymentMode=freePilot?'free_pilot':'legacy';
+    this.journeyEnabled=journeyEnabled===true;
   }
   async ready(){
     await this.pool.query('SELECT payment_mode FROM public.campus_rides LIMIT 0');
     await this.pool.query('SELECT payment_mode FROM public.campus_bookings LIMIT 0');
     const {rows}=await this.pool.query("SELECT count(*)::int AS n FROM pg_constraint WHERE convalidated AND ((conrelid='public.campus_rides'::regclass AND conname='campus_ride_payment_mode_check') OR (conrelid='public.campus_bookings'::regclass AND conname IN ('campus_booking_payment_mode_check','campus_booking_ride_payment_mode_fk')))");
     if(rows[0].n!==3)throw Error('Migration 009 payment mode constraints are required');
+    const journey=await this.pool.query("SELECT count(*)::int AS n FROM pg_constraint WHERE conrelid='public.campus_rides'::regclass AND conname='campus_ride_journey_stage_check' AND convalidated");
+    if(journey.rows[0].n!==1)throw Error('Migration 010 journey constraints are required');
   }
   async tx(fn,externalClient){
     if(externalClient)return fn(externalClient);
@@ -128,7 +137,7 @@ class PgRidesStore {
   }
   async getRides(){
     const r=await this.pool.query(
-      "SELECT * FROM public.campus_rides WHERE status='active' AND payment_mode=$1 ORDER BY created_at DESC",[this.paymentMode]);
+      "SELECT * FROM public.campus_rides WHERE status='active' AND journey_stage='scheduled' AND payment_mode=$1 ORDER BY created_at DESC",[this.paymentMode]);
     return r.rows.map(ridePublic);
   }
   async getRidesByDriver(userId){
@@ -139,10 +148,10 @@ class PgRidesStore {
   }
   async getBookingsByUser(userId){
     const r=await this.pool.query([
-      'SELECT * FROM public.campus_bookings',
-      "WHERE status='active' AND (passenger_user_id=$1",
-      'OR ride_id IN (SELECT id FROM public.campus_rides WHERE driver_user_id=$1))',
-      'ORDER BY created_at DESC'
+      'SELECT b.*,r.journey_stage,r.departed_at,r.pickup_at,r.arrived_at FROM public.campus_bookings b',
+      'JOIN public.campus_rides r ON r.id=b.ride_id',
+      "WHERE b.status='active' AND (b.passenger_user_id=$1 OR r.driver_user_id=$1)",
+      'ORDER BY b.created_at DESC'
     ].join(' '),[userId]);
     return r.rows.map(bookingPublic);
   }
@@ -157,6 +166,7 @@ class PgRidesStore {
       const ride=rideResult.rows[0];
       if(!ride||ride.status!=='active')throw new RidesError('RIDE_NOT_FOUND',404);
       if(ride.payment_mode!==this.paymentMode)throw new RidesError('RIDE_PAYMENT_MODE_UNAVAILABLE',409);
+      if(ride.journey_stage!=='scheduled')throw new RidesError('JOURNEY_BOOKING_CLOSED',409);
       const userResult=await client.query(
         'SELECT id,name,email FROM public.campus_users WHERE id=$1::uuid AND is_verified=true',[passengerUserId]);
       const passenger=userResult.rows[0];
@@ -193,12 +203,13 @@ class PgRidesStore {
       const found=await client.query(
         'SELECT ride_id FROM public.campus_bookings WHERE booking_id=$1',[bookingId]);
       if(!found.rows.length)throw new RidesError('BOOKING_NOT_FOUND',404);
-      await client.query('SELECT id FROM public.campus_rides WHERE id=$1 FOR UPDATE',[found.rows[0].ride_id]);
+      const lockedRide=await client.query('SELECT journey_stage FROM public.campus_rides WHERE id=$1 FOR UPDATE',[found.rows[0].ride_id]);
       const current=await client.query(
         'SELECT * FROM public.campus_bookings WHERE booking_id=$1 FOR UPDATE',[bookingId]);
       const booking=current.rows[0];
       if(!booking||booking.status!=='active')throw new RidesError('BOOKING_NOT_FOUND',404);
       if(booking.passenger_user_id!==passengerUserId)throw new RidesError('NOT_BOOKING_PASSENGER',403);
+      if(lockedRide.rows[0]?.journey_stage!=='scheduled')throw new RidesError('JOURNEY_ALREADY_STARTED',409);
       await client.query(
         "UPDATE public.campus_bookings SET status='cancelled',cancelled_at=now() WHERE booking_id=$1",
         [bookingId]);
@@ -211,14 +222,14 @@ class PgRidesStore {
   async isRideDriver(rideId,userId){
     if(!rideId||!userId)return false;
     const r=await this.pool.query(
-      "SELECT 1 FROM public.campus_rides WHERE id=$1 AND driver_user_id=$2 AND status='active' LIMIT 1",
+      "SELECT 1 FROM public.campus_rides WHERE id=$1 AND driver_user_id=$2 AND status='active' AND journey_stage<>'arrived' LIMIT 1",
       [rideId,userId]);
     return r.rows.length>0;
   }
   async isRideParticipant(rideId,userId){
     if(!rideId||!userId)return false;
     const r=await this.pool.query([
-      'SELECT 1 FROM public.campus_rides r WHERE r.id=$1 AND r.status=\'active\'',
+      'SELECT 1 FROM public.campus_rides r WHERE r.id=$1 AND r.status=\'active\' AND r.journey_stage<>\'arrived\'',
       "AND (r.driver_user_id=$2 OR EXISTS (SELECT 1 FROM public.campus_bookings b",
       "WHERE b.ride_id=r.id AND b.passenger_user_id=$2 AND b.status='active')) LIMIT 1"
     ].join(' '),[rideId,userId]);
@@ -227,7 +238,7 @@ class PgRidesStore {
   async isBookingPassenger(bookingId,userId){
     if(!bookingId||!userId)return false;
     const r=await this.pool.query(
-      "SELECT 1 FROM public.campus_bookings WHERE booking_id=$1 AND passenger_user_id=$2 AND status='active' LIMIT 1",
+      "SELECT 1 FROM public.campus_bookings b JOIN public.campus_rides r ON r.id=b.ride_id WHERE b.booking_id=$1 AND b.passenger_user_id=$2 AND b.status='active' AND r.status='active' AND r.journey_stage<>'arrived' LIMIT 1",
       [bookingId,userId]);
     return r.rows.length>0;
   }
@@ -236,7 +247,7 @@ class PgRidesStore {
     const r=await this.pool.query([
       'SELECT 1 FROM public.campus_bookings b',
       'JOIN public.campus_rides r ON r.id=b.ride_id',
-      "WHERE b.booking_id=$1 AND b.status='active' AND r.status='active'",
+      "WHERE b.booking_id=$1 AND b.status='active' AND r.status='active' AND r.journey_stage<>'arrived'",
       'AND (b.passenger_user_id=$2 OR r.driver_user_id=$2) LIMIT 1'
     ].join(' '),[bookingId,userId]);
     return r.rows.length>0;
@@ -274,6 +285,28 @@ class PgRidesStore {
     };
   }
 
+  async advanceJourney({rideId,driverUserId,action,client:txClient}={}){
+    if(!this.journeyEnabled)throw new RidesError('JOURNEY_NOT_ENABLED',503);
+    if(typeof driverUserId!=='string')throw new RidesError('AUTH_REQUIRED',401);
+    if(typeof rideId!=='string'||rideId.length>64||!rideId.startsWith('ride_'))throw new RidesError('INVALID_RIDE');
+    const transitions={depart:['scheduled','departed','departed_at'],pickup:['departed','pickup_ready','pickup_at'],arrive:['pickup_ready','arrived','arrived_at']};
+    const step=typeof action==='string' && Object.hasOwn(transitions,action)?transitions[action]:null;
+    if(!step)throw new RidesError('INVALID_JOURNEY_ACTION',400);
+    return this.tx(async client=>{
+      const current=await client.query('SELECT * FROM public.campus_rides WHERE id=$1 FOR UPDATE',[rideId]);
+      const ride=current.rows[0];
+      if(!ride||ride.status!=='active')throw new RidesError('RIDE_NOT_FOUND',404);
+      if(ride.driver_user_id!==driverUserId)throw new RidesError('NOT_RIDE_OWNER',403);
+      if(ride.journey_stage!==step[0])throw new RidesError('JOURNEY_INVALID_TRANSITION',409);
+      // now() is frozen at transaction start; a queued request can acquire
+      // the row lock later. clock_timestamp() reflects the write instant, and
+      // GREATEST enforces monotonic timestamps even across clock adjustments.
+      const predecessor=action==='pickup'?'departed_at':action==='arrive'?'pickup_at':null;
+      const stampedAt=predecessor?'GREATEST(clock_timestamp(),'+predecessor+')':'clock_timestamp()';
+      const result=await client.query('UPDATE public.campus_rides SET journey_stage=$2,'+step[2]+'='+stampedAt+',updated_at=clock_timestamp() WHERE id=$1 RETURNING *',[rideId,step[1]]);
+      return ridePublic(result.rows[0]);
+    },txClient);
+  }
   async cancelRide({rideId,driverUserId,client:txClient}={}){
     if(typeof driverUserId!=='string')throw new RidesError('AUTH_REQUIRED',401);
     if(typeof rideId!=='string'||rideId.length>64)throw new RidesError('INVALID_RIDE');
@@ -283,6 +316,7 @@ class PgRidesStore {
       const ride=result.rows[0];
       if(!ride||ride.status!=='active')throw new RidesError('RIDE_NOT_FOUND',404);
       if(ride.driver_user_id!==driverUserId)throw new RidesError('NOT_RIDE_OWNER',403);
+      if(ride.journey_stage==='arrived')throw new RidesError('JOURNEY_ALREADY_ARRIVED',409);
       await client.query(
         "UPDATE public.campus_bookings SET status='cancelled',cancelled_at=now() WHERE ride_id=$1 AND status='active'",
         [rideId]);

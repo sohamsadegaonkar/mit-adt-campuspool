@@ -16,7 +16,7 @@ const { PgIdempotencyStore, SqliteIdempotencyStore, IdempotencyError } = require
 // Only these authenticated mutations can return a bounded, read-only receipt
 // when the standard per-IP mutation rate limit has already been exhausted.
 const IDEMPOTENT_MUTATION_PATHS = new Set([
-  '/api/rides', '/api/bookings', '/api/rides/cancel',
+  '/api/rides', '/api/bookings', '/api/rides/cancel', '/api/rides/journey',
   '/api/bookings/cancel', '/api/mobility/intents',
   '/api/mobility/intents/cancel'
 ]);
@@ -30,6 +30,10 @@ if (RIDES_BACKEND === 'postgres' && AUTH_OTP_BACKEND !== 'postgres')
   throw new Error('PostgreSQL Rides requires PostgreSQL identity backend');
 // Optional pilot policy: only verified PostgreSQL rides routes, not OTP,
 // GPS, billable providers, public APIs or legacy SQLite identity.
+const RIDES_JOURNEY_ENABLED_VALUE=process.env.RIDES_JOURNEY_ENABLED||'false';
+if(!['true','false'].includes(RIDES_JOURNEY_ENABLED_VALUE))throw Error('RIDES_JOURNEY_ENABLED must be true or false');
+const RIDES_JOURNEY_ENABLED=RIDES_JOURNEY_ENABLED_VALUE==='true';
+if(RIDES_JOURNEY_ENABLED && RIDES_BACKEND!=='postgres')throw Error('Journey lifecycle requires PostgreSQL Rides');
 const FREE_RIDES_PILOT_VALUE=process.env.FREE_RIDES_PILOT||'false';
 if(!['true','false'].includes(FREE_RIDES_PILOT_VALUE))throw Error('FREE_RIDES_PILOT must be true or false');
 const FREE_RIDES_PILOT=FREE_RIDES_PILOT_VALUE==='true';
@@ -38,7 +42,7 @@ const CAMPUS_WIFI_FAIRNESS = process.env.CAMPUS_WIFI_FAIRNESS === 'true';
 if (CAMPUS_WIFI_FAIRNESS && RIDES_BACKEND !== 'postgres')
   throw new Error('Campus Wi-Fi fairness requires PostgreSQL Rides');
 const FAIR_READ_PATHS = new Set(['/api/rides','/api/bookings','/api/my-rides','/api/user/settlement-status']);
-const FAIR_WRITE_PATHS = new Set(['/api/rides','/api/bookings','/api/rides/cancel','/api/bookings/cancel']);
+const FAIR_WRITE_PATHS = new Set(['/api/rides','/api/bookings','/api/rides/cancel','/api/bookings/cancel','/api/rides/journey']);
 const MOBILITY_MATCHING_ENABLED = process.env.MOBILITY_MATCHING_ENABLED === 'true';
 if(FREE_RIDES_PILOT && MOBILITY_MATCHING_ENABLED)throw Error('Free rides pilot requires mobility matching disabled');
 // Cost-bearing Places calls stay OFF without an explicitly approved server flag.
@@ -198,7 +202,7 @@ const gpsCleanupTimer=setInterval(pruneGps,30000);gpsCleanupTimer.unref();
 const pgOtpStore = AUTH_OTP_BACKEND === 'postgres' ? new PgOtpStore() : null;
 const pgIdentity = pgOtpStore ? new PgIdentity(pgOtpStore) : null;
 const pgRidesStore = RIDES_BACKEND === 'postgres'
-  ? new PgRidesStore({pool:pgOtpStore.pool,freePilot:FREE_RIDES_PILOT}) : null;
+  ? new PgRidesStore({pool:pgOtpStore.pool,freePilot:FREE_RIDES_PILOT,journeyEnabled:RIDES_JOURNEY_ENABLED}) : null;
 const pgMobilityStore = MOBILITY_MATCHING_ENABLED
   ? new PgMobilityStore({pool:pgOtpStore.pool}) : null;
 const pgIdempotency = pgRidesStore ? new PgIdempotencyStore(pgOtpStore.pool) : null;
@@ -652,7 +656,7 @@ const server = http.createServer(async (req, res) => {
   }
   function discoveryRide(ride){
     return pick(ride,['id','driverName','dept','vehicle','vehicleModel','pickup','destination',
-      'departureTime','seatsTotal','seatsLeft','uberBenchmark','studentFare','driverPayout','paymentMode','createdAt']);
+      'departureTime','seatsTotal','seatsLeft','uberBenchmark','studentFare','driverPayout','paymentMode','journeyStage','departedAt','pickupAt','arrivedAt','createdAt']);
   }
   function ownerRide(ride){
     const result=discoveryRide(ride);
@@ -661,13 +665,13 @@ const server = http.createServer(async (req, res) => {
   }
   function historicalBooking(booking){
     const result=pick(booking,['bookingId','rideId','passengerName','driverName','dept',
-      'vehicleModel','pickup','destination','departureTime','studentFare','paymentStatus','paymentMode','createdAt']);
+      'vehicleModel','pickup','destination','departureTime','studentFare','paymentStatus','paymentMode','journeyStage','departedAt','pickupAt','arrivedAt','createdAt']);
     if(isSelf(booking.passengerEmail))result.passengerEmail=booking.passengerEmail;
     return result;
   }
   function activeParticipantBooking(booking){
     const result=historicalBooking(booking);
-    if(isSelf(booking.passengerEmail) && typeof booking.driverPhone==='string')
+    if(isSelf(booking.passengerEmail) && booking.journeyStage!=='arrived' && typeof booking.driverPhone==='string')
       result.driverPhone=booking.driverPhone;
     return result;
   }
@@ -681,6 +685,7 @@ const server = http.createServer(async (req, res) => {
   function receiptBody(route,body){
     if(route==='/api/rides' && body?.ride)return {...body,ride:ownerRide(body.ride)};
     if(route==='/api/bookings' && body?.booking)return {...body,booking:historicalBooking(body.booking)};
+    if(route==='/api/rides/journey' && body?.ride)return {...body,ride:ownerRide(body.ride)};
     return body;
   }
   function safeLiveLocation(loc,driver){
@@ -813,7 +818,7 @@ const server = http.createServer(async (req, res) => {
     if (!authenticatedUser) {
       return sendJson(401, { success: false, error: 'AUTH_REQUIRED' });
     }
-    return sendJson(200, { success: true, user: authenticatedUser, csrfToken: csrfForSession(sessionToken), freeRidesPilot:FREE_RIDES_PILOT });
+    return sendJson(200, { success: true, user: authenticatedUser, csrfToken: csrfForSession(sessionToken), freeRidesPilot:FREE_RIDES_PILOT,journeyEnabled:RIDES_JOURNEY_ENABLED });
   }
   if (pathname.startsWith('/api/') && (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE')
     && authenticatedUser && (!pathname.startsWith('/api/auth/') || pathname === '/api/auth/logout')
@@ -1558,6 +1563,22 @@ const server = http.createServer(async (req, res) => {
   }
 
   // -----------------------------------------------------------------------
+  // Driver-reported, persisted events — not GPS-verified travel claims.
+  if(method==='POST' && pathname==='/api/rides/journey'){
+    if(!RIDES_JOURNEY_ENABLED||!pgRidesStore)return sendJson(503,{success:false,error:'JOURNEY_NOT_ENABLED'});
+    const body=await parseBody();
+    if(!body||typeof body!=='object'||Array.isArray(body))return sendJson(400,{success:false,error:'INVALID_JOURNEY_ACTION'});
+    try{
+      return await executeIdempotentMutation(pathname,body,client=>
+        pgRidesStore.advanceJourney({rideId:body.rideId,action:body.action,driverUserId:authenticatedUser.id,client})
+          .then(ride=>({status:200,body:{success:true,ride:ownerRide(ride)}})));
+    }catch(err){
+      if(PgPoolBusyError && err instanceof PgPoolBusyError)throw err;
+      return sendJson(err instanceof RidesError?err.status:500,
+        {success:false,error:err instanceof RidesError?err.code:'DATABASE_ERROR'});
+    }
+  }
+
   // REST API: explicit short-lived GPS sharing, same existing endpoints.
   // Authorization is evaluated for every read and mutation. No demo writes.
   if((method==='GET'||method==='POST') &&

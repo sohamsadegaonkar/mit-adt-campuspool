@@ -33,3 +33,13 @@ Continuous car animations are allowed as clearly labeled illustrations only, nev
 - [Draft PR #59](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/59): namespaced CP CSS, short SVG and helper functions in index.html, no new dependency or backend. [Task/evidence](tasks/2026-11-21-campuspool-motion-boarding-pass.md).
 - Review visual presentation with real low-end Android, screen reader, large text and reduced motion. Implement real journey state machine before live progress animations.
 - Existing pilot #58 remains unapproved/default-off; no production release or live payments authorized.
+## Journey timeline (candidate #60, not deployed)
+- **Source of truth:** authenticated driver-reported PostgreSQL milestone and timestamp. Stages scheduled, departed, pickup_ready, arrived. Never portray as independently GPS verified.
+- Change animation only when a previously seen authorized private snapshot advances to a later stage; no animation for initial/loading/stale receipts.
+- Color and movement complement readable status text, paused/disabled in reduced motion. Driver should only report while safely parked; product/driver safety validation pending.
+
+## Driver-reported milestones — verified code candidate #60
+
+- Five CI checks passed at `e1ea317` (21 Nov 2026). Four persisted stages, stage timestamp sourced from PostgreSQL, no GPS time simulation, and private active-passenger/owner readback. See [handoff](tasks/2026-11-21-journey-state-machine.md).
+- First/unchanged/backwards snapshot does not animate. Car advances only on authenticated, later persisted status read. Flag-off continues static historical stage display; no new reports.
+- Driver report is an attestation, not GPS/independent proof. No motion or status automatically updates bills, refunds, settlement, vehicle speed, ETA or claims safe arrival.

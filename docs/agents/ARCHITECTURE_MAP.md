@@ -108,3 +108,5 @@ Flutter `PlaceAutocompleteField` calls `HttpPlaceSearchSource` using the configu
 
 
 **Pending free rides pilot (NOT DEPLOYED):** 009 adds ride/booking payment_mode and mode FK; FREE_RIDES_PILOT defaults false, 009 readiness required. No new service. [Task](tasks/2026-11-20-free-rides-pilot.md).
+
+**Journey candidate (NOT LIVE):** PostgreSQL ride journey_stage + departed/pickup/arrived timestamps; driver-only idempotent milestone endpoint; private participant reads. Migration 010 and default-off flag. [Task](tasks/2026-11-21-journey-state-machine.md).

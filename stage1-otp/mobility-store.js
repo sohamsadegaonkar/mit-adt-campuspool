@@ -110,7 +110,7 @@ class PgMobilityStore {
       'AND extensions.ST_DWithin(g.dropoff_geo,i.dropoff_geo,1500)',
       'JOIN public.campus_rides r ON r.id=g.ride_id',
       "WHERE i.id=$1::uuid AND i.student_user_id=$2::uuid AND i.status='active'",
-      "AND r.status='active' AND r.seats_left>0 AND r.driver_user_id<>$2::uuid",
+      "AND r.status='active' AND r.journey_stage='scheduled' AND r.seats_left>0 AND r.driver_user_id<>$2::uuid",
       'AND g.departure_at>=i.earliest_departure AND g.departure_at<=i.latest_departure',
       'AND g.departure_at>=now()-interval \'10 minutes\'',
       'ORDER BY (extensions.ST_Distance(g.pickup_geo,i.pickup_geo)+',

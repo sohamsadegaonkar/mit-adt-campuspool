@@ -131,3 +131,6 @@
 ## 2026-11-20 — Free rides-only pilot (proposed)
 
 - Default-off PG rides, mobility disabled. Explicit mode, matching FK, zero-money and NoPaymentRequired; preserve legacy Pending. Owner approval and separate migration required. [Task](tasks/2026-11-20-free-rides-pilot.md).
+
+## 2026-11-21 — driver-reported journey milestones (proposal)
+- Minimal PG row state machine (scheduled/departed/pickup_ready/arrived), owner attestation, stored timestamps; no GPS inference or event broker. Existing legacy debt preserved. DB migration 010 and flag require separate release review. [Task](tasks/2026-11-21-journey-state-machine.md).

@@ -28,7 +28,9 @@ async function migrate({
     await pool.query(idemSql);
     const pilotSql=fs.readFileSync(path.join(__dirname,'migrations','009_free_rides_pilot.sql'),'utf8');
     await pool.query(pilotSql);
-    console.log('[OTP MIGRATION] Applied OTP, identity, rides, PostGIS, idempotency and payment-mode schema migrations');
+    const journeySql=fs.readFileSync(path.join(__dirname,'migrations','010_driver_reported_journey.sql'),'utf8');
+    await pool.query(journeySql);
+    console.log('[OTP MIGRATION] Applied OTP, identity, rides, PostGIS, idempotency, payment-mode and journey schema migrations');
   } finally {
     await pool.end();
   }
