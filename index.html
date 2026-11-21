@@ -802,7 +802,7 @@
             <div class="text-center py-8 text-slate-500 text-xs space-y-1">
               <span class="text-3xl block mb-2"><svg class="cp-icon" aria-hidden="true"><use href="#cp-car"></use></svg></span>
               <p class="font-bold text-slate-300">You have not posted any rides yet.</p>
-              <p class="text-slate-500">Offer an empty bike or car seat in the "Offer a Ride" tab to recover 90% fuel costs!</p>
+              <p class="text-slate-500">Offer an empty bike or car seat in the "Offer a Ride" tab to share a seat with a campus peer!</p>
             </div>
           </div>
 
@@ -2444,6 +2444,7 @@
               <article class="cp-boarding-pass p-3 sm:p-4 space-y-3" data-booking-id="${sanitize(String(b.bookingId||''))}">
                 ${boardingPassMarkup(b)}
                 ${journeyTimelineMarkup(b,pendingJourneyAnimations.get(b.rideId))}
+                ${appState.journeyEnabled&&b.journeyStage!=='scheduled'?`<p class="text-xs text-slate-300">${b.journeyStage==='arrived'?'Driver reported arrival. This booking remains in your history.':'Booking changes are locked after reported departure. Contact your driver for assistance.'}</p>`:'' }
 
                 <div class="pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
                   <div class="flex items-center gap-1.5">
@@ -2452,7 +2453,7 @@
                     </a>
                     <a href="tel:${cleanDriverPhone}" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-3 py-1.5 rounded-xl transition">
                       <svg class="cp-icon" aria-hidden="true"><use href="#cp-phone"></use></svg> Call
-                    </a>` : `<span class="text-slate-400">Contact available after refresh</span>`}
+                    </a>` : `<span class="text-slate-400">${appState.journeyEnabled&&b.journeyStage==='arrived'?'Driver contact closed after reported arrival':'Contact available after refresh'}</span>`}
                   </div>
 
                   <div class="flex items-center gap-2">

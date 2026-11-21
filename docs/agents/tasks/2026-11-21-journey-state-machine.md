@@ -49,3 +49,5 @@ PostgreSQL-backed, driver-attested scheduled -> departed -> pickup_ready -> arri
 - 2026-11-21 UTC — reviewed access side channels: unauthorized cancellation must yield 403 before revealing journey stage. Added outsider regression before stage check. Exact-head CI pending rerun.
 
 - 2026-11-21 UTC — post-arrival private booking DTO revokes driver-phone disclosure on subsequent reads (cannot reclaim previously seen numbers); journey endpoint rejects non-object bodies with 400. Real PG regression added. Exact CI pending.
+
+- 2026-11-21 UTC — passenger UX labels clarify that arrival is driver-reported, hide stale contact after arrival and explain why cancellation is locked after departure. No driver reimbursement promises added. CI pending.
