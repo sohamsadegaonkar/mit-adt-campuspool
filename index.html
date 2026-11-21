@@ -1887,6 +1887,11 @@
       pendingSeatTransitions.clear();
       appState.rides=[];appState.myBookings=[];appState.myBookingHistory=[];appState.driverCaseHistory=[];appState.myOfferedRides=[];appState.settlementReview=null;pickupServerClockOffset=0;
       appState.selectedRideForBooking=null;appState.selectedBookingForPayment=null;
+      // Case history is private: never leave the prior participant's modal
+      // visible after logout, session switch or account change.
+      const privateCaseDialog=document.getElementById('caseResponseDialog');
+      if(privateCaseDialog?.open)privateCaseDialog.close();
+      document.getElementById('caseResponseTimeline')?.replaceChildren();
       renderRidesGrid();renderMyRidesViews();
       hideModal('bookingModal',{restoreFocus:false});hideModal('paymentModal',{restoreFocus:false});
       closeGpsTrackingModal();
