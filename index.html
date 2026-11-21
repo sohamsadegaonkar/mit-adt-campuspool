@@ -1796,7 +1796,7 @@
     let lastRidesEtag = null;
     window.addEventListener('campuspool:session-changed',()=>{
       privateReadGeneration++;
-      journeyReadReady=false;seenJourneyStages.clear();pendingJourneyAnimations.clear();driverJourneyBookings=[];
+      journeyReadReady=false;seenJourneyStages.clear();pendingJourneyAnimations.clear();driverJourneyBookings=[];driverJourneyBookingsKnown=false;
       if(!appState.currentUser){appState.freeRidesPilot=false;appState.journeyEnabled=false;appState.boardingPinEnabled=false;}
       applyFreePilotOfferMode();
       lastRidesEtag=null;
@@ -1898,7 +1898,8 @@
         if(appState.boardingPinEnabled && allUserBookings && verifiedOwnerRides){
           const ownRideIds=new Set(appState.myOfferedRides.map(r=>r.id));
           driverJourneyBookings=allUserBookings.filter(b=>ownRideIds.has(b.rideId) && !b.passengerEmail);
-        }else driverJourneyBookings=[];
+          driverJourneyBookingsKnown=true;
+        }else{driverJourneyBookings=[];driverJourneyBookingsKnown=false;}
         if(appState.journeyEnabled && verifiedBookings && verifiedOwnerRides)
           recordVerifiedJourneySnapshot(appState.myBookings,appState.myOfferedRides);
         saveState();
@@ -2439,6 +2440,7 @@
     // CAMPUSPOOL_BOARDING_BEGIN
     // Vehicle arrival is driver-reported; PIN proof is per-passenger, not a GPS claim.
     let driverJourneyBookings=[];
+    let driverJourneyBookingsKnown=false;
     function boardingStatusMarkup(booking){
       if(!appState.boardingPinEnabled || !['pickup_ready','arrived'].includes(booking?.journeyStage))return '';
       const verified=Boolean(booking.boardedAt);
@@ -2463,6 +2465,7 @@
     function driverPinMarkup(ride){
       if(!appState.boardingPinEnabled||!['pickup_ready','arrived'].includes(ride?.journeyStage))return '';
       const entries=driverJourneyBookings.filter(b=>b.rideId===ride.id);
+      if(!driverJourneyBookingsKnown)return '<section class="cp-pin-panel"><p class="cp-boarding-note">Passenger boarding list unavailable. Refresh My Rides before verifying a PIN.</p></section>';
       return `<section class="cp-pin-panel" aria-label="Passenger boarding verification">
         <h4 class="font-bold text-white">Passenger boarding</h4>
         <p class="cp-boarding-note">A driver-reported arrival does not verify passenger boarding.</p>
