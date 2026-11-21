@@ -36,7 +36,9 @@ async function migrate({
     await pool.query(pickupSql);
     const responseSql=fs.readFileSync(path.join(__dirname,'migrations','013_private_case_responses.sql'),'utf8');
     await pool.query(responseSql);
-    console.log('[OTP MIGRATION] Applied OTP, identity, rides, PostGIS, idempotency, payment-mode, journey, boarding PIN, pickup cases and private responses');
+    const reviewerSql=fs.readFileSync(path.join(__dirname,'migrations','014_case_review_appeals_foundation.sql'),'utf8');
+    await pool.query(reviewerSql);
+    console.log('[OTP MIGRATION] Applied OTP, identity, rides, PostGIS, idempotency, payment-mode, journey, boarding PIN, pickup cases, responses and guarded review/appeal schema');
   } finally {
     await pool.end();
   }
