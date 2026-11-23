@@ -9,7 +9,7 @@ test "${CAMPUSPOOL_SYNTHETIC_008_ONLY:-}" = "YES"
 test -z "${STAGING_BACKUP_DATABASE_URL:-}"
 test -z "${STAGING_008_AGE_IDENTITY:-}"
 test -z "${OTP_DATABASE_URL:-}"
-CID="$(docker ps -q --filter ancestor=postgis/postgis:17-3.5 | head -n 1)"
+CID="$(docker ps -q --filter ancestor=postgis/postgis:17-3.5@sha256:01a6a70e41e6c4467c8f55f6063555ed72db2d6662cd0d571040d42eadaeb6f6 | head -n 1)"
 [[ "$CID" =~ ^[a-f0-9]{12,64}$ ]]
 version="$(docker exec "$CID" psql -U postgres -d scratch_bootstrap -qAt -c 'SHOW server_version_num')"
 [[ "$version" =~ ^17[0-9]{4}$ ]]
