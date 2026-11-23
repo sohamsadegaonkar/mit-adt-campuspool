@@ -242,18 +242,8 @@ jobs:
               AND NOT has_table_privilege('anon',c.oid,'SELECT,INSERT,UPDATE,DELETE')
               AND NOT has_table_privilege('authenticated',c.oid,'SELECT,INSERT,UPDATE,DELETE');
           SQL
-          test "$(grep -c '^t
-          echo "INDEPENDENT_ENCRYPTED_STAGING_APPLICATION_RESTORE_VERIFIED=YES"
-          echo "GLOBAL_ROLES_AND_OTHER_SUPABASE_SCHEMAS_RESTORED=NO"
-      - name: Report stage-only recovery with production release held
-        run: |
-          echo "STAGING_008_APPLICATION_PREIMAGE_RESTORE=PASS"
-          echo "NO_DATABASE_MIGRATION=YES"
-          echo "STAGING_RENDER_DEPLOYMENT_CHANGED=NO"
-          echo "AZURE_BACKUP_G1_VERIFIED=NO"
-          echo "PRODUCTION_PROMOTION_AUTHORIZED=NO"
- "$TMP/assertions")" -eq 6
-          test "$(wc -l <"$TMP/assertions")" -eq 6
+          test "$(grep -c '^t$' "$TMP/assertions")" -eq 8
+          test "$(wc -l <"$TMP/assertions")" -eq 8
           echo "INDEPENDENT_ENCRYPTED_STAGING_APPLICATION_RESTORE_VERIFIED=YES"
           echo "GLOBAL_ROLES_AND_OTHER_SUPABASE_SCHEMAS_RESTORED=NO"
       - name: Report stage-only recovery with production release held
