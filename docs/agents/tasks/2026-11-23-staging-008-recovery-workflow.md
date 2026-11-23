@@ -31,7 +31,8 @@ Existing [`scripts/staging-migration-preflight.js`](https://github.com/sohamsade
 - **2026-11-23:** Verified isolated staging Supabase Free, 001–007 migrated, no CampusPool app rows, 008 table absent. Reviewed exact source migration and rollback/runbook.
 - **2026-11-23:** Added `scripts/staging-008-backup-guard.js` with strict staging URL/role and pinned CA validation, read-only catalog checks, zero-row/7-ledger guard, and tests including admin-role opt-in rejection.
 - **2026-11-23:** Added **manual-only** `.github/workflows/staging-008-recovery-proof.yml` with separate GitHub environments, encrypted-only GitHub Actions artifact and independently verified scratch restore. Added **offline-only** `.github/workflows/staging-008-recovery-contract.yml`. Neither has executed an actual staging backup, produced an encrypted artifact or applied migration 008.
-- **2026-11-23:** Ready for exact-head CI and independent workflow/security review. No GitHub secret was configured in this work.
+- **2026-11-23:** Source-only CI green on exact implementation head `53d200f62c633a5448e8fe7ed71e536c888883ce`. [Offline 008 policy and synthetic AGE/PG17 restore run #45138252885](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/45138252885) PASS (both policy and isolated synthetic age restore jobs). [Stage 1 PostgreSQL #45138252715](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/45138252715), [secret hygiene #45138252787](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/45138252787), and [agent documentation #45138252834](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/45138252834) PASS. This is only local/source CI evidence; **no Supabase backup, AGE plaintext, new migration, live restore or deployment executed**.
+- **2026-11-23:** After review, strengthened the manual restore gate to compare **exact migration names 001–007**, sum of all nine source-app rows (zero), nine RLS policies, reconstructed backend grants, and zero client API grants; added negative regression tests to catch malformed restore assertions before merging. The live workflow remains manual/draft and cannot run until an independently reviewed `main` merge plus owner-protected GitHub environments and secrets.
 
 ## Verification
 
@@ -39,7 +40,7 @@ Existing [`scripts/staging-migration-preflight.js`](https://github.com/sohamsade
 |---|---|---|
 | Staging project and ledger | Supabase project and migrations readback, 2026-11-23 | PASS / app data 0; ledger 7 |
 | Before-008 RLS/grants | Read-only SQL, existing preflight `checkSnapshot` criteria | PASS |
-| Offline target/CA-policy tests | `node --test test_staging_008_backup_guard.js` | Pending GitHub CI |
+| Offline target/CA-policy tests | [Actions #45138252885](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/45138252885) | PASS; isolated tests only |
 | Actual encrypted preimage | Manual `staging-008-recovery-proof.yml` | **NOT EXECUTED** |
 | Independent AGE decrypt/PG17 restore | Distinct environment runner | **NOT EXECUTED** |
 | 008 applied and post-checks | Supabase migration list and catalog | **NOT EXECUTED** |
