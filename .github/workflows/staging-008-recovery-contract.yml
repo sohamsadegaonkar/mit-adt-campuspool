@@ -1,0 +1,44 @@
+name: Staging 008 recovery contract (offline only)
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/staging-008-backup-guard.js'
+      - 'scripts/staging-migration-preflight.js'
+      - 'test_staging_008_backup_guard.js'
+      - '.github/workflows/staging-008-recovery-proof.yml'
+      - '.github/workflows/staging-008-recovery-contract.yml'
+      - 'docs/agents/tasks/2026-11-23-staging-008-recovery-workflow.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      STAGING_008_BACKUP_ACK: ''
+      APP_ENV: ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.2'
+          cache: npm
+      - name: Install pinned dependencies, no live credentials
+        run: npm ci --omit=dev
+      - name: Validate policy code and malicious-target rejections
+        run: |
+          set -euo pipefail
+          node --check scripts/staging-008-backup-guard.js
+          node --check test_staging_008_backup_guard.js
+          node --test test_staging_008_backup_guard.js
+          node --test test_staging_migration_preflight.js
+          echo "STAGING_BACKUP_POLICY_OFFLINE=PASS"
+          echo "ACTUAL_STAGING_DATABASE_CONNECTED=NO"
+          echo "ACTUAL_BACKUP_CREATED=NO"
+          echo "INDEPENDENT_RESTORE_PERFORMED=NO"
+          echo "NO_DATABASE_MIGRATION=YES"
+          echo "PRODUCTION_PROMOTION_AUTHORIZED=NO"
