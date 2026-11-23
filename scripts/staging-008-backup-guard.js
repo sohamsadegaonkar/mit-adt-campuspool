@@ -4,7 +4,7 @@
 const {Client}=require('pg');
 const crypto=require('node:crypto');
 const {validateTarget,readSnapshot,TABLES}=require('./staging-migration-preflight');
-const {checkFrozenSnapshot,readAppRoleConnections}=require('./staging-008-freeze-verify');
+const {checkFrozenSnapshot,readAppRoleConnections,readWritableSequences}=require('./staging-008-freeze-verify');
 const PROJECT='tnitksrlntrdxbvznxzf';
 const CA_PIN='807025AD50D4ED219D2C9C7D299C004F824EB00CF7F65AFEF607D07B72E6CAFA';
 const REQUIRED_STAGING_ROLE='campuspool_staging_app';
@@ -100,7 +100,8 @@ async function guard(env=process.env){
     await client.connect();
     const snapshot=await readSnapshot(client);
     const sessions=await readAppRoleConnections(client);
-    const freeze=checkFrozenSnapshot(snapshot,sessions);
+    const writableSequences=await readWritableSequences(client);
+    const freeze=checkFrozenSnapshot(snapshot,sessions,writableSequences);
     if(!freeze.appRoleWriteFreezeVerified)
       throw Error('STAGING_APPLICATION_WRITE_FREEZE_NOT_ESTABLISHED');
     const counts=await countReadOnly(client);
