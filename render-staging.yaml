@@ -1,5 +1,6 @@
-# Optional, manually created staging Blueprint. NOT linked to production.
-# In Render > New > Blueprint, explicitly select THIS file and main.
+# Source-only staging Blueprint target; existing live service currently deploys main.
+# Do not sync it until the staging branch is reviewed and secrets/migrations are ready.
+# Staging auto-deploy may later use checksPass, never production auto-deploy.
 # Creating the file does not create/deploy a service.
 services:
   - type: web
@@ -7,7 +8,7 @@ services:
     name: mit-adt-campuspool-staging
     region: singapore
     plan: free
-    branch: main
+    branch: staging
     autoDeployTrigger: 'off'
     buildCommand: npm ci --omit=dev
     startCommand: node server.js
@@ -51,6 +52,15 @@ services:
       - key: EMAIL_FROM
         sync: false
       - key: STAGING_BASIC_AUTH_PASSWORD
+        sync: false
+      # Staging QA synthetic OTP is OFF until specifically approved and configured.
+      - key: STAGING_QA_OTP_MODE
+        value: 'off'
+      - key: STAGING_QA_READ_TOKEN
+        sync: false
+      - key: STAGING_QA_TEST_EMAIL
+        sync: false
+      - key: STAGING_QA_TEST_PHONE
         sync: false
       # Explicitly disabled until a staging-only approved MSG91 sender/template is configured.
       - key: SMS_PROVIDER
