@@ -80,6 +80,6 @@ async function runFixture({env=process.env,fetchImpl=globalThis.fetch,
 }
 if(require.main===module){
   runFixture().then(out=>process.stdout.write(JSON.stringify(out)+'\n'))
-    .catch(err=>{process.stderr.write('BLOCK '+err.message+'\n');process.exitCode=1;});
+    .catch(err=>{const code=/^(QA_|STAGING_)[A-Z0-9_]+$/.test(err.message)?err.message:'STAGING_FIXTURE_UNCLASSIFIED';process.stderr.write('BLOCK '+code+'\n');process.exitCode=1;});
 }
 module.exports={runFixture,config};
