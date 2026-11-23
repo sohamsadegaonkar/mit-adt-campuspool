@@ -49,6 +49,6 @@ async function runSmoke({env=process.env,fetchImpl=globalThis.fetch}={}){
 }
 if(require.main===module){
   runSmoke().then(r=>process.stdout.write(JSON.stringify(r)+'\n'))
-    .catch(e=>{process.stderr.write('BLOCK '+e.message+'\n');process.exitCode=1;});
+    .catch(e=>{const allowed=new Set(['STAGING_URL_NOT_APPROVED','EXACT_DEPLOYED_SHA_REQUIRED','STAGING_BASIC_AUTH_REQUIRED','STAGING_HEALTH_NOT_READY','NOT_STAGING_ENVIRONMENT','STAGING_COMMIT_MISMATCH','STAGING_PUBLIC_ACCESS_NOT_BLOCKED','STAGING_BASIC_AUTH_FAILED','UNAUTHENTICATED_SESSION_NOT_BLOCKED']);process.stderr.write('BLOCK '+(allowed.has(e.message)?e.message:'STAGING_SMOKE_UNCLASSIFIED')+'\n');process.exitCode=1;});
 }
 module.exports={readConfig,runSmoke,BASE};
