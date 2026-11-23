@@ -81,14 +81,18 @@ test('never add staging live credentials, DDL or prod deploy to repo workflow',(
   assert.match(workflow,/--no-acl/);
   // A PostgreSQL has_table_privilege() comma-separated privilege list is ANY,
   // not ALL. One granted privilege must never pass the four-CRUD gate.
-  const backend=workflow.match(/has_table_privilege\('campuspool_staging_app',c\.oid,'(?:SELECT|INSERT|UPDATE|DELETE)'\)/g)||[];
+  const assertions=fs.readFileSync('scripts/staging-008-scratch-assertions.sql','utf8');
+  const grants=fs.readFileSync('scripts/staging-008-scratch-grants.sql','utf8');
+  assert.match(workflow,/scripts\/staging-008-scratch-assertions\.sql/);
+  assert.match(workflow,/scripts\/staging-008-scratch-grants\.sql/);
+  const backend=assertions.match(/has_table_privilege\('campuspool_staging_app',c\.oid,'(?:SELECT|INSERT|UPDATE|DELETE)'\)/g)||[];
   assert.equal(backend.length,4);
   for(const privilege of ['SELECT','INSERT','UPDATE','DELETE'])
     assert.ok(backend.some(x=>x.includes("'"+privilege+"'")),privilege);
-  assert.doesNotMatch(workflow,/has_table_privilege\('campuspool_staging_app',c\.oid,'SELECT,INSERT,UPDATE,DELETE'\)/);
+  assert.doesNotMatch(assertions,/has_table_privilege\('campuspool_staging_app',c\.oid,'SELECT,INSERT,UPDATE,DELETE'\)/);
   for(const table of ['campus_rides','campus_bookings','campus_ride_geo','campus_trip_intents'])
     assert.match(workflow,new RegExp('public\\.'+table+'\\b'));
-  assert.match(workflow,/GRANT USAGE ON SCHEMA extensions TO campuspool_staging_app;/);
+  assert.match(grants,/GRANT USAGE ON SCHEMA extensions TO campuspool_staging_app;/);
   assert.match(workflow,/environment: staging-008-backup/);
   assert.match(workflow,/environment: staging-008-restore/);
   assert.doesNotMatch(workflow,/^\s*push:/m);
@@ -100,6 +104,6 @@ test('never add staging live credentials, DDL or prod deploy to repo workflow',(
   assert.equal((workflow.match(/Report stage-only recovery with production release held/g)||[]).length,1);
   assert.ok(workflow.includes('test "$(grep -c '+String.fromCharCode(39)+'^t$'+String.fromCharCode(39)+' "$TMP/assertions")" -eq 8'));
   assert.match(workflow,/recordedMigrationsBefore:7/);
-  assert.match(workflow,/campuspool_007_spatiotemporal_matching/);
+  assert.match(assertions,/campuspool_007_spatiotemporal_matching/);
   assert.match(workflow,/PRODUCTION_PROMOTION_AUTHORIZED=NO/);
 });
