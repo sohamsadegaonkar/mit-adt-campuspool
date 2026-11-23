@@ -20,7 +20,8 @@ Implement guarded fixture delivery, synthetic and post-deploy test runners, push
 
 ## Progress log
 
-- 2026-11-23: Source changes committed and draft PR #76 created. The first CI run identified a PostGIS initialization step missing in the new disposable workflow, a staging-branch hard-coded assertion in older integration tests, a malformed staging-preflight command caused by test insertion, and task-doc heading requirements; fixes committed; exact-head rerun pending.
+- 2026-11-23: Source changes committed and draft PR #76 created. Initial red tests identified a missing disposable PostGIS extension reset, a `main`-hardcoded staging Blueprint assertion, accidental `staging-preflight` command corruption and required task-doc headings; corrected. A second disposable CI run revealed that a legacy local SQLite security smoke inherited PostgreSQL environment variables; the workflow now explicitly isolates `AUTH_OTP_BACKEND=sqlite` for that smoke rather than weakening either backend test.
+- 2026-11-23 verified test checkpoint at `924d6a63b0a3614d92db4d69c14905695b1ff240`: Staging quality cycle #45131229208 SUCCESS, Stage 1 PG #45131229214 SUCCESS, OTP HTTPS #45131229202 SUCCESS, security smoke #45131229204 SUCCESS, credential hygiene #45131229259 SUCCESS, agent docs #45131229194 SUCCESS, Places #45131229196 SUCCESS. Mobility browser #45131229240 still running at checkpoint; inspect final result separately. These are disposable/source-only test claims, NOT verified live staging acceptance.
 - No staging or production Render deployment, schema migration, external OTP send, backup or payment operation performed.
 
 ## Next steps
