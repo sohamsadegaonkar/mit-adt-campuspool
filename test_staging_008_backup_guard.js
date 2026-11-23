@@ -77,5 +77,10 @@ test('never add staging live credentials, DDL or prod deploy to repo workflow',(
   assert.doesNotMatch(workflow,/^\s*packages:\s*write/m);
   assert.doesNotMatch(workflow,/az containerapp|supabase db push|apply_migration|render deploy|trigger_deploy/i);
   assert.match(workflow,/NO_DATABASE_MIGRATION=YES/);
+  assert.equal((workflow.match(/INDEPENDENT_ENCRYPTED_STAGING_APPLICATION_RESTORE_VERIFIED=YES/g)||[]).length,1);
+  assert.equal((workflow.match(/Report stage-only recovery with production release held/g)||[]).length,1);
+  assert.ok(workflow.includes('test "$(grep -c '+String.fromCharCode(39)+'^t$'+String.fromCharCode(39)+' "$TMP/assertions")" -eq 8'));
+  assert.match(workflow,/recordedMigrationsBefore:7/);
+  assert.match(workflow,/campuspool_007_spatiotemporal_matching/);
   assert.match(workflow,/PRODUCTION_PROMOTION_AUTHORIZED=NO/);
 });
