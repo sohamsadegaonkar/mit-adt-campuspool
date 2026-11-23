@@ -91,7 +91,7 @@ test('never add staging live credentials, DDL or prod deploy to repo workflow',(
     assert.ok(backend.some(x=>x.includes("'"+privilege+"'")),privilege);
   assert.doesNotMatch(assertions,/has_table_privilege\('campuspool_staging_app',c\.oid,'SELECT,INSERT,UPDATE,DELETE'\)/);
   for(const table of ['campus_rides','campus_bookings','campus_ride_geo','campus_trip_intents'])
-    assert.match(workflow,new RegExp('public\\.'+table+'\\b'));
+    assert.match(grants,new RegExp('public\\.'+table+'\\b'));
   assert.match(grants,/GRANT USAGE ON SCHEMA extensions TO campuspool_staging_app;/);
   assert.match(workflow,/environment: staging-008-backup/);
   assert.match(workflow,/environment: staging-008-restore/);
