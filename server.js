@@ -646,6 +646,10 @@ const server = http.createServer(async (req, res) => {
     const mem = process.memoryUsage();
     return sendJson(200, {
       status: 'healthy',
+      environment: STAGING_ONLY ? 'staging' : (IS_PRODUCTION ? 'production' : 'development'),
+      // Render supplies its Git revision; no credentials or student data here.
+      revision: /^[0-9a-f]{40}$/.test(process.env.RENDER_GIT_COMMIT||'')
+        ? process.env.RENDER_GIT_COMMIT : null,
       timestamp: new Date().toISOString(),
       uptimeSeconds: Math.floor(process.uptime()),
       loadBalancer: {
