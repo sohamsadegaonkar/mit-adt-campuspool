@@ -13,6 +13,9 @@ const DIRECT='postgresql://campuspool_staging_app:synthetic-only@db.'+PROJECT+
 test('allow only exact staging project, nonprivileged app role and pinned TLS mode',()=>{
   assert.equal(parseBackupTarget(POOL).user,'campuspool_staging_app.'+PROJECT);
   assert.equal(parseBackupTarget(DIRECT).hostname,'db.'+PROJECT+'.supabase.co');
+  const admin=POOL.replace('campuspool_staging_app.','postgres.');
+  assert.throws(()=>parseBackupTarget(admin),/ROLE_NOT_APPROVED/);
+  assert.equal(parseBackupTarget(admin,{allowAdmin:true}).user,'postgres.'+PROJECT);
   for(const bad of [
     POOL.replace('sslmode=verify-full','sslmode=disable'),
     POOL.replace('sslmode=verify-full','sslmode=require'),
