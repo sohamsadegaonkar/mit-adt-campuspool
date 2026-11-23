@@ -42,3 +42,56 @@ jobs:
           echo "INDEPENDENT_RESTORE_PERFORMED=NO"
           echo "NO_DATABASE_MIGRATION=YES"
           echo "PRODUCTION_PROMOTION_AUTHORIZED=NO"
+
+  synthetic-age-roundtrip:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-only
+          POSTGRES_DB: synthetic_008_backup
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d synthetic_008_backup"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Exercise encryption and cold restore with fake data only
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          TMP="$(mktemp -d)"
+          trap 'rm -rf "$TMP"' EXIT
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq age >/dev/null
+          CID="$(docker ps -q --filter ancestor=postgis/postgis:17-3.5 | head -n1)"
+          [[ "$CID" =~ ^[a-f0-9]{12,64}$ ]]
+          docker exec "$CID" psql -U postgres -d synthetic_008_backup -v ON_ERROR_STOP=1 -c \
+            "CREATE TABLE public.synthetic_008(id integer PRIMARY KEY, marker text NOT NULL)"
+          docker exec "$CID" psql -U postgres -d synthetic_008_backup -v ON_ERROR_STOP=1 -c \
+            "INSERT INTO public.synthetic_008(id,marker) VALUES(1,'SYNTHETIC_NOT_A_STUDENT')"
+          age-keygen -o "$TMP/age-identity" >/dev/null 2>&1
+          RECIPIENT="$(age-keygen -y "$TMP/age-identity")"
+          [[ "$RECIPIENT" =~ ^age1[023456789acdefghjklmnpqrstuvwxyz]{58}$ ]]
+          docker exec "$CID" pg_dump -U postgres -d synthetic_008_backup \
+            --format=custom --no-owner --no-acl --table=public.synthetic_008 |
+            age --encrypt --recipient "$RECIPIENT" --output "$TMP/backup.age"
+          test -s "$TMP/backup.age"
+          docker exec "$CID" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -c \
+            "CREATE DATABASE synthetic_restore_008 TEMPLATE template0"
+          age --decrypt --identity "$TMP/age-identity" "$TMP/backup.age" |
+            docker exec -i "$CID" pg_restore -U postgres -d synthetic_restore_008 \
+              --exit-on-error --no-owner --no-acl
+          RESULT="$(docker exec "$CID" psql -U postgres -d synthetic_restore_008 \
+            -qAt -c "SELECT count(*) FROM public.synthetic_008 WHERE marker='SYNTHETIC_NOT_A_STUDENT'")"
+          test "$RESULT" = 1
+          echo "SYNTHETIC_AGE_ENCRYPTED_PGDMP_RESTORE=PASS"
+          echo "STAGING_DATABASE_CONNECTED=NO"
+          echo "REAL_BACKUP_CREATED=NO"
+          echo "NO_DATABASE_MIGRATION=YES"
+          echo "PRODUCTION_PROMOTION_AUTHORIZED=NO"
