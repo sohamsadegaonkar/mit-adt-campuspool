@@ -8,15 +8,17 @@ const PROJECT='tnitksrlntrdxbvznxzf';
 const CA_PIN='807025AD50D4ED219D2C9C7D299C004F824EB00CF7F65AFEF607D07B72E6CAFA';
 const REQUIRED_STAGING_ROLE='campuspool_staging_app';
 
-function parseBackupTarget(value){
+function parseBackupTarget(value,{allowAdmin=false}={}){
   validateTarget(value);
   const url=new URL(value);
   if(url.searchParams.size!==1||url.searchParams.get('sslmode')!=='verify-full')
     throw Error('STAGING_TLS_VERIFY_FULL_REQUIRED');
   const isDirect=url.hostname==='db.'+PROJECT+'.supabase.co';
   const user=decodeURIComponent(url.username);
-  if(user!==REQUIRED_STAGING_ROLE+(isDirect?'':'.'+PROJECT))
-    throw Error('STAGING_BACKUP_APP_ROLE_REQUIRED');
+  const appRole=REQUIRED_STAGING_ROLE+(isDirect?'':'.'+PROJECT);
+  const adminRole='postgres'+(isDirect?'':'.'+PROJECT);
+  if(user!==appRole&&!(allowAdmin&&user===adminRole))
+    throw Error('STAGING_BACKUP_ROLE_NOT_APPROVED');
   if(!url.password)throw Error('STAGING_BACKUP_CREDENTIAL_REQUIRED');
   if(!isDirect && url.port!=='5432')
     throw Error('STAGING_SESSION_POOLER_PORT_REQUIRED');
@@ -82,7 +84,12 @@ async function guard(env=process.env){
   if(env.APP_ENV!=='staging'||env.OTP_DB_SSL!=='true'||
      env.STAGING_008_BACKUP_ACK!=='STAGING_008_PREIMAGE_ONLY')
     throw Error('STAGING_BACKUP_EXPLICIT_GUARDS_MISSING');
-  const target=parseBackupTarget(env.STAGING_BACKUP_DATABASE_URL);
+  // Supabase migration ledger is outside the app role's readable schemas.
+  // A scope-limited dump of public+supabase_migrations may therefore need
+  // the separately approved admin backup credential; never widen DB grants.
+  const allowAdmin=env.STAGING_008_BACKUP_ADMIN_ACK===
+    'OWNER_APPROVED_STAGING_BACKUP_ADMIN_READ_ONLY_EXPORT';
+  const target=parseBackupTarget(env.STAGING_BACKUP_DATABASE_URL,{allowAdmin});
   const ca=parsePinnedCa(env.STAGING_BACKUP_CA_PEM_B64);
   const client=new Client({host:target.hostname,port:target.port,
     user:target.user,password:target.password,database:target.database,
