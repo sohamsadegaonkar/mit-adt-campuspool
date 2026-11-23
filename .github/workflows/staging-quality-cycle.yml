@@ -1,0 +1,81 @@
+name: Staging quality cycle (disposable only)
+
+on:
+  pull_request:
+    paths:
+      - 'server.js'
+      - 'stage1-otp/**'
+      - 'scripts/staging-*-acceptance.js'
+      - 'test_staging_*.js'
+      - 'render-staging.yaml'
+      - '.github/workflows/staging-quality-cycle.yml'
+  push:
+    branches: [staging]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fixture-otp-and-security:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      APP_ENV: ci
+      STAGING_QA_OTP_MODE: 'off'
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: qa-ci-disposable-only
+          POSTGRES_DB: campuspool_qa_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d campuspool_qa_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.2'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Validate QA-only transport and acceptance runners
+        run: |
+          node --check server.js
+          node --check stage1-otp/staging-qa-otp.js
+          node --check scripts/staging-live-acceptance.js
+          node --check scripts/staging-fixture-acceptance.js
+          node --test test_staging_qa_otp.js
+          node --test test_staging_live_acceptance.js
+          node --test test_staging_fixture_acceptance.js
+      - name: Run existing OTP, identity and security regressions with disposable PostGIS
+        env:
+          OTP_DATABASE_URL: postgresql://postgres:qa-ci-disposable-only@127.0.0.1:5432/campuspool_qa_ci
+          OTP_DB_SSL: 'false'
+          AUTH_OTP_BACKEND: postgres
+          OTP_HMAC_KEY: qa-ci-only-ephemeral-hmac-not-for-cloud-xxxxxxxxxxxxxxxxxxxxxxxx
+        run: |
+          npm run test:stage1
+          npm run test:identity
+          npm run test:production-auth
+          npm run test:staging
+          npm run test:security
+          npm run test:runtime-config
+          npm run test:release
+          npm run check:release-ci
+      - name: Emit safe gate verdict
+        run: |
+          echo "STAGING_SOURCE_QUALITY_GATE=PASS"
+          echo "REAL_STAGING_DEPLOYMENT_TESTED=NO"
+          echo "LIVE_OTP_PROVIDER_RECEIPT_TESTED=NO"
+          echo "OFFSITE_RECOVERY_G1_VERIFIED=NO"
+          echo "PRODUCTION_PROMOTION_AUTHORIZED=NO"
