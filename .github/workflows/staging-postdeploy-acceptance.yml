@@ -1,0 +1,77 @@
+name: Staging post-deploy acceptance (manual protected)
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: 'Full 40-hex commit actually deployed on the staging Render service'
+        required: true
+        type: string
+      run_fixture:
+        description: 'Run email+SMS synthetic QA fixture, potentially creating a staging-only account'
+        required: true
+        type: boolean
+        default: false
+      fixture_approval:
+        description: 'For fixture write only: type ALLOW_STAGING_QA_FIXTURE_ONLY'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-live-acceptance
+  cancel-in-progress: false
+
+jobs:
+  staging-acceptance:
+    if: github.ref == 'refs/heads/staging'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    environment: staging
+    env:
+      STAGING_BASE_URL: https://mit-adt-campuspool-staging.onrender.com
+      STAGING_EXPECTED_SHA: ${{ inputs.expected_sha }}
+      STAGING_BASIC_AUTH_PASSWORD: ${{ secrets.STAGING_BASIC_AUTH_PASSWORD }}
+      STAGING_QA_READ_TOKEN: ${{ secrets.STAGING_QA_READ_TOKEN }}
+      STAGING_QA_TEST_EMAIL: ${{ vars.STAGING_QA_TEST_EMAIL }}
+      STAGING_QA_TEST_PHONE: ${{ vars.STAGING_QA_TEST_PHONE }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.2'
+      - name: Refuse arbitrary source revisions or missing exact deploy proof
+        shell: bash
+        env:
+          INPUT_EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" = 'refs/heads/staging' ]]
+          [[ "$INPUT_EXPECTED_SHA" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$INPUT_EXPECTED_SHA" = "$GITHUB_SHA" ]]
+          [[ -n "$STAGING_BASIC_AUTH_PASSWORD" ]]
+          echo "STAGING_SOURCE_SHA_LOCK=YES"
+      - name: Read-only live health, release SHA and Basic Auth smoke
+        run: node scripts/staging-live-acceptance.js
+      - name: Explicit QA fixture authorization guard
+        if: inputs.run_fixture == true
+        env:
+          APPROVAL: ${{ inputs.fixture_approval }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$APPROVAL" = 'ALLOW_STAGING_QA_FIXTURE_ONLY' ]]
+          [[ -n "$STAGING_QA_READ_TOKEN" ]]
+          [[ -n "$STAGING_QA_TEST_EMAIL" ]]
+          [[ -n "$STAGING_QA_TEST_PHONE" ]]
+          echo "STAGING_QA_FIXTURE_WRITE_AUTHORIZED_FOR_THIS_RUN=YES"
+      - name: Automated QA fixture signup or login through normal OTP routes
+        if: inputs.run_fixture == true
+        run: node scripts/staging-fixture-acceptance.js
+      - name: Never promote production from staging acceptance
+        run: |
+          echo "STAGING_ACCEPTANCE_RUN_COMPLETED=YES"
+          echo "REAL_PROVIDER_DELIVERY_AND_G1_RESTORE_VERIFIED=NO"
+          echo "PRODUCTION_AUTODEPLOY=NOT_REQUESTED"
