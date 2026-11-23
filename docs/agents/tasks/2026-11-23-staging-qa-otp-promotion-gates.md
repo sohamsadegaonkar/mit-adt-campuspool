@@ -4,6 +4,29 @@
 **Branch:** `feature/staging-qa-otp-quality-gates-2026-11-23` (based on `main@202330a8166674d86a428e1f90ab8ed857d1313d`).  
 **Task owner:** CampusPool engineering review. **Production verdict: NO-GO.**
 
+## Goal and acceptance criteria
+
+Goal: deliver a secure, independent staging-first CampusPool QA cycle without bypassing OTP or automatically promoting production.
+
+Acceptance (source-only milestone): controlled QA OTP fixture with strict environment checks; no production OTP bypass; exact SHA and Basic Auth smoke; disposable PostgreSQL regression CI; documented operational hold; all exact-head CI checks green. Live staging integration and deployment are separate acceptance gates.
+
+## Current state
+
+Baseline: `main@202330a8166674d86a428e1f90ab8ed857d1313d` (21 Nov 2026). Existing staging Render service is linked to `main`, live at a 2 Nov 2026 commit, and auto-deploy is OFF. Supabase staging schema 001–007; production untouched. New PR #76 is draft.
+
+## Plan
+
+Implement guarded fixture delivery, synthetic and post-deploy test runners, push/PR quality workflow, protected manual smoke, revised staging-only Blueprint and CI/docs. No live secrets or database migrations. Re-run CI on the exact changed head. Keep production blocked on G1 and explicit approval.
+
+## Progress log
+
+- 2026-11-23: Source changes committed and draft PR #76 created. The first CI run identified a PostGIS initialization step missing in the new disposable workflow, a staging-branch hard-coded assertion in older integration tests, a malformed staging-preflight command caused by test insertion, and task-doc heading requirements; fixes committed; exact-head rerun pending.
+- No staging or production Render deployment, schema migration, external OTP send, backup or payment operation performed.
+
+## Next steps
+
+Review fixed CI at latest PR SHA. Resolve failures. Require explicit owner approval to configure staging service branch/secrets and deploy the approved source revision, verify exact SHA, then separately run read-only and fixture workflow and browser/mobile QA. Preserve G1 independent recovery and manual production release gates.
+
 ## Goal and existing deployment facts
 
 User requested a separately accessible CampusPool staging site, automated OTP testing, continuous bug-fix/test cycles, and deployment to production only when all gates pass.
