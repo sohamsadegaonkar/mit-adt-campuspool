@@ -3,7 +3,8 @@
 // Never applies migrations, stores database data or outputs credentials.
 const {Client}=require('pg');
 const crypto=require('node:crypto');
-const {validateTarget,readSnapshot,checkSnapshot,TABLES}=require('./staging-migration-preflight');
+const {validateTarget,readSnapshot,TABLES}=require('./staging-migration-preflight');
+const {checkFrozenSnapshot,readAppRoleConnections}=require('./staging-008-freeze-verify');
 const PROJECT='tnitksrlntrdxbvznxzf';
 const CA_PIN='807025AD50D4ED219D2C9C7D299C004F824EB00CF7F65AFEF607D07B72E6CAFA';
 const REQUIRED_STAGING_ROLE='campuspool_staging_app';
@@ -97,12 +98,17 @@ async function guard(env=process.env){
     application_name:'campuspool_staging_008_readonly_backup_gate'});
   try{
     await client.connect();
-    const snapshot=checkSnapshot(await readSnapshot(client),'before');
-    if(!snapshot.schemaReady)throw Error('STAGING_SCHEMA_007_PREFLIGHT_BLOCKED');
+    const snapshot=await readSnapshot(client);
+    const sessions=await readAppRoleConnections(client);
+    const freeze=checkFrozenSnapshot(snapshot,sessions);
+    if(!freeze.appRoleWriteFreezeVerified)
+      throw Error('STAGING_APPLICATION_WRITE_FREEZE_NOT_ESTABLISHED');
     const counts=await countReadOnly(client);
-    return {status:'STAGING_008_READ_ONLY_PREIMAGE_PASS',
-      project:PROJECT,mode:'before',schemaReady:true,...counts,
-      actualBackupCreated:false,restoreVerified:false,migrationAuthorizedByThisRun:false};
+    return {status:'STAGING_008_FROZEN_APPLICATION_PREIMAGE_PREFLIGHT',
+      project:PROJECT,mode:'before',applicationWriteFreezeVerified:true,
+      databaseWideWriteFreezeVerified:false,...counts,
+      actualBackupCreated:false,restoreVerified:false,
+      migrationAuthorizedByThisRun:false,releaseReady:false};
   }finally{await client.end().catch(()=>{});}
 }
 if(require.main===module){
