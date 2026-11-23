@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'scripts/staging-008-backup-guard.js'
+      - 'scripts/staging-008-freeze-verify.js'
+      - 'test_staging_008_freeze_verify.js'
       - 'scripts/staging-migration-preflight.js'
       - 'test_staging_008_backup_guard.js'
       - 'scripts/staging-008-scratch-grants.sql'
@@ -36,6 +38,8 @@ jobs:
         run: |
           set -euo pipefail
           node --check scripts/staging-008-backup-guard.js
+          node --check scripts/staging-008-freeze-verify.js
+          node --test test_staging_008_freeze_verify.js
           node --check test_staging_008_backup_guard.js
           node --test test_staging_008_backup_guard.js
           node --test test_staging_migration_preflight.js
