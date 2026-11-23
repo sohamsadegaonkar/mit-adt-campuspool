@@ -20,6 +20,14 @@ on:
       - 'scripts/staging-secure-backup.sh'
       - 'scripts/staging-migration-preflight.js'
       - 'test_stage1_otp.js'
+      - 'test_staging_qa_otp.js'
+      - 'test_staging_live_acceptance.js'
+      - 'test_staging_fixture_acceptance.js'
+      - 'scripts/staging-live-acceptance.js'
+      - 'scripts/staging-fixture-acceptance.js'
+      - 'render-staging.yaml'
+      - '.github/workflows/staging-quality-cycle.yml'
+      - '.github/workflows/staging-postdeploy-acceptance.yml'
       - 'test_pg_identity.js'
       - 'test_pg_rides.js'
       - 'test_pg_rides_http.js'
@@ -97,6 +105,9 @@ jobs:
           bash -n scripts/staging-secure-backup.sh
           node --check stage1-otp/pg-store.js
           node --check stage1-otp/auth-routes.js
+          node --check stage1-otp/staging-qa-otp.js
+          node --check scripts/staging-live-acceptance.js
+          node --check scripts/staging-fixture-acceptance.js
           node --check stage1-otp/email-provider.js
           node --check stage1-otp/migrate.js
           node --check test_stage1_otp.js
@@ -129,6 +140,9 @@ jobs:
           npm run test:mobility-http
           npm run test:native
           npm run test:staging
+          node --test test_staging_qa_otp.js
+          node --test test_staging_live_acceptance.js
+          node --test test_staging_fixture_acceptance.js
           npm run test:production-auth
           npm run test:release
           npm run check:release-ci
