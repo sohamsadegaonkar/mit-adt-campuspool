@@ -7,6 +7,10 @@ on:
         description: "Type STAGING_008_PREIMAGE_ONLY; this does not apply migration"
         required: true
         type: string
+      write_freeze_confirmation:
+        description: "Type STAGING_008_WRITE_FREEZE_CONFIRMED after owner-approved staging write freeze; this does not prove the freeze"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -17,7 +21,7 @@ concurrency:
 
 jobs:
   encrypted-preimage:
-    if: github.ref == 'refs/heads/main' && inputs.confirmation == 'STAGING_008_PREIMAGE_ONLY'
+    if: github.ref == 'refs/heads/main' && inputs.confirmation == 'STAGING_008_PREIMAGE_ONLY' && inputs.write_freeze_confirmation == 'STAGING_008_WRITE_FREEZE_CONFIRMED'
     environment: staging-008-backup
     runs-on: ubuntu-24.04
     timeout-minutes: 25
@@ -30,8 +34,8 @@ jobs:
       STAGING_BACKUP_CA_PEM_B64: ${{ secrets.STAGING_BACKUP_CA_PEM_B64 }}
       STAGING_BACKUP_AGE_RECIPIENT: ${{ vars.STAGING_BACKUP_AGE_RECIPIENT }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22.23.2'
           cache: npm
@@ -103,7 +107,7 @@ jobs:
           echo "NO_DATABASE_MIGRATION=YES"
           echo "PRODUCTION_PROMOTION_AUTHORIZED=NO"
       - name: Upload encrypted-only artifact for private-key restore job
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: staging-008-encrypted-preimage
           path: ${{ runner.temp }}/staging-008-evidence/
@@ -131,8 +135,8 @@ jobs:
           --health-timeout 5s
           --health-retries 12
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22.23.2'
           cache: npm
@@ -141,7 +145,7 @@ jobs:
           npm ci --omit=dev
           sudo apt-get update -qq
           sudo apt-get install -y -qq age >/dev/null
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: staging-008-encrypted-preimage
           path: ${{ runner.temp }}/staging-008-evidence/
