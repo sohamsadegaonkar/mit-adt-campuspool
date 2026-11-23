@@ -57,6 +57,11 @@ jobs:
           node --test test_staging_qa_otp.js
           node --test test_staging_live_acceptance.js
           node --test test_staging_fixture_acceptance.js
+      - name: Reset disposable PostGIS extension location before migrations
+        env:
+          OTP_DATABASE_URL: postgresql://postgres:qa-ci-disposable-only@127.0.0.1:5432/campuspool_qa_ci
+        run: |
+          node -e "const {Client}=require('pg');(async()=>{const c=new Client({connectionString:process.env.OTP_DATABASE_URL});await c.connect();try{await c.query('DROP EXTENSION IF EXISTS postgis CASCADE; CREATE SCHEMA IF NOT EXISTS extensions;')}finally{await c.end();}})().catch(()=>{process.stderr.write('POSTGIS_DISPOSABLE_INIT_BLOCKED\\n');process.exit(1)})"
       - name: Run existing OTP, identity and security regressions with disposable PostGIS
         env:
           OTP_DATABASE_URL: postgresql://postgres:qa-ci-disposable-only@127.0.0.1:5432/campuspool_qa_ci
