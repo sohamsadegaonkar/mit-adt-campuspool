@@ -70,6 +70,25 @@ test('refuse any unapproved staging backup before even opening a DB connection',
 test('never add staging live credentials, DDL or prod deploy to repo workflow',()=>{
   const workflow=fs.readFileSync('.github/workflows/staging-008-recovery-proof.yml','utf8');
   assert.match(workflow,/workflow_dispatch:/);
+  assert.match(workflow,/write_freeze_confirmation:/);
+  assert.match(workflow,/inputs\.write_freeze_confirmation == 'STAGING_008_WRITE_FREEZE_CONFIRMED'/);
+  // The scope is a manual, protected source-only proposal, not proof of an actual write freeze.
+  assert.equal((workflow.match(/STAGING_008_WRITE_FREEZE_CONFIRMED/g)||[]).length,2);
+  assert.doesNotMatch(workflow,/uses: actions\/(?:checkout|setup-node|upload-artifact|download-artifact)@v\d/);
+  for(const action of ['checkout','setup-node','upload-artifact','download-artifact']){
+    assert.match(workflow,new RegExp('uses: actions/'+action+'@[a-f0-9]{40}'));
+  }
+  assert.match(workflow,/--no-acl/);
+  // A PostgreSQL has_table_privilege() comma-separated privilege list is ANY,
+  // not ALL. One granted privilege must never pass the four-CRUD gate.
+  const backend=workflow.match(/has_table_privilege\('campuspool_staging_app',c\.oid,'(?:SELECT|INSERT|UPDATE|DELETE)'\)/g)||[];
+  assert.equal(backend.length,4);
+  for(const privilege of ['SELECT','INSERT','UPDATE','DELETE'])
+    assert.ok(backend.some(x=>x.includes("'"+privilege+"'")),privilege);
+  assert.doesNotMatch(workflow,/has_table_privilege\('campuspool_staging_app',c\.oid,'SELECT,INSERT,UPDATE,DELETE'\)/);
+  for(const table of ['campus_rides','campus_bookings','campus_ride_geo','campus_trip_intents'])
+    assert.match(workflow,new RegExp('public\\.'+table+'\\b'));
+  assert.match(workflow,/GRANT USAGE ON SCHEMA extensions TO campuspool_staging_app;/);
   assert.match(workflow,/environment: staging-008-backup/);
   assert.match(workflow,/environment: staging-008-restore/);
   assert.doesNotMatch(workflow,/^\s*push:/m);
