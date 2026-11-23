@@ -6,21 +6,33 @@ const {X509Certificate,createHash}=require('node:crypto');
 // Independently verified public staging CA; certificate rotation requires reviewed code change.
 const STAGING_CA_SHA256='807025AD50D4ED219D2C9C7D299C004F824EB00CF7F65AFEF607D07B72E6CAFA';
 
-function safeRegularFile(file){
+// A projected Kubernetes/Container Apps Secret mount may expose "ca.pem" as
+// a symlink to ..data/ca.pem. Only that exact CA location may resolve to a
+// regular file INSIDE the same mount; PostgreSQL passfiles must never do so.
+function safeRegularFile(file,{projectedCaMount=null}={}){
   if(typeof file!=='string'||!path.isAbsolute(file)||file.includes('\0'))return null;
   try{
-    // Disallow symlinks: never allow a job operator to redirect a trust/secret path.
-    const lstat=fs.lstatSync(file);
-    if(!lstat.isFile()||lstat.isSymbolicLink())return null;
-    if(fs.realpathSync(file)!==file)return null;
-    if(lstat.size<=0||lstat.size>131072||(lstat.mode&0o022)!==0)return null;
-    return lstat;
+    const stat=fs.statSync(file);
+    if(!stat.isFile()||stat.size<=0||stat.size>131072||
+       (stat.mode&0o022)!==0)return null;
+    const resolved=fs.realpathSync(file);
+    if(resolved!==file){
+      if(typeof projectedCaMount!=='string'||
+         !path.isAbsolute(projectedCaMount)||
+         file!==path.join(projectedCaMount,'ca.pem'))return null;
+      // Never follow an operator-controlled mount root or an out-of-mount
+      // symlink. The fingerprint below is still the final trust decision.
+      if(fs.realpathSync(projectedCaMount)!==projectedCaMount)return null;
+      if(!resolved.startsWith(projectedCaMount+path.sep)||
+         path.basename(resolved)!=='ca.pem')return null;
+    }
+    return stat;
   }catch{return null;}
 }
 
-function validCaFileAgainstFingerprint(file,expectedFingerprint){
+function validCaFileAgainstFingerprint(file,expectedFingerprint,options={}){
   if(!/^[A-F0-9]{64}$/.test(expectedFingerprint||''))return false;
-  const st=safeRegularFile(file);
+  const st=safeRegularFile(file,options);
   if(!st)return false;
   try{
     const pem=fs.readFileSync(file,'utf8');
@@ -36,7 +48,11 @@ function validCaFileAgainstFingerprint(file,expectedFingerprint){
 }
 
 // Runtime uses only the compiled-in pin, never an environment/CLI override.
-function validCaFile(file){return validCaFileAgainstFingerprint(file,STAGING_CA_SHA256);}
+function validCaFile(file){
+  return validCaFileAgainstFingerprint(file,STAGING_CA_SHA256,{
+    projectedCaMount:'/mnt/staging-ca'
+  });
+}
 
 function validCloudPassFile(file,env){
   const st=safeRegularFile(file);

@@ -33,11 +33,13 @@ test('worker defaults to non-root, preflight-only and copies allowlisted files',
   assert.match(docker, /^COPY scripts\/cloud-backup-runtime-security\.js \.\/scripts\/cloud-backup-runtime-security\.js$/m);
   assert.match(docker, /^COPY scripts\/cloud-backup-vault-bootstrap\.js \.\/scripts\/cloud-backup-vault-bootstrap\.js$/m);
   assert.match(docker, /^COPY scripts\/age-ciphertext-guard\.js \.\/scripts\/age-ciphertext-guard\.js$/m);
+  assert.match(docker, /^COPY scripts\/cloud-backup-scope\.js \.\/scripts\/cloud-backup-scope\.js$/m);
   assert.match(docker, /^COPY scripts\/cloud-backup-tls-probe\.js \.\/scripts\/cloud-backup-tls-probe\.js$/m);
 });
 
 test('runtime uses pinned Alpine client-only packages without Debian, curl or server', () => {
-  assert.match(docker, /apk add --no-cache ca-certificates=20261020-r0 postgresql17-client=17\.12-r0 age=1\.2\.1-r15;/);
+  assert.match(docker, /apk add --no-cache ca-certificates=20261020-r0 postgresql17-client=17\.12-r0 age=1\.2\.1-r15 zlib=1\.4-r0;/);
+  assert.match(docker, /apk info -v \| grep -Fx 'zlib-1\.4-r0'/);
   assert.match(docker, /pg_dump --version \| grep -F 'pg_dump \(PostgreSQL\) 17\.'/);
   assert.match(docker, /rm -rf \/usr\/local\/lib\/node_modules\/npm/);
   assert.match(docker, /rm -f \/usr\/local\/bin\/npm \/usr\/local\/bin\/npx/);

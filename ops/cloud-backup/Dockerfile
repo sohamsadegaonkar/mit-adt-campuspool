@@ -7,7 +7,8 @@ RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 
 FROM node:22-alpine3.23@sha256:6abbcf5dd6b231da109bcde1181db1d92bf78015ae1a9514d9807c1f857869db
 RUN set -eux; \
-    apk add --no-cache ca-certificates=20261020-r0 postgresql17-client=17.12-r0 age=1.2.1-r15; \
+    apk add --no-cache ca-certificates=20261020-r0 postgresql17-client=17.12-r0 age=1.2.1-r15 zlib=1.4-r0; \
+    apk info -v | grep -Fx 'zlib-1.4-r0'; \
     pg_dump --version | grep -F 'pg_dump (PostgreSQL) 17.'; \
     age --version; \
     rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack; \
@@ -19,6 +20,7 @@ COPY scripts/staging-backup-guard.js ./scripts/staging-backup-guard.js
 COPY scripts/cloud-backup-runtime-security.js ./scripts/cloud-backup-runtime-security.js
 COPY scripts/cloud-backup-vault-bootstrap.js ./scripts/cloud-backup-vault-bootstrap.js
 COPY scripts/age-ciphertext-guard.js ./scripts/age-ciphertext-guard.js
+COPY scripts/cloud-backup-scope.js ./scripts/cloud-backup-scope.js
 COPY scripts/cloud-backup-tls-probe.js ./scripts/cloud-backup-tls-probe.js
 COPY scripts/azure-blob-backup.js ./scripts/azure-blob-backup.js
 ENV NODE_ENV=production \

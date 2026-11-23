@@ -14,6 +14,8 @@ on:
       - 'scripts/verify-alpine-zlib-patch.js'
       - 'test_cloud_backup_auth.js'
       - 'test_cloud_worker_image_policy.js'
+      - 'test_cloud_backup_scope.js'
+      - 'scripts/cloud-backup-scope.js'
       - 'ops/cloud-backup/**'
       - '.github/workflows/cloud-backup-worker-ci.yml'
   workflow_dispatch:
@@ -76,6 +78,7 @@ jobs:
           node --check scripts/azure-blob-backup.js
           node --check test_cloud_backup_auth.js
           node --test test_cloud_backup_auth.js
+          node --test test_cloud_backup_scope.js
           node --test test_age_ciphertext_guard.js
           node --test test_cloud_backup_tls_probe.js
           node --test test_cloud_backup_vault_bootstrap.js
@@ -217,7 +220,7 @@ jobs:
             ['age','1.2.1-r15'],
             ['postgresql17-client','17.12-r0'],
             ['ca-certificates','20261020-r0'],
-            ['zlib','1.3.2-r1']
+            ['zlib','1.4-r0']
           ]){
             if(packages.get(name)!==version)
               throw Error('Unexpected scanned package '+name);

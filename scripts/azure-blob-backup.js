@@ -10,6 +10,7 @@ const {pipeline}=require('node:stream/promises');
 const {STAGING_REF}=require('./staging-backup-guard');
 const {validCaFile,validCloudPassFile}=require('./cloud-backup-runtime-security');
 const {ageCiphertextGuard}=require('./age-ciphertext-guard');
+const {dumpArguments,scopeEvidence}=require('./cloud-backup-scope');
 const ACCOUNT='011campuspoolbackup';
 const CONTAINER='campuspool-staging-backups';
 function validate(env){
@@ -81,6 +82,8 @@ function preflight(env=process.env,overrides={}){
     (overrides.loadSdk||loadSdk)();
   }catch(_){v.errors.push('AZURE_NODE_SDK_REQUIRED');}
   v.ok=v.errors.length===0;
+  // Always disclose missing global-role and cross-schema recovery evidence.
+  v.backupCoverage=scopeEvidence();
   return v;
 }
 function loadSdk(){
@@ -113,8 +116,7 @@ async function run(env,{spawnImpl=spawn,loadSdkImpl=loadSdk,now=new Date(),
   const container=client.getContainerClient(CONTAINER);
   const key=keyAt(now,nonce);
   const blob=container.getBlockBlobClient(key);
-  const dump=spawnChild('pg_dump',['--format=custom','--schema=public',
-    '--schema=supabase_migrations','--no-password'],
+  const dump=spawnChild('pg_dump',dumpArguments(),
     limitedEnv(env,'pg'),spawnImpl);
   const age=spawnChild('age',['--encrypt','--recipient',env.AGE_RECIPIENT],
     limitedEnv(env,'age'),spawnImpl);
@@ -188,7 +190,8 @@ async function run(env,{spawnImpl=spawn,loadSdkImpl=loadSdk,now=new Date(),
   if(received!==bytes||verify.digest('hex')!==digest)
     throw Error('AZURE_CIPHERTEXT_SHA256_MISMATCH');
   return {status:'AZURE_CIPHERTEXT_READBACK_MATCH_RESTORE_NOT_TESTED',
-    objectKey:key,bytes,ciphertextSHA256:digest};
+    objectKey:key,bytes,ciphertextSHA256:digest,
+    backupCoverage:scopeEvidence()};
 }
 async function main(argv=process.argv.slice(2),env=process.env,overrides={}){
   if(argv.length!==1||!['--preflight','--execute','--check-tls'].includes(argv[0])){
