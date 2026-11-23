@@ -92,6 +92,8 @@ const ALLOWED_CORS_ORIGINS = new Set((process.env.CORS_ALLOWED_ORIGINS || '').sp
 const TRUSTED_PROXY_ADDRESSES = new Set((process.env.TRUSTED_PROXY_ADDRESSES || '').split(',').map(s => s.trim()).filter(Boolean));
 const STAGING_ONLY = process.env.APP_ENV === 'staging';
 const STAGING_BASIC_AUTH_PASSWORD = process.env.STAGING_BASIC_AUTH_PASSWORD || '';
+const {makeStagingQaOtp}=require('./stage1-otp/staging-qa-otp');
+const stagingQaOtp=makeStagingQaOtp(process.env);
 if (STAGING_ONLY && STAGING_BASIC_AUTH_PASSWORD.length < 20) {
   throw new Error('Staging requires a strong STAGING_BASIC_AUTH_PASSWORD (at least 20 characters)');
 }
@@ -323,6 +325,9 @@ const server = http.createServer(async (req, res) => {
       return { tier: 'PLACES_RESOLVE', limit: 8, windowMs: 60000 };
     }
 
+    if (pathname === '/api/_staging/qa-otp') {
+      return {tier:'QA_RECEIPT',limit:8,windowMs:60000};
+    }
     // Tier 1: Strict Auth Gateways (10 req / min)
     if (
       pathname === '/api/auth/send-email-otp' ||
@@ -501,7 +506,8 @@ const server = http.createServer(async (req, res) => {
     return typeof provided === 'string' && /^[a-f0-9]{64}$/.test(provided)
       && constantTimeMatch(provided, csrfForSession(sessionToken));
   }
-  const publicApiRoute = pathname.startsWith('/api/auth/') || pathname === '/api/health' ||
+  const publicApiRoute = (stagingQaOtp.enabled && pathname === '/api/_staging/qa-otp') ||
+    pathname.startsWith('/api/auth/') || pathname === '/api/health' ||
     pathname === '/api/lb-status' || pathname === '/healthz' ||
     pathname === '/api/places/suggest' || pathname === '/api/places/resolve';
   if (pathname.startsWith('/api/') && !publicApiRoute && !authenticatedUser) {
@@ -618,6 +624,22 @@ const server = http.createServer(async (req, res) => {
   }
 
   // -----------------------------------------------------------------------
+  // QA receipt is NEVER a sign-in shortcut. Only a controlled staging fixture
+  // may retrieve a transient code using a separate private CI token. Standard
+  // /api/auth/verify-* routes still enforce expiry, lockout and single use.
+  if (pathname === '/api/_staging/qa-otp') {
+    if(!stagingQaOtp.enabled)return sendJson(404,{success:false,error:'NOT_FOUND'});
+    if(method!=='POST')return sendJson(405,{success:false,error:'METHOD_NOT_ALLOWED'});
+    if(!/^application\/json(?:\s*;|$)/i.test(req.headers['content-type']||''))
+      return sendJson(415,{success:false,error:'JSON_REQUIRED'});
+    const body=await parseBody();
+    const code=stagingQaOtp.readOtp({channel:body.channel,target:body.target,
+      token:req.headers['x-campuspool-qa-token']});
+    res.setHeader('Cache-Control','no-store');
+    if(!code)return sendJson(404,{success:false,error:'QA_RECEIPT_NOT_FOUND'});
+    return sendJson(200,{success:true,otp:code});
+  }
+
   // REST API: /api/health & /api/lb-status (Cluster Load Balancer Telemetry)
   // -----------------------------------------------------------------------
   if (method === 'GET' && (pathname === '/api/health' || pathname === '/api/lb-status' || pathname === '/healthz')) {
@@ -676,7 +698,9 @@ const server = http.createServer(async (req, res) => {
   // When enabled, these six auth routes fail closed to the PG-backed service.
   if (pgOtpStore && await handlePgAuth({
     pathname, method, parseBody, sendJson, db, setSessionCookie, getClientIp,
-    store: pgOtpStore,identity:pgIdentity,setPostgresCookie
+    store: pgOtpStore,identity:pgIdentity,setPostgresCookie,
+    ...(stagingQaOtp.enabled?{mailProvider:stagingQaOtp.mailProvider,
+      smsDeliveryProvider:stagingQaOtp.smsDeliveryProvider}:{})
   })) return;
 
   // -----------------------------------------------------------------------
