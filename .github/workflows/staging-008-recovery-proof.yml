@@ -55,8 +55,8 @@ jobs:
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq age >/dev/null
-          docker pull postgres:17-bookworm >/dev/null
-          docker run --rm --entrypoint pg_dump postgres:17-bookworm --version | grep -E 'PostgreSQL\) 17\.'
+          docker pull postgres:17-bookworm@sha256:837bed18782820fe967067cb5328b02b0d9992c1be9a37ee0c9c492cfc03af3b >/dev/null
+          docker run --rm --entrypoint pg_dump postgres:17-bookworm@sha256:837bed18782820fe967067cb5328b02b0d9992c1be9a37ee0c9c492cfc03af3b --version | grep -E 'PostgreSQL\) 17\.'
       - name: Stream PGDMP straight into AGE encryption with no plaintext artifact
         shell: bash
         run: |
@@ -73,7 +73,7 @@ jobs:
             -e PGSSLROOTCERT=/run/pinned-ca.pem \
             -e PGSSLMODE=verify-full \
             -v "$TMP/ca.pem:/run/pinned-ca.pem:ro" \
-            --entrypoint pg_dump postgres:17-bookworm \
+            --entrypoint pg_dump postgres:17-bookworm@sha256:837bed18782820fe967067cb5328b02b0d9992c1be9a37ee0c9c492cfc03af3b \
             --format=custom --no-owner --no-acl \
             --schema=public --schema=supabase_migrations |
             age --encrypt --recipient "$STAGING_BACKUP_AGE_RECIPIENT" \
@@ -123,7 +123,7 @@ jobs:
       STAGING_008_AGE_IDENTITY: ${{ secrets.STAGING_008_AGE_IDENTITY }}
     services:
       postgres:
-        image: postgis/postgis:17-3.5
+        image: postgis/postgis:17-3.5@sha256:01a6a70e41e6c4467c8f55f6063555ed72db2d6662cd0d571040d42eadaeb6f6
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: isolated-scratch-only
@@ -174,7 +174,7 @@ jobs:
           set +x
           umask 077
           test -n "$STAGING_008_AGE_IDENTITY"
-          CID="$(docker ps -q --filter ancestor=postgis/postgis:17-3.5 | head -n1)"
+          CID="$(docker ps -q --filter ancestor=postgis/postgis:17-3.5@sha256:01a6a70e41e6c4467c8f55f6063555ed72db2d6662cd0d571040d42eadaeb6f6 | head -n1)"
           [[ "$CID" =~ ^[a-f0-9]{12,64}$ ]]
           TMP="$(mktemp -d)"
           trap 'rm -rf "$TMP"' EXIT
