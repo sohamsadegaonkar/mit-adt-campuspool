@@ -197,17 +197,9 @@ jobs:
               -d campuspool_008_recovery --exit-on-error --no-owner --no-acl
           docker exec -i "$CID" psql -U postgres -d campuspool_008_recovery \
             -v ON_ERROR_STOP=1 < stage1-otp/migrations/005_staging_backend_role.sql
-          # The PGDMP uses --no-acl. Migration 005 restores only the first
-          # five table grants. 006 and 007 add four more backend-only tables;
-          # recreate exactly their server role grants in SCRATCH only.
+          # Reviewed migration-006/007 grant parity: scratch DB only, never source.
           docker exec -i "$CID" psql -U postgres -d campuspool_008_recovery \
-            -v ON_ERROR_STOP=1 <<'SQL'
-          GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE
-            public.campus_rides,public.campus_bookings,
-            public.campus_ride_geo,public.campus_trip_intents
-            TO campuspool_staging_app;
-          GRANT USAGE ON SCHEMA extensions TO campuspool_staging_app;
-          SQL
+            -v ON_ERROR_STOP=1 < scripts/staging-008-scratch-grants.sql
           docker exec -i "$CID" psql -U postgres -d campuspool_008_recovery \
             -v ON_ERROR_STOP=1 -qAt <<'SQL' >"$TMP/assertions"
           SELECT count(*)=7 FROM supabase_migrations.schema_migrations;
