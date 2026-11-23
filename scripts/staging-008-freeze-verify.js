@@ -5,7 +5,7 @@
 // postgres/admin roles or other external writers have been frozen.
 const {TABLES,APP_ROLE,RECEIPT_TABLE}=require('./staging-migration-preflight');
 
-function checkFrozenSnapshot(snapshot,appRoleConnections){
+function checkFrozenSnapshot(snapshot,appRoleConnections,writableSequences){
   const failures=[];
   const fail=(ok,reason)=>{if(!ok)failures.push(reason);};
   if(!snapshot||!Array.isArray(snapshot.roles)||!Array.isArray(snapshot.tables)||
@@ -50,6 +50,8 @@ function checkFrozenSnapshot(snapshot,appRoleConnections){
   }
   fail(Number.isSafeInteger(appRoleConnections)&&appRoleConnections===0,
     'ACTIVE_APP_ROLE_CONNECTIONS_NOT_DRAINED');
+  fail(Array.isArray(writableSequences)&&writableSequences.length===0,
+    'APP_ROLE_WRITABLE_SEQUENCES_REMAIN');
   return {
     appRoleWriteFreezeVerified:failures.length===0,
     databaseWideWriteFreezeVerified:false,
@@ -72,4 +74,18 @@ async function readAppRoleConnections(client){
     return Number(v);
   }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}
 }
-module.exports={checkFrozenSnapshot,readAppRoleConnections};
+async function readWritableSequences(client){
+  await client.query('BEGIN TRANSACTION ISOLATION LEVEL READ COMMITTED READ ONLY');
+  try{
+    await client.query('SET LOCAL statement_timeout=5000');
+    const r=await client.query(
+      "SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace "+
+      "WHERE n.nspname='public' AND c.relkind='S' "+
+      "AND (has_sequence_privilege($1,c.oid,'USAGE') OR "+
+      "has_sequence_privilege($1,c.oid,'UPDATE')) ORDER BY c.relname",
+      [APP_ROLE]);
+    await client.query('COMMIT');
+    return r.rows.map(x=>x.relname);
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}
+}
+module.exports={checkFrozenSnapshot,readAppRoleConnections,readWritableSequences};
