@@ -193,6 +193,17 @@ jobs:
               -d campuspool_008_recovery --exit-on-error --no-owner --no-acl
           docker exec -i "$CID" psql -U postgres -d campuspool_008_recovery \
             -v ON_ERROR_STOP=1 < stage1-otp/migrations/005_staging_backend_role.sql
+          # The PGDMP uses --no-acl. Migration 005 restores only the first
+          # five table grants. 006 and 007 add four more backend-only tables;
+          # recreate exactly their server role grants in SCRATCH only.
+          docker exec -i "$CID" psql -U postgres -d campuspool_008_recovery \
+            -v ON_ERROR_STOP=1 <<'SQL'
+          GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE
+            public.campus_rides,public.campus_bookings,
+            public.campus_ride_geo,public.campus_trip_intents
+            TO campuspool_staging_app;
+          GRANT USAGE ON SCHEMA extensions TO campuspool_staging_app;
+          SQL
           docker exec -i "$CID" psql -U postgres -d campuspool_008_recovery \
             -v ON_ERROR_STOP=1 -qAt <<'SQL' >"$TMP/assertions"
           SELECT count(*)=7 FROM supabase_migrations.schema_migrations;
@@ -232,7 +243,10 @@ jobs:
               ('otp_challenges','otp_rate_buckets','campus_users','campus_sessions',
                'campus_identity_audit','campus_rides','campus_bookings',
                'campus_ride_geo','campus_trip_intents')
-              AND has_table_privilege('campuspool_staging_app',c.oid,'SELECT,INSERT,UPDATE,DELETE');
+              AND has_table_privilege('campuspool_staging_app',c.oid,'SELECT')
+              AND has_table_privilege('campuspool_staging_app',c.oid,'INSERT')
+              AND has_table_privilege('campuspool_staging_app',c.oid,'UPDATE')
+              AND has_table_privilege('campuspool_staging_app',c.oid,'DELETE');
           SELECT count(*)=9 FROM pg_class c
             JOIN pg_namespace n ON n.oid=c.relnamespace
             WHERE n.nspname='public' AND c.relname IN
