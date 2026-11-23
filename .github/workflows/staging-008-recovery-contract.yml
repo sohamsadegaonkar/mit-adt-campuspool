@@ -90,6 +90,31 @@ jobs:
           RESULT="$(docker exec "$CID" psql -U postgres -d synthetic_restore_008 \
             -qAt -c "SELECT count(*) FROM public.synthetic_008 WHERE marker='SYNTHETIC_NOT_A_STUDENT'")"
           test "$RESULT" = 1
+          # Prove with real PostgreSQL that comma-separated privilege strings
+          # check ANY matching privilege; the protected restore must instead
+          # check each of SELECT, INSERT, UPDATE and DELETE separately.
+          docker exec "$CID" psql -U postgres -d synthetic_restore_008 -v ON_ERROR_STOP=1 -c \
+            'CREATE ROLE synthetic_restore_app NOLOGIN'
+          docker exec "$CID" psql -U postgres -d synthetic_restore_008 -v ON_ERROR_STOP=1 -c \
+            'GRANT SELECT ON TABLE public.synthetic_008 TO synthetic_restore_app'
+          ANY_GRANT="$(docker exec "$CID" psql -U postgres -d synthetic_restore_008 -qAt -c \
+            "SELECT has_table_privilege('synthetic_restore_app','public.synthetic_008','SELECT,INSERT,UPDATE,DELETE')")"
+          COMPLETE_GRANTS="$(docker exec "$CID" psql -U postgres -d synthetic_restore_008 -qAt -c \
+            "SELECT has_table_privilege('synthetic_restore_app','public.synthetic_008','SELECT') AND
+                    has_table_privilege('synthetic_restore_app','public.synthetic_008','INSERT') AND
+                    has_table_privilege('synthetic_restore_app','public.synthetic_008','UPDATE') AND
+                    has_table_privilege('synthetic_restore_app','public.synthetic_008','DELETE')")"
+          test "$ANY_GRANT" = t
+          test "$COMPLETE_GRANTS" = f
+          docker exec "$CID" psql -U postgres -d synthetic_restore_008 -v ON_ERROR_STOP=1 -c \
+            'GRANT INSERT,UPDATE,DELETE ON TABLE public.synthetic_008 TO synthetic_restore_app'
+          COMPLETE_GRANTS="$(docker exec "$CID" psql -U postgres -d synthetic_restore_008 -qAt -c \
+            "SELECT has_table_privilege('synthetic_restore_app','public.synthetic_008','SELECT') AND
+                    has_table_privilege('synthetic_restore_app','public.synthetic_008','INSERT') AND
+                    has_table_privilege('synthetic_restore_app','public.synthetic_008','UPDATE') AND
+                    has_table_privilege('synthetic_restore_app','public.synthetic_008','DELETE')")"
+          test "$COMPLETE_GRANTS" = t
+          echo "PG17_ALL_FOUR_CRUD_GRANTS_SEMANTICS=PASS"
           echo "SYNTHETIC_AGE_ENCRYPTED_PGDMP_RESTORE=PASS"
           echo "STAGING_DATABASE_CONNECTED=NO"
           echo "REAL_BACKUP_CREATED=NO"
