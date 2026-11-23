@@ -73,7 +73,9 @@ jobs:
           npm run test:identity
           npm run test:production-auth
           npm run test:staging
-          npm run test:security
+          # This pre-existing smoke harness uses only a private SQLite fixture;
+          # do not let PostgreSQL env from preceding OTP tests alter its backend.
+          AUTH_OTP_BACKEND=sqlite RIDES_BACKEND=sqlite npm run test:security
           npm run test:runtime-config
           npm run test:release
           npm run check:release-ci
