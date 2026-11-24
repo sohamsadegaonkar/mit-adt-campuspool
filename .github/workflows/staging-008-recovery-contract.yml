@@ -8,6 +8,9 @@ on:
       - 'test_staging_008_freeze_verify.js'
       - 'scripts/staging-migration-preflight.js'
       - 'test_staging_008_backup_guard.js'
+      - 'scripts/staging-008-credential-validation.js'
+      - 'test_staging_008_credential_validation.js'
+      - '.github/workflows/staging-008-credential-validation.yml'
       - 'scripts/staging-008-scratch-grants.sql'
       - 'scripts/staging-008-scratch-assertions.sql'
       - 'scripts/staging-008-synthetic-007-restore.sh'
@@ -42,6 +45,8 @@ jobs:
           node --test test_staging_008_freeze_verify.js
           node --check test_staging_008_backup_guard.js
           node --test test_staging_008_backup_guard.js
+          node --check scripts/staging-008-credential-validation.js
+          node --test test_staging_008_credential_validation.js
           node --test test_staging_migration_preflight.js
           echo "STAGING_BACKUP_POLICY_OFFLINE=PASS"
           echo "ACTUAL_STAGING_DATABASE_CONNECTED=NO"
