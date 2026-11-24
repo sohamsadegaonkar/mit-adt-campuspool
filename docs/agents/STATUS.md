@@ -344,3 +344,8 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 
 - Closed the source-review finding by moving database and AGE secret references from job-wide to explicit step environments, disabling checkout credential persistence and npm lifecycle scripts, removing unnecessary restore npm installation, and adding exact scope regression checks. Offline validation must pass at the resulting PR head. No operational change. [Task](tasks/2026-11-23-staging-008-recovery-workflow.md).
 - Latest verified environment readback shows expected secret/variable names but unrestricted branches, administrator bypass allowed, and only owner listed as reviewer; independent review remains unresolved. Last read-only staging catalog still shows unfrozen app role with LOGIN and 9 writable tables plus one sequence; migration 008 absent. Do not merge as independently approved or dispatch until the real operating controls are verified. No production action.
+
+
+## 2026-11-24 — Staging credential validation (draft source only)
+
+- Added manual main-only diagnostic in PR #77 using existing protected environments to validate exact staging DB target/TLS/CA/metadata permissions and synthetic AGE key pairing, with safe fixed PASS/FAIL output. No DB writes, actual data export, freeze, migration or deployment. Admin connection requires explicit input and existing exact acknowledgment; no privileged use approved here. Offline tests wired into the recovery contract; see [task](tasks/2026-11-23-staging-008-recovery-workflow.md). Not runnable from main until independently reviewed and merged. Existing environment protection and real recovery gates remain unresolved.
