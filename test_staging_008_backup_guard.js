@@ -107,3 +107,34 @@ test('never add staging live credentials, DDL or prod deploy to repo workflow',(
   assert.match(assertions,/campuspool_007_spatiotemporal_matching/);
   assert.match(workflow,/PRODUCTION_PROMOTION_AUTHORIZED=NO/);
 });
+
+
+test('manual workflow exposes credentials only in explicitly authorized step environments',()=>{
+  const workflow=fs.readFileSync('.github/workflows/staging-008-recovery-proof.yml','utf8');
+  const expected={
+    'Staging-only read-only preflight':['STAGING_BACKUP_DATABASE_URL','STAGING_008_BACKUP_ADMIN_ACK','STAGING_BACKUP_CA_PEM_B64'],
+    'Stream PGDMP straight into AGE encryption with no plaintext artifact':['STAGING_BACKUP_DATABASE_URL','STAGING_BACKUP_CA_PEM_B64'],
+    'Recheck frozen staging preimage':['STAGING_BACKUP_DATABASE_URL','STAGING_008_BACKUP_ADMIN_ACK','STAGING_BACKUP_CA_PEM_B64'],
+    'Decrypt only in a separate disposable PG17 PostGIS runner':['STAGING_008_AGE_IDENTITY']
+  };
+  let step=null;
+  const actual={};
+  for(const line of workflow.split('\n')){
+    if(/^  [\w-]+:$/.test(line)||/^      - uses:/.test(line))step=null;
+    const named=line.match(/^      - name: (.+)$/);
+    if(named)step=named[1];
+    if(!line.includes('secrets.'))continue;
+    const secret=line.match(/^          ([A-Z0-9_]+): \$\{\{ secrets\.([A-Z0-9_]+) \}\}$/);
+    assert.ok(secret,'Unexpected secret reference or non-step scope');
+    assert.ok(step&&Object.hasOwn(expected,step),'Secret used outside approved step');
+    assert.equal(secret[1],secret[2],'Secret mapping mismatch');
+    (actual[step]||=[]).push(secret[1]);
+  }
+  assert.deepEqual(actual,expected);
+  const installs=workflow.match(/^\s*npm ci[^\n]*$/gm)||[];
+  assert.equal(installs.length,1);
+  assert.match(installs[0],/npm ci --omit=dev --ignore-scripts/);
+  assert.equal((workflow.match(/persist-credentials: false/g)||[]).length,2);
+  assert.doesNotMatch(workflow.split('  independent-cold-restore:')[1],/secrets\.STAGING_BACKUP_/);
+  assert.doesNotMatch(workflow.split('  independent-cold-restore:')[0],/secrets\.STAGING_008_AGE_IDENTITY/);
+});
