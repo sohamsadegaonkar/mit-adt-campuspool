@@ -29,21 +29,29 @@ jobs:
       APP_ENV: staging
       OTP_DB_SSL: 'true'
       STAGING_008_BACKUP_ACK: STAGING_008_PREIMAGE_ONLY
-      STAGING_BACKUP_DATABASE_URL: ${{ secrets.STAGING_BACKUP_DATABASE_URL }}
-      STAGING_008_BACKUP_ADMIN_ACK: ${{ secrets.STAGING_008_BACKUP_ADMIN_ACK }}
-      STAGING_BACKUP_CA_PEM_B64: ${{ secrets.STAGING_BACKUP_CA_PEM_B64 }}
-      STAGING_BACKUP_AGE_RECIPIENT: ${{ vars.STAGING_BACKUP_AGE_RECIPIENT }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22.23.2'
           cache: npm
-      - name: Locked dependencies and staging-only read-only preflight
+      - name: Install locked dependencies without credentials or lifecycle scripts
         shell: bash
         run: |
           set -euo pipefail
-          npm ci --omit=dev
+          npm ci --omit=dev --ignore-scripts
+      - name: Staging-only read-only preflight
+        shell: bash
+        env:
+          STAGING_BACKUP_DATABASE_URL: ${{ secrets.STAGING_BACKUP_DATABASE_URL }}
+          STAGING_008_BACKUP_ADMIN_ACK: ${{ secrets.STAGING_008_BACKUP_ADMIN_ACK }}
+          STAGING_BACKUP_CA_PEM_B64: ${{ secrets.STAGING_BACKUP_CA_PEM_B64 }}
+          STAGING_BACKUP_AGE_RECIPIENT: ${{ vars.STAGING_BACKUP_AGE_RECIPIENT }}
+        run: |
+          set -euo pipefail
+          set +x
           test "$GITHUB_REF" = 'refs/heads/main'
           test -n "$STAGING_BACKUP_DATABASE_URL"
           test -n "$STAGING_BACKUP_CA_PEM_B64"
@@ -59,6 +67,10 @@ jobs:
           docker run --rm --entrypoint pg_dump postgres:17-bookworm@sha256:837bed18782820fe967067cb5328b02b0d9992c1be9a37ee0c9c492cfc03af3b --version | grep -E 'PostgreSQL\) 17\.'
       - name: Stream PGDMP straight into AGE encryption with no plaintext artifact
         shell: bash
+        env:
+          STAGING_BACKUP_DATABASE_URL: ${{ secrets.STAGING_BACKUP_DATABASE_URL }}
+          STAGING_BACKUP_CA_PEM_B64: ${{ secrets.STAGING_BACKUP_CA_PEM_B64 }}
+          STAGING_BACKUP_AGE_RECIPIENT: ${{ vars.STAGING_BACKUP_AGE_RECIPIENT }}
         run: |
           set -euo pipefail
           set +x
@@ -85,11 +97,20 @@ jobs:
           sha256sum "$RUNNER_TEMP/staging-008-evidence/preimage.pgcustom.age" |
             awk '{print $1}' >"$RUNNER_TEMP/staging-008-evidence/preimage.sha256"
           echo "STAGING_PREIMAGE_ENCRYPTED_WITH_NO_DISK_PLAINTEXT=YES"
-      - name: Recheck staging empty preimage and make nonsecret manifest
+      - name: Recheck frozen staging preimage
+        shell: bash
+        env:
+          STAGING_BACKUP_DATABASE_URL: ${{ secrets.STAGING_BACKUP_DATABASE_URL }}
+          STAGING_008_BACKUP_ADMIN_ACK: ${{ secrets.STAGING_008_BACKUP_ADMIN_ACK }}
+          STAGING_BACKUP_CA_PEM_B64: ${{ secrets.STAGING_BACKUP_CA_PEM_B64 }}
+        run: |
+          set -euo pipefail
+          set +x
+          node scripts/staging-008-backup-guard.js
+      - name: Make nonsecret manifest
         shell: bash
         run: |
           set -euo pipefail
-          node scripts/staging-008-backup-guard.js
           export ENCRYPTED_SHA="$(cat "$RUNNER_TEMP/staging-008-evidence/preimage.sha256")"
           node -e '
             const fs=require("node:fs");
@@ -119,8 +140,6 @@ jobs:
     environment: staging-008-restore
     runs-on: ubuntu-24.04
     timeout-minutes: 25
-    env:
-      STAGING_008_AGE_IDENTITY: ${{ secrets.STAGING_008_AGE_IDENTITY }}
     services:
       postgres:
         image: postgis/postgis:17-3.5@sha256:01a6a70e41e6c4467c8f55f6063555ed72db2d6662cd0d571040d42eadaeb6f6
@@ -136,13 +155,16 @@ jobs:
           --health-retries 12
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22.23.2'
           cache: npm
-      - name: Locked dependencies and AGE decryptor
+      - name: Install AGE decryptor without credentials
+        shell: bash
         run: |
-          npm ci --omit=dev
+          set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq age >/dev/null
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -169,6 +191,8 @@ jobs:
           echo "ENCRYPTED_PREIMAGE_OBJECT_DIGEST_VERIFIED=YES"
       - name: Decrypt only in a separate disposable PG17 PostGIS runner
         shell: bash
+        env:
+          STAGING_008_AGE_IDENTITY: ${{ secrets.STAGING_008_AGE_IDENTITY }}
         run: |
           set -euo pipefail
           set +x
