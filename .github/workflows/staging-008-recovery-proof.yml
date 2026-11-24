@@ -1,0 +1,239 @@
+name: Staging 008 encrypted preimage and independent restore (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type STAGING_008_PREIMAGE_ONLY; this does not apply migration"
+        required: true
+        type: string
+      write_freeze_confirmation:
+        description: "Type STAGING_008_WRITE_FREEZE_CONFIRMED after owner-approved staging write freeze; this does not prove the freeze"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-008-preimage
+  cancel-in-progress: false
+
+jobs:
+  encrypted-preimage:
+    if: github.ref == 'refs/heads/main' && inputs.confirmation == 'STAGING_008_PREIMAGE_ONLY' && inputs.write_freeze_confirmation == 'STAGING_008_WRITE_FREEZE_CONFIRMED'
+    environment: staging-008-backup
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      APP_ENV: staging
+      OTP_DB_SSL: 'true'
+      STAGING_008_BACKUP_ACK: STAGING_008_PREIMAGE_ONLY
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22.23.2'
+          cache: npm
+      - name: Install locked dependencies without credentials or lifecycle scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --omit=dev --ignore-scripts
+      - name: Staging-only read-only preflight
+        shell: bash
+        env:
+          STAGING_BACKUP_DATABASE_URL: ${{ secrets.STAGING_BACKUP_DATABASE_URL }}
+          STAGING_008_BACKUP_ADMIN_ACK: ${{ secrets.STAGING_008_BACKUP_ADMIN_ACK }}
+          STAGING_BACKUP_CA_PEM_B64: ${{ secrets.STAGING_BACKUP_CA_PEM_B64 }}
+          STAGING_BACKUP_AGE_RECIPIENT: ${{ vars.STAGING_BACKUP_AGE_RECIPIENT }}
+        run: |
+          set -euo pipefail
+          set +x
+          test "$GITHUB_REF" = 'refs/heads/main'
+          test -n "$STAGING_BACKUP_DATABASE_URL"
+          test -n "$STAGING_BACKUP_CA_PEM_B64"
+          [[ "$STAGING_BACKUP_AGE_RECIPIENT" =~ ^age1[023456789acdefghjklmnpqrstuvwxyz]{58}$ ]]
+          node scripts/staging-008-backup-guard.js
+      - name: Install AGE and PostgreSQL 17 client
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq age >/dev/null
+          docker pull postgres:17-bookworm@sha256:837bed18782820fe967067cb5328b02b0d9992c1be9a37ee0c9c492cfc03af3b >/dev/null
+          docker run --rm --entrypoint pg_dump postgres:17-bookworm@sha256:837bed18782820fe967067cb5328b02b0d9992c1be9a37ee0c9c492cfc03af3b --version | grep -E 'PostgreSQL\) 17\.'
+      - name: Stream PGDMP straight into AGE encryption with no plaintext artifact
+        shell: bash
+        env:
+          STAGING_BACKUP_DATABASE_URL: ${{ secrets.STAGING_BACKUP_DATABASE_URL }}
+          STAGING_BACKUP_CA_PEM_B64: ${{ secrets.STAGING_BACKUP_CA_PEM_B64 }}
+          STAGING_BACKUP_AGE_RECIPIENT: ${{ vars.STAGING_BACKUP_AGE_RECIPIENT }}
+        run: |
+          set -euo pipefail
+          set +x
+          umask 077
+          TMP="$(mktemp -d)"
+          trap 'rm -rf "$TMP"' EXIT
+          printf '%s' "$STAGING_BACKUP_CA_PEM_B64" | base64 --decode >"$TMP/ca.pem"
+          export PGDATABASE="$STAGING_BACKUP_DATABASE_URL"
+          mkdir -p "$RUNNER_TEMP/staging-008-evidence"
+          docker run --rm --network host \
+            -e PGDATABASE \
+            -e PGSSLROOTCERT=/run/pinned-ca.pem \
+            -e PGSSLMODE=verify-full \
+            -v "$TMP/ca.pem:/run/pinned-ca.pem:ro" \
+            --entrypoint pg_dump postgres:17-bookworm@sha256:837bed18782820fe967067cb5328b02b0d9992c1be9a37ee0c9c492cfc03af3b \
+            --format=custom --no-owner --no-acl \
+            --schema=public --schema=supabase_migrations |
+            age --encrypt --recipient "$STAGING_BACKUP_AGE_RECIPIENT" \
+              --output "$RUNNER_TEMP/staging-008-evidence/preimage.pgcustom.age"
+          unset PGDATABASE
+          test -s "$RUNNER_TEMP/staging-008-evidence/preimage.pgcustom.age"
+          head -c 21 "$RUNNER_TEMP/staging-008-evidence/preimage.pgcustom.age" |
+            grep -qF 'age-encryption.org/v1'
+          sha256sum "$RUNNER_TEMP/staging-008-evidence/preimage.pgcustom.age" |
+            awk '{print $1}' >"$RUNNER_TEMP/staging-008-evidence/preimage.sha256"
+          echo "STAGING_PREIMAGE_ENCRYPTED_WITH_NO_DISK_PLAINTEXT=YES"
+      - name: Recheck frozen staging preimage
+        shell: bash
+        env:
+          STAGING_BACKUP_DATABASE_URL: ${{ secrets.STAGING_BACKUP_DATABASE_URL }}
+          STAGING_008_BACKUP_ADMIN_ACK: ${{ secrets.STAGING_008_BACKUP_ADMIN_ACK }}
+          STAGING_BACKUP_CA_PEM_B64: ${{ secrets.STAGING_BACKUP_CA_PEM_B64 }}
+        run: |
+          set -euo pipefail
+          set +x
+          node scripts/staging-008-backup-guard.js
+      - name: Make nonsecret manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ENCRYPTED_SHA="$(cat "$RUNNER_TEMP/staging-008-evidence/preimage.sha256")"
+          node -e '
+            const fs=require("node:fs");
+            const m={contract:"campuspool-staging-008-preimage-v1",
+              project:"tnitksrlntrdxbvznxzf",sourceCommit:process.env.GITHUB_SHA,
+              encryptedSha256:process.env.ENCRYPTED_SHA,
+              applicationTables:9,applicationRowsAtSnapshot:0,recordedMigrationsBefore:7,
+              scope:"public+supabase_migrations; globals and managed schemas excluded",
+              createdAt:new Date().toISOString(),releaseReady:false,
+              independentRestoreVerified:false};
+            if(!/^[a-f0-9]{64}$/.test(m.encryptedSha256))process.exit(1);
+            fs.writeFileSync(process.env.RUNNER_TEMP+
+              "/staging-008-evidence/manifest.json",JSON.stringify(m,null,2)+"\n",{mode:0o600});
+          '
+          echo "NO_DATABASE_MIGRATION=YES"
+          echo "PRODUCTION_PROMOTION_AUTHORIZED=NO"
+      - name: Upload encrypted-only artifact for private-key restore job
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: staging-008-encrypted-preimage
+          path: ${{ runner.temp }}/staging-008-evidence/
+          if-no-files-found: error
+          retention-days: 14
+
+  independent-cold-restore:
+    needs: encrypted-preimage
+    environment: staging-008-restore
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5@sha256:01a6a70e41e6c4467c8f55f6063555ed72db2d6662cd0d571040d42eadaeb6f6
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: isolated-scratch-only
+          POSTGRES_DB: scratch_bootstrap
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d scratch_bootstrap"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22.23.2'
+          cache: npm
+      - name: Install AGE decryptor without credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq age >/dev/null
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: staging-008-encrypted-preimage
+          path: ${{ runner.temp }}/staging-008-evidence/
+      - name: Verify encrypted ciphertext hash and nonsecret subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/staging-008-evidence"
+          test -s preimage.pgcustom.age
+          test -s manifest.json
+          test "$(sha256sum preimage.pgcustom.age | awk '{print $1}')" = "$(cat preimage.sha256)"
+          node -e '
+            const fs=require("node:fs"),m=JSON.parse(fs.readFileSync("manifest.json","utf8"));
+            if(m.contract!=="campuspool-staging-008-preimage-v1"||
+               m.project!=="tnitksrlntrdxbvznxzf"||
+               m.applicationRowsAtSnapshot!==0||m.recordedMigrationsBefore!==7||
+               m.releaseReady!==false||m.independentRestoreVerified!==false||
+               m.encryptedSha256!==fs.readFileSync("preimage.sha256","utf8").trim())
+              process.exit(1);
+          '
+          echo "ENCRYPTED_PREIMAGE_OBJECT_DIGEST_VERIFIED=YES"
+      - name: Decrypt only in a separate disposable PG17 PostGIS runner
+        shell: bash
+        env:
+          STAGING_008_AGE_IDENTITY: ${{ secrets.STAGING_008_AGE_IDENTITY }}
+        run: |
+          set -euo pipefail
+          set +x
+          umask 077
+          test -n "$STAGING_008_AGE_IDENTITY"
+          CID="$(docker ps -q --filter ancestor=postgis/postgis:17-3.5@sha256:01a6a70e41e6c4467c8f55f6063555ed72db2d6662cd0d571040d42eadaeb6f6 | head -n1)"
+          [[ "$CID" =~ ^[a-f0-9]{12,64}$ ]]
+          TMP="$(mktemp -d)"
+          trap 'rm -rf "$TMP"' EXIT
+          printf '%s\n' "$STAGING_008_AGE_IDENTITY" >"$TMP/age-key"
+          docker exec "$CID" psql -U postgres -d scratch_bootstrap -v ON_ERROR_STOP=1 -c \
+            'CREATE DATABASE campuspool_008_recovery TEMPLATE template0'
+          docker exec -i "$CID" psql -U postgres -d campuspool_008_recovery -v ON_ERROR_STOP=1 <<'SQL'
+          DROP SCHEMA IF EXISTS public CASCADE;
+          CREATE SCHEMA extensions;
+          CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA extensions;
+          CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
+          CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+          CREATE ROLE campuspool_staging_app NOLOGIN;
+          CREATE ROLE anon NOLOGIN;
+          CREATE ROLE authenticated NOLOGIN;
+          SQL
+          age --decrypt --identity "$TMP/age-key" \
+            "$RUNNER_TEMP/staging-008-evidence/preimage.pgcustom.age" |
+            docker exec -i "$CID" pg_restore -U postgres \
+              -d campuspool_008_recovery --exit-on-error --no-owner --no-acl
+          docker exec -i "$CID" psql -U postgres -d campuspool_008_recovery \
+            -v ON_ERROR_STOP=1 < stage1-otp/migrations/005_staging_backend_role.sql
+          # Reviewed migration-006/007 grant parity: scratch DB only, never source.
+          docker exec -i "$CID" psql -U postgres -d campuspool_008_recovery \
+            -v ON_ERROR_STOP=1 < scripts/staging-008-scratch-grants.sql
+          docker exec -i "$CID" psql -U postgres -d campuspool_008_recovery \
+            -v ON_ERROR_STOP=1 -qAt < scripts/staging-008-scratch-assertions.sql >"$TMP/assertions"
+          test "$(grep -c '^t$' "$TMP/assertions")" -eq 8
+          test "$(wc -l <"$TMP/assertions")" -eq 8
+          echo "INDEPENDENT_ENCRYPTED_STAGING_APPLICATION_RESTORE_VERIFIED=YES"
+          echo "GLOBAL_ROLES_AND_OTHER_SUPABASE_SCHEMAS_RESTORED=NO"
+      - name: Report stage-only recovery with production release held
+        run: |
+          echo "STAGING_008_APPLICATION_PREIMAGE_RESTORE=PASS"
+          echo "NO_DATABASE_MIGRATION=YES"
+          echo "STAGING_RENDER_DEPLOYMENT_CHANGED=NO"
+          echo "AZURE_BACKUP_G1_VERIFIED=NO"
+          echo "PRODUCTION_PROMOTION_AUTHORIZED=NO"

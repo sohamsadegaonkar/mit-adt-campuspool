@@ -318,3 +318,30 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 3. **Data continuity:** provision isolated production PostgreSQL (not staging DB), verify TLS CA trust and role isolation, inventory old SQLite rides/accounts without unsafe writes, perform encrypted staging archive and independent PG17/PostGIS recovery and rollback rehearsal, and reconcile legacy data before flipping `AUTH_OTP_BACKEND` or `RIDES_BACKEND`.
 4. **Controlled staging first:** only with explicit staging deployment approval, deploy reviewed SHA with autoDeploy OFF, run end-to-end registration/login/session/restart, seat-conflict/idempotency, privacy and failed payment flows on consenting synthetic accounts. Confirm no data loss and Render rollback.
 5. **Production GO:** obtain separate explicit owner security/recovery release approval for exact SHA, then manual Render deploy, verify live health, real delivery and data integrity. No production deployment, migration or backend flag changes performed in this code-only session. Azure cost evaluation was deferred for code work, not globally waived for new billable infrastructure.
+
+
+## 2026-11-23 — Staging migration 008 conditional recovery gate (draft only)
+
+- **Current blocker:** migration ledger 001–007 and no `campus_idempotency_keys`, causing failed `main@202330a8` staging startup. Nine existing public CampusPool tables are empty, but neither a protected encrypted staging backup nor independent restore has been verified. User authorized **staging migration 008 conditionally on backup/rollback**, NOT immediate DDL, production changes or Azure operations.
+- **Current engineering work:** new source-only `ops/staging-008-encrypted-recovery-gate-2026-11-23` builds an exact-target read-only preimage guard, manual backup → isolated PG17 AGE decrypt/restore workflow and offline policy CI. Review [task](tasks/2026-11-23-staging-008-recovery-workflow.md). Workflow must NOT run until approved and merged and both protected GitHub environments `staging-008-backup` and `staging-008-restore` are configured with required reviewers and narrowly-scoped secrets, including explicit admin-backup privilege acceptance if needed to export Supabase migration ledger.
+- **Next ordered steps:** offline CI and independent security review → approved private AGE keys and CA-pinned staging-only DB export identity → manually executed backup + independent restored-public/ledger RLS/grant evidence → write freeze/rollback plan → authorized 008-only Supabase migration and after-catalog validation → separately approved Render staging exact SHA deploy, OTP/auth/mobile acceptance. **No automatic production promotion.**
+
+
+## 2026-11-23 — Staging-008 recovery source audit follow-up after full 007 synthetic restore
+
+1. Review and approve corrected [PR #77](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/77) **source only**; verify [full 001–007 synthetic restore CI #45142150202](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/45142150202) and exact-head checks before any merge. Do not present synthetic restore as actual G1/staging recovery.
+2. Human operator must check GitHub environments `staging-008-backup` and `staging-008-restore` separately for protected-main-only rules and **different required human reviewers**; reviewer selection and any permission/sharing updates need owner involvement. Separately authorize exact Supabase staging export role, pinned TLS/CA, encrypted recipient and restore-only AGE identity. Pin reviewed immutable Docker PG17/PostGIS image digests before manual operation.
+3. Obtain independent operational approval and real write freeze; manually run **one encrypted-only staging pre-008 export**, preserve private ciphertext SHA+retention evidence, independently decrypt+restore it into new PG17/PostGIS target with separate recovery operator/identity; verify 001–007 ledger, all nine empty app tables, four-permission backend CRUD, RLS/client isolation, grant/sequence/extension compatibility and documented exclusions/RPO/RTO. Never send keys to chat/GitHub logs.
+4. **Only after** real recovery is reviewed and confirmed, seek separate narrowly scoped authorization for migration 008 plus staging-only Render deploy and hands-on QA. No destructive DOWN, automatic rollback over newer bookings or production promotion. Remaining broader Supabase-managed schemas/global-role G1 recovery gate stays separate.
+
+
+## 2026-11-24 — Staging-008 recovery review follow-up
+
+- Verify exact-head CI for the [PR #77](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/77) step-local credential patch and require an independent approving review. [Handoff](tasks/2026-11-23-staging-008-recovery-workflow.md).
+- Confirm both protected environment rules and approved export identity with an independent operator; the last readback did not satisfy main-only, no-bypass, distinct-reviewer requirements. Establish and verify the reversible staging write freeze and rollback plan before protected encrypted backup, independent restore and already conditionally approved 008 migration. Production remains separate and NO-GO.
+
+
+## 2026-11-24 — Validate configured credentials before real backup
+
+- Review and verify exact-head offline CI for [PR #77](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/77), including new manual Staging Credential Validation workflow. After independent approval/merge and verified environment protections, dispatch main with `STAGING_CREDENTIALS_READ_ONLY`; no admin input unless separately approved. Check read-only TLS/role/ledger/export-permission diagnostics and synthetic AGE round trip in separate jobs. This requires no GitHub CLI and no write freeze. Review any FAIL before proceeding. [Task record](tasks/2026-11-23-staging-008-recovery-workflow.md).
+- Only after diagnostic success and separate operating approvals, establish actual write freeze, perform protected encrypted backup and independent real recovery, then apply conditionally authorized migration 008 and stage deploy. Do not treat a synthetic challenge as backup recovery proof. No production change.

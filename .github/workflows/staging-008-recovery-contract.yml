@@ -1,0 +1,168 @@
+name: Staging 008 recovery contract (offline only)
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/staging-008-backup-guard.js'
+      - 'scripts/staging-008-freeze-verify.js'
+      - 'test_staging_008_freeze_verify.js'
+      - 'scripts/staging-migration-preflight.js'
+      - 'test_staging_008_backup_guard.js'
+      - 'scripts/staging-008-credential-validation.js'
+      - 'test_staging_008_credential_validation.js'
+      - '.github/workflows/staging-008-credential-validation.yml'
+      - 'scripts/staging-008-scratch-grants.sql'
+      - 'scripts/staging-008-scratch-assertions.sql'
+      - 'scripts/staging-008-synthetic-007-restore.sh'
+      - '.github/workflows/staging-008-recovery-proof.yml'
+      - '.github/workflows/staging-008-recovery-contract.yml'
+      - 'docs/agents/tasks/2026-11-23-staging-008-recovery-workflow.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      STAGING_008_BACKUP_ACK: ''
+      APP_ENV: ci
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22.23.2'
+          cache: npm
+      - name: Install pinned dependencies, no live credentials
+        run: npm ci --omit=dev --ignore-scripts
+      - name: Validate policy code and malicious-target rejections
+        run: |
+          set -euo pipefail
+          node --check scripts/staging-008-backup-guard.js
+          node --check scripts/staging-008-freeze-verify.js
+          node --test test_staging_008_freeze_verify.js
+          node --check test_staging_008_backup_guard.js
+          node --test test_staging_008_backup_guard.js
+          node --check scripts/staging-008-credential-validation.js
+          node --test test_staging_008_credential_validation.js
+          node --test test_staging_migration_preflight.js
+          echo "STAGING_BACKUP_POLICY_OFFLINE=PASS"
+          echo "ACTUAL_STAGING_DATABASE_CONNECTED=NO"
+          echo "ACTUAL_BACKUP_CREATED=NO"
+          echo "INDEPENDENT_RESTORE_PERFORMED=NO"
+          echo "NO_DATABASE_MIGRATION=YES"
+          echo "PRODUCTION_PROMOTION_AUTHORIZED=NO"
+
+  synthetic-age-roundtrip:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5@sha256:01a6a70e41e6c4467c8f55f6063555ed72db2d6662cd0d571040d42eadaeb6f6
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-only
+          POSTGRES_DB: synthetic_008_backup
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d synthetic_008_backup"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Exercise encryption and cold restore with fake data only
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          TMP="$(mktemp -d)"
+          trap 'rm -rf "$TMP"' EXIT
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq age >/dev/null
+          CID="$(docker ps -q --filter ancestor=postgis/postgis:17-3.5@sha256:01a6a70e41e6c4467c8f55f6063555ed72db2d6662cd0d571040d42eadaeb6f6 | head -n1)"
+          [[ "$CID" =~ ^[a-f0-9]{12,64}$ ]]
+          docker exec "$CID" psql -U postgres -d synthetic_008_backup -v ON_ERROR_STOP=1 -c \
+            "CREATE TABLE public.synthetic_008(id integer PRIMARY KEY, marker text NOT NULL)"
+          docker exec "$CID" psql -U postgres -d synthetic_008_backup -v ON_ERROR_STOP=1 -c \
+            "INSERT INTO public.synthetic_008(id,marker) VALUES(1,'SYNTHETIC_NOT_A_STUDENT')"
+          age-keygen -o "$TMP/age-identity" >/dev/null 2>&1
+          RECIPIENT="$(age-keygen -y "$TMP/age-identity")"
+          [[ "$RECIPIENT" =~ ^age1[023456789acdefghjklmnpqrstuvwxyz]{58}$ ]]
+          docker exec "$CID" pg_dump -U postgres -d synthetic_008_backup \
+            --format=custom --no-owner --no-acl --table=public.synthetic_008 |
+            age --encrypt --recipient "$RECIPIENT" --output "$TMP/backup.age"
+          test -s "$TMP/backup.age"
+          docker exec "$CID" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -c \
+            "CREATE DATABASE synthetic_restore_008 TEMPLATE template0"
+          age --decrypt --identity "$TMP/age-identity" "$TMP/backup.age" |
+            docker exec -i "$CID" pg_restore -U postgres -d synthetic_restore_008 \
+              --exit-on-error --no-owner --no-acl
+          RESULT="$(docker exec "$CID" psql -U postgres -d synthetic_restore_008 \
+            -qAt -c "SELECT count(*) FROM public.synthetic_008 WHERE marker='SYNTHETIC_NOT_A_STUDENT'")"
+          test "$RESULT" = 1
+          # Prove with real PostgreSQL that comma-separated privilege strings
+          # check ANY matching privilege; the protected restore must instead
+          # check each of SELECT, INSERT, UPDATE and DELETE separately.
+          docker exec "$CID" psql -U postgres -d synthetic_restore_008 -v ON_ERROR_STOP=1 -c \
+            'CREATE ROLE synthetic_restore_app NOLOGIN'
+          docker exec "$CID" psql -U postgres -d synthetic_restore_008 -v ON_ERROR_STOP=1 -c \
+            'GRANT SELECT ON TABLE public.synthetic_008 TO synthetic_restore_app'
+          ANY_GRANT="$(docker exec "$CID" psql -U postgres -d synthetic_restore_008 -qAt -c \
+            "SELECT has_table_privilege('synthetic_restore_app','public.synthetic_008','SELECT,INSERT,UPDATE,DELETE')")"
+          COMPLETE_GRANTS="$(docker exec "$CID" psql -U postgres -d synthetic_restore_008 -qAt -c \
+            "SELECT has_table_privilege('synthetic_restore_app','public.synthetic_008','SELECT') AND
+                    has_table_privilege('synthetic_restore_app','public.synthetic_008','INSERT') AND
+                    has_table_privilege('synthetic_restore_app','public.synthetic_008','UPDATE') AND
+                    has_table_privilege('synthetic_restore_app','public.synthetic_008','DELETE')")"
+          test "$ANY_GRANT" = t
+          test "$COMPLETE_GRANTS" = f
+          docker exec "$CID" psql -U postgres -d synthetic_restore_008 -v ON_ERROR_STOP=1 -c \
+            'GRANT INSERT,UPDATE,DELETE ON TABLE public.synthetic_008 TO synthetic_restore_app'
+          COMPLETE_GRANTS="$(docker exec "$CID" psql -U postgres -d synthetic_restore_008 -qAt -c \
+            "SELECT has_table_privilege('synthetic_restore_app','public.synthetic_008','SELECT') AND
+                    has_table_privilege('synthetic_restore_app','public.synthetic_008','INSERT') AND
+                    has_table_privilege('synthetic_restore_app','public.synthetic_008','UPDATE') AND
+                    has_table_privilege('synthetic_restore_app','public.synthetic_008','DELETE')")"
+          test "$COMPLETE_GRANTS" = t
+          echo "PG17_ALL_FOUR_CRUD_GRANTS_SEMANTICS=PASS"
+          echo "SYNTHETIC_AGE_ENCRYPTED_PGDMP_RESTORE=PASS"
+          echo "STAGING_DATABASE_CONNECTED=NO"
+          echo "REAL_BACKUP_CREATED=NO"
+          echo "NO_DATABASE_MIGRATION=YES"
+          echo "PRODUCTION_PROMOTION_AUTHORIZED=NO"
+
+  synthetic-full-007-cold-restore:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5@sha256:01a6a70e41e6c4467c8f55f6063555ed72db2d6662cd0d571040d42eadaeb6f6
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-scratch-only
+          POSTGRES_DB: scratch_bootstrap
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d scratch_bootstrap"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install AGE for synthetic encryption only
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq age >/dev/null
+      - name: Apply actual migrations 001–007 to scratch, encrypt, restore and prove RLS/grants
+        shell: bash
+        env:
+          CAMPUSPOOL_SYNTHETIC_008_ONLY: 'YES'
+        run: bash scripts/staging-008-synthetic-007-restore.sh
