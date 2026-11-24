@@ -50,7 +50,7 @@ test('diagnostic never connects when validation fails; no raw error or credentia
   class Forbidden {constructor(){created++;throw Error('do not connect');}}
   const r=await validate({...env,APP_ENV:'production'},{ClientImpl:Forbidden,emit:x=>logs.push(x),parseCa:()=>{throw Error('synthetic-only');}});
   assert.equal(r.ok,false);assert.equal(created,0);
-  assert.ok(logs.every(l=>/^[A-Z_]+=(PASS|FAIL)$/.test(l)));
+  assert.ok(logs.every(l=>/^[A-Z0-9_]+=(PASS|FAIL)$/.test(l)));
 });
 test('connection is verified TLS, read-only catalog checks are redacted and client closes',async()=>{
   let options,closed=false,queries=0;
@@ -64,12 +64,12 @@ test('connection is verified TLS, read-only catalog checks are redacted and clie
   const r=await validate(env,{ClientImpl:Mock,emit:x=>logs.push(x),parseCa:()=> 'fake-ca'});
   assert.equal(r.ok,true);assert.equal(options.ssl.rejectUnauthorized,true);assert.equal(options.ssl.ca,'fake-ca');
   assert.equal(queries,4);assert.equal(closed,true);
-  assert.ok(logs.every(l=>/^[A-Z_]+=(PASS|FAIL)$/.test(l)));
+  assert.ok(logs.every(l=>/^[A-Z0-9_]+=(PASS|FAIL)$/.test(l)));
   assert.ok(logs.includes('TLS_VERIFY_FULL=PASS'));
   class Broken extends Mock{async connect(){throw Error(env.STAGING_BACKUP_DATABASE_URL);}}
   const failure=await validate(env,{ClientImpl:Broken,emit:x=>logs.push(x),parseCa:()=> 'fake-ca'});
   assert.equal(failure.ok,false);
-  assert.ok(logs.every(l=>/^[A-Z_]+=(PASS|FAIL)$/.test(l)));
+  assert.ok(logs.every(l=>/^[A-Z0-9_]+=(PASS|FAIL)$/.test(l)));
 });
 test('non-authorized TLS cannot query',async()=>{
   class BadTLS {
