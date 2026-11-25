@@ -349,3 +349,8 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 ## 2026-11-24 — Staging credential validation (draft source only)
 
 - Added manual main-only diagnostic in PR #77 using existing protected environments to validate exact staging DB target/TLS/CA/metadata permissions and synthetic AGE key pairing, with safe fixed PASS/FAIL output. No DB writes, actual data export, freeze, migration or deployment. Admin connection requires explicit input and existing exact acknowledgment; no privileged use approved here. Offline tests wired into the recovery contract; see [task](tasks/2026-11-23-staging-008-recovery-workflow.md). Not runnable from main until independently reviewed and merged. Existing environment protection and real recovery gates remain unresolved.
+
+
+## 2026-11-25 — Credential validation failure labels (branch only)
+
+- PR #77 is merged at 4b25a0c. Owner-authorized single-maintainer approval on both staging recovery environments; main-only and administrator bypass off; no independent human approval claimed. Latest [run 45601322828](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/45601322828) failed target/role validation before connection despite admin input true; pinned CA and synthetic encryption pass. Exact stored secret failure not yet known. Branch adds redacted failure-specific labels and regression tests without changing authorization. CI pending. [Task](tasks/2026-11-25-staging-credential-failure-labels.md). No real backup, restore, migration, or deploy.
