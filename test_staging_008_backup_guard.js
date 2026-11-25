@@ -2,7 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs');
 const {TABLES}=require('./scripts/staging-migration-preflight');
-const {parseBackupTarget,parsePinnedCa,checkCountRows,countReadOnly,guard}=
+const {parseBackupTarget,dumpConnectionEnv,parsePinnedCa,checkCountRows,countReadOnly,guard}=
   require('./scripts/staging-008-backup-guard');
 const PROJECT='tnitksrlntrdxbvznxzf';
 const POOL='postgresql://campuspool_staging_app.'+PROJECT+
@@ -113,7 +113,7 @@ test('manual workflow exposes credentials only in explicitly authorized step env
   const workflow=fs.readFileSync('.github/workflows/staging-008-recovery-proof.yml','utf8');
   const expected={
     'Staging-only read-only preflight':['STAGING_BACKUP_DATABASE_URL','STAGING_008_BACKUP_ADMIN_ACK','STAGING_BACKUP_CA_PEM_B64'],
-    'Stream PGDMP straight into AGE encryption with no plaintext artifact':['STAGING_BACKUP_DATABASE_URL','STAGING_BACKUP_CA_PEM_B64'],
+    'Stream PGDMP straight into AGE encryption with no plaintext artifact':['STAGING_BACKUP_DATABASE_URL','STAGING_008_BACKUP_ADMIN_ACK','STAGING_BACKUP_CA_PEM_B64'],
     'Recheck frozen staging preimage':['STAGING_BACKUP_DATABASE_URL','STAGING_008_BACKUP_ADMIN_ACK','STAGING_BACKUP_CA_PEM_B64'],
     'Decrypt only in a separate disposable PG17 PostGIS runner':['STAGING_008_AGE_IDENTITY']
   };
@@ -137,4 +137,26 @@ test('manual workflow exposes credentials only in explicitly authorized step env
   assert.equal((workflow.match(/persist-credentials: false/g)||[]).length,2);
   assert.doesNotMatch(workflow.split('  independent-cold-restore:')[1],/secrets\.STAGING_BACKUP_/);
   assert.doesNotMatch(workflow.split('  independent-cold-restore:')[0],/secrets\.STAGING_008_AGE_IDENTITY/);
+});
+
+test('dump TCP environment uses database name, decoded password and fixed verify-full CA, not URI argv',()=>{
+  const env={APP_ENV:'staging',OTP_DB_SSL:'true',STAGING_008_BACKUP_ACK:'STAGING_008_PREIMAGE_ONLY',
+    STAGING_BACKUP_DATABASE_URL:POOL.replace('synthetic-only','fake%40password%3Avalue')};
+  assert.deepEqual(dumpConnectionEnv(env),{
+    PGHOST:'aws-0-ap-southeast-1.pooler.supabase.com',PGPORT:'5432',
+    PGUSER:'campuspool_staging_app.'+PROJECT,PGPASSWORD:'fake@password:value',
+    PGDATABASE:'postgres',PGSSLMODE:'verify-full',PGSSLROOTCERT:'/run/pinned-ca.pem'
+  });
+  const admin={...env,STAGING_BACKUP_DATABASE_URL:env.STAGING_BACKUP_DATABASE_URL.replace('campuspool_staging_app.','postgres.')};
+  assert.throws(()=>dumpConnectionEnv(admin),/ROLE_NOT_APPROVED/);
+  assert.equal(dumpConnectionEnv({...admin,STAGING_008_BACKUP_ADMIN_ACK:'OWNER_APPROVED_STAGING_BACKUP_ADMIN_READ_ONLY_EXPORT'}).PGUSER,'postgres.'+PROJECT);
+  assert.throws(()=>dumpConnectionEnv({...env,APP_ENV:'production'}),/EXPLICIT_GUARDS_MISSING/);
+  assert.throws(()=>dumpConnectionEnv({...env,STAGING_BACKUP_DATABASE_URL:POOL.replace('verify-full','require')}));
+  assert.throws(()=>dumpConnectionEnv({...env,STAGING_BACKUP_DATABASE_URL:DIRECT.replace('/postgres',':15432/postgres')}));
+  const workflow=fs.readFileSync('.github/workflows/staging-008-recovery-proof.yml','utf8');
+  assert.doesNotMatch(workflow,/export PGDATABASE="\$STAGING_BACKUP_DATABASE_URL"/);
+  assert.match(workflow,/dumpConnectionEnv\(process\.env\)/);
+  assert.match(workflow,/Object\.keys\(pg\)\.flatMap\(k=>\['-e',k\]\)/);
+  assert.match(workflow,/env:\{PATH:process\.env\.PATH,HOME:process\.env\.HOME,\.\.\.pg\}/);
+  assert.match(workflow,/STAGING_PGDUMP_FAILED=/);
 });
