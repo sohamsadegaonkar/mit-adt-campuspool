@@ -37,6 +37,40 @@ function config(env){
   if(role!==APP_ROLE&&role!=='postgres')throw Error('ROLE');
   return {target,role,adminAllowed};
 }
+// Diagnostic labels are a fixed allowlist; never print URL components, raw errors,
+// or secret values. The existing config() guard remains the sole authority.
+function explainConfig(env){
+  const checks={
+    DIAG_STAGING_SCOPE:env.APP_ENV==='staging'&&env.STAGING_CREDENTIAL_VALIDATION_ACK==='STAGING_CREDENTIALS_READ_ONLY',
+    DIAG_URL_PRESENT:typeof env.STAGING_BACKUP_DATABASE_URL==='string'&&env.STAGING_BACKUP_DATABASE_URL.length>0
+  };
+  let u;
+  try{u=new URL(env.STAGING_BACKUP_DATABASE_URL);}catch{return {...checks,DIAG_URL_PARSE:false};}
+  checks.DIAG_URL_PARSE=true;
+  const project='tnitksrlntrdxbvznxzf';
+  const direct=u.hostname==='db.'+project+'.supabase.co';
+  const pooler=u.hostname.endsWith('.pooler.supabase.com');
+  let user='',passwordValid=false;
+  try{user=decodeURIComponent(u.username);}catch{}
+  try{passwordValid=Boolean(decodeURIComponent(u.password));}catch{}
+  const suffix=direct?'':'.'+project;
+  const admin=user==='postgres'+suffix;
+  const restricted=user===APP_ROLE+suffix;
+  return {...checks,
+    DIAG_PROTOCOL:['postgres:','postgresql:'].includes(u.protocol),
+    DIAG_STAGING_PROJECT:direct||(pooler&&user.endsWith('.'+project)),
+    DIAG_ROLE_NAME:admin||restricted,
+    DIAG_PORT:direct?(!u.port||u.port==='5432'):u.port==='5432',
+    DIAG_DATABASE_NAME:u.pathname==='/postgres',
+    DIAG_PASSWORD_PRESENT:Boolean(u.password),
+    DIAG_PASSWORD_ENCODING:passwordValid,
+    DIAG_SSL_MODE:u.searchParams.get('sslmode')==='verify-full',
+    DIAG_QUERY_PARAMETER_COUNT:u.searchParams.size===1,
+    DIAG_NO_FRAGMENT:!u.hash,
+    DIAG_ADMIN_INPUT:restricted||(admin&&env.STAGING_VALIDATE_ADMIN==='true'),
+    DIAG_ADMIN_ACK:restricted||(admin&&env.STAGING_008_BACKUP_ADMIN_ACK===ADMIN_ACK)
+  };
+}
 async function inspect(client){
   await client.query('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
   try{
@@ -65,7 +99,10 @@ async function validate(env=process.env,{ClientImpl=Client,emit=console.log,pars
     const opts=config(env);target=opts.target;role=opts.role;
     check('STAGING_TARGET_AND_ROLE',true);
     check('ADMIN_ACK_OR_RESTRICTED_ROLE',role===APP_ROLE||opts.adminAllowed);
-  }catch{check('STAGING_TARGET_AND_ROLE',false);}
+  }catch{
+    check('STAGING_TARGET_AND_ROLE',false);
+    for(const [name,ok] of Object.entries(explainConfig(env)))check(name,ok);
+  }
   try{ca=parseCa(env.STAGING_BACKUP_CA_PEM_B64);check('PINNED_CA_AND_VALIDITY',true);}
   catch{check('PINNED_CA_AND_VALIDITY',false);}
   if(!target||!ca)return {ok:false,results};
@@ -96,4 +133,4 @@ if(require.main===module)validate().then(r=>{
   console.log('CREDENTIAL_DIAGNOSTIC='+(r.ok?'PASS':'FAIL'));
   if(!r.ok)process.exitCode=1;
 }).catch(()=>{console.error('CREDENTIAL_DIAGNOSTIC=FAIL');process.exitCode=1;});
-module.exports={config,inspect,assess,validate,ADMIN_ACK,SQL};
+module.exports={config,explainConfig,inspect,assess,validate,ADMIN_ACK,SQL};

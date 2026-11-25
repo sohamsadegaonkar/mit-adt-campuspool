@@ -345,3 +345,8 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 
 - Review and verify exact-head offline CI for [PR #77](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/77), including new manual Staging Credential Validation workflow. After independent approval/merge and verified environment protections, dispatch main with `STAGING_CREDENTIALS_READ_ONLY`; no admin input unless separately approved. Check read-only TLS/role/ledger/export-permission diagnostics and synthetic AGE round trip in separate jobs. This requires no GitHub CLI and no write freeze. Review any FAIL before proceeding. [Task record](tasks/2026-11-23-staging-008-recovery-workflow.md).
 - Only after diagnostic success and separate operating approvals, establish actual write freeze, perform protected encrypted backup and independent real recovery, then apply conditionally authorized migration 008 and stage deploy. Do not treat a synthetic challenge as backup recovery proof. No production change.
+
+
+## 2026-11-25 — Resolve repeated credential rejection first
+
+- Stop rerunning the old diagnostic SHA. Review and test the bounded failure-label patch in [task](tasks/2026-11-25-staging-credential-failure-labels.md), then obtain maintainer approval and merge source only. Run a fresh protected main diagnostic to identify exact failing DIAG_* label. Never disclose secrets. Restore challenge requires separate protected approval and matching AGE identity. No freeze until credentials and recovery readiness established; actual encrypted backup, isolated restore and rollback remain mandatory before conditional migration 008 and staging deploy.

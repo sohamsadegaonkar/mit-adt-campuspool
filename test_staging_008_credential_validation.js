@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs');
-const {config,inspect,assess,validate,ADMIN_ACK,SQL}=require('./scripts/staging-008-credential-validation');
+const {config,explainConfig,inspect,assess,validate,ADMIN_ACK,SQL}=require('./scripts/staging-008-credential-validation');
 const {TABLES,APP_ROLE}=require('./scripts/staging-migration-preflight');
 const project='tnitksrlntrdxbvznxzf';
 const env={APP_ENV:'staging',STAGING_CREDENTIAL_VALIDATION_ACK:'STAGING_CREDENTIALS_READ_ONLY',
@@ -98,4 +98,24 @@ test('manual main-only protected workflow cannot export or migrate, and secrets 
   assert.match(y,/head -c 64 \/dev\/urandom/);
   assert.match(y,/AGE_KEY_PAIR_MATCH=PASS/);
   assert.match(y,/REAL_DATABASE_EXPORT=NO/);
+});
+
+test('failed configuration has specific fixed diagnostics without secret disclosure or connection',async()=>{
+  const admin={...env,STAGING_VALIDATE_ADMIN:'true',STAGING_BACKUP_DATABASE_URL:env.STAGING_BACKUP_DATABASE_URL.replace(APP_ROLE,'postgres')};
+  assert.equal(explainConfig(admin).DIAG_ADMIN_ACK,false);
+  assert.equal(explainConfig(admin).DIAG_SSL_MODE,true);
+  const allowed={...admin,STAGING_008_BACKUP_ADMIN_ACK:ADMIN_ACK};
+  assert.ok(Object.values(explainConfig(allowed)).every(Boolean));
+  assert.equal(explainConfig({...allowed,STAGING_BACKUP_DATABASE_URL:allowed.STAGING_BACKUP_DATABASE_URL.replace('?sslmode=verify-full','')}).DIAG_SSL_MODE,false);
+  assert.equal(explainConfig({...allowed,STAGING_BACKUP_DATABASE_URL:allowed.STAGING_BACKUP_DATABASE_URL+'&x=1'}).DIAG_QUERY_PARAMETER_COUNT,false);
+  assert.equal(explainConfig({...allowed,STAGING_BACKUP_DATABASE_URL:allowed.STAGING_BACKUP_DATABASE_URL.replace(':5432',':6543')}).DIAG_PORT,false);
+  assert.equal(explainConfig({...allowed,STAGING_BACKUP_DATABASE_URL:allowed.STAGING_BACKUP_DATABASE_URL.replace(project,'wrongproject')}).DIAG_STAGING_PROJECT,false);
+  assert.equal(explainConfig({...allowed,STAGING_BACKUP_DATABASE_URL:'not-a-url-sensitive'}).DIAG_URL_PARSE,false);
+  const logs=[];
+  class Forbidden{constructor(){assert.fail('must not connect');}}
+  const r=await validate(admin,{ClientImpl:Forbidden,emit:x=>logs.push(x),parseCa:()=> 'fake-ca'});
+  assert.equal(r.ok,false);
+  assert.ok(logs.includes('DIAG_ADMIN_ACK=FAIL'));
+  assert.ok(logs.every(l=>/^[A-Z0-9_]+=(PASS|FAIL)$/.test(l)));
+  assert.ok(!logs.join('\n').includes('synthetic-only'));
 });
