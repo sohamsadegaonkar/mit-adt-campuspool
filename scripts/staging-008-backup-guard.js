@@ -27,6 +27,20 @@ function parseBackupTarget(value,{allowAdmin=false}={}){
   return {hostname:url.hostname,port:Number(url.port)||5432,
     user,password:decodeURIComponent(url.password),database:'postgres'};
 }
+// libpq does not expand a URI supplied only as its PGDATABASE default.
+// Keep credentials in the short-lived process environment, not argv or logs.
+function dumpConnectionEnv(env){
+  if(env.APP_ENV!=='staging'||env.OTP_DB_SSL!=='true'||
+     env.STAGING_008_BACKUP_ACK!=='STAGING_008_PREIMAGE_ONLY')
+    throw Error('STAGING_BACKUP_EXPLICIT_GUARDS_MISSING');
+  const allowAdmin=env.STAGING_008_BACKUP_ADMIN_ACK===
+    'OWNER_APPROVED_STAGING_BACKUP_ADMIN_READ_ONLY_EXPORT';
+  const target=parseBackupTarget(env.STAGING_BACKUP_DATABASE_URL,{allowAdmin});
+  if(target.port!==5432)throw Error('STAGING_SESSION_POOLER_PORT_REQUIRED');
+  return {PGHOST:target.hostname,PGPORT:String(target.port),PGUSER:target.user,
+    PGPASSWORD:target.password,PGDATABASE:target.database,
+    PGSSLMODE:'verify-full',PGSSLROOTCERT:'/run/pinned-ca.pem'};
+}
 function parsePinnedCa(encoded){
   if(typeof encoded!=='string'||encoded.length<500||encoded.length>15000)
     throw Error('STAGING_CA_MISSING');
@@ -116,4 +130,4 @@ if(require.main===module){
   guard().then(x=>process.stdout.write(JSON.stringify(x)+'\n'))
     .catch(()=>{process.stderr.write('STAGING_008_READ_ONLY_PREIMAGE_BLOCKED\n');process.exitCode=1;});
 }
-module.exports={parseBackupTarget,parsePinnedCa,checkCountRows,countReadOnly,guard,CA_PIN};
+module.exports={parseBackupTarget,dumpConnectionEnv,parsePinnedCa,checkCountRows,countReadOnly,guard,CA_PIN};

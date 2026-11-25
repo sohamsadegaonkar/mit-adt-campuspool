@@ -90,7 +90,12 @@ jobs:
           age-keygen -o "$TMP/age-identity" >/dev/null 2>&1
           RECIPIENT="$(age-keygen -y "$TMP/age-identity")"
           [[ "$RECIPIENT" =~ ^age1[023456789acdefghjklmnpqrstuvwxyz]{58}$ ]]
-          docker exec "$CID" pg_dump -U postgres -d synthetic_008_backup \
+          # Exercise the live export's host-network TCP transport with fake credentials only.
+          docker run --rm --network host \
+            -e PGHOST=127.0.0.1 -e PGPORT=5432 -e PGUSER=postgres \
+            -e PGPASSWORD=synthetic-only -e PGDATABASE=synthetic_008_backup \
+            -e PGSSLMODE=disable --entrypoint pg_dump \
+            postgres:17-bookworm@sha256:837bed18782820fe967067cb5328b02b0d9992c1be9a37ee0c9c492cfc03af3b \
             --format=custom --no-owner --no-acl --table=public.synthetic_008 |
             age --encrypt --recipient "$RECIPIENT" --output "$TMP/backup.age"
           test -s "$TMP/backup.age"

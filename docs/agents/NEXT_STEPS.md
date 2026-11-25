@@ -350,3 +350,8 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 ## 2026-11-25 — Resolve repeated credential rejection first
 
 - Stop rerunning the old diagnostic SHA. Review and test the bounded failure-label patch in [task](tasks/2026-11-25-staging-credential-failure-labels.md), then obtain maintainer approval and merge source only. Run a fresh protected main diagnostic to identify exact failing DIAG_* label. Never disclose secrets. Restore challenge requires separate protected approval and matching AGE identity. No freeze until credentials and recovery readiness established; actual encrypted backup, isolated restore and rollback remain mandatory before conditional migration 008 and staging deploy.
+
+
+## 2026-11-25 — Resolve real pg_dump transport failure
+
+- Do not rerun run 45606804361 at old SHA. Review and test [TCP transport patch](tasks/2026-11-25-staging-pgdump-tcp-environment.md), then obtain maintainer approval and merge source only. Reconfirm maintenance window and freeze before fresh main recovery workflow; approve both protected jobs. Require actual encrypted artifact and isolated scratch recovery evidence. Keep freeze short; if window ends before recovery, use exact recorded thaw under owner authorization. No migration 008 or staging deployment before recovery and rollback gate, no production change.

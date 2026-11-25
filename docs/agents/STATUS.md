@@ -354,3 +354,8 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 ## 2026-11-25 — Credential validation failure labels (branch only)
 
 - PR #77 is merged at 4b25a0c. Owner-authorized single-maintainer approval on both staging recovery environments; main-only and administrator bypass off; no independent human approval claimed. Latest [run 45601322828](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/45601322828) failed target/role validation before connection despite admin input true; pinned CA and synthetic encryption pass. Exact stored secret failure not yet known. Branch adds redacted failure-specific labels and regression tests without changing authorization. CI pending. [Task](tasks/2026-11-25-staging-credential-failure-labels.md). No real backup, restore, migration, or deploy.
+
+
+## 2026-11-25 — Real staging export attempted, TCP transport repair (branch only)
+
+- Credential validation #7 attempt 2 succeeded per owner screenshot. Scoped app role freeze verified live; owner confirmed other writers paused. [Actual run 45606804361](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/45606804361) main@9877396, job 139179678573: preflight passed (nine empty app tables, ledger 7); pg_dump attempted Unix socket and failed. No archive uploaded; isolated restore skipped. App freeze remains active from prior task. Branch replaces URI-as-PGDATABASE with explicit validated libpq TCP fields, pinned verify-full CA and redacted error categories; tests pending. [Task](tasks/2026-11-25-staging-pgdump-tcp-environment.md). No migration, deployment or production change.
