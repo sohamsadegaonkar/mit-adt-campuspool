@@ -5,6 +5,7 @@ const http=require('node:http');
 const https=require('node:https');
 const {spawn,execFileSync}=require('node:child_process');
 const {Pool}=require('pg');
+const crypto=require('node:crypto');
 const db=new URL(process.env.OTP_DATABASE_URL||'http://invalid');
 if(process.env.QA_DISPOSABLE_REGISTRATION!=='YES'||db.hostname!=='127.0.0.1'||
    db.pathname!=='/campuspool_registration_browser_test'||
@@ -14,16 +15,24 @@ const dir=process.env.REGISTRATION_FIXTURE_DIR;
 const origin='https://127.0.0.1:4199',upstream=4198;
 (async()=>{
   const pool=new Pool({connectionString:db.href});
+  const runtimePassword=crypto.randomBytes(32).toString('hex');
+  const runtimeUrl=new URL(db.href);
+  runtimeUrl.username='campuspool_staging_app';runtimeUrl.password=runtimePassword;
   try{
     for(const filename of ['001_otp.sql','002_users_sessions.sql','003_supabase_private_tables.sql','004_audit_user_index.sql','005_staging_backend_role.sql','015_pending_registration.sql'])
       await pool.query(fs.readFileSync(path.join(__dirname,'..','stage1-otp','migrations',filename),'utf8'));
+    // Disposable cluster only: use the same restricted runtime role as staging.
+    await pool.query("ALTER ROLE campuspool_staging_app LOGIN PASSWORD '"+runtimePassword+"'");
+    const {rows}=await pool.query("SELECT rolsuper,rolbypassrls,rolcreaterole FROM pg_roles WHERE rolname='campuspool_staging_app'");
+    if(rows.length!==1||rows[0].rolsuper||rows[0].rolbypassrls||rows[0].rolcreaterole)
+      throw Error('Browser runtime must not be a privileged database role');
   }finally{await pool.end();}
   fs.mkdirSync(dir,{recursive:true,mode:0o700});
   const key=path.join(dir,'tls.key'),cert=path.join(dir,'tls.crt');
   execFileSync('openssl',['req','-x509','-newkey','rsa:2048','-nodes','-keyout',key,'-out',cert,
     '-days','1','-subj','/CN=127.0.0.1','-addext','subjectAltName=IP:127.0.0.1'],{stdio:'ignore'});
   const child=spawn(process.execPath,['-r',path.join(__dirname,'registration-provider-fixture.cjs'),'server.js'],{
-    env:{...process.env,PORT:String(upstream),NODE_ENV:'production',APP_ENV:'staging',
+    env:{...process.env,OTP_DATABASE_URL:runtimeUrl.href,PORT:String(upstream),NODE_ENV:'production',APP_ENV:'staging',
       ENABLE_CLUSTER:'false',AUTH_OTP_BACKEND:'postgres',RIDES_BACKEND:'sqlite',
       MOBILITY_MATCHING_ENABLED:'false',OTP_DB_SSL:'false',ALLOW_DEV_OTP:'false',
       OTP_HMAC_KEY:'synthetic-registration-browser-hmac-not-live',
