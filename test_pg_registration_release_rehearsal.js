@@ -10,6 +10,8 @@ const {Pool}=require('pg');
 const {PgOtpStore}=require('./stage1-otp/pg-store');
 const {PgIdentity}=require('./stage1-otp/identity');
 const {RegistrationDrafts}=require('./stage1-otp/registration-drafts');
+const {assess,read}=require('./scripts/staging-registration-release-preflight');
+async function catalog(pool,phase){const client=await pool.connect();try{return assess(await read(client),phase);}finally{client.release();}}
 const db=new URL(process.env.REGISTRATION_RELEASE_TEST_URL||'http://invalid');
 const container=process.env.REGISTRATION_RELEASE_CONTAINER||'';
 const name='campuspool_registration_release_test',scratch='campuspool_registration_restore_test';
@@ -49,6 +51,9 @@ test('ordered 001–014 candidate chain, 015 additive upgrade, legacy compatibil
       }
       await pool.query(sql);
     }
+    // Synthetic ledger matches the recorded sequential versions; this is not a Supabase-managed ledger rehearsal.
+    await pool.query('CREATE SCHEMA supabase_migrations; CREATE TABLE supabase_migrations.schema_migrations(version text PRIMARY KEY)');
+    for(let i=1;i<=14;i++)await pool.query('INSERT INTO supabase_migrations.schema_migrations(version) VALUES($1)',[String(i).padStart(3,'0')]);
     // Seed a real legacy login/session using synthetic-only identities.
     const email='release-fixture@students.mituniversity.edu.in',phone='9123456780';
     await pool.query("INSERT INTO campus_users(id,name,email,phone,dept,is_verified,verified_at) VALUES($1,'Release Fixture',$2,$3,'Computing',true,now())",[crypto.randomUUID(),email,phone]);
@@ -64,6 +69,8 @@ test('ordered 001–014 candidate chain, 015 additive upgrade, legacy compatibil
     const oldSession=await oldIdentity.sessionForEmail(email);
     assert.ok(oldSession);
     const before=await snapshot(pool);
+    assert.deepEqual((await catalog(pool,'before')).errors,[]);
+    assert.equal((await catalog(pool,'after')).catalogAndLedgerMatch,false);
     // Real PGDMP. In-memory AES-GCM is a synthetic transport check, NOT
     // evidence of actual AGE key custody, Azure backup or staging recovery.
     const archive=docker(['pg_dump','-U','postgres','-Fc','-d',name]);
@@ -80,6 +87,8 @@ test('ordered 001–014 candidate chain, 015 additive upgrade, legacy compatibil
     assert.throws(()=>decrypt(tampered));
     const migration=fs.readFileSync(path.join(root,'015_pending_registration.sql'),'utf8');
     await pool.query(migration);
+    await pool.query("INSERT INTO supabase_migrations.schema_migrations(version) VALUES('015')");
+    assert.deepEqual((await catalog(pool,'after')).errors,[]);
     const after=await snapshot(pool);
     for(const [t,info] of Object.entries(before.tables))assert.deepEqual(after.tables[t],info,t);
     assert.equal(after.tables.campus_pending_registrations.count,0);
@@ -110,6 +119,7 @@ test('ordered 001–014 candidate chain, 015 additive upgrade, legacy compatibil
     docker(['pg_restore','-U','postgres','--exit-on-error','-d',scratch],decrypt(encrypted));
     restored=new Pool({connectionString:scratchUrl.href,connectionTimeoutMillis:5000});
     assert.deepEqual(await snapshot(restored),before);
+    assert.deepEqual((await catalog(restored,'before')).errors,[]);
     assert.equal((await restored.query("SELECT to_regclass('public.campus_pending_registrations') AS t")).rows[0].t,null);
     console.log('SYNTHETIC_ORDERED_CHAIN_001_015=PASS; LEGACY_RUNTIME_COMPATIBILITY=PASS; ISOLATED_PREIMAGE_RESTORE=PASS; LIVE_RELEASE_AUTHORIZED=NO');
   }finally{
