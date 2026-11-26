@@ -4,6 +4,7 @@ on:
     paths:
       - 'stage1-otp/**'
       - 'test_pg_registration_release_rehearsal.js'
+      - 'scripts/staging-registration-release-preflight.js'
       - '.github/workflows/registration-release-rehearsal.yml'
       - 'docs/agents/**'
   workflow_dispatch:
