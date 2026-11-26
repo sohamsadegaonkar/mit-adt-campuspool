@@ -72,7 +72,7 @@ async function read(client){
     const purposeRows=await q("SELECT pg_get_constraintdef(oid) AS definition,convalidated FROM pg_constraint WHERE conrelid='public.otp_challenges'::regclass AND conname='otp_challenges_purpose_check' AND contype='c'");
     const invalidConstraints=(await q("SELECT count(*)::int AS n FROM pg_constraint p JOIN pg_class c ON c.oid=p.conrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND (c.relname LIKE 'campus\\_%' OR c.relname LIKE 'otp\\_%') AND NOT p.convalidated"))[0].n;
     const connections=(await q("SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname=current_database() AND usename=$1",[APP]))[0].n;
-    const writableSequences=(await q("SELECT count(*)::int AS n FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='S' AND has_sequence_privilege($1,c.oid,'USAGE,UPDATE')",[APP]))[0].n;
+    const writableSequences=(await q("SELECT count(*)::int AS n FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND CASE WHEN c.relkind='S' THEN has_sequence_privilege($1,c.oid,'USAGE,UPDATE') ELSE false END",[APP]))[0].n;
     const purposes=[...(purposeRows[0]?.definition||'').matchAll(/'([^']+)'/g)].map(x=>x[1]).sort();
     return {roles,tables,versions,columns,indexes,constraints,policies,purposes,purposeValidated:purposeRows.length===1&&purposeRows[0].convalidated,invalidConstraints,connections,writableSequences};
   }finally{await client.query('ROLLBACK');}
