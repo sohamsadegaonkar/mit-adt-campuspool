@@ -9,29 +9,55 @@ const dir=process.env.REGISTRATION_FIXTURE_DIR;
 const db=new URL(process.env.OTP_DATABASE_URL||'http://invalid');
 if(process.env.QA_DISPOSABLE_REGISTRATION!=='YES'||db.hostname!=='127.0.0.1'||db.pathname!=='/campuspool_registration_browser_test'||!dir)
   throw Error('Disposable test environment required');
-const options={ignoreHTTPSErrors:true,serviceWorkers:'block',httpCredentials:{username:'staging',password:'synthetic-registration-browser-basic-not-live'}};
+const options={ignoreHTTPSErrors:true,serviceWorkers:'block',httpCredentials:{origin,username:'staging',password:'synthetic-registration-browser-basic-not-live'}};
 const cookieName='__Host-cp_registration';
 const code=(channel,target)=>fs.readFileSync(path.join(dir,crypto.createHash('sha256').update(channel+':'+target).digest('hex')),'utf8');
 const email=()=>crypto.randomBytes(10).toString('hex')+'@students.mituniversity.edu.in';
 const phone=()=> '9'+String(crypto.randomInt(100000000,999999999));
 async function open(context){
   const page=context.pages()[0]||await context.newPage();
-  await page.goto(origin+'/',{waitUntil:'domcontentloaded'});
-  await page.locator('#headerLoginBtn').click();
-  await page.locator('#tabAuthRegister').click();
-  await expect(page.locator('#resumeEmail')).toBeVisible();
+  page.setDefaultTimeout(12000);
+  page.setDefaultNavigationTimeout(20000);
+  // This suite verifies auth, not CDN/map availability. The app includes
+  // embedded CSS and gracefully tolerates Leaflet absence.
+  await context.route('**/*',route=>{
+    const u=new URL(route.request().url());
+    return u.origin===origin?route.continue():route.abort();
+  });
+  page.on('pageerror',()=>console.log('[registration-browser] page script error (details omitted)'));
+  page.on('response',r=>{
+    const u=new URL(r.url());
+    if(u.origin===origin&&u.pathname.startsWith('/api/auth/'))
+      console.log('[registration-browser]',r.request().method(),u.pathname,r.status());
+  });
+  await test.step('navigate to real staging fixture',async()=>{
+    const response=await page.goto(origin+'/',{waitUntil:'domcontentloaded',timeout:20000});
+    expect(response.status()).toBe(200);
+    await expect.poll(()=>page.evaluate(()=>typeof window.CampusRegistrationUI?.setMode)).toBe('function');
+  });
+  await test.step('open registration panel',async()=>{
+    await page.locator('#headerLoginBtn').click();
+    await page.locator('#tabAuthRegister').click();
+    await expect(page.locator('#resumeEmail')).toBeVisible();
+    await expect(page.locator('#resumeSaveContacts')).toBeEnabled();
+  });
   return page;
 }
 async function post(page,route,body={},headers={'X-Registration-Request':'1','Content-Type':'application/json'}){
   return page.evaluate(async({route,body,headers})=>{
-    const response=await fetch('/api/auth/'+route,{method:'POST',credentials:'same-origin',headers,body:JSON.stringify(body)});
+    const response=await fetch('/api/auth/'+route,{method:'POST',credentials:'same-origin',headers,body:JSON.stringify(body),signal:AbortSignal.timeout(10000)});
     return {status:response.status,data:await response.json()};
   },{route,body,headers});
 }
 async function clickResponse(page,id,route,status){
-  const [r]=await Promise.all([page.waitForResponse(r=>r.url().endsWith('/api/auth/'+route)&&r.request().method()==='POST'),page.locator('#'+id).click()]);
-  expect(r.status()).toBe(status);
-  return r.json();
+  return test.step(route+' expects HTTP '+status,async()=>{
+    const [r]=await Promise.all([page.waitForResponse(r=>r.url().endsWith('/api/auth/'+route)&&r.request().method()==='POST',{timeout:15000}),page.locator('#'+id).click({timeout:12000})]);
+    expect(r.status()).toBe(status);
+    const data=await r.json();
+    // The UI asynchronously updates state after the response, including error recovery.
+    await expect(page.locator('#resumeRegistrationView')).toHaveAttribute('aria-busy','false');
+    return data;
+  });
 }
 async function fillContacts(page,e,p){
   await page.locator('#resumeEmail').fill(e);
@@ -106,7 +132,7 @@ test('real HTTPS browser: persistent cookie, partial access denial, recovery rot
   }finally{
     fs.rmSync(path.join(dir,'sms-down'),{force:true});
     await original.close().catch(()=>{});
-    if(recovered)await recovered.close();
+    if(recovered)await recovered.close().catch(()=>{});
     await pool.end();
   }
 });
@@ -142,5 +168,5 @@ test('mobile-first recovery requires verified channel and draft creation is rate
       statuses.push((await post(page,'registration-start',{email:email(),phone:phone()})).status);
     }
     expect(statuses).toContain(429);
-  }finally{await context.close();await other.close();}
+  }finally{await Promise.allSettled([context.close(),other.close()]);}
 });
