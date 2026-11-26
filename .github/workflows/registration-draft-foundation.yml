@@ -68,6 +68,14 @@ jobs:
           node --check registration-ui.js
           node --check stage1-otp/registration-http.js
           npx playwright test --config=playwright.registration.config.cjs
+      - name: Report browser failure context (synthetic fixture only)
+        if: failure()
+        run: |
+          find test-results/registration -name error-context.md -print 2>/dev/null | while IFS= read -r file; do
+            echo "Browser failure context: $file"
+            # Print only structural snapshot lines, never code inputs, contacts or cookies.
+            grep -E 'heading |button |tab |alert |status |dialog ' "$file" | sed -E 's/[[:alnum:]._%+-]+@([[:alnum:].-]+\.[[:alpha:]]{2,})/[redacted-email]/g; s/[0-9]{6,}/[redacted-number]/g' | head -80 || true
+          done
       - name: Delete synthetic OTP and browser profile fixtures
         if: always()
         run: rm -rf "$RUNNER_TEMP/registration-fixtures"
