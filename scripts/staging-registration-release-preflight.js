@@ -34,13 +34,23 @@ function assess(s,phase){
     const mutable=canWrite&&!append.includes(t.name);
     need(t.update===mutable&&t.delete===mutable,'APP_MUTATION_MISMATCH_'+t.name);
     need(!t.extra,'APP_EXTRA_PRIVILEGE_'+t.name);
+    const policies=s.policies.filter(p=>p.tablename===t.name);
+    const readOnly=t.name===reviewer,appendOnly=append.includes(t.name);
+    const commands=readOnly?['SELECT']:appendOnly?['INSERT','SELECT']:['ALL'];
+    need(policies.length===commands.length&&JSON.stringify(policies.map(p=>p.cmd).sort())===JSON.stringify(commands)&&policies.every(p=>p.roles.length===1&&p.roles[0]===APP&&(p.cmd==='INSERT'||p.qual==='true')&&(!['ALL','INSERT'].includes(p.cmd)||p.with_check==='true')),'APP_POLICY_DRIFT_'+t.name);
   }
   const requiredColumns=['campus_rides.payment_mode','campus_bookings.payment_mode','campus_rides.journey_stage','campus_rides.departed_at','campus_rides.pickup_at','campus_rides.arrived_at','campus_bookings.boarded_at','campus_bookings.boarding_pin_nonce','campus_bookings.boarding_pin_expires_at','campus_bookings.boarding_pin_attempts'];
   need(requiredColumns.every(x=>s.columns.includes(x)),'009_014_COLUMN_DRIFT');
+  const requiredConstraints=['campus_idempotency_response_pair','campus_ride_payment_mode_check','campus_booking_payment_mode_check','campus_booking_ride_payment_mode_fk','campus_ride_journey_stage_check','campus_booking_boarding_pin_check'];
+  const requiredIndexes=['campus_idempotency_expiry_idx','campus_rides_payment_mode_uidx','campus_booking_case_events_case_idx','campus_booking_cases_opened_idx','campus_case_responses_created_idx','campus_case_reviewer_grants_active_idx','campus_case_appeals_case_idx'];
+  need(requiredConstraints.every(x=>s.constraints.includes(x))&&requiredIndexes.every(x=>s.indexes.includes(x)),'008_014_CONSTRAINT_OR_INDEX_DRIFT');
   need(s.invalidConstraints===0,'UNVALIDATED_APPLICATION_CONSTRAINT');
   need(s.purposeValidated,'OTP_PURPOSE_CONSTRAINT_MISSING_OR_INVALID');
   need(JSON.stringify(s.purposes)===JSON.stringify(phase==='after'?purpose:purpose.filter(x=>!x.startsWith('signup_draft_')&&!x.startsWith('signup_recovery_'))),'OTP_PURPOSE_DRIFT');
-  if(phase==='after')need(indexes.every(x=>s.indexes.includes(x)),'REGISTRATION_INDEX_DRIFT');
+  if(phase==='after'){
+    need(indexes.every(x=>s.indexes.includes(x)),'REGISTRATION_INDEX_DRIFT');
+    need(['id','resume_hash','email','phone','email_challenge_id','phone_challenge_id','email_verified_at','phone_verified_at','created_at','expires_at','consumed_at'].every(x=>s.columns.includes(pending+'.'+x)),'REGISTRATION_COLUMN_DRIFT');
+  }
   return {phase,catalogAndLedgerMatch:errors.length===0,errors,
     applicationFreezeVerified:phase==='frozen'&&errors.length===0,
     globalWriteFreezeVerified:false,backupVerified:false,releaseReady:false};
@@ -55,12 +65,16 @@ async function read(client){
     const versions=(await q('SELECT version::text AS v FROM supabase_migrations.schema_migrations ORDER BY version')).map(x=>x.v);
     const columns=(await q("SELECT table_name||'.'||column_name AS c FROM information_schema.columns WHERE table_schema='public'")).map(x=>x.c);
     const indexes=(await q("SELECT indexname AS i FROM pg_indexes WHERE schemaname='public'")).map(x=>x.i);
+    const constraints=(await q("SELECT conname AS c FROM pg_constraint p JOIN pg_class c ON c.oid=p.conrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND p.convalidated")).map(x=>x.c);
+    const policies=await q("SELECT tablename,roles,cmd,qual,with_check FROM pg_policies WHERE schemaname='public'");
+    // node-postgres may expose name[] as text; accept only the exact single role syntax.
+    for(const p of policies)if(typeof p.roles==='string')p.roles=p.roles.replace(/^\{|\}$/g,'').split(',');
     const purposeRows=await q("SELECT pg_get_constraintdef(oid) AS definition,convalidated FROM pg_constraint WHERE conrelid='public.otp_challenges'::regclass AND conname='otp_challenges_purpose_check' AND contype='c'");
     const invalidConstraints=(await q("SELECT count(*)::int AS n FROM pg_constraint p JOIN pg_class c ON c.oid=p.conrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND (c.relname LIKE 'campus\\_%' OR c.relname LIKE 'otp\\_%') AND NOT p.convalidated"))[0].n;
     const connections=(await q("SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname=current_database() AND usename=$1",[APP]))[0].n;
     const writableSequences=(await q("SELECT count(*)::int AS n FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='S' AND has_sequence_privilege($1,c.oid,'USAGE,UPDATE')",[APP]))[0].n;
     const purposes=[...(purposeRows[0]?.definition||'').matchAll(/'([^']+)'/g)].map(x=>x[1]).sort();
-    return {roles,tables,versions,columns,indexes,purposes,purposeValidated:purposeRows.length===1&&purposeRows[0].convalidated,invalidConstraints,connections,writableSequences};
+    return {roles,tables,versions,columns,indexes,constraints,policies,purposes,purposeValidated:purposeRows.length===1&&purposeRows[0].convalidated,invalidConstraints,connections,writableSequences};
   }finally{await client.query('ROLLBACK');}
 }
 async function main(env=process.env,phase=process.argv[2]){
