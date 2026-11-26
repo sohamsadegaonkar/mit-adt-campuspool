@@ -5,7 +5,7 @@ BEGIN;
 -- application code cannot redeem a draft OTP as a legacy registration proof.
 ALTER TABLE public.otp_challenges DROP CONSTRAINT IF EXISTS otp_challenges_purpose_check;
 ALTER TABLE public.otp_challenges ADD CONSTRAINT otp_challenges_purpose_check
-  CHECK (purpose IN ('login','signup_email','signup_phone','signup_draft_email','signup_draft_phone'));
+  CHECK (purpose IN ('login','signup_email','signup_phone','signup_draft_email','signup_draft_phone','signup_recovery_email','signup_recovery_phone'));
 CREATE TABLE IF NOT EXISTS public.campus_pending_registrations (
   id uuid PRIMARY KEY,
   resume_hash text NOT NULL UNIQUE CHECK (resume_hash ~ '^[0-9a-f]{64}$'),
@@ -25,6 +25,12 @@ CREATE TABLE IF NOT EXISTS public.campus_pending_registrations (
 );
 CREATE INDEX IF NOT EXISTS campus_pending_registration_expiry_idx
   ON public.campus_pending_registrations(expires_at);
+CREATE INDEX IF NOT EXISTS campus_pending_registration_recovery_email_idx
+  ON public.campus_pending_registrations(email,expires_at)
+  WHERE email_verified_at IS NOT NULL AND consumed_at IS NULL;
+CREATE INDEX IF NOT EXISTS campus_pending_registration_recovery_phone_idx
+  ON public.campus_pending_registrations(phone,expires_at)
+  WHERE phone_verified_at IS NOT NULL AND consumed_at IS NULL;
 ALTER TABLE public.campus_pending_registrations ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.campus_pending_registrations FROM PUBLIC;
 DO $roles$
