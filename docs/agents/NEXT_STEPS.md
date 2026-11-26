@@ -359,3 +359,7 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 ## 2026-11-26 — Complete resumable registration release gates
 
 - Review exact-head CI of draft PR #81; implement secure resume cookie, CSRF protection, rate-limited draft creation/recovery, lost-cookie channel proof, browser UI and full restricted-role/browser tests. Retention policy and candidate migration 015 ordering remain unapproved. No staging migration or rollout before fresh scoped recovery and approval. [Task](tasks/2026-11-26-resumable-registration-foundation.md).
+
+## 2026-11-26 — Registration staging release gates
+
+- Owner retention decision (7-day hard expiry proposed; no scheduler authorized), ordered 009–014 reconciliation, exact integrated CI, new protected real 014 encrypted backup and independent restore workflow, fresh scoped freeze/readback, approved atomic migration/ledger path, retained exact Render rollback artifact, flag-off smoke, then separately approved staging activation. See [release runbook](tasks/2026-11-26-resumable-registration-staging-release.md). Do not reuse the pre-008 archive/guard as fresh recovery evidence or enable production.
