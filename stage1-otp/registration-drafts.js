@@ -8,8 +8,8 @@ const {publicUser}=require('./identity');
 const hash=value=>crypto.createHash('sha256').update(value).digest('hex');
 const token=()=>crypto.randomBytes(32).toString('base64url');
 const columns={
-  email:{contact:'email',challenge:'email_challenge_id',verified:'email_verified_at',purpose:'signup_email'},
-  sms:{contact:'phone',challenge:'phone_challenge_id',verified:'phone_verified_at',purpose:'signup_phone'}
+  email:{contact:'email',challenge:'email_challenge_id',verified:'email_verified_at',purpose:'signup_draft_email'},
+  sms:{contact:'phone',challenge:'phone_challenge_id',verified:'phone_verified_at',purpose:'signup_draft_phone'}
 };
 function channelSpec(channel){
   if(!Object.hasOwn(columns,channel))throw new OtpError('INVALID_CHANNEL');
@@ -73,6 +73,14 @@ class RegistrationDrafts{
     const draft=await this._lock(client,resumeToken);
     if(draft[spec.contact]!==normalized||draft[spec.verified])throw new OtpError('REGISTRATION_UNAVAILABLE',403);
     await client.query('UPDATE campus_pending_registrations SET '+spec.challenge+'=$2 WHERE id=$1',[draft.id,challengeId]);
+  }
+  // Called while the OTP challenge row is locked, before comparing the code.
+  // A different draft cannot consume attempts or use an issued challenge.
+  async assertBoundChallenge(client,{resumeToken,channel,target,challengeId}){
+    const spec=channelSpec(channel),normalized=normalize(channel,target);
+    const draft=await this._lock(client,resumeToken);
+    if(draft[spec.contact]!==normalized||draft[spec.challenge]!==challengeId||draft[spec.verified])
+      throw new OtpError('REGISTRATION_UNAVAILABLE',403);
   }
   // Called after successful OTP validation in the SAME transaction. Consumes
   // the short-lived proof; it cannot then be used by legacy registration.
