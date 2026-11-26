@@ -36,8 +36,19 @@ async function open(context){
     await expect.poll(()=>page.evaluate(()=>typeof window.CampusRegistrationUI?.setMode)).toBe('function');
   });
   await test.step('open registration panel',async()=>{
-    await page.locator('#headerLoginBtn').click();
-    await page.locator('#tabAuthRegister').click();
+    // New visitors encounter the onboarding dialog; returning persistent
+    // profiles have already dismissed it. Follow the actual user path.
+    const seen=await page.evaluate(()=>localStorage.getItem('mit_adt_campuspool_onboarding_seen')==='true');
+    if(!seen){
+      await expect(page.locator('#welcomePopModal')).toBeVisible();
+      await page.locator('#welcomeRegisterBtn').click();
+      await expect(page.locator('#welcomePopModal')).toBeHidden();
+    }else{
+      await expect(page.locator('#welcomePopModal')).toBeHidden();
+      await page.locator('#headerLoginBtn').click();
+      await page.locator('#tabAuthRegister').click();
+    }
+    await expect(page.locator('#authModal')).toBeVisible();
     await expect(page.locator('#resumeEmail')).toBeVisible();
     await expect(page.locator('#resumeSaveContacts')).toBeEnabled();
   });
