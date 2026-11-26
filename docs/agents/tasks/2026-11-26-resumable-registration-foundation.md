@@ -36,6 +36,12 @@ Retention is an explicit constructor input with no default. Seven days remains a
 
 The earlier foundation run 45824936355 passed; Stage 1 OTP run 45824936162 passed on head 92e03da. The updated suite uses a disposable runner PostgreSQL database and synthetic delivery callbacks (no real email/SMS or staging credentials). It checks draft ownership, incorrect/replayed OTP, legacy isolation, SMS disabled and rejected, expired proof, restarted store, partial registration denial, retry, concurrent finalization, mobile-first and normal login. Run 45826799299 disposable PostgreSQL job succeeded on 0e1357b; browser job is running at this checkpoint. Exact-head checks for subsequent eligibility and restricted-role changes are pending. Browser coverage includes cookie attributes and real profile closure/reopening, SMS failure, partial-access denial, recovery proof rejection/rotation, mobile-first recovery, completion and draft creation throttling. No local test execution claimed.
 
+### Browser timeout follow-up
+
+- Exact head bb29ab6: all eight other workflows passed; Registration Draft Foundation PostgreSQL job passed, but both real HTTPS browser cases timed out at 90 seconds (run 45827162076, job 139934170029). The logs do not locate the failing action, so no definitive cause is claimed. The secondary context-close error followed the timeout.
+- Corrective source changes: restrict browser fixture requests to the local HTTPS origin (no third-party CDN dependency), add bounded navigation/action/fetch timeouts and named steps, scoped fixture Basic Auth, redacted route/status and error-context logging, await UI state settlement, clear stale busy state on dialog closure, and tolerate cleanup of already-closed contexts. No security assertions removed or test-wide timeout increased.
+- New CI required. No live deployment or schema change.
+
 ## Next steps
 
 - Confirm exact-head CI, including documentation contract. Add deeper challenge-replacement, contact-edit and rollback regression coverage as needed.
