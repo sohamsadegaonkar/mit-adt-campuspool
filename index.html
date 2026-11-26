@@ -77,7 +77,8 @@
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
-    tailwind.config = {
+    // Embedded CSS remains available when the optional CDN is blocked.
+    if (window.tailwind) window.tailwind.config = {
       darkMode: 'class',
       theme: {
         extend: {
@@ -1066,6 +1067,53 @@
           </div>
         </div>
 
+        <!-- Opt-in resumable registration. No verification tokens in JS storage. -->
+        <section id="resumeRegistrationView" class="hidden space-y-3" role="tabpanel" aria-labelledby="tabAuthRegister" aria-busy="false">
+          <p id="resumeRegistrationNotice" class="text-xs text-slate-300" role="status" aria-live="polite">Checking saved registration…</p>
+          <div id="resumeRegistrationDetails" class="space-y-2">
+            <label for="resumeEmail" class="block text-xs font-bold text-slate-400">University email</label>
+            <input id="resumeEmail" type="email" autocomplete="email" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2">
+            <label for="resumePhone" class="block text-xs font-bold text-slate-400">Mobile number (+91)</label>
+            <input id="resumePhone" type="tel" autocomplete="tel-national" inputmode="numeric" maxlength="10" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2">
+            <button id="resumeSaveContacts" type="button" class="w-full cp-button cp-button-primary">Save contacts</button>
+          </div>
+          <div id="resumeVerification" class="hidden space-y-3">
+            <p class="text-xs text-slate-400">Verify either contact first. CampusPool remains locked until both are verified.</p>
+            <div class="border border-slate-700 rounded-xl p-3 space-y-2">
+              <p id="resumeEmailStatus" class="font-bold text-sm" role="status">Email pending</p>
+              <button id="resumeSendEmail" type="button" class="cp-button">Send email code</button>
+              <label for="resumeEmailCode" class="sr-only">Email verification code</label>
+              <input id="resumeEmailCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2" placeholder="6-digit email code">
+              <button id="resumeVerifyEmail" type="button" class="cp-button cp-button-primary">Verify email</button>
+            </div>
+            <div class="border border-slate-700 rounded-xl p-3 space-y-2">
+              <p id="resumePhoneStatus" class="font-bold text-sm" role="status">Mobile pending</p>
+              <button id="resumeSendPhone" type="button" class="cp-button">Send SMS code</button>
+              <label for="resumePhoneCode" class="sr-only">Mobile verification code</label>
+              <input id="resumePhoneCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2" placeholder="6-digit SMS code">
+              <button id="resumeVerifyPhone" type="button" class="cp-button cp-button-primary">Verify mobile</button>
+            </div>
+            <div class="space-y-2">
+              <label for="resumeName" class="block text-xs font-bold text-slate-400">Full name</label>
+              <input id="resumeName" autocomplete="name" maxlength="100" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2">
+              <label for="resumeDept" class="block text-xs font-bold text-slate-400">Department / College</label>
+              <select id="resumeDept" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2"></select>
+              <button id="resumeFinalize" type="button" disabled class="w-full cp-button cp-button-primary">Activate account</button>
+            </div>
+          </div>
+          <div id="resumeRecovery" class="space-y-2 border-t border-slate-700 pt-3">
+            <p class="text-xs font-bold">Already verified a contact on another device?</p>
+            <label for="resumeRecoveryChannel" class="sr-only">Recovery channel</label>
+            <select id="resumeRecoveryChannel" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2"><option value="email">University email</option><option value="sms">Mobile number</option></select>
+            <label for="resumeRecoveryTarget" class="sr-only">Previously verified contact</label>
+            <input id="resumeRecoveryTarget" autocomplete="off" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2" placeholder="Previously verified contact">
+            <button id="resumeRecoverySend" type="button" class="cp-button">Request recovery code</button>
+            <label for="resumeRecoveryCode" class="sr-only">Recovery verification code</label>
+            <input id="resumeRecoveryCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2" placeholder="6-digit recovery code">
+            <button id="resumeRecoveryVerify" type="button" class="cp-button cp-button-primary">Recover saved registration</button>
+          </div>
+        </section>
+
         <!-- STEP 2: University Email OTP Verification -->
         <div id="authStep2EmailOtp" class="hidden space-y-3">
           <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-1">
@@ -1584,6 +1632,7 @@
       const sameOriginApi = urlString.startsWith('/api/');
       const method = (options.method || 'GET').toUpperCase();
       const headers = new Headers(options.headers || {});
+      if (sameOriginApi && method === 'POST' && urlString.startsWith('/api/auth/')) headers.set('X-Registration-Request','1');
       if (sameOriginApi && ['POST','PUT','PATCH','DELETE'].includes(method) && csrfToken) {
         headers.set('X-CSRF-Token', csrfToken);
       }
@@ -2653,6 +2702,7 @@
       if (viewRegister) viewRegister.classList.toggle('hidden', isSignIn);
       if (stepIndicator) stepIndicator.classList.toggle('hidden', isSignIn);
       if (modalTitle) modalTitle.textContent = isSignIn ? "Sign In to CampusPool" : "Create Campus Account";
+      window.CampusRegistrationUI?.setMode(mode);
 
       document.getElementById('loginIdentifierError')?.classList.add('hidden');
       document.getElementById('authNameError')?.classList.add('hidden');
@@ -2709,6 +2759,7 @@
     }
 
     function closeAuthModal() {
+      window.CampusRegistrationUI?.setMode('signin');
       hideModal('authModal');
     }
 
@@ -4469,6 +4520,7 @@
 
 
 <script src="/mobility-ui.js" defer></script>
+<script src="/registration-ui.js" defer></script>
 <script>
   // SECURITY REVIEW BUILD: Block real outgoing UPI intents while confirmation is unverified.
   document.addEventListener('click', function(event) {

@@ -359,3 +359,11 @@ Historical branch-only checkpoints are retained below. Private travel-intent UI 
 ## 2026-11-25 — Real staging export attempted, TCP transport repair (branch only)
 
 - Credential validation #7 attempt 2 succeeded per owner screenshot. Scoped app role freeze verified live; owner confirmed other writers paused. [Actual run 45606804361](https://github.com/sohamsadegaonkar/mit-adt-campuspool/actions/runs/45606804361) main@9877396, job 139179678573: preflight passed (nine empty app tables, ledger 7); pg_dump attempted Unix socket and failed. No archive uploaded; isolated restore skipped. App freeze remains active from prior task. Branch replaces URI-as-PGDATABASE with explicit validated libpq TCP fields, pinned verify-full CA and redacted error categories; tests pending. [Task](tasks/2026-11-25-staging-pgdump-tcp-environment.md). No migration, deployment or production change.
+
+## 2026-11-26 — Resumable registration OTP integration (draft branch only)
+
+- [Issue #80](https://github.com/sohamsadegaonkar/mit-adt-campuspool/issues/80) / [draft PR #81](https://github.com/sohamsadegaonkar/mit-adt-campuspool/pull/81): candidate migration 015 and restricted draft transaction layer plus distinct OTP purposes, opt-in auth routes and isolated real-code/provider-failure tests. Earlier foundation and legacy OTP CI passed; updated exact-head tests pending. No server feature enablement, no live migration, no staging or production deployment. [Task](tasks/2026-11-26-resumable-registration-foundation.md).
+
+## 2026-11-26 — Registration staging release preparation (source only)
+
+- PR #81: previous full CI 9/9 green at 4fb199c. Main still 001–008; open PR #70 reserves 009–014. Keep 015 provisional and ordered; no migration/merge/deploy authorization. New disposable PG17 chain/rollback/preimage rehearsal passed at e370ea7 (run 45830472084); stronger catalog/ledger checks require corrected exact-head CI. Prior pre-008 archive still retained but stale. [Release gates and operator runbook](tasks/2026-11-26-resumable-registration-staging-release.md).

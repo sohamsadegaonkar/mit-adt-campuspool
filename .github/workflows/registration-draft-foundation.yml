@@ -1,0 +1,81 @@
+name: Registration Draft Foundation
+on:
+  pull_request:
+    paths:
+      - 'stage1-otp/**'
+      - 'test_pg_registration_drafts.js'
+      - 'server.js'
+      - 'index.html'
+      - 'registration-ui.js'
+      - 'e2e/registration*'
+      - 'playwright.registration.config.cjs'
+      - '.github/workflows/registration-draft-foundation.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  disposable-postgres:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22.23.2'
+      - run: npm ci --omit=dev --ignore-scripts
+      - name: Prepare disposable runner PostgreSQL
+        run: |
+          set -euo pipefail
+          sudo systemctl start postgresql
+          sudo -u postgres psql -v ON_ERROR_STOP=1 -c "CREATE ROLE campuspool_ci_registration LOGIN SUPERUSER PASSWORD 'synthetic-ci-only';"
+          sudo -u postgres createdb -O campuspool_ci_registration campuspool_registration_test
+          sudo -u postgres psql -Atc 'SHOW server_version;'
+      - name: Test schema and transaction hooks without provider or live credentials
+        env:
+          REGISTRATION_TEST_DATABASE_URL: postgresql://campuspool_ci_registration:synthetic-ci-only@127.0.0.1:5432/campuspool_registration_test
+        run: |
+          node --check stage1-otp/registration-drafts.js
+          node --test test_pg_registration_drafts.js
+
+  browser-https:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22.23.2'
+      - run: npm ci
+      - run: npm install --no-save --package-lock=false @playwright/test@1.56.1
+      - run: npx playwright install --with-deps chromium
+      - name: Prepare isolated browser database and fixture directory
+        run: |
+          set -euo pipefail
+          sudo systemctl start postgresql
+          sudo -u postgres psql -v ON_ERROR_STOP=1 -c "CREATE ROLE campuspool_ci_registration LOGIN SUPERUSER PASSWORD 'synthetic-ci-only';"
+          sudo -u postgres createdb -O campuspool_ci_registration campuspool_registration_browser_test
+          mkdir -m 700 "$RUNNER_TEMP/registration-fixtures"
+          echo "REGISTRATION_FIXTURE_DIR=$RUNNER_TEMP/registration-fixtures" >> "$GITHUB_ENV"
+      - name: Real browser, real HTTP routes, synthetic delivery only
+        env:
+          QA_DISPOSABLE_REGISTRATION: 'YES'
+          OTP_DATABASE_URL: postgresql://campuspool_ci_registration:synthetic-ci-only@127.0.0.1:5432/campuspool_registration_browser_test
+        run: |
+          node --check registration-ui.js
+          node --check stage1-otp/registration-http.js
+          npx playwright test --config=playwright.registration.config.cjs
+      - name: Report browser failure context (synthetic fixture only)
+        if: failure()
+        run: |
+          find test-results/registration -name error-context.md -print 2>/dev/null | while IFS= read -r file; do
+            echo "Browser failure context: $file"
+            # Print only structural snapshot lines, never code inputs, contacts or cookies.
+            grep -E 'heading |button |tab |alert |status |dialog ' "$file" | sed -E 's/[[:alnum:]._%+-]+@([[:alnum:].-]+\.[[:alpha:]]{2,})/[redacted-email]/g; s/[0-9]{6,}/[redacted-number]/g' | head -80 || true
+          done
+      - name: Delete synthetic OTP and browser profile fixtures
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/registration-fixtures"

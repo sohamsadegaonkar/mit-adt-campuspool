@@ -8,7 +8,7 @@ const smsProvider=require('../sms-provider');
 const paths=new Set([
   '/api/auth/login-request','/api/auth/send-email-otp',
   '/api/auth/verify-email-otp','/api/auth/send-phone-otp',
-  '/api/auth/verify-phone-otp','/api/auth/register'
+  '/api/auth/verify-phone-otp','/api/auth/register','/api/auth/registration-status'
 ]);
 function validateText(x,max) {
   return typeof x==='string' && x.trim().length>0 && x.length<=max &&
@@ -36,9 +36,25 @@ function resultOrError(out,sendJson) {
 }
 
 async function handlePgAuth({pathname,method,parseBody,sendJson,db,setSessionCookie,getClientIp,store,
-  mailProvider=emailProvider,smsDeliveryProvider=smsProvider,identity=null,setPostgresCookie=null}) {
+  mailProvider=emailProvider,smsDeliveryProvider=smsProvider,identity=null,setPostgresCookie=null,
+  registrationDrafts=null,getRegistrationResumeToken=null}) {
   if(method!=='POST'||!paths.has(pathname))return false;
+  // Opt-in dependency injection only; the browser controller enforces HTTPS origin and cookie transport.
+  async function draftContext(){
+    if(!registrationDrafts||!identity||typeof getRegistrationResumeToken!=='function')
+      throw new OtpError('REGISTRATION_UNAVAILABLE',403);
+    const resumeToken=await getRegistrationResumeToken();
+    if(typeof resumeToken!=='string'||!resumeToken)
+      throw new OtpError('REGISTRATION_UNAVAILABLE',403);
+    return {drafts:registrationDrafts,resumeToken};
+  }
   try {
+    if(pathname==='/api/auth/registration-status'){
+      if(!registrationDrafts)return false;
+      const registration=await draftContext();
+      sendJson(200,{success:true,registration:await registrationDrafts.status(registration.resumeToken)});
+      return true;
+    }
     if(pathname==='/api/auth/login-request') {
       const body=await parseBody();
       if(typeof body.identifier!=='string'||body.identifier.trim().length>254) {
@@ -85,16 +101,20 @@ async function handlePgAuth({pathname,method,parseBody,sendJson,db,setSessionCoo
     }
     if(pathname==='/api/auth/send-email-otp') {
       const body=await parseBody(),email=normalize('email',body.email);
-      if(!validateText(body.name,100)||typeof body.phone!=='string') throw new OtpError('INVALID_PROFILE');
-      const phone=normalize('sms',body.phone);
-      const check=identity?await identity.checkUniqueness(body.name.trim(),email,phone):db.checkUniqueness(body.name.trim(),email,phone);
+      const registration=registrationDrafts?await draftContext():null;
+      if(!registration&&(!validateText(body.name,100)||typeof body.phone!=='string')) throw new OtpError('INVALID_PROFILE');
+      const pending=registration?await registrationDrafts.status(registration.resumeToken):null;
+      if(pending&&pending.email!==email)throw new OtpError('REGISTRATION_UNAVAILABLE',403);
+      const phone=pending?pending.phone:normalize('sms',body.phone);
+      const name=registration?'':body.name.trim();
+      const check=identity?await identity.checkUniqueness(name,email,phone):db.checkUniqueness(name,email,phone);
       if(!check.unique) {
         sendJson(409,{success:false,error:'NOT_UNIQUE',message:'These details could not be registered.'});
         return true;
       }
       if(!mailProvider.configured())throw new OtpError('EMAIL_PROVIDER_NOT_CONFIGURED',503);
       const result=await store.issue({
-        purpose:'signup_email',channel:'email',target:email,ip:getClientIp(),
+        purpose:registration?'signup_draft_email':'signup_email',channel:'email',target:email,ip:getClientIp(),registration,
         deliver:({target,code})=>mailProvider.sendOtpEmail(target,code)
       });
       sendJson(200,{success:true,expiresInSeconds:result.expiresInSeconds,providerAccepted:true,
@@ -105,6 +125,17 @@ async function handlePgAuth({pathname,method,parseBody,sendJson,db,setSessionCoo
       const body=await parseBody();
       const isLoginFlow=body.isLoginFlow===true;
       const identifier=typeof body.email==='string'?body.email.trim().toLowerCase():'';
+      if(registrationDrafts&&!isLoginFlow){
+        const registration=await draftContext();
+        const out=await store.verify({
+          purpose:'signup_draft_email',channel:'email',target:normalize('email',identifier),
+          code:body.otp,ip:getClientIp(),registration
+        });
+        if(resultOrError(out,sendJson))return true;
+        sendJson(200,{success:true,isLogin:false,registration:out.registration,
+          message:'Campus email verified. Registration progress saved.'});
+        return true;
+      }
       // A user may sign in using their verified phone, but the OTP is always
       // delivered to and verified against their registered campus email.
       const user=identity?await identity.getProfileByIdentifier(identifier):db.getProfileByIdentifier(identifier);
@@ -146,8 +177,9 @@ async function handlePgAuth({pathname,method,parseBody,sendJson,db,setSessionCoo
         return true;
       }
       if(!smsDeliveryProvider.isConfigured())throw new OtpError('SMS_PROVIDER_NOT_CONFIGURED',503);
+      const registration=registrationDrafts?await draftContext():null;
       const issued=await store.issue({
-        purpose:'signup_phone',channel:'sms',target:phone,ip:getClientIp(),
+        purpose:registration?'signup_draft_phone':'signup_phone',channel:'sms',target:phone,ip:getClientIp(),registration,
         deliver:({target,code})=>smsDeliveryProvider.sendOtpSms(target,code)
       });
       sendJson(200,{success:true,expiresInSeconds:issued.expiresInSeconds,
@@ -156,15 +188,25 @@ async function handlePgAuth({pathname,method,parseBody,sendJson,db,setSessionCoo
     }
     if(pathname==='/api/auth/verify-phone-otp') {
       const body=await parseBody(),phone=normalize('sms',body.phone);
+      const registration=registrationDrafts?await draftContext():null;
       const out=await store.verify({
-        purpose:'signup_phone',channel:'sms',target:phone,code:body.otp,ip:getClientIp()
+        purpose:registration?'signup_draft_phone':'signup_phone',channel:'sms',target:phone,code:body.otp,ip:getClientIp(),registration
       });
       if(resultOrError(out,sendJson))return true;
-      sendJson(200,{success:true,phoneToken:out.proof,message:'Phone number verified.'});
+      sendJson(200,registration?
+        {success:true,registration:out.registration,message:'Phone verified. Registration progress saved.'}:
+        {success:true,phoneToken:out.proof,message:'Phone number verified.'});
       return true;
     }
     if(pathname==='/api/auth/register') {
       const body=await parseBody();
+      if(registrationDrafts){
+        const registration=await draftContext();
+        const result=await registrationDrafts.finalize(registration.resumeToken,{name:body.name,dept:body.dept});
+        if(!setPostgresCookie(result.token))throw new OtpError('SESSION_FAILED',500);
+        sendJson(201,{success:true,user:result.user,message:'Campus account created and verified.'});
+        return true;
+      }
       const email=normalize('email',body.email),phone=normalize('sms',body.phone);
       if(!validateText(body.name,100)||!validateText(body.dept,100)) throw new OtpError('INVALID_PROFILE');
       const check=identity?await identity.checkUniqueness(body.name.trim(),email,phone):db.checkUniqueness(body.name.trim(),email,phone);

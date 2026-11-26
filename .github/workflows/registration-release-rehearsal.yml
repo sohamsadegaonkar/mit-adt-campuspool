@@ -1,0 +1,60 @@
+name: Registration migration release rehearsal (synthetic only)
+on:
+  pull_request:
+    paths:
+      - 'stage1-otp/**'
+      - 'test_pg_registration_release_rehearsal.js'
+      - 'scripts/staging-registration-release-preflight.js'
+      - '.github/workflows/registration-release-rehearsal.yml'
+      - 'docs/agents/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ordered-upgrade-and-restore:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5@sha256:01a6a70e41e6c4467c8f55f6063555ed72db2d6662cd0d571040d42eadaeb6f6
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: disposable-release-only
+          POSTGRES_DB: campuspool_registration_release_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d campuspool_registration_release_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Checkout exact prior runtime for rollback compatibility
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: cc1602cd4673760dab7dd46a07e3089b752cdd5d
+          path: .release-baseline
+          persist-credentials: false
+      - name: Checkout candidate 009–014 chain from open PR 70 (not merged)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 026c46a57adf8efffeb6ee3d94268f86cd5101cc
+          path: .release-chain
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22.23.2'
+      - run: npm ci --omit=dev --ignore-scripts
+      - name: Verify exact reference and execute local-only rehearsal
+        env:
+          QA_DISPOSABLE_REGISTRATION_RELEASE: 'YES'
+          REGISTRATION_RELEASE_TEST_URL: postgresql://postgres:disposable-release-only@127.0.0.1:5432/campuspool_registration_release_test
+          REGISTRATION_RELEASE_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          test "$(git -C .release-baseline rev-parse HEAD)" = cc1602cd4673760dab7dd46a07e3089b752cdd5d
+          test "$(git -C .release-chain rev-parse HEAD)" = 026c46a57adf8efffeb6ee3d94268f86cd5101cc
+          node --check test_pg_registration_release_rehearsal.js
+          node --test test_pg_registration_release_rehearsal.js

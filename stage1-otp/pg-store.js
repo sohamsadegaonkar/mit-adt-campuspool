@@ -3,7 +3,7 @@
 const crypto = require('node:crypto');
 const { Pool } = require('pg');
 const TTL_SECONDS=300, COOLDOWN_SECONDS=60, PROOF_SECONDS=600, MAX_ATTEMPTS=5;
-const PURPOSES=new Set(['login','signup_email','signup_phone']);
+const PURPOSES=new Set(['login','signup_email','signup_phone','signup_draft_email','signup_draft_phone','signup_recovery_email','signup_recovery_phone']);
 
 class OtpError extends Error {
   constructor(code,status=400,retryAfter=null) {
@@ -25,8 +25,13 @@ function normalize(channel,value) {
   }
   throw new OtpError('INVALID_CHANNEL');
 }
-function checkPurpose(purpose,channel) {
-  if(!PURPOSES.has(purpose) || (purpose==='signup_phone') !== (channel==='sms')) throw new OtpError('INVALID_PURPOSE');
+function checkPurpose(purpose,channel,registration,recovery) {
+  const draft=purpose==='signup_draft_email'||purpose==='signup_draft_phone';
+  const recover=purpose==='signup_recovery_email'||purpose==='signup_recovery_phone';
+  if(!PURPOSES.has(purpose) || (purpose==='signup_phone'||purpose==='signup_draft_phone'||purpose==='signup_recovery_phone') !== (channel==='sms') ||
+     draft!==!!registration || recover!==!!recovery || (recover&&typeof recovery.recoverVerifiedContact!=='function') ||
+     (draft&&(!registration.drafts||!registration.resumeToken)))
+    throw new OtpError('INVALID_PURPOSE');
 }
 function retrySeconds(date) { return Math.max(1,Math.ceil((new Date(date).getTime()-Date.now())/1000)); }
 
@@ -86,8 +91,8 @@ class PgOtpStore {
     });
   }
 
-  async issue({purpose,channel,target,ip,deliver}) {
-    checkPurpose(purpose,channel);
+  async issue({purpose,channel,target,ip,deliver,registration=null,recovery=null}) {
+    checkPurpose(purpose,channel,registration,recovery);
     const normalized=normalize(channel,target);
     if(typeof deliver!=='function') throw Error('Delivery callback required');
     const targetHash=this.targetDigest(channel,normalized);
@@ -114,6 +119,9 @@ class PgOtpStore {
       ].join(' ');
       const r=await client.query(sql,[id,purpose,channel,targetHash,hashed,TTL_SECONDS,COOLDOWN_SECONDS]);
       if(r.rows.length!==1) throw new OtpError('RESEND_COOLDOWN',429,COOLDOWN_SECONDS);
+      if(registration)await registration.drafts.bindIssuedChallenge(client,{
+        resumeToken:registration.resumeToken,channel,target:normalized,challengeId:id
+      });
     });
     // Provider I/O must happen outside SQL locks; pending codes cannot verify.
     try {
@@ -130,8 +138,8 @@ class PgOtpStore {
     if(!active.rowCount) throw new OtpError('DELIVERY_EXPIRED',503);
     return {ok:true,expiresInSeconds:TTL_SECONDS,resendAfterSeconds:COOLDOWN_SECONDS};
   }
-  async verify({purpose,channel,target,code,ip}) {
-    checkPurpose(purpose,channel);
+  async verify({purpose,channel,target,code,ip,registration=null,recovery=null}) {
+    checkPurpose(purpose,channel,registration,recovery);
     const normalized=normalize(channel,target);
     if(typeof code!=='string'||!/^[0-9]{6}$/.test(code)) throw new OtpError('INVALID_OTP_FORMAT');
     const targetHash=this.targetDigest(channel,normalized);
@@ -146,6 +154,9 @@ class PgOtpStore {
         [purpose,channel,targetHash]);
       if(!r.rows.length) throw new OtpError('NO_OTP_REQUESTED');
       const c=r.rows[0];
+      if(registration)await registration.drafts.assertBoundChallenge(client,{
+        resumeToken:registration.resumeToken,channel,target:normalized,challengeId:c.id
+      });
       if(c.state==='verified') throw new OtpError('OTP_ALREADY_USED');
       if(c.state==='locked'||c.attempt_count>=MAX_ATTEMPTS) throw new OtpError('OTP_LOCKED',403);
       if(c.state!=='active') throw new OtpError('OTP_UNAVAILABLE');
@@ -166,6 +177,19 @@ class PgOtpStore {
         "UPDATE otp_challenges SET state='verified',verified_at=now(),",
         "proof_hash=$2,proof_expires_at=now()+($3::int * interval '1 second'),updated_at=now() WHERE id=$1"
       ].join(' '),[c.id,proofHash,PROOF_SECONDS]);
+      if(registration){
+        const state=await registration.drafts.recordVerifiedChallenge(client,{
+          resumeToken:registration.resumeToken,channel,target:normalized,challengeId:c.id
+        });
+        return {ok:true,registration:state};
+      }
+      if(recovery){
+        // The OTP proof is consumed even when no eligible draft is found.
+        // Rotation and consumption commit together, never expose a proof.
+        const restored=await recovery.recoverVerifiedContact(client,{channel,target:normalized});
+        await client.query('UPDATE otp_challenges SET proof_consumed_at=now(),updated_at=now() WHERE id=$1',[c.id]);
+        return {ok:true,recovery:restored};
+      }
       return {ok:true,proof};
     });
   }
