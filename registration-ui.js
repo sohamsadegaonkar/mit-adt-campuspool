@@ -46,7 +46,7 @@
   }
   async function request(route,body={}){
     const response=await fetch('/api/auth/'+route,{method:'POST',credentials:'same-origin',
-      headers:{'Content-Type':'application/json','X-Registration-Request':'1'},body:JSON.stringify(body),cache:'no-store'});
+      headers:{'Content-Type':'application/json','X-Registration-Request':'1'},body:JSON.stringify(body),cache:'no-store',signal:AbortSignal.timeout(15000)});
     let data;
     try{data=await response.json();}catch{throw Error('Registration service unavailable.');}
     if(!response.ok)throw Error(data.message||'Registration could not be completed.');
@@ -78,7 +78,7 @@
     say('Checking saved registration…');
     (async()=>{
       try{
-        const response=await fetch('/api/auth/registration-config',{credentials:'same-origin',cache:'no-store'});
+        const response=await fetch('/api/auth/registration-config',{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(10000)});
         if(!response.ok)throw Error('Registration configuration unavailable.');
         const config=await response.json();
         if(revision!==generation)return;
