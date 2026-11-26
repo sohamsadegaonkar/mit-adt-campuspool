@@ -1,6 +1,11 @@
 -- Candidate migration 015: pending registration (issue #80).
 -- Not wired to the migration runner or authorized for live application.
 BEGIN;
+-- Draft OTPs have distinct purposes so old clients and rolled-back legacy
+-- application code cannot redeem a draft OTP as a legacy registration proof.
+ALTER TABLE public.otp_challenges DROP CONSTRAINT IF EXISTS otp_challenges_purpose_check;
+ALTER TABLE public.otp_challenges ADD CONSTRAINT otp_challenges_purpose_check
+  CHECK (purpose IN ('login','signup_email','signup_phone','signup_draft_email','signup_draft_phone'));
 CREATE TABLE IF NOT EXISTS public.campus_pending_registrations (
   id uuid PRIMARY KEY,
   resume_hash text NOT NULL UNIQUE CHECK (resume_hash ~ '^[0-9a-f]{64}$'),
