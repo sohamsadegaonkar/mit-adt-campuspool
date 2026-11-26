@@ -123,7 +123,8 @@ test('mobile-first recovery requires verified channel and draft creation is rate
     const fresh=await open(other);
     await fresh.locator('#resumeRecoveryTarget').fill(e);
     await clickResponse(fresh,'resumeRecoverySend','registration-recovery-request',200);
-    await fresh.locator('#resumeRecoveryCode').fill(code('email',e));
+    expect(fs.existsSync(path.join(dir,crypto.createHash('sha256').update('email:'+e).digest('hex')))).toBe(false);
+    await fresh.locator('#resumeRecoveryCode').fill('123456');
     await clickResponse(fresh,'resumeRecoveryVerify','registration-recovery-verify',403);
     await expect(fresh.locator('#resumeRecovery')).toBeVisible();
     await fresh.locator('#resumeRecoveryChannel').selectOption('sms');
