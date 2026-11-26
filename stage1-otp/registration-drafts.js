@@ -97,6 +97,14 @@ class RegistrationDrafts{
     await client.query('UPDATE otp_challenges SET proof_consumed_at=now(),updated_at=now() WHERE id=$1',[challengeId]);
     return state(result.rows[0]);
   }
+  // Internal delivery eligibility only; never returned to an unauthenticated client.
+  async canRecoverContact(channel,target){
+    const spec=channelSpec(channel),normalized=normalize(channel,target);
+    const result=await this.store.pool.query(
+      'SELECT id FROM campus_pending_registrations WHERE '+spec.contact+'=$1 AND '+spec.verified+
+      ' IS NOT NULL AND consumed_at IS NULL AND expires_at>now() LIMIT 2',[normalized]);
+    return result.rows.length===1;
+  }
   // Called only inside successful recovery OTP verification transaction.
   // No public lookup by contact, no arbitrary selection of ambiguous drafts.
   async recoverVerifiedContact(client,{channel,target}){
