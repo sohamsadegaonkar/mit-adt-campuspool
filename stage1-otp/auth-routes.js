@@ -39,8 +39,7 @@ async function handlePgAuth({pathname,method,parseBody,sendJson,db,setSessionCoo
   mailProvider=emailProvider,smsDeliveryProvider=smsProvider,identity=null,setPostgresCookie=null,
   registrationDrafts=null,getRegistrationResumeToken=null}) {
   if(method!=='POST'||!paths.has(pathname))return false;
-  // Opt-in dependency injection only. server.js does not enable this until
-  // secure cookie transport, CSRF defenses and rollout approval are ready.
+  // Opt-in dependency injection only; the browser controller enforces HTTPS origin and cookie transport.
   async function draftContext(){
     if(!registrationDrafts||!identity||typeof getRegistrationResumeToken!=='function')
       throw new OtpError('REGISTRATION_UNAVAILABLE',403);
@@ -102,15 +101,18 @@ async function handlePgAuth({pathname,method,parseBody,sendJson,db,setSessionCoo
     }
     if(pathname==='/api/auth/send-email-otp') {
       const body=await parseBody(),email=normalize('email',body.email);
-      if(!validateText(body.name,100)||typeof body.phone!=='string') throw new OtpError('INVALID_PROFILE');
-      const phone=normalize('sms',body.phone);
-      const check=identity?await identity.checkUniqueness(body.name.trim(),email,phone):db.checkUniqueness(body.name.trim(),email,phone);
+      const registration=registrationDrafts?await draftContext():null;
+      if(!registration&&(!validateText(body.name,100)||typeof body.phone!=='string')) throw new OtpError('INVALID_PROFILE');
+      const pending=registration?await registrationDrafts.status(registration.resumeToken):null;
+      if(pending&&pending.email!==email)throw new OtpError('REGISTRATION_UNAVAILABLE',403);
+      const phone=pending?pending.phone:normalize('sms',body.phone);
+      const name=registration?'':body.name.trim();
+      const check=identity?await identity.checkUniqueness(name,email,phone):db.checkUniqueness(name,email,phone);
       if(!check.unique) {
         sendJson(409,{success:false,error:'NOT_UNIQUE',message:'These details could not be registered.'});
         return true;
       }
       if(!mailProvider.configured())throw new OtpError('EMAIL_PROVIDER_NOT_CONFIGURED',503);
-      const registration=registrationDrafts?await draftContext():null;
       const result=await store.issue({
         purpose:registration?'signup_draft_email':'signup_email',channel:'email',target:email,ip:getClientIp(),registration,
         deliver:({target,code})=>mailProvider.sendOtpEmail(target,code)
