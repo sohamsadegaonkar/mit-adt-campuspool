@@ -15,13 +15,17 @@
     node.classList.toggle('text-emerald-400',verified);
     node.classList.toggle('text-amber-300',!verified);
   };
+  function contactsDirty(){
+    return !!draft&&(value('resumeEmail').toLowerCase()!==draft.email||value('resumePhone')!==draft.phone);
+  }
   function controls(){
+    const dirty=contactsDirty();
     for(const button of buttons)button.disabled=busy;
-    el('resumeFinalize').disabled=busy||!draft?.emailVerified||!draft?.phoneVerified;
+    el('resumeFinalize').disabled=busy||dirty||!draft?.emailVerified||!draft?.phoneVerified;
     for(const [channel,verified] of [['Email',draft?.emailVerified],['Phone',draft?.phoneVerified]]){
-      el('resumeSend'+channel).disabled=busy||!!verified;
-      el('resumeVerify'+channel).disabled=busy||!!verified;
-      el('resume'+channel+'Code').disabled=busy||!!verified;
+      el('resumeSend'+channel).disabled=busy||dirty||!!verified;
+      el('resumeVerify'+channel).disabled=busy||dirty||!!verified;
+      el('resume'+channel+'Code').disabled=busy||dirty||!!verified;
     }
     panel.setAttribute('aria-busy',String(busy));
   }
@@ -80,6 +84,7 @@
         if(revision!==generation)return;
         if(config.enabled===false){
           enabled=false;
+          el('tabAuthRegister').setAttribute('aria-controls','authRegisterView');
           panel.classList.add('hidden');
           el('authRegisterView').classList.remove('hidden');
           el('authStepIndicator').classList.remove('hidden');
@@ -87,6 +92,7 @@
         }
         if(config.enabled!==true)throw Error('Registration configuration unavailable.');
         enabled=true;
+        el('tabAuthRegister').setAttribute('aria-controls','resumeRegistrationView');
         const state=await refresh();
         if(revision!==generation)return;
         show('resumeRegistrationDetails',true);
@@ -109,10 +115,14 @@
         if(!active())return;
         say(e.message||'Registration could not be completed.');
         // A response may have been lost after commit. Refresh without resending.
-        try{const state=await refresh();if(active()&&state)render(state);}catch{}
+        try{const state=await refresh();if(active()){if(state)render(state);else if(draft){clearSensitive();render(null);say('Saved registration is no longer available here. Recover it using a previously verified contact.');}}}catch{}
       }finally{if(active()){busy=false;controls();}}
     });
   }
+  for(const id of ['resumeEmail','resumePhone'])el(id).addEventListener('input',()=>{
+    controls();
+    if(contactsDirty())say('Save changed contacts before requesting or verifying another code.');
+  });
   const emailBody=()=>({email:draft.email,phone:draft.phone});
   action('resumeSaveContacts',async active=>{
     const data=await request(draft?'registration-contacts':'registration-start',{email:value('resumeEmail'),phone:value('resumePhone')});
