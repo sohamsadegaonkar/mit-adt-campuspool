@@ -91,6 +91,11 @@ if (IS_PRODUCTION && (!OTP_SECRET || OTP_SECRET.length < 32 || otpIsLeaked)) {
 const ALLOWED_CORS_ORIGINS = new Set((process.env.CORS_ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean));
 const TRUSTED_PROXY_ADDRESSES = new Set((process.env.TRUSTED_PROXY_ADDRESSES || '').split(',').map(s => s.trim()).filter(Boolean));
 const STAGING_ONLY = process.env.APP_ENV === 'staging';
+const REGISTRATION_RESUME_ENABLED = process.env.REGISTRATION_RESUME_ENABLED === 'true';
+if(REGISTRATION_RESUME_ENABLED && (!STAGING_ONLY || !IS_PRODUCTION || AUTH_OTP_BACKEND!=='postgres'))
+  throw Error('Resumable registration requires explicitly approved HTTPS PostgreSQL staging');
+const registrationOrigin=REGISTRATION_RESUME_ENABLED
+  ? require('./stage1-otp/registration-http').validateOrigin(process.env.REGISTRATION_ORIGIN) : null;
 const STAGING_BASIC_AUTH_PASSWORD = process.env.STAGING_BASIC_AUTH_PASSWORD || '';
 if (STAGING_ONLY && STAGING_BASIC_AUTH_PASSWORD.length < 20) {
   throw new Error('Staging requires a strong STAGING_BASIC_AUTH_PASSWORD (at least 20 characters)');
@@ -181,6 +186,14 @@ const SQLiteCampusDatabase = require('./database');
 const db = new SQLiteCampusDatabase();
 const pgOtpStore = AUTH_OTP_BACKEND === 'postgres' ? new PgOtpStore() : null;
 const pgIdentity = pgOtpStore ? new PgIdentity(pgOtpStore) : null;
+const registrationDrafts=REGISTRATION_RESUME_ENABLED
+  ? new (require('./stage1-otp/registration-drafts').RegistrationDrafts)(pgOtpStore,pgIdentity,{
+    ttlSeconds:Number(process.env.REGISTRATION_RETENTION_SECONDS)
+  }) : null;
+const registrationHttp=registrationDrafts
+  ? require('./stage1-otp/registration-http').createRegistrationHttp({
+    drafts:registrationDrafts,store:pgOtpStore,identity:pgIdentity,origin:registrationOrigin
+  }) : null;
 const pgRidesStore = RIDES_BACKEND === 'postgres'
   ? new PgRidesStore({pool:pgOtpStore.pool}) : null;
 const pgMobilityStore = MOBILITY_MATCHING_ENABLED
@@ -674,6 +687,11 @@ const server = http.createServer(async (req, res) => {
   // Stage 1 PostgreSQL OTP is opt-in. Legacy SQLite rides and profiles are
   // preserved until their independent, tested migration is approved.
   // When enabled, these six auth routes fail closed to the PG-backed service.
+  if(method==='GET'&&pathname==='/api/auth/registration-config'&&!registrationHttp)
+    return sendJson(200,{enabled:false});
+  if(registrationHttp && await registrationHttp({
+    pathname,method,req,res,parseBody,sendJson,getClientIp,setPostgresCookie
+  }))return;
   if (pgOtpStore && await handlePgAuth({
     pathname, method, parseBody, sendJson, db, setSessionCookie, getClientIp,
     store: pgOtpStore,identity:pgIdentity,setPostgresCookie
@@ -1558,7 +1576,7 @@ const server = http.createServer(async (req, res) => {
   }
   // Explicit public asset allowlist blocks source code, runtime databases, secrets,
   // traversal and unrecognized paths (instead of returning index.html with HTTP 200).
-  const publicAssets = new Set(['/', '/index.html', '/campuspool.css', '/mobility-ui.js', '/campuspool-icon.svg', '/manifest.webmanifest', '/sw.js', '/404.html', '/503.html']);
+  const publicAssets = new Set(['/', '/index.html', '/campuspool.css', '/mobility-ui.js', '/registration-ui.js', '/campuspool-icon.svg', '/manifest.webmanifest', '/sw.js', '/404.html', '/503.html']);
   if (!publicAssets.has(pathname)) {
     const html = fs.readFileSync(path.join(__dirname, '404.html'));
     res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': html.length, 'Cache-Control': 'no-store' });
@@ -1580,7 +1598,7 @@ const server = http.createServer(async (req, res) => {
 
   const contentType = mimeTypes[ext] || 'application/octet-stream';
   const isHtml = ext === '.html';
-  const cacheControl = (isHtml || pathname === '/mobility-ui.js')
+  const cacheControl = (isHtml || pathname === '/mobility-ui.js' || pathname === '/registration-ui.js')
     ? 'public, no-cache, must-revalidate'
     : 'public, max-age=604800, stale-while-revalidate=86400';
 
@@ -1643,6 +1661,7 @@ const server = http.createServer(async (req, res) => {
 
   const startServer = async () => {
     if (pgOtpStore) { await pgOtpStore.ready(); await pgIdentity.pool.query('SELECT 1 FROM campus_users LIMIT 0'); await pgIdentity.pool.query('SELECT 1 FROM campus_sessions LIMIT 0'); }
+    if(registrationDrafts)await pgOtpStore.pool.query('SELECT 1 FROM campus_pending_registrations LIMIT 0');
     if (pgRidesStore) { await pgRidesStore.ready(); await pgIdempotency.ready(); }
     if (pgMobilityStore) await pgMobilityStore.ready();
     server.listen(PORT, '0.0.0.0', () => {
