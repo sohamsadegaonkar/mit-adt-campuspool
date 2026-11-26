@@ -42,6 +42,11 @@ The earlier foundation run 45824936355 passed; Stage 1 OTP run 45824936162 passe
 - Corrective source changes: restrict browser fixture requests to the local HTTPS origin (no third-party CDN dependency), add bounded navigation/action/fetch timeouts and named steps, scoped fixture Basic Auth, redacted route/status and error-context logging, await UI state settlement, clear stale busy state on dialog closure, and tolerate cleanup of already-closed contexts. No security assertions removed or test-wide timeout increased.
 - New CI required. No live deployment or schema change.
 
+### Confirmed onboarding test blocker
+
+- Subsequent run 45828912652 reproduced both failures with bounded diagnostics: navigation completed in under 200ms; the first-visit welcome dialog intercepted clicks on #headerLoginBtn before the registration panel opened. No registration API call was reached. This is a verified test-navigation blocker, not a demonstrated OTP failure.
+- Browser helper now follows the normal welcomeRegisterBtn CTA for new profiles and header/tab path for returning profiles, asserts dialog visibility, and preserves all downstream security checks. Optional Tailwind CDN configuration is guarded so embedded CSS works when the network is blocked. Fresh browser CI required; no live changes.
+
 ## Next steps
 
 - Confirm exact-head CI, including documentation contract. Add deeper challenge-replacement, contact-edit and rollback regression coverage as needed.
