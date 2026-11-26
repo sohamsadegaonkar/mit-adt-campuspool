@@ -1,5 +1,5 @@
 'use strict';
-// Internal PostgreSQL foundation for issue #80. No HTTP routes are enabled.
+// Internal PostgreSQL registration state for issue #80.
 // bindIssuedChallenge and recordVerifiedChallenge are trusted transaction hooks;
 // never expose either as a public endpoint or accept challenge IDs from browsers.
 const crypto=require('node:crypto');
@@ -96,6 +96,20 @@ class RegistrationDrafts{
     const result=await client.query('UPDATE campus_pending_registrations SET '+spec.verified+'=now() WHERE id=$1 RETURNING *',[draft.id]);
     await client.query('UPDATE otp_challenges SET proof_consumed_at=now(),updated_at=now() WHERE id=$1',[challengeId]);
     return state(result.rows[0]);
+  }
+  // Called only inside successful recovery OTP verification transaction.
+  // No public lookup by contact, no arbitrary selection of ambiguous drafts.
+  async recoverVerifiedContact(client,{channel,target}){
+    const spec=channelSpec(channel),normalized=normalize(channel,target);
+    const result=await client.query(
+      'SELECT * FROM campus_pending_registrations WHERE '+spec.contact+'=$1 AND '+spec.verified+
+      ' IS NOT NULL AND consumed_at IS NULL AND expires_at>now() ORDER BY id LIMIT 2 FOR UPDATE',[normalized]);
+    if(result.rows.length!==1)return null;
+    const secret=token();
+    const rotated=await client.query(
+      'UPDATE campus_pending_registrations SET resume_hash=$2 WHERE id=$1 RETURNING *',
+      [result.rows[0].id,hash(secret)]);
+    return {resumeToken:secret,state:state(rotated.rows[0])};
   }
   async finalize(resumeToken,{name,dept}){
     profile(name,dept);
