@@ -92,12 +92,17 @@ function createRegistrationHttp({drafts,store,identity,origin,mailProvider=defau
         const ip=getClientIp();
         if(route==='registration-recovery-request'){
           await budget('registration-recovery-ip',ip||'unknown',5,600);
-          // No draft lookup here: delivery responses do not enumerate registrations.
+          // Keep the public response and challenge/rate-limit behavior identical for all contacts.
           if(channel==='email'?!mailProvider.configured():!smsDeliveryProvider.isConfigured())
             throw new OtpError('DELIVERY_UNAVAILABLE',503);
           try{
             await store.issue({purpose,channel,target,ip,recovery:drafts,
-              deliver:({target,code})=>channel==='email'?mailProvider.sendOtpEmail(target,code):smsDeliveryProvider.sendOtpSms(target,code)});
+              deliver:async({target,code})=>{
+                // No real delivery to unverified/unknown/ambiguous contacts.
+                // A synthetic undelivered challenge keeps shared limits and cooldown uniform.
+                if(!await drafts.canRecoverContact(channel,target))return {accepted:true};
+                return channel==='email'?mailProvider.sendOtpEmail(target,code):smsDeliveryProvider.sendOtpSms(target,code);
+              }});
           }catch(e){
             if(!(e instanceof OtpError)||!['RESEND_COOLDOWN','RATE_LIMITED','DELIVERY_UNAVAILABLE','DELIVERY_EXPIRED'].includes(e.code))throw e;
             // Generic response does not distinguish provider acceptance from rejection.
