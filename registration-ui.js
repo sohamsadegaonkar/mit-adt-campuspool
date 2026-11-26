@@ -67,6 +67,7 @@
     if(next!=='register'){
       panel.classList.add('hidden');
       clearSensitive();
+      busy=false;controls();
       return;
     }
     // Do not allow legacy submission while discovering the new server feature.
